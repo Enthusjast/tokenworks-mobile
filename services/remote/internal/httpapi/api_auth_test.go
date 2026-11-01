@@ -880,7 +880,7 @@ func TestProtectedRoutesRequireActiveDeviceAndBindCommandStatusToIt(t *testing.T
 		query := "?organization_id=11111111-1111-4111-8111-111111111111&version_code=1&protocol_version=1&android_api=26"
 		response := send(access, query)
 		if response.Code != http.StatusOK || !strings.Contains(response.Body.String(), `"version_code":2`) || response.Header().Get("Cache-Control") != "no-store" ||
-			repo.releaseCalls != 1 || repo.releaseIdentity != (store.UserIdentity{Issuer: issuer, Subject: "user-ustc-123"}) || repo.releaseDevice != deviceID || repo.releaseProof != proofJKT || repo.releaseOrganization != "11111111-1111-4111-8111-111111111111" || !repo.releaseUntil.Equal(now.Add(5*time.Minute)) {
+			!repo.releasePolicy.Valid() || repo.releaseCalls != 1 || repo.releaseIdentity != (store.UserIdentity{Issuer: issuer, Subject: "user-ustc-123"}) || repo.releaseDevice != deviceID || repo.releaseProof != proofJKT || repo.releaseOrganization != "11111111-1111-4111-8111-111111111111" || !repo.releaseUntil.Equal(now.Add(5*time.Minute)) {
 			t.Fatal("release selection lost current authenticated actor", response.Code, response.Body.String())
 		}
 		for _, bad := range []string{"", query + "&device_id=attacker", query + "&version_code=2", strings.Replace(query, "version_code=1", "version_code=01", 1), strings.Replace(query, "android_api=26", "android_api=25", 1), query + "&x=%zz"} {
@@ -899,7 +899,7 @@ func TestProtectedRoutesRequireActiveDeviceAndBindCommandStatusToIt(t *testing.T
 		for _, denied := range []struct {
 			err  error
 			code int
-		}{{store.ErrAccessDenied, http.StatusForbidden}, {store.ErrDatabaseUnavailable, http.StatusServiceUnavailable}} {
+		}{{store.ErrAccessDenied, http.StatusForbidden}, {store.ErrDatabaseUnavailable, http.StatusServiceUnavailable}, {store.ErrAppReleasePolicyStale, http.StatusServiceUnavailable}} {
 			repo.releaseErr = denied.err
 			if response := send(access, query); response.Code != denied.code || strings.Contains(response.Body.String(), "download_url") {
 				t.Fatal("failed actor lookup disclosed release metadata", response.Code)

@@ -13,6 +13,7 @@ import (
 	"testing"
 	"time"
 
+	"dsh-mobile-ustc/services/remote/internal/releases"
 	"dsh-mobile-ustc/services/remote/internal/store"
 	"dsh-mobile-ustc/services/remote/internal/testsupport"
 )
@@ -145,6 +146,18 @@ func TestAppReleaseProductionStartupRejectsReboundArtifactBeforeListening(t *tes
 	release["rollout_basis_points"] = 0
 	changed, _ = json.Marshal(config)
 	write(changed)
+	originalCatalog, err := releases.Parse(raw)
+	if err != nil {
+		t.Fatal(err)
+	}
+	originalPolicy, _ := originalCatalog.Policy()
+	replacement, err := releases.Parse(changed)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = (&store.Postgres{DB: db}).ReplaceAppReleasePolicy(ctx, store.OriginalDatabaseEpoch, "11111111-1111-4111-8111-111111111111", originalPolicy.SHA256, replacement); err != nil {
+		t.Fatal(err)
+	}
 	stop = start()
 	stop()
 	var artifacts, audits int

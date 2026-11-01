@@ -70,10 +70,18 @@ func TestAppReleaseRegistryPinsArtifactAcrossRestartWithdrawalAndPolicyChanges(t
 		release["release_notes"] = "PRIVATE_RELEASE_NOTES"
 		release["rollout_basis_points"] = 0
 	})
-	if err := register(changed); err != nil {
-		t.Fatal("mutable publication policy rejected", err)
+	if err := register(changed); !errors.Is(err, ErrAppReleasePolicyConflict) {
+		t.Fatal("startup silently changed publication policy", err)
+	}
+	basePolicy, _ := base.Policy()
+	if _, err := db.ReplaceAppReleasePolicy(ctx, OriginalDatabaseEpoch, "11111111-1111-4111-8111-111111111111", basePolicy.SHA256, changed); err != nil {
+		t.Fatal(err)
 	}
 	withdrawn := releaseRegistryFixture(t, func(config map[string]any) { config["publications"] = []any{} })
+	changedPolicy, _ := changed.Policy()
+	if _, err := db.ReplaceAppReleasePolicy(ctx, OriginalDatabaseEpoch, "22222222-2222-4222-8222-222222222222", changedPolicy.SHA256, withdrawn); err != nil {
+		t.Fatal(err)
+	}
 	if err := register(withdrawn); err != nil {
 		t.Fatal(err)
 	}
@@ -98,8 +106,12 @@ func TestAppReleaseRegistryPinsArtifactAcrossRestartWithdrawalAndPolicyChanges(t
 			t.Fatal("release ID rebound to a different package/version", err)
 		}
 	}
+	withdrawnPolicy, _ := withdrawn.Policy()
+	if _, err := db.ReplaceAppReleasePolicy(ctx, OriginalDatabaseEpoch, "33333333-3333-4333-8333-333333333333", withdrawnPolicy.SHA256, base); err != nil {
+		t.Fatal(err)
+	}
 	if err := register(base); err != nil {
-		t.Fatal("original artifact no longer usable", err)
+		t.Fatal(err)
 	}
 	registryCounts(t, ctx, db, 1)
 	var dump string
@@ -143,14 +155,15 @@ func TestAppReleaseRegistryAtomicConflictAndAuditFailure(t *testing.T) {
 		t.Fatal(err)
 	}
 	next := releaseRegistryFixture(t, newer)
-	if err := db.RegisterAppReleaseCatalog(ctx, OriginalDatabaseEpoch, next); !errors.Is(err, ErrDatabaseUnavailable) {
+	basePolicy, _ := releaseRegistryFixture(t, nil).Policy()
+	if _, err := db.ReplaceAppReleasePolicy(ctx, OriginalDatabaseEpoch, "11111111-1111-4111-8111-111111111111", basePolicy.SHA256, next); !errors.Is(err, ErrDatabaseUnavailable) {
 		t.Fatal("missing audit did not abort registration", err)
 	}
 	registryCounts(t, ctx, db, 1)
 	if _, err := db.DB.ExecContext(ctx, `drop trigger suppress_release_audit on audit_log`); err != nil {
 		t.Fatal(err)
 	}
-	if err := db.RegisterAppReleaseCatalog(ctx, OriginalDatabaseEpoch, next); err != nil {
+	if _, err := db.ReplaceAppReleasePolicy(ctx, OriginalDatabaseEpoch, "11111111-1111-4111-8111-111111111111", basePolicy.SHA256, next); err != nil {
 		t.Fatal(err)
 	}
 	registryCounts(t, ctx, db, 2)

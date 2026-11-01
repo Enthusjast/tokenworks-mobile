@@ -31,7 +31,7 @@ var uuidPattern = regexp.MustCompile(`^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-
 type Repository interface {
 	Ready(context.Context) error
 	AccountIdentity(context.Context, store.UserIdentity) (store.AccountIdentity, error)
-	AppReleaseAccess(context.Context, store.UserIdentity, string, string, string, time.Time) (string, error)
+	AppReleaseAccess(context.Context, store.UserIdentity, string, string, string, time.Time, releases.PolicyRef) (string, error)
 	CurrentDevice(context.Context, store.UserIdentity, string) (store.CurrentDevice, error)
 	ListDevices(context.Context, store.UserIdentity, string, string, int, string) (store.DeviceDirectory, error)
 	ListInstallations(context.Context, store.UserIdentity, string, string, int, string) (store.InstallationDirectory, error)

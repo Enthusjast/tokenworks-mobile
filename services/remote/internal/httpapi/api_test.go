@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"dsh-mobile-ustc/services/remote/internal/auth"
+	"dsh-mobile-ustc/services/remote/internal/releases"
 	"dsh-mobile-ustc/services/remote/internal/store"
 )
 
@@ -120,6 +121,7 @@ type fakeRepository struct {
 	releaseProof            string
 	releaseOrganization     string
 	releaseUntil            time.Time
+	releasePolicy           releases.PolicyRef
 	ticketCalls             int
 	enrollmentCalls         int
 	enrollmentResult        store.EnrollmentCreated
@@ -151,7 +153,8 @@ type fakeRepository struct {
 }
 
 func (fake *fakeRepository) Ready(context.Context) error { return fake.readyError }
-func (fake *fakeRepository) AppReleaseAccess(_ context.Context, identity store.UserIdentity, device, proof, organization string, until time.Time) (string, error) {
+func (fake *fakeRepository) AppReleaseAccess(_ context.Context, identity store.UserIdentity, device, proof, organization string, until time.Time, policy releases.PolicyRef) (string, error) {
+	fake.releasePolicy = policy
 	fake.releaseCalls++
 	fake.releaseIdentity, fake.releaseDevice, fake.releaseProof, fake.releaseOrganization, fake.releaseUntil = identity, device, proof, organization, until
 	return fake.releaseUser, fake.releaseErr

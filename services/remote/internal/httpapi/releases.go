@@ -2,6 +2,7 @@ package httpapi
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -42,7 +43,16 @@ func (api *API) appRelease(w http.ResponseWriter, r *http.Request) {
 	device, _ := r.Context().Value(deviceContextKey{}).(string)
 	ctx, cancel := context.WithTimeout(r.Context(), 3*time.Second)
 	defer cancel()
-	user, err := api.database.AppReleaseAccess(ctx, store.UserIdentity{Issuer: principal.Issuer, Subject: principal.Subject}, device, principal.ProofKeyJKT, organization, principal.ExpiresAt)
+	policy, err := api.releases.Policy()
+	if err != nil {
+		writeError(w, http.StatusServiceUnavailable, "update.unavailable")
+		return
+	}
+	user, err := api.database.AppReleaseAccess(ctx, store.UserIdentity{Issuer: principal.Issuer, Subject: principal.Subject}, device, principal.ProofKeyJKT, organization, principal.ExpiresAt, policy)
+	if errors.Is(err, store.ErrAppReleasePolicyStale) {
+		writeError(w, http.StatusServiceUnavailable, "update.unavailable")
+		return
+	}
 	if err != nil {
 		api.writeStoreError(w, err)
 		return

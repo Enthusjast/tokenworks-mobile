@@ -13,11 +13,16 @@ func TestAppReleaseAccessBindsCurrentAccountOrganizationAndDeviceWithoutRuntimeG
 	const device = "44444444-4444-4444-8444-444444444444"
 	const organization = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
 	until := time.Now().Add(time.Minute)
+	catalog := releaseRegistryFixture(t, nil)
+	policy, _ := catalog.Policy()
+	if err := database.RegisterAppReleaseCatalog(ctx, OriginalDatabaseEpoch, catalog); err != nil {
+		t.Fatal(err)
+	}
 	if _, err := database.DB.ExecContext(ctx, `delete from runtime_grants`); err != nil {
 		t.Fatal(err)
 	}
 	read := func() (string, error) {
-		return database.AppReleaseAccess(ctx, identity, device, proof, organization, until)
+		return database.AppReleaseAccess(ctx, identity, device, proof, organization, until, policy)
 	}
 	user, err := read()
 	if err != nil || user != "22222222-2222-4222-8222-222222222222" {
@@ -34,7 +39,7 @@ func TestAppReleaseAccessBindsCurrentAccountOrganizationAndDeviceWithoutRuntimeG
 		{identity, device, proof, "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb", until},
 		{identity, device, proof, organization, time.Now().Add(-time.Second)},
 	} {
-		if _, err := database.AppReleaseAccess(ctx, test.identity, test.device, test.proof, test.organization, test.until); !errors.Is(err, ErrAccessDenied) {
+		if _, err := database.AppReleaseAccess(ctx, test.identity, test.device, test.proof, test.organization, test.until, policy); !errors.Is(err, ErrAccessDenied) {
 			t.Fatal("release actor crossed an identity boundary", err)
 		}
 	}

@@ -153,6 +153,10 @@ func TestAndroidAppSelfUpgradePreservesIdentityAndData(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	// Library fixture mirrors production startup registration before serving metadata.
+	if err = postgres.RegisterAppReleaseCatalog(ctx, store.OriginalDatabaseEpoch, catalog); err != nil {
+		t.Fatal(err)
+	}
 	handler = httpapi.New(postgres, identity, httpapi.Config{Releases: catalog})
 	directory, err := os.MkdirTemp(cluster, "android-upgrade-")
 	if err != nil {

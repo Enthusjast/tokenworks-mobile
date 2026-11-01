@@ -37,6 +37,33 @@ func (postgres *Postgres) RegisterAppReleaseCatalog(parent context.Context, epoc
 	if _, err = tx.ExecContext(ctx, `lock table app_release_artifacts in share row exclusive mode`); err != nil {
 		return ErrDatabaseUnavailable
 	}
+	if err = registerReleaseArtifacts(ctx, tx, epoch, artifacts); err != nil {
+		return err
+	}
+	ref, err := catalog.Policy()
+	if err != nil {
+		return ErrDatabaseConfig
+	}
+	if _, err = tx.ExecContext(ctx, `insert into app_release_policies(package_name,policy_sha256,revision,changed_epoch)
+ values($1,decode($2,'hex'),1,$3) on conflict do nothing`, ref.PackageName, ref.SHA256, epoch); err != nil {
+		return ErrDatabaseUnavailable
+	}
+	var current bool
+	if err = tx.QueryRowContext(ctx, `select policy_sha256=decode($2,'hex') from app_release_policies where package_name=$1`, ref.PackageName, ref.SHA256).Scan(&current); err != nil {
+		return ErrDatabaseUnavailable
+	}
+	if !current {
+		return ErrAppReleasePolicyConflict
+	}
+
+	if tx.Commit() != nil {
+		return ErrDatabaseUnavailable
+	}
+	return nil
+}
+
+// Caller holds recovery and the artifact table lock in that order.
+func registerReleaseArtifacts(ctx context.Context, tx *sql.Tx, epoch string, artifacts []releases.Artifact) error {
 	for _, artifact := range artifacts {
 		digest, err := artifact.Digest()
 		if err != nil {
@@ -60,9 +87,6 @@ func (postgres *Postgres) RegisterAppReleaseCatalog(parent context.Context, epoc
 		if err != nil {
 			return ErrDatabaseUnavailable
 		}
-	}
-	if tx.Commit() != nil {
-		return ErrDatabaseUnavailable
 	}
 	return nil
 }

@@ -63,7 +63,10 @@ type deployment struct {
 
 // Catalog is an immutable startup snapshot. Changing publication, withdrawal or
 // rollout policy requires validated configuration and a service restart.
-type Catalog struct{ config deployment }
+type Catalog struct {
+	config    deployment
+	policySHA [32]byte
+}
 
 type Actor struct{ UserID, DeviceID, OrganizationID string }
 type Request struct{ VersionCode, ProtocolVersion, AndroidAPI int64 }
@@ -130,7 +133,17 @@ func Parse(raw []byte) (*Catalog, error) {
 		}
 		return 0
 	})
-	return &Catalog{config: config}, nil
+	slices.Sort(config.DownloadOrigins)
+	for index := range config.Publications {
+		slices.Sort(config.Publications[index].Organizations)
+	}
+	catalog := &Catalog{config: config}
+	policyHash, err := catalog.policyDigest()
+	if err != nil {
+		return nil, ErrInvalid
+	}
+	catalog.policySHA = policyHash
+	return catalog, nil
 }
 
 // Latest assumes the caller has freshly authorized this exact actor. Client
