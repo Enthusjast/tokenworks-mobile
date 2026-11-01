@@ -28,6 +28,7 @@ def main():
     arguments.add_argument("--database-outage", action="store_true", help="Exercise a bounded isolated-database outage and recovery in its own two-node DSH composition")
     arguments.add_argument("--relay-crash", action="store_true", help="Kill only the owned Host relay child and reconcile native DSH after natural node-lease expiry and explicit restart")
     arguments.add_argument("--relay-certificate-renewal", action="store_true", help="Renew only isolated relay leaf certificates and keys, restart each owned node, and reconcile native DSH")
+    arguments.add_argument("--approval-key-renewal", action="store_true", help="Focused fixture signer/trust renewal with actual Go restarts and three native signed approvals")
     arguments.add_argument("--relay-load", type=int, metavar="CONNECTIONS", help="Opt-in authenticated TLS capacity probe with an equal Host/phone split")
     arguments.add_argument("--load-output", type=Path, help="Fresh evidence directory strictly inside repository .local")
     arguments.add_argument("--load-workers", type=int)
@@ -56,6 +57,9 @@ def main():
         arguments.error("--dsh-only selects the native DSH composition, optionally with --cross-node")
     if options.host_renewal and not options.dsh_only:
         arguments.error("--host-renewal requires --dsh-only, optionally with --cross-node")
+    if options.approval_key_renewal and (not options.dsh_only or any((options.host_renewal, options.installation_revoke, options.host_account_retire,
+            options.database_outage, options.relay_crash, options.relay_certificate_renewal, options.host_bundle_directory, options.service_bundle_directory))):
+        arguments.error("--approval-key-renewal requires its own source-built --dsh-only invocation, optionally with --cross-node")
     if options.relay_certificate_renewal and (not options.dsh_only or not options.cross_node or options.host_renewal or options.installation_revoke or options.host_account_retire or options.database_outage or options.relay_crash):
         arguments.error("--relay-certificate-renewal requires its own --cross-node --dsh-only composition")
     if options.relay_crash and (not options.dsh_only or not options.cross_node or options.host_renewal or options.installation_revoke or options.host_account_retire or options.database_outage):
@@ -183,7 +187,7 @@ def main():
             env = dict(os.environ, REMOTE_TEST_CLUSTER_ROOT=root, REMOTE_TEST_DATABASE_URL=dsn,
                        REMOTE_TEST_PSQL=str(pg_bin / "psql"), REMOTE_TEST_PG_DUMP=str(pg_bin / "pg_dump"), REMOTE_TEST_SERVICE_BIN=str(binary))
             # Activation is explicit per invocation, never inherited from a prior run.
-            for field in ("REMOTE_TEST_CROSS_NODE", "REMOTE_TEST_HOST_RENEWAL", "REMOTE_TEST_INSTALLATION_REVOKE", "REMOTE_TEST_HOST_ACCOUNT_RETIRE", "REMOTE_TEST_DATABASE_OUTAGE", "REMOTE_TEST_RELAY_CRASH", "REMOTE_TEST_RELAY_CERTIFICATE_RENEWAL", "REMOTE_TEST_HOST_BUNDLE_DIRECTORY", "REMOTE_TEST_HOST_BUNDLE_MANIFEST_SHA256", "REMOTE_TEST_SERVICE_BUNDLE_MANIFEST_SHA256", "REMOTE_TEST_CONTRACT_ROOT", "REMOTE_TEST_KOTLIN_CLASSPATH", "REMOTE_TEST_ANDROID_SERIAL", "REMOTE_TEST_ANDROID_BIOMETRIC", "REMOTE_TEST_ANDROID_UPGRADE_SERIAL", "REMOTE_TEST_ANDROID_UPGRADE_RECEIPT", "REMOTE_TEST_RELAY_CAPACITY_CONFIG", "REMOTE_TEST_RELAY_CAPACITY_OUTPUT"):
+            for field in ("REMOTE_TEST_CROSS_NODE", "REMOTE_TEST_HOST_RENEWAL", "REMOTE_TEST_INSTALLATION_REVOKE", "REMOTE_TEST_HOST_ACCOUNT_RETIRE", "REMOTE_TEST_DATABASE_OUTAGE", "REMOTE_TEST_RELAY_CRASH", "REMOTE_TEST_RELAY_CERTIFICATE_RENEWAL", "REMOTE_TEST_APPROVAL_KEY_RENEWAL", "REMOTE_TEST_HOST_BUNDLE_DIRECTORY", "REMOTE_TEST_HOST_BUNDLE_MANIFEST_SHA256", "REMOTE_TEST_SERVICE_BUNDLE_MANIFEST_SHA256", "REMOTE_TEST_CONTRACT_ROOT", "REMOTE_TEST_KOTLIN_CLASSPATH", "REMOTE_TEST_ANDROID_SERIAL", "REMOTE_TEST_ANDROID_BIOMETRIC", "REMOTE_TEST_ANDROID_UPGRADE_SERIAL", "REMOTE_TEST_ANDROID_UPGRADE_RECEIPT", "REMOTE_TEST_RELAY_CAPACITY_CONFIG", "REMOTE_TEST_RELAY_CAPACITY_OUTPUT"):
                 env.pop(field, None)
             if contracts is not None:
                 env["REMOTE_TEST_CONTRACT_ROOT"] = str(contracts)
@@ -205,6 +209,8 @@ def main():
                 env["REMOTE_TEST_RELAY_CRASH"] = "1"
             if options.relay_certificate_renewal:
                 env["REMOTE_TEST_RELAY_CERTIFICATE_RENEWAL"] = "1"
+            if options.approval_key_renewal:
+                env["REMOTE_TEST_APPROVAL_KEY_RENEWAL"] = "1"
             if options.relay_load is not None:
                 env.update(REMOTE_TEST_RELAY_CAPACITY_CONFIG=json.dumps(load), REMOTE_TEST_RELAY_CAPACITY_OUTPUT=str(options.load_output))
                 completed = subprocess.run([go, "test"] + (["-race"] if options.load_race else []) + ["-count=1", "-v", "-timeout=9m", "-run", "^TestAuthenticatedRelayCapacity$", "./internal/httpapi"], cwd=repo / "services/remote", env=env)

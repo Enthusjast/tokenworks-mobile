@@ -10,6 +10,7 @@ class LocalModel extends LlmAdapter {
     this.cancelWaitIssued = new Set()
     this.timedQuestionsIssued = new Set()
     this.signedApprovalsIssued = new Set()
+    this.rotationApprovalsIssued = new Set()
   }
 
   providerInfo(provider) { return { id: provider, name: 'Local DSH integration fixture' } }
@@ -32,6 +33,16 @@ class LocalModel extends LlmAdapter {
       yield { type: 'block-start', index: 0, blockType: 'tool-call' }
       yield { type: 'tool-call-delta', index: 0, id, name: 'ask_user_question', argumentsDelta: args }
       yield { type: 'block-end', index: 0, block: { type: 'tool-call', id, name: 'ask_user_question', arguments: args } }
+      yield { type: 'finish', reason: { kind: 'tool-calls' } }
+      return
+    }
+    const rotation = [...userText.matchAll(/REMOTE_APPROVAL_ROTATION_([0-9a-f-]{36})/g)].find(match => !this.rotationApprovalsIssued.has(match[1]))
+    if (rotation) {
+      this.rotationApprovalsIssued.add(rotation[1])
+      const id = randomUUID(), args = JSON.stringify({ description: 'Approval authority rotation fixture', command: `printf authorized >> approval-rotation-${rotation[1]}.txt` })
+      yield { type: 'block-start', index: 0, blockType: 'tool-call' }
+      yield { type: 'tool-call-delta', index: 0, id, name: 'bash', argumentsDelta: args }
+      yield { type: 'block-end', index: 0, block: { type: 'tool-call', id, name: 'bash', arguments: args } }
       yield { type: 'finish', reason: { kind: 'tool-calls' } }
       return
     }

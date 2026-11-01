@@ -22,6 +22,8 @@ import { withIsolatedDatabaseOutage } from './database-outage.js'
 import { HostCredentialError, HostRestCredentialProvider, type HostResourceAccess, type HostRestCredentialOptions } from '../../host/remote-control/src/host-credentials.js'
 import { decodeSecretBase64 } from '../../host/remote-control/src/linux-secret-service.js'
 import { directoryMetadataSchema } from '../../host/remote-control/src/directory-metadata.js'
+import { approvalKeyFixtures } from './approval-key-fixture.js'
+import { runApprovalKeyRuntime } from './approval-key-runtime.js'
 
 const require = createRequire(import.meta.url)
 const WebSocket = require('ws') as new (url: string, protocol: string, options: object) => any
@@ -124,7 +126,7 @@ class FrameCollector {
   }
 }
 
-test('real Go service and npm DSH share authorized sessions through PostgreSQL and signed peers', { timeout: process.env.REMOTE_TEST_HOST_RENEWAL === '1' ? 420_000 : process.env.REMOTE_TEST_RELAY_CERTIFICATE_RENEWAL === '1' ? 180_000 : 90_000 }, async t => {
+test('real Go service and npm DSH share authorized sessions through PostgreSQL and signed peers', { timeout: process.env.REMOTE_TEST_HOST_RENEWAL === '1' ? 420_000 : process.env.REMOTE_TEST_RELAY_CERTIFICATE_RENEWAL === '1' || process.env.REMOTE_TEST_APPROVAL_KEY_RENEWAL === '1' ? 180_000 : 90_000 }, async t => {
   const cluster = process.env.REMOTE_TEST_CLUSTER_ROOT
   const database = process.env.REMOTE_TEST_DATABASE_URL
   const psql = process.env.REMOTE_TEST_PSQL
@@ -236,6 +238,8 @@ test('real Go service and npm DSH share authorized sessions through PostgreSQL a
   await writeFile(approvalPolicyFile, JSON.stringify({ policy: { version: 7, assurance_profile: 'fixture/step-up', max_auth_age_seconds: 60 },
     mappings: [{ profile: 'fixture/step-up', issuer, client_id: 'fixture-phone', acr: 'urn:fixture:verified', required_amr: ['otp'] }],
     signing: { issuer: authority.issuer, key_id: authority.key_id, private_key_file: approvalSigningFile, valid_from: authority.valid_from, valid_until: authority.valid_until } }), { mode: 0o600 })
+  const approvalRotation = process.env.REMOTE_TEST_APPROVAL_KEY_RENEWAL === '1'
+    ? await approvalKeyFixtures(root, serviceBin, approvalPolicyFile, issuer) : undefined
   const releasesFile = join(root, 'app-releases.json')
   const releases = JSON.parse(await readFile(resolve('deploy/android/releases.example.json'), 'utf8'))
   releases.publications[0].organization_ids = [orgId]
@@ -633,6 +637,7 @@ test('real Go service and npm DSH share authorized sessions through PostgreSQL a
   await writeFile(wrapper, [
     "import { createCipheriv, createDecipheriv, createPrivateKey, randomBytes, sign } from 'node:crypto'",
     "import { writeFile, readFile } from 'node:fs/promises'",
+    ...(approvalRotation ? [`import { installApprovalKeyFixture } from ${JSON.stringify(pathToFileURL(resolve('tools/integration/approval-key-host-fixture.mjs')).href)}`] : []),
     `import { createRemoteControlPlugin, createEnrolledRemoteControlPlugin, HostEnrollmentClient, HostEnrollmentBindingStore, HostRestCredentialProvider, HostResourceJwtProvider, LinuxSecretServiceJournalProtector, LinuxInstallationKeyStore } from ${JSON.stringify(plugin)}`,
     'const owner=new AbortController()',
     `const fallbackKey=process.platform==='linux'?null:createPrivateKey({format:'der',type:'pkcs8',key:await readFile(${JSON.stringify(installationKeyFile)})})`,
@@ -647,10 +652,11 @@ test('real Go service and npm DSH share authorized sessions through PostgreSQL a
     `const bindingStore=enrollmentClient?new HostEnrollmentBindingStore({path:${JSON.stringify(bindingPath)},client:enrollmentClient,protector:enrollmentProtector}):null`,
     `const signed={hostId:${JSON.stringify(persistedHostId)},installationId:${JSON.stringify(persistedInstallationId)},policyVersion:7,requiredAssurance:{profile:'fixture/step-up',max_auth_age_seconds:60},authorities:[${JSON.stringify(authority)}],requiresApproval:execution=>['bash','pwsh','run_code'].includes(execution.name)}`,
     "const plugin=bindingStore?createEnrolledRemoteControlPlugin({client:enrollmentClient,binding:bindingStore,credentials:credentialProvider,profileRef:'e2e'},signed,journalProtector):createRemoteControlPlugin(credentialProvider,signed,journalProtector)",
+    ...(approvalRotation ? ["const rotationFactory=authorities=>bindingStore?createEnrolledRemoteControlPlugin({client:enrollmentClient,binding:bindingStore,credentials:credentialProvider,profileRef:'e2e'},{...signed,authorities},journalProtector):createRemoteControlPlugin(credentialProvider,{...signed,authorities},journalProtector)"] : []),
     `function watchAccountRetirement(ctx){let checking=false,ended=false;const timer=setInterval(async()=>{if(checking||ended)return;checking=true;try{const input=JSON.parse(await readFile(${JSON.stringify(accountRetireFile)},'utf8'));ended=true;clearInterval(timer);const agent=ctx.agents.get(input.native_id);owner.abort();await new Promise(resolve=>setImmediate(resolve));const persisted=agent?await ctx.sessions.flush(agent.session):false;await writeFile(${JSON.stringify(accountRetireReport)},JSON.stringify({same_agent:!!agent&&ctx.agents.get(input.native_id)===agent,persisted:!!persisted}),{mode:0o600})}catch(error){if(error.code!=='ENOENT'){ended=true;clearInterval(timer)}}finally{checking=false}},25);timer.unref();return()=>{ended=true;clearInterval(timer)}}`,
     `function observeModelSelections(ctx){let calls=0;const controller=ctx.sessionController,original=controller.selectModel.bind(controller);controller.selectModel=async input=>{const value=await original(input);await writeFile(${JSON.stringify(modelSelectionReport)},JSON.stringify({calls:++calls,selected:value.selected}),{mode:0o600});return value};return()=>{controller.selectModel=original}}`,
     'export const {name,inject}=plugin',
-    `export function apply(ctx,config){ctx.effect(()=>observeModelSelections(ctx));ctx.effect(()=>watchAccountRetirement(ctx));ctx.effect(()=>()=>{owner.abort();bindingStore?.close();enrollmentClient?.close();credentialProvider.close();resourceAccount.close();localInstallation?.close();localInstallationStore?.close();journalMaster?.fill(0)});ctx.effect(()=>{const original=ctx.sessions.flush.bind(ctx.sessions);ctx.sessions.flush=async session=>{let fail=false;try{await readFile(${JSON.stringify(checkpointFailureFile)});fail=true}catch(error){if(error.code!=='ENOENT')throw error}if(fail)throw new Error(${JSON.stringify(checkpointFailureSecret)});return original(session)};return()=>{ctx.sessions.flush=original}});ctx.on('tools/execute',async(exec,next)=>{if(exec.name==='bash'&&(exec.arguments.command.includes('approval-revoke.txt')||exec.arguments.command.includes('approval-dbblock.txt'))){await writeFile(exec.arguments.command.includes('approval-dbblock.txt')?${JSON.stringify(blockedApprovalHeld)}:${JSON.stringify(join(workspace,'approval-revoke-held'))},'held');const signal=exec.signal;await new Promise(resolve=>{const abort=()=>{clearTimeout(timer);signal.removeEventListener('abort',abort);resolve()};const timer=setTimeout(abort,30000);signal.addEventListener('abort',abort,{once:true});if(signal.aborted)abort()})}return next()},{prepend:true});return plugin.apply(ctx,config)}`, '',
+    `export function apply(ctx,config){ctx.effect(()=>observeModelSelections(ctx));ctx.effect(()=>watchAccountRetirement(ctx));ctx.effect(()=>()=>{owner.abort();bindingStore?.close();enrollmentClient?.close();credentialProvider.close();resourceAccount.close();localInstallation?.close();localInstallationStore?.close();journalMaster?.fill(0)});ctx.effect(()=>{const original=ctx.sessions.flush.bind(ctx.sessions);ctx.sessions.flush=async session=>{let fail=false;try{await readFile(${JSON.stringify(checkpointFailureFile)});fail=true}catch(error){if(error.code!=='ENOENT')throw error}if(fail)throw new Error(${JSON.stringify(checkpointFailureSecret)});return original(session)};return()=>{ctx.sessions.flush=original}});ctx.on('tools/execute',async(exec,next)=>{if(exec.name==='bash'&&(exec.arguments.command.includes('approval-revoke.txt')||exec.arguments.command.includes('approval-dbblock.txt'))){await writeFile(exec.arguments.command.includes('approval-dbblock.txt')?${JSON.stringify(blockedApprovalHeld)}:${JSON.stringify(join(workspace,'approval-revoke-held'))},'held');const signal=exec.signal;await new Promise(resolve=>{const abort=()=>{clearTimeout(timer);signal.removeEventListener('abort',abort);resolve()};const timer=setTimeout(abort,30000);signal.addEventListener('abort',abort,{once:true});if(signal.aborted)abort()})}return next()},{prepend:true});${approvalRotation ? `return installApprovalKeyFixture(ctx,config,rotationFactory,${JSON.stringify(approvalRotation.paths)})` : 'return plugin.apply(ctx,config)'}}`, '',
   ].join('\n'), { mode: 0o600 })
   const patch = join(root, 'host.patch.yml')
   const standardPreset = await readFile(join(dirname(require.resolve('@deepseek-ai/dsh-web-app/package.json')), 'presets/standard.patch.yml'), 'utf8')
@@ -816,6 +822,38 @@ test('real Go service and npm DSH share authorized sessions through PostgreSQL a
     return collector
   }
   const mobile = await connectPhone(phone, device.device_id, phoneKey, ticket)
+  if (approvalRotation) {
+    const result = await runApprovalKeyRuntime({ fixture: approvalRotation, initial: mobile,
+      runtimeId: enrollment.runtime_id, workspaceId: primaryWorkspace, workspace, userId: phoneUserId,
+      device, phoneKey: approvalKey.privateKey, oldKey: approvalAuthority.privateKey, phone,
+      connect: () => connectPhone(phone, device.device_id, phoneKey), probe: () => local('GET', '/m0/probe'), query,
+      check() { service.check(); phoneService?.check(); dsh.check() },
+      async restartGo() {
+        const previous = query(`select connection_id from runtimes where id='${enrollment.runtime_id}'`)
+        const stopped = await service.stop('SIGTERM'); assert.equal(stopped[0], 0); assert.equal(stopped[1], null)
+        service = await startProcess(serviceBin, [], serviceEnv)
+        if (phoneService) {
+          const stoppedPhone = await phoneService.stop('SIGTERM'); assert.equal(stoppedPhone[0], 0); assert.equal(stoppedPhone[1], null)
+          phoneService = await startProcess(serviceBin, [], phoneServiceEnv)
+        }
+        await until(async () => {
+          service.check(); phoneService?.check(); dsh.check()
+          try {
+            for (const target of new Set([origin, phoneOrigin])) {
+              const response = await fetch(target + '/readyz', { signal: AbortSignal.timeout(500) }); await response.arrayBuffer()
+              if (response.status !== 204) return undefined
+            }
+            const connection = query(`select coalesce(connection_id::text,'') from runtimes where id='${enrollment.runtime_id}'`)
+            return connection && connection !== previous ? true : undefined
+          } catch { return undefined }
+        }, 'approval signer restart and native Host reconnect', 30000)
+      },
+    })
+    assert.equal(result.phases, 3)
+    t.diagnostic('Focused approval-key renewal: actual Go nodes restarted with a new fixture signer, the same installed DSH process/agent/session survived Host child-scope trust reload, and each of three approved Bash bodies ran exactly once.')
+    t.diagnostic('After old trust removal, the live Host cache rejected an otherwise valid, unexpired old-key lease for the same phone decision and new connection, then accepted the actual new-key proof. No service private key entered the Host process. Later unrelated composition checks were skipped.')
+    return
+  }
   if (renewalSession) {
     const requestId = randomUUID()
     mobile.send({ v: 1, type: 'session.subscribe', request_id: requestId, runtime_id: enrollment.runtime_id,
