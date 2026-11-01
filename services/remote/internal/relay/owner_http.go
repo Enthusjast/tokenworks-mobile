@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"dsh-mobile-ustc/services/remote/internal/requestlog"
 	"dsh-mobile-ustc/services/remote/internal/store"
 )
 
@@ -73,6 +74,7 @@ func (server *Server) servePrivateOwnerHTTP(response http.ResponseWriter, reques
 		writeError(response, status, code)
 		return
 	}
+	requestlog.AdoptForwarded(response, request)
 	if !server.currentDeviceRoute(request.Context(), route) {
 		writeError(response, http.StatusConflict, "runtime.changed")
 		return
@@ -145,6 +147,7 @@ func (server *Server) ForwardOwnerHTTP(response http.ResponseWriter, request *ht
 	copy.Host = privateURL.Host
 	copy.RequestURI = ""
 	copy.Header = make(http.Header)
+	requestlog.ForwardHeaders(request.Context(), copy.Header)
 	for _, name := range []string{"Authorization", "DPoP", "Content-Type", "X-DSH-File-Proof"} {
 		if values := request.Header.Values(name); len(values) == 1 {
 			copy.Header.Set(name, values[0])

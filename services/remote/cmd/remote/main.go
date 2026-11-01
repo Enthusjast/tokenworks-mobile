@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"log/slog"
 	"net/http"
 	"os"
 	"os/signal"
@@ -18,6 +19,7 @@ import (
 	"dsh-mobile-ustc/services/remote/internal/httpapi"
 	"dsh-mobile-ustc/services/remote/internal/observability"
 	"dsh-mobile-ustc/services/remote/internal/relay"
+	"dsh-mobile-ustc/services/remote/internal/requestlog"
 	"dsh-mobile-ustc/services/remote/internal/store"
 )
 
@@ -210,7 +212,8 @@ func run() error {
 	if err := handler.ConfigureRouting(routingConfig); err != nil {
 		return errRelayConfiguration
 	}
-	privateEndpoint, err := startRelayEndpoint(relayConfig, recovery.Middleware(handler.PrivateRelayHandler()))
+	accessLog := slog.New(slog.NewJSONHandler(os.Stderr, nil))
+	privateEndpoint, err := startRelayEndpoint(relayConfig, requestlog.Middleware(recovery.Middleware(handler.PrivateRelayHandler()), "relay", accessLog))
 	if err != nil {
 		return err
 	}
@@ -228,7 +231,7 @@ func run() error {
 	defer metricsEndpoint.close()
 	server := &http.Server{
 		Addr:              envOr("REMOTE_LISTEN_ADDR", "127.0.0.1:8080"),
-		Handler:           recovery.Middleware(handler),
+		Handler:           requestlog.Middleware(recovery.Middleware(handler), "public", accessLog),
 		ReadHeaderTimeout: 5 * time.Second,
 		ReadTimeout:       30 * time.Second,
 		WriteTimeout:      30 * time.Second,

@@ -2,6 +2,9 @@
 
 服务使用独立的 Prometheus registry，按[命名与标签约定](https://prometheus.io/docs/practices/naming/)输出 `dsh_remote_` 指标。实现锁定 `client_golang v1.25.0`；没有使用全局默认 registry。指标包含运行统计，不包含用户、组织、设备、主机、runtime、会话、request ID、正文、路径、凭据或签名证明。
 
+HTTP 故障定位使用独立的[请求关联头与安全访问日志](http-request-correlation.md)，
+每次尝试的 ID 不进入指标标签；已有业务 `request_id` 的幂等语义保持不变。
+
 ## 开启与生命周期
 
 默认不创建指标监听器。按服务 README 配好既有身份、数据库等环境后，在 `services/remote` 中显式设置：

@@ -13,6 +13,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"dsh-mobile-ustc/services/remote/internal/requestlog"
 	"dsh-mobile-ustc/services/remote/internal/store"
 	"github.com/coder/websocket"
 )
@@ -151,6 +152,7 @@ func (server *Server) servePrivateRelay(response http.ResponseWriter, request *h
 		writeError(response, status, code)
 		return
 	}
+	requestlog.AdoptForwarded(response, request)
 	identity, err := server.authenticateCredential(request)
 	if err != nil {
 		server.writeAuthenticationError(response, err)
@@ -219,6 +221,7 @@ func (server *Server) proxyDevice(response http.ResponseWriter, request *http.Re
 	client := &http.Client{Transport: transport, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
 	raw, _ := json.Marshal(route)
 	headers := http.Header{"Authorization": []string{"DSH-Ticket " + identity.ticket}}
+	requestlog.ForwardHeaders(request.Context(), headers)
 	headers.Set(relayNodeHeader, routing.identity.NodeID)
 	headers.Set(relayGenerationHeader, routing.identity.Generation)
 	headers.Set(relayRouteHeader, base64.RawURLEncoding.EncodeToString(raw))
