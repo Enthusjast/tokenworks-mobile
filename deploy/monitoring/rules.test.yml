@@ -1,0 +1,661 @@
+rule_files:
+  - rules.yml
+evaluation_interval: 15s
+group_eval_order:
+  - dsh-remote-recording
+  - dsh-remote-alerts
+tests:
+  - name: same-DB snapshots use max; separate DB scopes and weighted owner-route buckets stay separate
+    interval: 15s
+    input_series:
+      - series: up{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a"}
+        values: 1+0x28
+      - series: dsh_remote_unknown_snapshot_available{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a"}
+        values: 1+0x28
+      - series: dsh_remote_unknown_snapshot_age_seconds{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a"}
+        values: 0+0x28
+      - series: dsh_remote_unknown_results{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a",kind="command"}
+        values: 3+0x28
+      - series: dsh_remote_unknown_results{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a",kind="approval"}
+        values: 1+0x28
+      - series: up{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-b"}
+        values: 1+0x28
+      - series: dsh_remote_unknown_snapshot_available{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-b"}
+        values: 1+0x28
+      - series: dsh_remote_unknown_snapshot_age_seconds{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-b"}
+        values: 0+0x28
+      - series: dsh_remote_unknown_results{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-b",kind="command"}
+        values: 3+0x28
+      - series: dsh_remote_unknown_results{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-b",kind="approval"}
+        values: 1+0x28
+      - series: up{job="dsh-remote",cluster="fixture",database_scope="db-b",instance="node-c"}
+        values: 1+0x28
+      - series: dsh_remote_unknown_snapshot_available{job="dsh-remote",cluster="fixture",database_scope="db-b",instance="node-c"}
+        values: 1+0x28
+      - series: dsh_remote_unknown_snapshot_age_seconds{job="dsh-remote",cluster="fixture",database_scope="db-b",instance="node-c"}
+        values: 0+0x28
+      - series: dsh_remote_unknown_results{job="dsh-remote",cluster="fixture",database_scope="db-b",instance="node-c",kind="command"}
+        values: 7+0x28
+      - series: dsh_remote_unknown_results{job="dsh-remote",cluster="fixture",database_scope="db-b",instance="node-c",kind="approval"}
+        values: 2+0x28
+      - series: dsh_remote_relay_session_route_duration_seconds_bucket{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a",le="0.1"}
+        values: 0+95x28
+      - series: dsh_remote_relay_session_route_duration_seconds_bucket{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a",le="0.3"}
+        values: 0+100x28
+      - series: dsh_remote_relay_session_route_duration_seconds_bucket{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a",le="+Inf"}
+        values: 0+100x28
+      - series: dsh_remote_relay_session_route_duration_seconds_bucket{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-b",le="0.1"}
+        values: 0+0x28
+      - series: dsh_remote_relay_session_route_duration_seconds_bucket{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-b",le="0.3"}
+        values: 0+100x28
+      - series: dsh_remote_relay_session_route_duration_seconds_bucket{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-b",le="+Inf"}
+        values: 0+100x28
+      - series: up{job="dsh-remote",cluster="fixture",database_scope="db-c",instance="node-d"}
+        values: 1+0x28
+      - series: dsh_remote_unknown_snapshot_available{job="dsh-remote",cluster="fixture",database_scope="db-c",instance="node-d"}
+        values: 1+0x28
+      - series: dsh_remote_unknown_snapshot_age_seconds{job="dsh-remote",cluster="fixture",database_scope="db-c",instance="node-d"}
+        values: 0+0x28
+      - series: dsh_remote_unknown_results{job="dsh-remote",cluster="fixture",database_scope="db-c",instance="node-d",kind="command"}
+        values: 0+0x28
+      - series: dsh_remote_unknown_results{job="dsh-remote",cluster="fixture",database_scope="db-c",instance="node-d",kind="approval"}
+        values: 0+0x28
+      - series: dsh_remote_relay_session_route_duration_seconds_bucket{job="dsh-remote",cluster="fixture",database_scope="db-c",instance="node-d",le="0.1"}
+        values: 0+0x28
+      - series: dsh_remote_relay_session_route_duration_seconds_bucket{job="dsh-remote",cluster="fixture",database_scope="db-c",instance="node-d",le="0.3"}
+        values: 0+0x28
+      - series: dsh_remote_relay_session_route_duration_seconds_bucket{job="dsh-remote",cluster="fixture",database_scope="db-c",instance="node-d",le="+Inf"}
+        values: 0+0x28
+    promql_expr_test:
+      - expr: dsh_remote:unknown_results:database
+        eval_time: 5m
+        exp_samples:
+          - labels: '{__name__="dsh_remote:unknown_results:database",cluster="fixture",database_scope="db-a",kind="command"}'
+            value: 3
+          - labels: '{__name__="dsh_remote:unknown_results:database",cluster="fixture",database_scope="db-a",kind="approval"}'
+            value: 1
+          - labels: '{__name__="dsh_remote:unknown_results:database",cluster="fixture",database_scope="db-b",kind="command"}'
+            value: 7
+          - labels: '{__name__="dsh_remote:unknown_results:database",cluster="fixture",database_scope="db-b",kind="approval"}'
+            value: 2
+          - labels: '{__name__="dsh_remote:unknown_results:database",cluster="fixture",database_scope="db-c",kind="command"}'
+            value: 0
+          - labels: '{__name__="dsh_remote:unknown_results:database",cluster="fixture",database_scope="db-c",kind="approval"}'
+            value: 0
+      - expr: dsh_remote:unknown_snapshot_sources:database{database_scope="db-a"}
+        eval_time: 5m
+        exp_samples:
+          - labels: '{__name__="dsh_remote:unknown_snapshot_sources:database",cluster="fixture",database_scope="db-a"}'
+            value: 2
+      - expr: abs(dsh_remote:owner_route_seconds:p95_5m{database_scope="db-a"} - 0.280952380952381) < bool 0.000001
+        eval_time: 5m
+        exp_samples:
+          - labels: '{cluster="fixture",database_scope="db-a"}'
+            value: 1
+      - expr: dsh_remote:owner_route_seconds:p95_5m{database_scope="db-b"}
+        eval_time: 5m
+        exp_samples: []
+      - expr: dsh_remote:owner_route_seconds:p95_5m{database_scope="db-c"} == bool
+          dsh_remote:owner_route_seconds:p95_5m{database_scope="db-c"}
+        eval_time: 5m
+        exp_samples:
+          - labels: '{cluster="fixture",database_scope="db-c"}'
+            value: 0
+  - name: failed, stale, incomplete and invalid snapshots never become a zero backlog
+    interval: 15s
+    input_series:
+      - series: up{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a"}
+        values: 1+0x28
+      - series: dsh_remote_unknown_snapshot_available{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a"}
+        values: 0+0x28
+      - series: dsh_remote_unknown_snapshot_age_seconds{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a"}
+        values: 0+0x28
+      - series: dsh_remote_unknown_results{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a",kind="command"}
+        values: 3+0x28
+      - series: dsh_remote_unknown_results{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a",kind="approval"}
+        values: 1+0x28
+      - series: up{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-b"}
+        values: 1+0x28
+      - series: dsh_remote_unknown_snapshot_available{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-b"}
+        values: 1+0x28
+      - series: dsh_remote_unknown_snapshot_age_seconds{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-b"}
+        values: 30+0x28
+      - series: dsh_remote_unknown_results{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-b",kind="command"}
+        values: 0+0x28
+      - series: dsh_remote_unknown_results{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-b",kind="approval"}
+        values: 0+0x28
+      - series: up{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-c"}
+        values: 1+0x28
+      - series: dsh_remote_unknown_snapshot_available{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-c"}
+        values: 1+0x28
+      - series: dsh_remote_unknown_snapshot_age_seconds{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-c"}
+        values: 0+0x28
+      - series: dsh_remote_unknown_results{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-c",kind="command"}
+        values: 5+0x28
+      - series: up{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-d"}
+        values: 1+0x28
+      - series: dsh_remote_unknown_snapshot_available{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-d"}
+        values: 1+0x28
+      - series: dsh_remote_unknown_snapshot_age_seconds{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-d"}
+        values: 0+0x28
+      - series: dsh_remote_unknown_results{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-d",kind="command"}
+        values: -1+0x28
+      - series: dsh_remote_unknown_results{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-d",kind="approval"}
+        values: 0+0x28
+    promql_expr_test:
+      - expr: dsh_remote:unknown_results:database
+        eval_time: 3m
+        exp_samples: []
+      - expr: dsh_remote:unknown_snapshot_sources:database
+        eval_time: 3m
+        exp_samples: []
+    alert_rule_test:
+      - eval_time: 3m
+        alertname: DshRemoteUnknownSnapshotUnavailable
+        exp_alerts: &a14
+          - exp_labels:
+              cluster: fixture
+              database_scope: db-a
+              severity: warning
+            exp_annotations: &a1
+              summary: DSH Remote has no fresh unknown-result snapshot
+              description: The backlog is unknown, not zero; restore a fresh sampler before interpreting reconciliation
+                counts.
+              runbook: docs/monitoring-rules.md#unknown
+  - name: a successful empty snapshot publishes real zero values
+    interval: 15s
+    input_series:
+      - series: up{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a"}
+        values: 1+0x28
+      - series: dsh_remote_unknown_snapshot_available{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a"}
+        values: 1+0x28
+      - series: dsh_remote_unknown_snapshot_age_seconds{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a"}
+        values: 0+0x28
+      - series: dsh_remote_unknown_results{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a",kind="command"}
+        values: 0+0x28
+      - series: dsh_remote_unknown_results{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a",kind="approval"}
+        values: 0+0x28
+      - &a3
+        series: dsh_remote_relay_draining{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a"}
+        values: 0+0x28
+      - &a4
+        series: dsh_remote_control_available{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a",worker="outbox"}
+        values: 1+0x28
+      - &a5
+        series: dsh_remote_control_last_success_timestamp_seconds{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a",worker="outbox"}
+        values: 0+15x28
+      - &a6
+        series: dsh_remote_control_available{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a",worker="leases"}
+        values: 1+0x28
+      - &a7
+        series: dsh_remote_control_last_success_timestamp_seconds{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a",worker="leases"}
+        values: 0+15x28
+      - &a8
+        series: dsh_remote_control_available{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a",worker="consumer"}
+        values: 1+0x28
+      - &a9
+        series: dsh_remote_control_last_success_timestamp_seconds{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a",worker="consumer"}
+        values: 0+15x28
+      - &a10
+        series: dsh_remote_control_available{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a",worker="consumer_cleanup"}
+        values: 1+0x28
+      - &a11
+        series: dsh_remote_control_last_success_timestamp_seconds{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a",worker="consumer_cleanup"}
+        values: 0+15x28
+      - &a12
+        series: dsh_remote_control_available{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a",worker="approval_expiry"}
+        values: 1+0x28
+      - &a13
+        series: dsh_remote_control_last_success_timestamp_seconds{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a",worker="approval_expiry"}
+        values: 0+15x28
+    promql_expr_test:
+      - expr: dsh_remote:unknown_results:database
+        eval_time: 3m
+        exp_samples:
+          - labels: '{__name__="dsh_remote:unknown_results:database",cluster="fixture",database_scope="db-a",kind="command"}'
+            value: 0
+          - labels: '{__name__="dsh_remote:unknown_results:database",cluster="fixture",database_scope="db-a",kind="approval"}'
+            value: 0
+    alert_rule_test:
+      - eval_time: 3m
+        alertname: DshRemoteUnknownSnapshotUnavailable
+        exp_alerts: []
+      - eval_time: 3m
+        alertname: DshRemoteMetricsIncomplete
+        exp_alerts: []
+      - eval_time: 3m
+        alertname: DshRemoteControlWorkerUnhealthy
+        exp_alerts: []
+  - name: a stale high count is excluded while another node remains fresh
+    interval: 15s
+    input_series:
+      - series: up{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a"}
+        values: 1+0x28
+      - series: dsh_remote_unknown_snapshot_available{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a"}
+        values: 1+0x28
+      - series: dsh_remote_unknown_snapshot_age_seconds{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a"}
+        values: 0+5x28
+      - series: dsh_remote_unknown_results{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a",kind="command"}
+        values: 100+0x28
+      - series: dsh_remote_unknown_results{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a",kind="approval"}
+        values: 1+0x28
+      - series: up{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-b"}
+        values: 1+0x28
+      - series: dsh_remote_unknown_snapshot_available{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-b"}
+        values: 1+0x28
+      - series: dsh_remote_unknown_snapshot_age_seconds{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-b"}
+        values: 0+0x28
+      - series: dsh_remote_unknown_results{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-b",kind="command"}
+        values: 3+0x28
+      - series: dsh_remote_unknown_results{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-b",kind="approval"}
+        values: 1+0x28
+    promql_expr_test:
+      - expr: dsh_remote:unknown_results:database{kind="command"}
+        eval_time: 3m
+        exp_samples:
+          - labels: '{__name__="dsh_remote:unknown_results:database",cluster="fixture",database_scope="db-a",kind="command"}'
+            value: 3
+      - expr: dsh_remote:unknown_snapshot_sources:database
+        eval_time: 3m
+        exp_samples:
+          - labels: '{__name__="dsh_remote:unknown_snapshot_sources:database",cluster="fixture",database_scope="db-a"}'
+            value: 1
+    alert_rule_test:
+      - eval_time: 3m
+        alertname: DshRemoteUnknownSnapshotUnavailable
+        exp_alerts: []
+  - name: scrape outage does not invent worker failure or missing target discovery
+    interval: 15s
+    input_series:
+      - series: up{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a"}
+        values: 0+0x28
+      - series: dsh_remote_unknown_snapshot_available{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a"}
+        values: 1+0x28
+      - series: dsh_remote_unknown_snapshot_age_seconds{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a"}
+        values: 0+0x28
+      - series: dsh_remote_unknown_results{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a",kind="command"}
+        values: 9+0x28
+      - series: dsh_remote_unknown_results{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a",kind="approval"}
+        values: 2+0x28
+      - series: dsh_remote_relay_draining{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a"}
+        values: 0+0x28
+      - series: dsh_remote_control_available{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a",worker="outbox"}
+        values: 1+0x28
+      - series: dsh_remote_control_last_success_timestamp_seconds{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a",worker="outbox"}
+        values: 0+15x28
+      - series: dsh_remote_control_available{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a",worker="leases"}
+        values: 1+0x28
+      - series: dsh_remote_control_last_success_timestamp_seconds{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a",worker="leases"}
+        values: 0+15x28
+      - series: dsh_remote_control_available{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a",worker="consumer"}
+        values: 0+0x28
+      - series: dsh_remote_control_last_success_timestamp_seconds{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a",worker="consumer"}
+        values: 0+15x28
+      - series: dsh_remote_control_available{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a",worker="consumer_cleanup"}
+        values: 1+0x28
+      - series: dsh_remote_control_last_success_timestamp_seconds{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a",worker="consumer_cleanup"}
+        values: 0+15x28
+      - series: dsh_remote_control_available{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a",worker="approval_expiry"}
+        values: 1+0x28
+      - series: dsh_remote_control_last_success_timestamp_seconds{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a",worker="approval_expiry"}
+        values: 0+15x28
+    alert_rule_test:
+      - eval_time: 3m
+        alertname: DshRemoteScrapeUnavailable
+        exp_alerts:
+          - exp_labels:
+              job: dsh-remote
+              cluster: fixture
+              database_scope: db-a
+              instance: node-a
+              severity: warning
+            exp_annotations:
+              summary: DSH Remote metrics cannot be scraped
+              description: Check the private listener and local collector; this does not identify a business or identity
+                failure.
+              runbook: docs/monitoring-rules.md#targets
+      - eval_time: 3m
+        alertname: DshRemoteTargetsMissing
+        exp_alerts: []
+      - eval_time: 3m
+        alertname: DshRemoteControlWorkerUnhealthy
+        exp_alerts: []
+      - eval_time: 3m
+        alertname: DshRemoteMetricsIncomplete
+        exp_alerts: []
+      - eval_time: 3m
+        alertname: DshRemoteUnknownSnapshotUnavailable
+        exp_alerts:
+          - exp_labels:
+              cluster: fixture
+              database_scope: db-a
+              severity: warning
+            exp_annotations: *a1
+  - name: missing scope labels are isolated instead of grouped into an unnamed DB
+    interval: 15s
+    input_series:
+      - series: up{job="dsh-remote",instance="unscoped"}
+        values: 1+0x28
+    promql_expr_test:
+      - expr: dsh_remote:unknown_results:database
+        eval_time: 3m
+        exp_samples: []
+    alert_rule_test:
+      - eval_time: 3m
+        alertname: DshRemoteScopeLabelsMissing
+        exp_alerts:
+          - exp_labels:
+              job: dsh-remote
+              instance: unscoped
+              severity: warning
+            exp_annotations:
+              summary: DSH Remote scrape scope labels are missing
+              description: Assign cluster and database_scope before aggregating shared-database gauges.
+              runbook: docs/monitoring-rules.md#scope
+      - eval_time: 3m
+        alertname: DshRemoteUnknownSnapshotUnavailable
+        exp_alerts: []
+  - name: another job does not hide missing DSH Remote discovery
+    interval: 15s
+    input_series:
+      - series: up{job="other",instance="node-a"}
+        values: 1+0x28
+    alert_rule_test:
+      - eval_time: 3m
+        alertname: DshRemoteTargetsMissing
+        exp_alerts:
+          - exp_labels:
+              job: dsh-remote
+              severity: warning
+            exp_annotations:
+              summary: DSH Remote has no configured scrape targets
+              description: Review target discovery and monitoring configuration; no service health can be inferred.
+              runbook: docs/monitoring-rules.md#targets
+      - eval_time: 3m
+        alertname: DshRemoteScopeLabelsMissing
+        exp_alerts: []
+  - name: control availability, stale success and future clock stamps are independent failure signals
+    interval: 15s
+    input_series:
+      - series: up{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a"}
+        values: 1+0x28
+      - series: dsh_remote_unknown_snapshot_available{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a"}
+        values: 1+0x28
+      - series: dsh_remote_unknown_snapshot_age_seconds{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a"}
+        values: 0+0x28
+      - series: dsh_remote_unknown_results{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a",kind="command"}
+        values: 0+0x28
+      - series: dsh_remote_unknown_results{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a",kind="approval"}
+        values: 0+0x28
+      - series: dsh_remote_relay_draining{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a"}
+        values: 0+0x28
+      - series: dsh_remote_control_available{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a",worker="outbox"}
+        values: 1+0x28
+      - series: dsh_remote_control_last_success_timestamp_seconds{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a",worker="outbox"}
+        values: 600+15x28
+      - series: dsh_remote_control_available{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a",worker="leases"}
+        values: 0+0x28
+      - series: dsh_remote_control_last_success_timestamp_seconds{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a",worker="leases"}
+        values: 0+15x28
+      - series: dsh_remote_control_available{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a",worker="consumer"}
+        values: 1+0x28
+      - series: dsh_remote_control_last_success_timestamp_seconds{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a",worker="consumer"}
+        values: 0+0x28
+      - series: dsh_remote_control_available{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a",worker="consumer_cleanup"}
+        values: 1+0x28
+      - series: dsh_remote_control_last_success_timestamp_seconds{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a",worker="consumer_cleanup"}
+        values: 0+15x28
+      - series: dsh_remote_control_available{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a",worker="approval_expiry"}
+        values: 1+0x28
+      - series: dsh_remote_control_last_success_timestamp_seconds{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a",worker="approval_expiry"}
+        values: 0+15x28
+    alert_rule_test:
+      - eval_time: 2m
+        alertname: DshRemoteControlWorkerUnhealthy
+        exp_alerts:
+          - exp_labels:
+              job: dsh-remote
+              cluster: fixture
+              database_scope: db-a
+              instance: node-a
+              worker: outbox
+              severity: critical
+            exp_annotations: &a2
+              summary: DSH Remote control worker health cannot be confirmed
+              description: Inspect control authority, database state and clock synchronization; do not extend leases or
+                bypass fail-closed authorization.
+              runbook: docs/monitoring-rules.md#control
+          - exp_labels:
+              job: dsh-remote
+              cluster: fixture
+              database_scope: db-a
+              instance: node-a
+              worker: leases
+              severity: critical
+            exp_annotations: *a2
+          - exp_labels:
+              job: dsh-remote
+              cluster: fixture
+              database_scope: db-a
+              instance: node-a
+              worker: consumer
+              severity: critical
+            exp_annotations: *a2
+  - name: the minute cleanup worker is not evaluated on the fast-worker deadline
+    interval: 15s
+    input_series:
+      - series: up{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a"}
+        values: 1+0x28
+      - series: dsh_remote_unknown_snapshot_available{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a"}
+        values: 1+0x28
+      - series: dsh_remote_unknown_snapshot_age_seconds{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a"}
+        values: 0+0x28
+      - series: dsh_remote_unknown_results{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a",kind="command"}
+        values: 0+0x28
+      - series: dsh_remote_unknown_results{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a",kind="approval"}
+        values: 0+0x28
+      - series: dsh_remote_relay_draining{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a"}
+        values: 0+0x28
+      - series: dsh_remote_control_available{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a",worker="outbox"}
+        values: 1+0x28
+      - series: dsh_remote_control_last_success_timestamp_seconds{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a",worker="outbox"}
+        values: 0+15x28
+      - series: dsh_remote_control_available{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a",worker="leases"}
+        values: 1+0x28
+      - series: dsh_remote_control_last_success_timestamp_seconds{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a",worker="leases"}
+        values: 0+15x28
+      - series: dsh_remote_control_available{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a",worker="consumer"}
+        values: 1+0x28
+      - series: dsh_remote_control_last_success_timestamp_seconds{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a",worker="consumer"}
+        values: 0+15x28
+      - series: dsh_remote_control_available{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a",worker="consumer_cleanup"}
+        values: 1+0x28
+      - series: dsh_remote_control_last_success_timestamp_seconds{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a",worker="consumer_cleanup"}
+        values: 0+0x28
+      - series: dsh_remote_control_available{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a",worker="approval_expiry"}
+        values: 1+0x28
+      - series: dsh_remote_control_last_success_timestamp_seconds{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a",worker="approval_expiry"}
+        values: 0+15x28
+    alert_rule_test:
+      - eval_time: 2m30s
+        alertname: DshRemoteControlWorkerUnhealthy
+        exp_alerts: []
+      - eval_time: 4m30s
+        alertname: DshRemoteControlWorkerUnhealthy
+        exp_alerts:
+          - exp_labels:
+              job: dsh-remote
+              cluster: fixture
+              database_scope: db-a
+              instance: node-a
+              worker: consumer_cleanup
+              severity: critical
+            exp_annotations: *a2
+  - name: planned drain suppresses worker alerts without changing backlog authority
+    interval: 15s
+    input_series:
+      - series: up{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a"}
+        values: 1+0x28
+      - series: dsh_remote_unknown_snapshot_available{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a"}
+        values: 1+0x28
+      - series: dsh_remote_unknown_snapshot_age_seconds{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a"}
+        values: 0+0x28
+      - series: dsh_remote_unknown_results{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a",kind="command"}
+        values: 0+0x28
+      - series: dsh_remote_unknown_results{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a",kind="approval"}
+        values: 0+0x28
+      - series: dsh_remote_relay_draining{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a"}
+        values: 1+0x28
+      - series: dsh_remote_control_available{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a",worker="outbox"}
+        values: 1+0x28
+      - series: dsh_remote_control_last_success_timestamp_seconds{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a",worker="outbox"}
+        values: 600+15x28
+      - series: dsh_remote_control_available{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a",worker="leases"}
+        values: 0+0x28
+      - series: dsh_remote_control_last_success_timestamp_seconds{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a",worker="leases"}
+        values: 0+15x28
+      - series: dsh_remote_control_available{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a",worker="consumer"}
+        values: 1+0x28
+      - series: dsh_remote_control_last_success_timestamp_seconds{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a",worker="consumer"}
+        values: 0+0x28
+      - series: dsh_remote_control_available{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a",worker="consumer_cleanup"}
+        values: 1+0x28
+      - series: dsh_remote_control_last_success_timestamp_seconds{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a",worker="consumer_cleanup"}
+        values: 0+15x28
+      - series: dsh_remote_control_available{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a",worker="approval_expiry"}
+        values: 1+0x28
+      - series: dsh_remote_control_last_success_timestamp_seconds{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a",worker="approval_expiry"}
+        values: 0+15x28
+    alert_rule_test:
+      - eval_time: 3m
+        alertname: DshRemoteControlWorkerUnhealthy
+        exp_alerts: []
+  - name: successful HTTP scrape cannot hide a missing mandatory worker metric
+    interval: 15s
+    input_series:
+      - series: up{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a"}
+        values: 1+0x28
+      - series: dsh_remote_unknown_snapshot_available{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a"}
+        values: 1+0x28
+      - series: dsh_remote_unknown_snapshot_age_seconds{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a"}
+        values: 0+0x28
+      - series: dsh_remote_unknown_results{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a",kind="command"}
+        values: 0+0x28
+      - series: dsh_remote_unknown_results{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a",kind="approval"}
+        values: 0+0x28
+      - series: dsh_remote_relay_draining{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a"}
+        values: 0+0x28
+      - series: dsh_remote_control_available{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a",worker="outbox"}
+        values: 1+0x28
+      - series: dsh_remote_control_last_success_timestamp_seconds{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a",worker="outbox"}
+        values: 0+15x28
+      - series: dsh_remote_control_available{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a",worker="leases"}
+        values: 1+0x28
+      - series: dsh_remote_control_last_success_timestamp_seconds{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a",worker="leases"}
+        values: 0+15x28
+      - series: dsh_remote_control_available{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a",worker="consumer"}
+        values: 1+0x28
+      - series: dsh_remote_control_last_success_timestamp_seconds{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a",worker="consumer"}
+        values: 0+15x28
+      - series: dsh_remote_control_available{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a",worker="approval_expiry"}
+        values: 1+0x28
+      - series: dsh_remote_control_last_success_timestamp_seconds{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a",worker="approval_expiry"}
+        values: 0+15x28
+    alert_rule_test:
+      - eval_time: 3m
+        alertname: DshRemoteMetricsIncomplete
+        exp_alerts:
+          - exp_labels:
+              job: dsh-remote
+              cluster: fixture
+              database_scope: db-a
+              instance: node-a
+              severity: warning
+            exp_annotations:
+              summary: DSH Remote metrics do not match the expected contract
+              description: Check service version and scrape routing; missing metrics must not be interpreted as healthy zero
+                values.
+              runbook: docs/monitoring-rules.md#contract
+      - eval_time: 3m
+        alertname: DshRemoteUnknownSnapshotUnavailable
+        exp_alerts: []
+  - name: startup without a successful snapshot stays unknown and observes the alert hold window
+    interval: 15s
+    input_series:
+      - series: up{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a"}
+        values: 1+0x28
+      - series: dsh_remote_unknown_snapshot_available{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a"}
+        values: 0+0x28
+      - *a3
+      - *a4
+      - *a5
+      - *a6
+      - *a7
+      - *a8
+      - *a9
+      - *a10
+      - *a11
+      - *a12
+      - *a13
+    promql_expr_test:
+      - expr: dsh_remote:unknown_results:database
+        eval_time: 1m
+        exp_samples: []
+    alert_rule_test:
+      - eval_time: 1m
+        alertname: DshRemoteUnknownSnapshotUnavailable
+        exp_alerts: []
+      - eval_time: 3m
+        alertname: DshRemoteUnknownSnapshotUnavailable
+        exp_alerts: *a14
+      - eval_time: 3m
+        alertname: DshRemoteMetricsIncomplete
+        exp_alerts: []
+  - name: a lookback-retained age sample cannot indefinitely extend the freshness window
+    interval: 15s
+    input_series:
+      - series: up{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a"}
+        values: 1+0x28
+      - series: dsh_remote_unknown_snapshot_available{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a"}
+        values: 1+0x28
+      - series: dsh_remote_unknown_snapshot_age_seconds{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a"}
+        values: 0+0x2
+      - series: dsh_remote_unknown_results{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a",kind="command"}
+        values: 0+0x28
+      - series: dsh_remote_unknown_results{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a",kind="approval"}
+        values: 0+0x28
+      - series: dsh_remote_relay_draining{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a"}
+        values: 0+0x28
+      - series: dsh_remote_control_available{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a",worker="outbox"}
+        values: 1+0x28
+      - series: dsh_remote_control_last_success_timestamp_seconds{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a",worker="outbox"}
+        values: 0+15x28
+      - series: dsh_remote_control_available{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a",worker="leases"}
+        values: 1+0x28
+      - series: dsh_remote_control_last_success_timestamp_seconds{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a",worker="leases"}
+        values: 0+15x28
+      - series: dsh_remote_control_available{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a",worker="consumer"}
+        values: 1+0x28
+      - series: dsh_remote_control_last_success_timestamp_seconds{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a",worker="consumer"}
+        values: 0+15x28
+      - series: dsh_remote_control_available{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a",worker="consumer_cleanup"}
+        values: 1+0x28
+      - series: dsh_remote_control_last_success_timestamp_seconds{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a",worker="consumer_cleanup"}
+        values: 0+15x28
+      - series: dsh_remote_control_available{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a",worker="approval_expiry"}
+        values: 1+0x28
+      - series: dsh_remote_control_last_success_timestamp_seconds{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a",worker="approval_expiry"}
+        values: 0+15x28
+    promql_expr_test:
+      - expr: dsh_remote_unknown_snapshot_age_seconds
+        eval_time: 3m15s
+        exp_samples:
+          - labels: '{__name__="dsh_remote_unknown_snapshot_age_seconds",job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a"}'
+            value: 0
+      - expr: dsh_remote:unknown_results:database
+        eval_time: 3m15s
+        exp_samples: []
+    alert_rule_test:
+      - eval_time: 3m15s
+        alertname: DshRemoteUnknownSnapshotUnavailable
+        exp_alerts: *a14

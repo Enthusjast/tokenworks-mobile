@@ -1,0 +1,123 @@
+# Explicit opt-in examples. Review windows against scrape cadence and pilot data.
+# Do not substitute these thresholds for revocation or end-to-end routing SLOs.
+groups:
+  - name: dsh-remote-recording
+    interval: 15s
+    rules:
+      - record: dsh_remote:unknown_snapshot_fresh:per_instance
+        expr: |
+          (dsh_remote_unknown_snapshot_available{job="dsh-remote",cluster!="",database_scope!=""} == 1)
+          and on (cluster, database_scope, job, instance)
+            (dsh_remote_unknown_snapshot_age_seconds{job="dsh-remote",cluster!="",database_scope!=""} >= 0)
+          and on (cluster, database_scope, job, instance)
+            (
+              dsh_remote_unknown_snapshot_age_seconds{job="dsh-remote",cluster!="",database_scope!=""}
+              + (time() - timestamp(dsh_remote_unknown_snapshot_age_seconds{job="dsh-remote",cluster!="",database_scope!=""})) < 30
+            )
+          and on (cluster, database_scope, job, instance)
+            (up{job="dsh-remote",cluster!="",database_scope!=""} == 1)
+          and on (cluster, database_scope, job, instance)
+            (count by (cluster, database_scope, job, instance) (
+              dsh_remote_unknown_results{job="dsh-remote",cluster!="",database_scope!="",kind=~"command|approval"} >= 0
+            ) == 2)
+      - record: dsh_remote:unknown_snapshot_sources:database
+        expr: |
+          count by (cluster, database_scope) (dsh_remote:unknown_snapshot_fresh:per_instance)
+      - record: dsh_remote:unknown_results:database
+        expr: |
+          max by (cluster, database_scope, kind) (
+            dsh_remote_unknown_results{job="dsh-remote",cluster!="",database_scope!="",kind=~"command|approval"}
+            and on (cluster, database_scope, job, instance) dsh_remote:unknown_snapshot_fresh:per_instance
+          )
+      - record: dsh_remote:owner_route_seconds:p95_5m
+        expr: |
+          histogram_quantile(0.95, sum by (cluster, database_scope, le) (
+            rate(dsh_remote_relay_session_route_duration_seconds_bucket{job="dsh-remote",cluster!="",database_scope!=""}[5m])
+          ))
+  - name: dsh-remote-alerts
+    interval: 15s
+    rules:
+      - alert: DshRemoteTargetsMissing
+        expr: absent(up{job="dsh-remote"})
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: DSH Remote has no configured scrape targets
+          description: Review target discovery and monitoring configuration; no service health can be inferred.
+          runbook: docs/monitoring-rules.md#targets
+      - alert: DshRemoteScrapeUnavailable
+        expr: up{job="dsh-remote"} == 0
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: DSH Remote metrics cannot be scraped
+          description: Check the private listener and local collector; this does not identify a business or identity failure.
+          runbook: docs/monitoring-rules.md#targets
+      - alert: DshRemoteScopeLabelsMissing
+        expr: |
+          (up{job="dsh-remote",cluster=""} == 1)
+          or (up{job="dsh-remote",database_scope=""} == 1)
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: DSH Remote scrape scope labels are missing
+          description: Assign cluster and database_scope before aggregating shared-database gauges.
+          runbook: docs/monitoring-rules.md#scope
+      - alert: DshRemoteMetricsIncomplete
+        expr: |
+          (up{job="dsh-remote",cluster!="",database_scope!=""} == 1)
+          unless on (cluster, database_scope, job, instance) (
+            (count by (cluster, database_scope, job, instance) (
+              dsh_remote_control_available{job="dsh-remote",cluster!="",database_scope!="",worker=~"outbox|leases|consumer|consumer_cleanup|approval_expiry"}
+            ) == 5)
+            and on (cluster, database_scope, job, instance)
+              dsh_remote_unknown_snapshot_available{job="dsh-remote",cluster!="",database_scope!=""}
+            and on (cluster, database_scope, job, instance)
+              dsh_remote_relay_draining{job="dsh-remote",cluster!="",database_scope!=""}
+          )
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: DSH Remote metrics do not match the expected contract
+          description: Check service version and scrape routing; missing metrics must not be interpreted as healthy zero values.
+          runbook: docs/monitoring-rules.md#contract
+      - alert: DshRemoteControlWorkerUnhealthy
+        expr: |
+          (
+            (dsh_remote_control_available{job="dsh-remote",cluster!="",database_scope!="",worker=~"outbox|leases|consumer|approval_expiry|consumer_cleanup"} == 0)
+            or (
+              time() - dsh_remote_control_last_success_timestamp_seconds{job="dsh-remote",cluster!="",database_scope!="",worker=~"outbox|leases|consumer|approval_expiry"} > 30
+            )
+            or (
+              time() - dsh_remote_control_last_success_timestamp_seconds{job="dsh-remote",cluster!="",database_scope!="",worker="consumer_cleanup"} > 180
+            )
+            or (
+              dsh_remote_control_last_success_timestamp_seconds{job="dsh-remote",cluster!="",database_scope!="",worker=~"outbox|leases|consumer|approval_expiry|consumer_cleanup"} - time() > 30
+            )
+          )
+          and on (cluster, database_scope, job, instance)
+            (up{job="dsh-remote",cluster!="",database_scope!=""} == 1)
+          and on (cluster, database_scope, job, instance)
+            (dsh_remote_relay_draining{job="dsh-remote",cluster!="",database_scope!=""} == 0)
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: DSH Remote control worker health cannot be confirmed
+          description: Inspect control authority, database state and clock synchronization; do not extend leases or bypass fail-closed authorization.
+          runbook: docs/monitoring-rules.md#control
+      - alert: DshRemoteUnknownSnapshotUnavailable
+        expr: |
+          count by (cluster, database_scope) (up{job="dsh-remote",cluster!="",database_scope!=""})
+          unless on (cluster, database_scope) dsh_remote:unknown_snapshot_sources:database
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: DSH Remote has no fresh unknown-result snapshot
+          description: The backlog is unknown, not zero; restore a fresh sampler before interpreting reconciliation counts.
+          runbook: docs/monitoring-rules.md#unknown

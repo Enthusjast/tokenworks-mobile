@@ -1,0 +1,19 @@
+# Copy and review in the actual monitoring deployment. Not enabled by the app.
+# Rules contain example freshness/hold windows, not measured service SLOs.
+global:
+  scrape_interval: 15s
+  scrape_timeout: 5s
+  evaluation_interval: 15s
+rule_files:
+  - rules.yml
+scrape_configs:
+  - job_name: dsh-remote
+    metrics_path: /metrics
+    honor_timestamps: false
+    static_configs:
+      - targets: ['127.0.0.1:9090']
+        labels:
+          # All nodes sharing one exact control DB must share these labels.
+          # Different control DBs must have distinct database_scope values.
+          cluster: local-example
+          database_scope: local-control-plane
