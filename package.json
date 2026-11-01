@@ -6,6 +6,7 @@
   "workspaces": ["host/remote-control"],
   "scripts": {
     "dev": "python3 tools/dev/local.py start",
+    "dev:probe": "node tools/dev/smoke.mjs",
     "dev:status": "python3 tools/dev/local.py status",
     "dev:stop": "python3 tools/dev/local.py stop",
     "build": "npm run build --workspaces",

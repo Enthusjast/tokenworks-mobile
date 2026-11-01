@@ -5,6 +5,7 @@ Keeps a private PostgreSQL cluster and fixture authority across restarts. No
 school login, model request, mobile build, vendor push or load probe is started.
 """
 import argparse
+from datetime import datetime, timedelta, timezone
 import fcntl
 import hashlib
 import http.client
@@ -25,9 +26,11 @@ import uuid
 ROOT = Path(__file__).resolve().parents[2]
 STATE = ROOT / '.local/dev'
 STATUS = STATE / 'status.json'
+SECURE_STATE = Path.home() / '.local/state/dsh-remote-development' / hashlib.sha256(str(ROOT).encode()).hexdigest()[:16]
 PG = Path(os.environ.get('REMOTE_DEV_PG_BIN', '/usr/lib/postgresql/18/bin'))
 SOCKET = STATE / 'ipc/probe.sock'
 PORTS = {'relay': 8080, 'issuer': 8082, 'dsh': 3000}
+FIXTURE = ROOT / 'tools/dev/fixture-host.mjs'
 
 
 def save(path, value):
@@ -86,6 +89,30 @@ def probe():
         connection.close()
 
 
+def relay_connected(epoch):
+    """Observe the exact native epoch and a live dispatcher route, never a flag."""
+    if epoch is None:
+        return False
+    try:
+        runtime = json.loads((STATE / 'enrolled-runtime.json').read_text())
+        if runtime.get('purpose') != 'dsh-local-enrolled-runtime/v1':
+            return False
+        runtime_id = str(uuid.UUID(runtime['runtimeId']))
+        current_epoch = str(uuid.UUID(epoch))
+        sql = f"""select exists(select 1 from runtimes r
+            join relay_runtime_routes route on route.runtime_id=r.id and route.runtime_epoch=r.epoch and route.connection_id=r.connection_id
+            join control_consumers node on node.node_id=route.node_id and node.generation=route.generation
+            where r.id='{runtime_id}' and r.epoch='{current_epoch}' and r.revoked_at is null
+            and r.connection_id is not null and r.last_seen_at>clock_timestamp()-interval '5 minutes 30 seconds'
+            and node.lease_until>clock_timestamp())"""
+        dsn = f'host={STATE}/pg-socket port=55440 user=dsh_dev dbname=postgres sslmode=disable'
+        result = subprocess.run([str(PG / 'psql'), '-X', '--dbname', dsn, '-v', 'ON_ERROR_STOP=1', '-At'],
+                                input=sql, text=True, capture_output=True, timeout=3)
+        return result.returncode == 0 and result.stdout.strip() == 't'
+    except (OSError, ValueError, KeyError, subprocess.SubprocessError):
+        return False
+
+
 def snapshot():
     paths = [*list((ROOT / 'services/remote').rglob('*.go')),
              ROOT / 'services/remote/go.mod', ROOT / 'services/remote/go.sum',
@@ -142,8 +169,8 @@ def serve(profile):
     def log(message):
         print(time.strftime('%Y-%m-%d %H:%M:%S'), message, flush=True)
 
-    def command(args, cwd=ROOT, input=None):
-        subprocess.run(args, cwd=cwd, input=input, check=True, timeout=180)
+    def command(args, cwd=ROOT, input=None, env=None):
+        subprocess.run(args, cwd=cwd, input=input, env=env, check=True, timeout=180)
 
     def launch(name, args, env=None):
         with open(STATE / (name + '.log'), 'ab', buffering=0) as output:
@@ -186,17 +213,23 @@ def serve(profile):
         command([str(PG / 'pg_ctl'), '-D', str(data), '-l', str(STATE / 'postgres.log'), '-o', f"-h '' -k {STATE}/pg-socket -p 55440", '-w', 'start'])
         database_started = True
         migrate()
-        key = STATE / 'fixture-authority.json'
+        SECURE_STATE.mkdir(mode=0o700, parents=True, exist_ok=True)
+        secure_info = SECURE_STATE.lstat()
+        if SECURE_STATE.is_symlink() or secure_info.st_uid != os.getuid() or secure_info.st_mode & 0o777 != 0o700:
+            raise RuntimeError('fixture key storage must be private and owned by this user')
+        key = SECURE_STATE / 'issuer.json'
         if not key.exists():
             script = "const fs=require('node:fs'),c=require('node:crypto');const k=c.generateKeyPairSync('ec',{namedCurve:'prime256v1'});fs.writeFileSync(process.argv[1],JSON.stringify({private:k.privateKey.export({format:'jwk'}),public:{...k.publicKey.export({format:'jwk'}),kid:'local-dev-only',use:'sig',alg:'ES256'}}),{mode:0o600,flag:'wx'})"
             command([node, '-e', script, str(key)])
-
         class FixtureKeys(BaseHTTPRequestHandler):
             def do_GET(self):
                 if self.path != '/jwks.json':
                     self.send_error(404)
                     return
-                body = json.dumps({'keys': [json.loads(key.read_text())['public']]}).encode()
+                source = json.loads(key.read_text())['public']
+                public = {name: source[name] for name in ('kty', 'crv', 'x', 'y')}
+                public.update(kid='local-dev-only', use='sig', alg='ES256')
+                body = json.dumps({'keys': [public]}).encode()
                 self.send_response(200)
                 self.send_header('Content-Type', 'application/json')
                 self.send_header('Content-Length', str(len(body)))
@@ -207,6 +240,8 @@ def serve(profile):
             def log_message(self, *_):
                 pass
 
+        command(['npm', 'run', 'build'])
+        command([node, str(FIXTURE), 'prepare', profile])
         issuer = ThreadingHTTPServer(('127.0.0.1', PORTS['issuer']), FixtureKeys)
         threading.Thread(target=issuer.serve_forever, daemon=True).start()
         remote_env = {name: value for name, value in os.environ.items() if not name.startswith('REMOTE_')}
@@ -214,7 +249,9 @@ def serve(profile):
                           REMOTE_JWKS_URL='http://127.0.0.1:8082/jwks.json', REMOTE_CLIENT_IDS='local-dev-phone,local-dev-host',
                           REMOTE_HOST_CLIENT_IDS='local-dev-host', REMOTE_REQUIRED_SCOPES='remote.access',
                           REMOTE_PUBLIC_ORIGIN='http://127.0.0.1:8080', REMOTE_LISTEN_ADDR='127.0.0.1:8080',
-                          REMOTE_DATABASE_URL=dsn, REMOTE_RELAY_NODE_ID='da96f9e7-c59e-484d-a826-3fca09eb18bd')
+                          REMOTE_DATABASE_URL=dsn, REMOTE_DATABASE_EPOCH=query('select epoch::text from remote_recovery_state where slot=1'),
+                          REMOTE_RELAY_NODE_ID='da96f9e7-c59e-484d-a826-3fca09eb18bd',
+                          REMOTE_APPROVAL_POLICY_FILE=str(STATE / 'fixture-approval-policy.json'))
 
         def rebuild():
             log('building Go relay')
@@ -238,21 +275,46 @@ def serve(profile):
 
         if not rebuild():
             raise RuntimeError('initial Go build failed')
-        command(['npm', 'run', 'build'])
+        deadline = time.monotonic() + 30
+        while not health('http://127.0.0.1:8080/readyz'):
+            if children['relay'].poll() is not None or time.monotonic() > deadline or stopping.wait(0.25):
+                raise RuntimeError('local relay did not become ready before fixture enrollment')
+        public = json.loads((STATE / 'fixture-public.json').read_text())
+        if public.get('purpose') != 'dsh-local-development-only/v1' or public.get('issuer') != remote_env['REMOTE_ISSUER']:
+            raise RuntimeError('local fixture identity is invalid')
+        # Initialize authority only once. Restarts never revive a suspended user
+        # or a revoked installation by reapplying an earlier snapshot.
+        if query("select count(*) from identity_sync_sources where issuer='http://127.0.0.1:8082' and revision>0") == '0':
+            timestamp = datetime.now(timezone.utc)
+            stamp = lambda value: value.isoformat(timespec='milliseconds').replace('+00:00', 'Z')
+            authority = {'v': 1, 'complete': True, 'operation_id': str(uuid.uuid4()),
+                         'database_epoch': query('select epoch::text from remote_recovery_state where slot=1'),
+                         'issuer': public['issuer'], 'expected_revision': 0, 'revision': 1,
+                         'captured_at': stamp(timestamp - timedelta(seconds=1)), 'expires_at': stamp(timestamp + timedelta(minutes=5)),
+                         'organizations': [{'organization_id': public['organization_id'], 'slug': 'local-dev-fixture', 'name': 'Local development fixture'}],
+                         'users': [{'subject': public[name], 'status': 'active', 'memberships': [{'organization_id': public['organization_id'], 'role': 'member'}]}
+                                   for name in ('host_subject', 'phone_subject')]}
+            authority_file = STATE / 'fixture-initial-authority.json'
+            save(authority_file, authority)
+            command([str(STATE / 'remote'), 'identities', 'apply', '--authority-file', str(authority_file)], env=remote_env)
+        command([node, str(FIXTURE), 'bootstrap', profile])
+        enrolled = json.loads((STATE / 'enrolled-runtime.json').read_text())
+        if enrolled.get('purpose') != 'dsh-local-enrolled-runtime/v1' or enrolled.get('profileRef') != profile:
+            raise RuntimeError('local fixture enrollment is invalid')
         # Install the linked package in the actual npm DSH profile. Do not
         # replace its user patch, credentials, bundles, settings or sessions.
         command([dsh, 'plugin', '--profile', profile, 'add', 'link:' + str(ROOT / 'host/remote-control')])
-        runtime_file = STATE / 'runtime.json'
-        if not runtime_file.exists():
-            save(runtime_file, {'runtime_id': str(uuid.uuid4())})
-        runtime = json.loads(runtime_file.read_text())['runtime_id']
+        runtime = str(uuid.UUID(enrolled['runtimeId']))
         overlay = [
-            {'id': 'hmr', 'config': {'base': ROOT.as_uri() + '/', 'root': ['host/remote-control/lib'],
+            {'id': 'hmr', 'config': {'base': ROOT.as_uri() + '/', 'root': ['host/remote-control/lib', 'tools/dev/fixture-host.mjs'],
                                     'ignored': ['**/node_modules/**', '**/*.map', '**/*.d.ts'], 'debounce': 500}},
-            {'insert': [{'id': 'ustc-remote-control-dev', 'name': '@ustc/dsh-remote-control',
+            {'insert': [{'id': 'ustc-remote-control-dev', 'name': str(FIXTURE),
                          'config': {'enabled': True, 'runtimeId': runtime, 'socketPath': str(SOCKET),
-                                    'commandJournalPath': str(STATE / 'journal/commands.sqlite'),
-                                    'workspaces': [{'id': 'project', 'label': 'DSH remote development', 'cwd': str(ROOT)}],
+                                    'commandJournalPath': str(SECURE_STATE / 'relay-journal/commands.sqlite'),
+                                    'requireProtectedJournalKey': True, 'relayUrl': remote_env['REMOTE_PUBLIC_ORIGIN'],
+                                    'applicationVersion': 'local-development-fixture',
+                                    'workspaces': [{'id': 'project', 'label': 'DSH remote development', 'cwd': str(ROOT),
+                                                    'remoteId': enrolled['workspaces'][0]['workspaceId']}],
                                     'presets': []}}]},
         ]
         # JSON is a YAML subset and preserves exact paths without templating.
@@ -274,7 +336,12 @@ def serve(profile):
                             log(message)
                         continue
                     raise RuntimeError(name + ' exited; inspect its development log')
-            ready = health('http://127.0.0.1:8080/readyz') and probe() is not None
+            epoch = probe()
+            connected = relay_connected(epoch)
+            if state['relay_plugin_connected'] != connected:
+                state['relay_plugin_connected'] = connected
+                save(STATUS, state)
+            ready = health('http://127.0.0.1:8080/readyz') and epoch is not None and connected
             if ready and state['state'] != 'running':
                 state['state'] = 'running'
                 save(STATUS, state)
@@ -320,6 +387,7 @@ def main():
         state['supervisor_alive'] = running(state)
         state['relay_ready'] = health('http://127.0.0.1:8080/readyz')
         state['plugin_epoch'] = probe()
+        state['relay_plugin_connected'] = relay_connected(state['plugin_epoch']) if state['supervisor_alive'] else False
         print(json.dumps(state, ensure_ascii=False, indent=2))
         return
     if args.action == 'stop':
