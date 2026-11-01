@@ -33,6 +33,9 @@ Host 启用远控 Relay 后提供 `file.handoff.v1`，只有服务端也提供�
 
 交接租约最长五秒，Host 每秒批量发送 `file.renew`；硬到期最长五分钟，并进一步受 Host 凭据、原始 grant 和对象期限约束。续租不能恢复已过期交接，也不能延长硬到期。Host 校验应答 request ID、资源路由和租约集合；缺项、错误或应答丢失会撤销对应暂存并取消读取。
 
+[Go 流的独立取消](go-host-file-cancellation.md)使租约与 Host 退出不被数据库复核阻塞，
+并将取消绑定到 HTTP 慢写期限；底层读取晚返回时不会继续交付字节。
+
 Go 在对象请求开始前启动权限监控，因此等待响应头和读取 body 均可取消。监控每 500 毫秒检查数据库与当前 Host 连接，单次数据库检查最多一秒；同时使用租约计时器、硬到期和连接生命周期。撤权、scanner policy 变化、归档、断线、密钥 / runtime epoch / connection 变化均使旧交接失效。
 
 Host 映射还绑定原始上传用户、设备、目标会话和实际原生 receipt。错误用户 / 设备 / 会话不能解析 receipt；会话释放、连接关闭或租约失效会退休 receipt。重连从有效 clean 元数据重新下载并生成新 receipt，持久附件字节不等于 receipt 仍有权限。

@@ -1,6 +1,7 @@
 package httpapi
 
 import (
+	"context"
 	"io"
 	"net/http"
 	"strconv"
@@ -32,16 +33,25 @@ func (api *API) hostFileContent(response http.ResponseWriter, request *http.Requ
 		return
 	}
 	defer stream.Close()
+	writeHostFileContent(response, stream)
+}
+
+func writeHostFileContent(response http.ResponseWriter, stream *files.FileRead) {
 	response.Header().Set("Cache-Control", "no-store")
 	response.Header().Set("Content-Type", "application/octet-stream")
 	response.Header().Set("X-Content-Type-Options", "nosniff")
 	response.Header().Set("Content-Length", strconv.FormatInt(stream.Handoff.File.SizeBytes, 10))
 	writer := http.NewResponseController(response)
+	stop := context.AfterFunc(stream.Context(), func() { _ = writer.SetWriteDeadline(time.Now()) })
+	defer stop()
 	buffer := make([]byte, files.ChunkBytes)
 	for {
 		count, readErr := stream.Read(buffer)
 		if count > 0 {
 			_ = writer.SetWriteDeadline(time.Now().Add(30 * time.Second))
+			if stream.Context().Err() != nil {
+				panic(http.ErrAbortHandler)
+			}
 			if _, err := response.Write(buffer[:count]); err != nil {
 				return
 			}

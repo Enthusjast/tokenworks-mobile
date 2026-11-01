@@ -44,22 +44,48 @@ func (controller *Handoffs) End(ctx context.Context, host HostBinding, id string
 }
 
 type FileRead struct {
-	Handoff Handoff
-	body    io.ReadCloser
-	ctx     context.Context
-	cancel  context.CancelFunc
-	done    chan struct{}
-	once    sync.Once
+	Handoff  Handoff
+	body     io.ReadCloser
+	ctx      context.Context
+	cancel   context.CancelFunc
+	done     chan struct{}
+	hostDone <-chan struct{}
+	once     sync.Once
+	bodyOnce sync.Once
 }
 
-func (read *FileRead) Read(target []byte) (int, error) {
-	if read.ctx.Err() != nil {
-		return 0, read.ctx.Err()
+func (read *FileRead) Context() context.Context { return read.ctx }
+func (read *FileRead) closeBody() {
+	read.bodyOnce.Do(func() {
+		if read.body != nil {
+			_ = read.body.Close()
+		}
+	})
+}
+func (read *FileRead) currentErr() error {
+	if err := read.ctx.Err(); err != nil {
+		return err
 	}
-	return read.body.Read(target[:min(len(target), ChunkBytes)])
+	select {
+	case <-read.hostDone:
+		read.cancel()
+		return ErrAccess
+	default:
+		return nil
+	}
+}
+func (read *FileRead) Read(target []byte) (int, error) {
+	if err := read.currentErr(); err != nil {
+		return 0, err
+	}
+	n, err := read.body.Read(target[:min(len(target), ChunkBytes)])
+	if current := read.currentErr(); current != nil {
+		return 0, current
+	}
+	return n, err
 }
 func (read *FileRead) Close() error {
-	read.once.Do(func() { read.cancel(); _ = read.body.Close(); <-read.done })
+	read.once.Do(func() { read.cancel(); read.closeBody(); <-read.done })
 	return nil
 }
 
@@ -81,6 +107,14 @@ func (controller *Handoffs) Open(parent context.Context, id, token string, verif
 	if err != nil {
 		return nil, err
 	}
+	select {
+	case <-hostDone:
+		return nil, ErrAccess
+	default:
+	}
+	if !permit.Handoff.LeaseUntil.After(time.Now().Add(100*time.Millisecond)) || !permit.Handoff.ExpiresAt.After(time.Now()) {
+		return nil, ErrAccess
+	}
 	ctx, closeDeadline := context.WithDeadline(parent, permit.Handoff.ExpiresAt)
 	ctx, cancel := context.WithCancel(ctx)
 	key, err := permit.Handoff.File.CommittedKey()
@@ -89,21 +123,26 @@ func (controller *Handoffs) Open(parent context.Context, id, token string, verif
 		closeDeadline()
 		return nil, ErrUnavailable
 	}
-	read := &FileRead{Handoff: permit.Handoff, ctx: ctx, cancel: func() { cancel(); closeDeadline() }, done: make(chan struct{})}
+	read := &FileRead{Handoff: permit.Handoff, ctx: ctx, cancel: func() { cancel(); closeDeadline() }, done: make(chan struct{}), hostDone: hostDone}
 	go func() {
 		defer close(read.done)
-		defer cancel()
-		lease := time.NewTimer(max(0, time.Until(permit.Handoff.LeaseUntil)-100*time.Millisecond))
-		defer lease.Stop()
+		// Neither the old lease nor Host retirement may wait behind a database call.
+		lease := time.AfterFunc(max(0, time.Until(permit.Handoff.LeaseUntil)-100*time.Millisecond), cancel)
+		hostStopped := make(chan struct{})
+		go func() {
+			defer close(hostStopped)
+			select {
+			case <-ctx.Done():
+			case <-hostDone:
+				cancel()
+			}
+		}()
+		defer func() { lease.Stop(); cancel(); <-hostStopped }()
 		ticker := time.NewTicker(500 * time.Millisecond)
 		defer ticker.Stop()
 		for {
 			select {
 			case <-ctx.Done():
-				return
-			case <-hostDone:
-				return
-			case <-lease.C:
 				return
 			case <-ticker.C:
 				if _, err := live(permit.Handoff.Host); err != nil {
@@ -115,29 +154,26 @@ func (controller *Handoffs) Open(parent context.Context, id, token string, verif
 				if err != nil {
 					return
 				}
-				if !lease.Stop() {
-					select {
-					case <-lease.C:
-					default:
-					}
+				if !handoff.LeaseUntil.After(time.Now().Add(100*time.Millisecond)) || !lease.Stop() || ctx.Err() != nil {
+					return
 				}
-				lease.Reset(max(0, time.Until(handoff.LeaseUntil)-100*time.Millisecond))
+				lease.Reset(time.Until(handoff.LeaseUntil) - 100*time.Millisecond)
 			}
 		}
 	}()
-	body, err := controller.storage.OpenEncrypted(ctx, key, permit.Handoff.File.SizeBytes)
+	read.body, err = controller.storage.OpenEncrypted(ctx, key, permit.Handoff.File.SizeBytes)
+	if err == nil && read.body == nil {
+		err = ErrUnavailable
+	}
+	if err == nil {
+		err = read.currentErr()
+	}
 	if err != nil {
 		read.cancel()
+		read.closeBody()
 		<-read.done
 		return nil, err
 	}
-	if ctx.Err() != nil {
-		_ = body.Close()
-		read.cancel()
-		<-read.done
-		return nil, ErrAccess
-	}
-	read.body = body
-	context.AfterFunc(ctx, func() { _ = body.Close() })
+	context.AfterFunc(ctx, read.closeBody)
 	return read, nil
 }
