@@ -4,6 +4,7 @@ import { inspect } from 'node:util'
 import { invoke, protectorFrom, type JournalKeyProtector, type Protector } from './journal-key-protection.js'
 import { enrollmentRecoveryBinding, enrollmentRecoveryMatchesBinding, requireEnrollmentBindingOwner, type HostEnrollmentApprovalReview, type HostEnrollmentBinding, type HostEnrollmentClient, type HostEnrollmentConfirmation, type HostEnrollmentIntent, type HostEnrollmentReceipt } from './host-enrollment.js'
 import type { HostEnrollmentBindingStore } from './host-enrollment-binding.js'
+import { observeEnrollmentTerminal, requireEnrollmentTerminalOwner, terminalMatchesRecovery, type HostEnrollmentTerminal, type HostEnrollmentTerminalCleanup } from './host-enrollment-terminal.js'
 import { guards } from './host-process-guards.js'
 import { assertLinuxPrivateDirectory, openLinuxPrivateDirectory, publishLinuxPrivateFile, readLinuxPrivateFile, unlinkLinuxPrivateFile, type LinuxPrivateDirectory, type LinuxPrivateFile } from './linux-private-files.js'
 
@@ -236,6 +237,37 @@ export class HostEnrollmentRecoveryStore {
       requireEnrollmentBindingOwner(this.#client, approved)
       return await this.#remove(undefined, lifetime, permit, approved)
     })
+  }
+
+  /** Explicitly reconcile terminal history before removing local records.
+   * Expired recovery is read as inert metadata, never restored as an intent. */
+  async removeTerminal(binding: HostEnrollmentBindingStore, signal: AbortSignal): Promise<HostEnrollmentTerminalCleanup | undefined> {
+    if (!(signal instanceof AbortSignal) || !binding || !(binding.signal instanceof AbortSignal) || typeof binding.consumeTerminalRecovery !== 'function') throw failure()
+    return await this.#hold(AbortSignal.any([signal, binding.signal]), async (permit, lifetime) => await this.#run(lifetime, async (directory, alive) => {
+      const stored = await readLinuxPrivateFile(directory, this.#name, MAX_FILE, alive)
+      let plaintext: Buffer | undefined
+      try {
+        if (stored) plaintext = await unseal(stored.bytes, this.#protector, this.#context, alive)
+        let called = false, selected: HostEnrollmentTerminal | undefined
+        const result = await binding.consumeTerminalRecovery(async (record, checkBinding, current) => {
+          called = true
+          if (!record && !plaintext) { await checkBinding(); return undefined }
+          const terminal = await observeEnrollmentTerminal(this.#client, record, plaintext, current)
+          selected = terminal
+          await checkBinding()
+          if (plaintext && !terminalMatchesRecovery(this.#client, terminal, plaintext)) throw failure('conflict')
+          if (stored) await unlinkLinuxPrivateFile(directory, this.#name, stored, MAX_FILE, current)
+          else {
+            const appeared = await readLinuxPrivateFile(directory, this.#name, MAX_FILE, current)
+            if (appeared) { appeared.bytes.fill(0); throw failure('conflict') }
+          }
+          return { terminal, recoveryRemoved: stored !== undefined }
+        }, alive)
+        if (!called || result?.terminal !== selected) throw failure('conflict')
+        if (result) requireEnrollmentTerminalOwner(this.#client, result.terminal)
+        return result
+      } finally { stored?.bytes.fill(0); plaintext?.fill(0) }
+    }, permit))
   }
 
   /** Explicitly discard an authenticated record, including an expired one. */

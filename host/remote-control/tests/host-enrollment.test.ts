@@ -13,7 +13,7 @@ import { pathToFileURL } from 'node:url'
 import { canonicalObject } from '../src/canonical.js'
 import { HostRestCredentialProvider } from '../src/host-credentials.js'
 import { HostEnrolledRuntimeError, verifyEnrolledHostRuntime } from '../src/host-enrolled-runtime.js'
-import { captureEnrollmentBinding, enrollmentRecoveryBinding, HostEnrollmentClient, type HostEnrollmentBinding, type HostEnrollmentOptions } from '../src/host-enrollment.js'
+import { captureEnrollmentBinding, enrollmentRecoveryBinding, requireEnrollmentBindingOwner, HostEnrollmentClient, type HostEnrollmentBinding, type HostEnrollmentOptions } from '../src/host-enrollment.js'
 import { HostEnrollmentRecoveryError, HostEnrollmentRecoveryStore, seal } from '../src/host-enrollment-recovery.js'
 import { HostEnrollmentBindingError, HostEnrollmentBindingStore } from '../src/host-enrollment-binding.js'
 import { HostLocalEnrollmentError, runHostEnrollmentOnTerminal } from '../src/host-local-enrollment.js'
@@ -69,6 +69,8 @@ async function fixture(t: test.TestContext) {
   let origin = '', input: any, createdCount = 0, confirmedCount = 0, reviews = 0
   const expires = new Date(Date.now() + 300_000).toISOString()
   const state = { modernEnvelope: false, phoneConfirmed: false, hostConfirmed: false, adminRequired: false, approved: false, eligible: true, confirmedUser: user, subject: 'fixture-phone', organizationName: 'Fixture organization',
+    terminalState: undefined as undefined | 'denied' | 'expired' | 'cancelled', terminalDrop: false, terminalDeny: false,
+    terminalPatch: {} as Record<string, unknown>, onTerminal: undefined as undefined | (() => void | Promise<void>),
     dropCreate: false, holdCreate: false, redirectCreate: false, dropConfirm: false, dropReviewAt: 0, holdReview: false, denyReview: false, wrongReceipt: false,
     aliasOverride: undefined as string | undefined, dshOverride: undefined as string | undefined, appOverride: undefined as string | undefined,
     pluginOverride: undefined as string | undefined, protocolOverride: undefined as number | undefined,
@@ -102,7 +104,19 @@ async function fixture(t: test.TestContext) {
       }
       const workspaces = (input?.workspace_refs ?? []).map((reference: string, index: number) => ({ reference,
         workspace_id: index === 0 ? '77777777-7777-4777-8777-777777777777' : '88888888-8888-4888-8888-888888888888' }))
-      if (request.method === 'POST' && request.url === '/v1/enrollments') {
+      if (request.method === 'POST' && request.url === '/v1/enrollments/host-terminal') {
+        if (!input || body.request_id !== input.request_id || state.terminalDeny) { send(response, 403, { ok: false, error: { code: 'access.denied' } }, next); return }
+        if (state.approved || !state.terminalState) { send(response, 409, { ok: false, error: { code: 'enrollment.request_conflict' } }, next); return }
+        await state.onTerminal?.()
+        if (state.terminalDrop) { state.terminalDrop = false; response.destroy(); return }
+        if (response.destroyed) return
+        send(response, 200, { ok: true, data: { v: 1, enrollment_id: enrollment, request_id: input.request_id,
+          organization_id: input.organization_id, host_id: host, host_alias: input.alias, installation_id: installation,
+          installation_key_jkt: thumbprint, runtime_id: runtime, profile_ref: input.profile_ref,
+          dsh_version: input.dsh_version, application_version: input.application_version, plugin_version: input.plugin_version,
+          protocol_version: input.protocol_version, state: state.terminalState, expires_at: expires,
+          observed_at: new Date().toISOString(), workspaces, ...state.terminalPatch } }, next)
+      } else if (request.method === 'POST' && request.url === '/v1/enrollments') {
         if (state.redirectCreate) { response.writeHead(307, { location: `${origin}/redirect-target`, 'cache-control': 'no-store' }); response.end(); return }
         if (input && JSON.stringify(input) !== JSON.stringify(body)) { send(response, 409, { ok: false, error: { code: 'enrollment.request_conflict' } }, next); return }
         if (!input) { input = body; createdCount++ }
@@ -187,6 +201,109 @@ test('negotiated REST enrollment preserves the business request identity through
   f.state.phoneConfirmed = true
   assert.equal((await f.client.confirm(attempt, receipt, () => true, AbortSignal.timeout(5_000))).state, 'approved')
   assert.equal(f.counts().createdCount, 1); assert.equal(f.counts().confirmedCount, 1)
+})
+
+async function terminalFiles(t: test.TestContext, bind = true, lostCreate = false) {
+  const f = await fixture(t), root = await mkdtemp(join(tmpdir(), 'dsh-enrollment-terminal-')), master = randomBytes(32)
+  const protector = recoveryProtector(master), recoveryPath = join(root, 'pending.bin'), bindingPath = join(root, 'binding.bin')
+  const recovery = new HostEnrollmentRecoveryStore({ path: recoveryPath, client: f.client, protector })
+  const binding = new HostEnrollmentBindingStore({ path: bindingPath, client: f.client, protector })
+  const workflow = new HostTerminalEnrollmentWorkflow({ client: f.client, recovery, binding })
+  t.after(async () => { workflow.close(); binding.close(); recovery.close(); master.fill(0); await rm(root, { recursive: true, force: true }) })
+  const attempt = f.prepare()
+  if (lostCreate) { f.state.dropCreate = true; await assert.rejects(recovery.create(attempt, AbortSignal.timeout(5_000)), valid('outcome_unknown')) }
+  else { const receipt = await recovery.create(attempt, AbortSignal.timeout(5_000)); if (bind) await binding.reserve(attempt, receipt, AbortSignal.timeout(5_000)) }
+  attempt.destroy()
+  return { ...f, recovery, binding, workflow, recoveryPath, bindingPath }
+}
+
+test('terminal cleanup verifies server closure and removes aged records without reviving or approving them', { skip: process.platform !== 'linux' }, async t => {
+  const f = await terminalFiles(t); f.state.modernEnvelope = true; f.state.terminalState = 'expired'
+  const realNow = Date.now
+  try {
+    Date.now = () => realNow() + 601_000; f.account.expiresAt = Date.now() + 300_000
+    await assert.rejects(f.recovery.load(AbortSignal.timeout(5_000)), cause => cause instanceof HostEnrollmentRecoveryError)
+    const result = await f.workflow.cleanupTerminal(AbortSignal.timeout(5_000))
+    assert.equal(result?.terminal.state, 'expired'); assert.equal(result?.bindingRemoved, true); assert.equal(result?.recoveryRemoved, true)
+    assert.throws(() => requireEnrollmentBindingOwner(f.client, result!.terminal as unknown as HostEnrollmentBinding), valid('invalid_config'))
+    assert.equal(await f.workflow.cleanupTerminal(AbortSignal.timeout(5_000)), undefined)
+    assert.equal(f.counts().createdCount, 1); assert.equal(f.counts().confirmedCount, 0)
+    const terminalRequests = f.requests.filter(item => item.path.endsWith('/host-terminal'))
+    assert.ok(terminalRequests.every(item => Object.keys(item.body).join(',') === 'request_id'))
+    await assert.rejects(readFile(f.recoveryPath), { code: 'ENOENT' }); await assert.rejects(readFile(f.bindingPath), { code: 'ENOENT' })
+  } finally { Date.now = realNow }
+})
+
+test('terminal cleanup reconciles a lost create reply without another create or a binding pointer', { skip: process.platform !== 'linux' }, async t => {
+  const f = await terminalFiles(t, false, true); f.state.terminalState = 'cancelled'
+  const result = await f.workflow.cleanupTerminal(AbortSignal.timeout(5_000))
+  assert.equal(result?.terminal.state, 'cancelled'); assert.equal(result?.recoveryRemoved, true); assert.equal(result?.bindingRemoved, false)
+  assert.equal(f.counts().createdCount, 1); assert.equal(f.counts().confirmedCount, 0)
+})
+
+test('unproven, pending, approved, mismatched and lost terminal replies preserve both local records', { skip: process.platform !== 'linux' }, async t => {
+  for (const mode of ['pending', 'approved', 'denied-http', 'mismatch', 'invalid-state', 'drop'] as const) {
+    const f = await terminalFiles(t), pending = await readFile(f.recoveryPath), pointer = await readFile(f.bindingPath)
+    f.state.terminalState = 'denied'
+    if (mode === 'pending') f.state.terminalState = undefined
+    if (mode === 'approved') f.state.approved = true
+    if (mode === 'denied-http') f.state.terminalDeny = true
+    if (mode === 'mismatch') f.state.terminalPatch = { runtime_id: alternateUser }
+    if (mode === 'invalid-state') f.state.terminalPatch = { state: 'approved' }
+    if (mode === 'drop') f.state.terminalDrop = true
+    await assert.rejects(f.workflow.cleanupTerminal(AbortSignal.timeout(5_000)))
+    assert.deepEqual(await readFile(f.recoveryPath), pending); assert.deepEqual(await readFile(f.bindingPath), pointer)
+    assert.equal(f.counts().createdCount, 1)
+  }
+})
+
+test('terminal cleanup locks both paths and retains records on cancellation or binding replacement', { skip: process.platform !== 'linux' }, async t => {
+  const f = await terminalFiles(t); f.state.terminalState = 'denied'
+  const original = await readFile(f.recoveryPath), pointer = await readFile(f.bindingPath)
+  let entered!: () => void, release!: () => void
+  const observed = new Promise<void>(resolve => { entered = resolve }), held = new Promise<void>(resolve => { release = resolve })
+  f.state.onTerminal = async () => { entered(); await held }
+  const cancel = new AbortController(), operation = f.workflow.cleanupTerminal(cancel.signal)
+  await observed
+  await assert.rejects(f.recovery.discard(AbortSignal.timeout(1_000)), cause => cause instanceof HostEnrollmentRecoveryError && cause.code === 'host.enrollment_recovery.busy')
+  await assert.rejects(f.binding.discard(AbortSignal.timeout(1_000)), bindingError('busy'))
+  cancel.abort(); await assert.rejects(operation); release()
+  assert.deepEqual(await readFile(f.recoveryPath), original); assert.deepEqual(await readFile(f.bindingPath), pointer)
+  f.state.onTerminal = async () => { await writeFile(f.bindingPath, Buffer.from('REPLACED_BINDING'), { mode: 0o600 }) }
+  await assert.rejects(f.workflow.cleanupTerminal(AbortSignal.timeout(5_000)))
+  assert.deepEqual(await readFile(f.recoveryPath), original)
+  assert.equal((await readFile(f.bindingPath)).toString(), 'REPLACED_BINDING')
+})
+
+test('terminal cleanup resumes after recovery deletion but before binding deletion', { skip: process.platform !== 'linux' }, async t => {
+  const f = await terminalFiles(t); f.state.terminalState = 'denied'
+  const interrupted = { signal: f.binding.signal, consumeTerminalRecovery: (action: Parameters<HostEnrollmentBindingStore['consumeTerminalRecovery']>[0], signal: AbortSignal) =>
+    f.binding.consumeTerminalRecovery(async (...args) => { await action(...args); throw new Error('fixture interrupted before binding unlink') }, signal) } as unknown as HostEnrollmentBindingStore
+  await assert.rejects(f.recovery.removeTerminal(interrupted, AbortSignal.timeout(5_000)))
+  await assert.rejects(readFile(f.recoveryPath), { code: 'ENOENT' }); assert.ok(await readFile(f.bindingPath))
+  const result = await f.workflow.cleanupTerminal(AbortSignal.timeout(5_000))
+  assert.equal(result?.recoveryRemoved, false); assert.equal(result?.bindingRemoved, true)
+})
+
+test('terminal cleanup rejects a conflicting recovery payload before network or deletion', { skip: process.platform !== 'linux' }, async t => {
+  const f = await terminalFiles(t); f.state.terminalState = 'denied'
+  await f.recovery.discard(AbortSignal.timeout(5_000))
+  const other = f.prepare(); await f.recovery.save(other, AbortSignal.timeout(5_000)); other.destroy()
+  const before = await readFile(f.recoveryPath)
+  await assert.rejects(f.workflow.cleanupTerminal(AbortSignal.timeout(5_000)))
+  assert.deepEqual(await readFile(f.recoveryPath), before); assert.ok(await readFile(f.bindingPath))
+  assert.equal(f.requests.filter(item => item.path.endsWith('/host-terminal')).length, 0)
+})
+
+test('terminal cleanup refuses an unverified coordinator result without touching protected records', { skip: process.platform !== 'linux' }, async t => {
+  const f = await terminalFiles(t); f.state.terminalState = 'expired'
+  const before = await readFile(f.recoveryPath), pointer = await readFile(f.bindingPath)
+  const impostor = { signal: f.binding.signal, async consumeTerminalRecovery() {
+    return { terminal: { state: 'expired' }, recoveryRemoved: true, bindingRemoved: true }
+  } } as unknown as HostEnrollmentBindingStore
+  await assert.rejects(f.recovery.removeTerminal(impostor, AbortSignal.timeout(5_000)))
+  assert.deepEqual(await readFile(f.recoveryPath), before); assert.deepEqual(await readFile(f.bindingPath), pointer)
+  assert.equal(f.requests.filter(item => item.path.endsWith('/host-terminal')).length, 0)
 })
 
 test('host enrollment refuses absent, declined, changed or cancelled local approval', async t => {

@@ -103,7 +103,7 @@ func (postgres *Postgres) DenyEnrollmentAdmin(parent context.Context, identity U
 	 values($1,$2,$3,$4,$5)`, row.ID, actor, deviceID, version, digest); err != nil {
 		return EnrollmentAdminDenial{}, ErrDatabaseUnavailable
 	}
-	if err := retireDeniedEnrollment(ctx, tx, row); err != nil {
+	if err := retireUnapprovedEnrollment(ctx, tx, row); err != nil {
 		return EnrollmentAdminDenial{}, err
 	}
 	metadata, _ := json.Marshal(map[string]string{"enrollment_id": row.ID, "host_id": row.HostID, "installation_id": row.InstallationID, "runtime_id": row.RuntimeID, "state": "denied", "review_sha256": expectedReview})
@@ -131,7 +131,7 @@ func (postgres *Postgres) DenyEnrollmentAdmin(parent context.Context, identity U
 	return receipt, nil
 }
 
-func retireDeniedEnrollment(ctx context.Context, tx *sql.Tx, row enrollmentRow) error {
+func retireUnapprovedEnrollment(ctx context.Context, tx *sql.Tx, row enrollmentRow) error {
 	if _, err := tx.ExecContext(ctx, `update runtimes set revoked_at=clock_timestamp() where id=$1 and revoked_at is null`, row.RuntimeID); err != nil {
 		return ErrDatabaseUnavailable
 	}

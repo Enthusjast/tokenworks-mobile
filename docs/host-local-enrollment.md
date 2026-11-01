@@ -53,6 +53,10 @@ if (!enrolled) {
 `resume` 先在线复核已有绑定；若已有定位文件仍待确认，则加载受保护尝试并以原 request ID 和
 配对码显式重试创建，再进行终端确认。已有待确认定位文件但恢复记录缺失时返回
 `host.terminal_enrollment.recovery_required`；无本机记录时返回 `undefined`，不会自动创建。
+
+拒绝、取消或过期后的记录可显式使用[终态对账与本地收尾](host-enrollment-terminal.md)；
+`workflow.cleanupTerminal(signal)` 先取得服务端不可再激活的事实，再核对和清理原本地文件。
+它不会因一个 403 或本机超时直接丢弃记录，也不会删除或轮换安装私钥。
 `start` 在已有绑定、待确认定位文件或可恢复尝试时返回 `host.terminal_enrollment.existing`。
 只有调用方确认没有未对账的远端申请时才能显式调用 `start`。
 

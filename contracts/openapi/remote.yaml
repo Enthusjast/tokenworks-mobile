@@ -1531,6 +1531,41 @@ paths:
           $ref: "#/components/responses/Error"
         "503":
           $ref: "#/components/responses/Error"
+  /v1/enrollments/host-terminal:
+    parameters:
+      - $ref: "#/components/parameters/ResponseEnvelope"
+    post:
+      description: Explicit Host-owner terminal reconciliation by the original stable request UUID, including a lost create response. Requires the active installation owner/current organization membership, separately allowed Host client and matching installation DPoP key; phone clients cannot use it. Locks the original enrollment. Live pending or approved requests conflict. An expired pending request is durably closed and its unapproved runtime retired; existing denied/cancelled/expired requests are reconciled. Immutable terminal evidence fences later activation before returning. It neither creates a new enrollment nor rotates/deletes installation keys. Missing requests or lost ownership are not proof that an unknown create never committed.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EnrollmentTerminalRequest"
+      responses:
+        "200":
+          description: Durable terminal state plus exact inert binding metadata. No pairing code, token or private key. The Host must match its protected local records before cleanup; this never authorizes runtime use.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/X-Request-ID"
+            X-DSH-Response-Envelope:
+              $ref: "#/components/headers/X-DSH-Response-Envelope"
+            DPoP-Nonce:
+              $ref: "#/components/headers/DPoP-Nonce"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EnrollmentTerminalResponse"
+        "400":
+          $ref: "#/components/responses/Error"
+        "401":
+          $ref: "#/components/responses/Error"
+        "403":
+          $ref: "#/components/responses/Error"
+        "409":
+          $ref: "#/components/responses/Error"
+        "503":
+          $ref: "#/components/responses/Error"
 components:
   securitySchemes:
     HostFileTicket:
@@ -2821,5 +2856,103 @@ components:
                 - "null"
               minLength: 1
               maxLength: 1024
+        request_id:
+          $ref: "#/components/schemas/HTTPResponseRequestID"
+
+    EnrollmentTerminalRequest:
+      type: object
+      additionalProperties: false
+      required:
+        - request_id
+      properties:
+        request_id:
+          type: string
+          format: uuid
+    EnrollmentTerminalResponse:
+      type: object
+      additionalProperties: false
+      required:
+        - ok
+        - data
+      properties:
+        ok:
+          const: true
+        data:
+          type: object
+          additionalProperties: false
+          required:
+            - v
+            - enrollment_id
+            - request_id
+            - organization_id
+            - host_id
+            - host_alias
+            - installation_id
+            - installation_key_jkt
+            - runtime_id
+            - profile_ref
+            - dsh_version
+            - application_version
+            - plugin_version
+            - protocol_version
+            - state
+            - expires_at
+            - observed_at
+            - workspaces
+          properties:
+            v:
+              const: 1
+            enrollment_id:
+              type: string
+              format: uuid
+            request_id:
+              type: string
+              format: uuid
+            organization_id:
+              type: string
+              format: uuid
+            host_id:
+              type: string
+              format: uuid
+            host_alias:
+              type: string
+              maxLength: 160
+            installation_id:
+              type: string
+              format: uuid
+            installation_key_jkt:
+              type: string
+              pattern: ^[A-Za-z0-9_-]{43}$
+            runtime_id:
+              type: string
+              format: uuid
+            profile_ref:
+              type: string
+            dsh_version:
+              type: string
+            application_version:
+              type: string
+            plugin_version:
+              type: string
+            protocol_version:
+              type: integer
+              minimum: 1
+              maximum: 32
+            state:
+              enum:
+                - denied
+                - expired
+                - cancelled
+            expires_at:
+              type: string
+              format: date-time
+            observed_at:
+              type: string
+              format: date-time
+            workspaces:
+              type: array
+              maxItems: 64
+              items:
+                $ref: "#/components/schemas/EnrollmentWorkspace"
         request_id:
           $ref: "#/components/schemas/HTTPResponseRequestID"

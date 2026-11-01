@@ -4,6 +4,7 @@ import { runHostEnrollmentOnTerminal } from './host-local-enrollment.js'
 import type { HostEnrollmentBinding, HostEnrollmentClient, HostEnrollmentIntent, HostEnrollmentRequest } from './host-enrollment.js'
 import type { HostEnrollmentBindingStore } from './host-enrollment-binding.js'
 import type { HostEnrollmentRecoveryStore } from './host-enrollment-recovery.js'
+import type { HostEnrollmentTerminalCleanup } from './host-enrollment-terminal.js'
 
 type Code = 'invalid_config' | 'cancelled' | 'busy' | 'existing' | 'recovery_required'
 export class HostTerminalEnrollmentWorkflowError extends Error {
@@ -122,5 +123,13 @@ export class HostTerminalEnrollmentWorkflow {
   /** Explicitly remove only recovery data matched to a freshly approved binding. */
   async cleanup(signal: AbortSignal): Promise<boolean> {
     return await this.#run(signal, async lifetime => await this.#recovery.removeApproved(this.#binding, lifetime))
+  }
+
+  /** Explicit terminal cleanup never starts another enrollment or retires keys. */
+  async cleanupTerminal(signal: AbortSignal): Promise<HostEnrollmentTerminalCleanup | undefined> {
+    return await this.#run(signal, async lifetime => {
+      if (typeof this.#recovery.removeTerminal !== 'function') throw failure('invalid_config')
+      return await this.#recovery.removeTerminal(this.#binding, lifetime)
+    })
   }
 }

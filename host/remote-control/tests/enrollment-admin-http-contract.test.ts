@@ -44,4 +44,13 @@ test('administrator directory, exact decisions and terminal receipt have strict 
   assert.equal(review({ ok: true, data: { ...value, pairing_code: 'PRIVATE_PAIRING_CODE' } }), false)
   assert.ok(api.paths['/v1/enrollments']?.get)
   for (const [suffix, method] of [['admin-review', 'get'], ['admin-approve', 'post'], ['admin-deny', 'post']] as const) assert.ok(api.paths[`/v1/enrollments/{id}/${suffix}`]?.[method])
+  const terminalRequest = validator('EnrollmentTerminalRequest'), terminalResponse = validator('EnrollmentTerminalResponse')
+  assert.equal(terminalRequest({ request_id: id }), true)
+  assert.equal(terminalRequest({ request_id: id, code: 'PRIVATE_CODE' }), false)
+  const terminal = { v: 1, enrollment_id: id, request_id: id, organization_id: id, host_id: id, host_alias: 'Fixture', installation_id: id,
+    installation_key_jkt: 'A'.repeat(43), runtime_id: id, profile_ref: 'fixture', dsh_version: '', application_version: '', plugin_version: '', protocol_version: 1,
+    state: 'expired', expires_at: timestamp, observed_at: timestamp, workspaces: [] }
+  assert.equal(terminalResponse({ ok: true, data: terminal }), true)
+  assert.equal(terminalResponse({ ok: true, data: { ...terminal, state: 'approved' } }), false)
+  assert.ok(api.paths['/v1/enrollments/host-terminal']?.post)
 })

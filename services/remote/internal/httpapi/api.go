@@ -206,6 +206,7 @@ func New(database Repository, identity *auth.Authenticator, configs ...Config) *
 	mux.Handle("DELETE /v1/installations/{id}", api.protected(http.HandlerFunc(api.revokeInstallation)))
 	mux.Handle("GET /v1/devices/current", api.phoneAuthenticated(http.HandlerFunc(api.currentDevice)))
 	mux.Handle("POST /v1/enrollments", api.hostAuthenticated(http.HandlerFunc(api.createEnrollment)))
+	mux.Handle("POST /v1/enrollments/host-terminal", api.hostAuthenticated(http.HandlerFunc(api.observeEnrollmentTerminal)))
 	mux.Handle("GET /v1/enrollments", api.protected(http.HandlerFunc(api.listEnrollmentApprovals)))
 	mux.Handle("GET /v1/enrollments/{id}", api.authenticated(http.HandlerFunc(api.getEnrollment)))
 	mux.Handle("GET /v1/enrollments/{id}/host-review", api.hostAuthenticated(http.HandlerFunc(api.reviewEnrollmentHost)))

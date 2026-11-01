@@ -30,6 +30,7 @@ export type { HostEnrollmentRecoveryOptions } from './host-enrollment-recovery.j
 export { HostEnrollmentBindingStore, HostEnrollmentBindingError } from './host-enrollment-binding.js'
 export type { HostEnrollmentBindingOptions } from './host-enrollment-binding.js'
 export type { HostEnrollmentBinding } from './host-enrollment.js'
+export type { HostEnrollmentTerminal, HostEnrollmentTerminalCleanup } from './host-enrollment-terminal.js'
 export { HostLocalEnrollmentError, presentHostEnrollmentOnTerminal, approveHostEnrollmentOnTerminal, runHostEnrollmentOnTerminal } from './host-local-enrollment.js'
 export type { HostLocalEnrollmentOptions } from './host-local-enrollment.js'
 export { HostTerminalEnrollmentWorkflow, HostTerminalEnrollmentWorkflowError } from './host-enrollment-workflow.js'

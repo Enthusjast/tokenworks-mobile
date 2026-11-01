@@ -86,6 +86,24 @@ const clientTransports = new WeakMap<HostEnrollmentClient, HostEnrollmentTranspo
 type VerifiedBindingOwner = Readonly<{ binding: string; recoverySha256: string | undefined }>
 const verifiedBindings = new WeakMap<HostEnrollmentBinding, VerifiedBindingOwner>()
 
+/** @internal Only initialized, still-owned clients may observe terminal history. */
+export function enrollmentTerminalTransport(client: HostEnrollmentClient): HostEnrollmentTransport {
+  enrollmentRecoveryBinding(client)
+  const transport = clientTransports.get(client)
+  if (!transport) throw enrollmentError('invalid_config')
+  return transport
+}
+
+/** @internal Read inert recovery metadata, including aged attempts, without
+ * reviving an intent or exposing its pairing code to cleanup callers. */
+export function enrollmentTerminalRecoveryInput(client: HostEnrollmentClient, raw: Uint8Array) {
+  const owner = enrollmentRecoveryBinding(client)
+  if (!(raw instanceof Uint8Array) || raw.length < 1 || raw.length > 16 * 1024) throw enrollmentError('invalid_config')
+  const value = recoverySchema.parse(parseSigningObject(raw))
+  if (value.binding !== owner || value.input.workspaceRefs.some((item, index, items) => index > 0 && items[index - 1]! >= item)) throw enrollmentError('identity_changed')
+  return { requestId: value.requestId, ...value.input }
+}
+
 /** @internal A recovery store binds its encryption to this exact account and installation. */
 export function enrollmentRecoveryBinding(client: HostEnrollmentClient): string {
   const binding = clientBindings.get(client)

@@ -7,6 +7,7 @@ import { captureEnrollmentBinding, enrollmentRecoveryBinding, hostEnrollmentBind
   type HostEnrollmentIntent, type HostEnrollmentReceipt } from './host-enrollment.js'
 import { enrollmentError, HostEnrollmentError } from './host-enrollment-transport.js'
 import { MAX_FILE, MAX_PLAINTEXT, seal, unseal, type HostEnrollmentRecoveryStore } from './host-enrollment-recovery.js'
+import { requireEnrollmentTerminalOwner, terminalMatchesBinding, type HostEnrollmentTerminal, type HostEnrollmentTerminalCleanup } from './host-enrollment-terminal.js'
 import { protectorFrom, type JournalKeyProtector, type Protector } from './journal-key-protection.js'
 import { assertLinuxPrivateDirectory, openLinuxPrivateDirectory, publishLinuxPrivateFile, readLinuxPrivateFile, unlinkLinuxPrivateFile, type LinuxPrivateDirectory, type LinuxPrivateFile } from './linux-private-files.js'
 import { guards } from './host-process-guards.js'
@@ -183,6 +184,39 @@ export class HostEnrollmentBindingStore {
         await unlinkLinuxPrivateFile(directory, this.#name, stored, MAX_FILE, lifetime)
         return true
       } finally { stored.bytes.fill(0); plaintext?.fill(0) }
+    })
+  }
+
+  /** @internal Recovery coordinator holds its own path first. Keep this path
+   * locked through online closure and both unlinks, deleting this pointer last. */
+  async consumeTerminalRecovery(action: (record: HostEnrollmentBindingRecord | undefined, check: () => Promise<void>, signal: AbortSignal) =>
+    Promise<{ terminal: HostEnrollmentTerminal; recoveryRemoved: boolean } | undefined>, signal: AbortSignal): Promise<HostEnrollmentTerminalCleanup | undefined> {
+    if (typeof action !== 'function') throw failure()
+    return await this.#run(signal, async (directory, lifetime) => {
+      const stored = await readLinuxPrivateFile(directory, this.#name, MAX_FILE, lifetime)
+      let plaintext: Buffer | undefined
+      try {
+        let record: HostEnrollmentBindingRecord | undefined
+        if (stored) {
+          plaintext = await unseal(stored.bytes, this.#protector, this.#context, lifetime, BINDING_MAGIC)
+          record = hostEnrollmentBindingRecord.parse(parseSigningObject(plaintext))
+        }
+        const check = async () => {
+          const current = await readLinuxPrivateFile(directory, this.#name, MAX_FILE, lifetime)
+          try {
+            if (stored ? !current || current.dev !== stored.dev || current.ino !== stored.ino || !current.bytes.equals(stored.bytes) : current !== undefined) throw failure('conflict')
+          } finally { current?.bytes.fill(0) }
+          await assertLinuxPrivateDirectory(directory)
+          if (lifetime.aborted) throw failure('cancelled')
+        }
+        const result = await action(record, check, lifetime)
+        await check()
+        if (!result) return undefined
+        requireEnrollmentTerminalOwner(this.#client, result.terminal)
+        if (record && !terminalMatchesBinding(this.#client, result.terminal, record)) throw failure('conflict')
+        if (stored) await unlinkLinuxPrivateFile(directory, this.#name, stored, MAX_FILE, lifetime)
+        return Object.freeze({ ...result, bindingRemoved: stored !== undefined })
+      } finally { stored?.bytes.fill(0); plaintext?.fill(0) }
     })
   }
 }

@@ -102,7 +102,7 @@ export class HostEnrollmentTransport {
   current(signal: AbortSignal): void { if (signal.aborted || this.signal.aborted) throw enrollmentError('cancelled') }
 
   async request(method: 'GET' | 'POST', path: string, body: object | undefined, expectedStatus: 200 | 201, caller: AbortSignal): Promise<unknown> {
-    if (!(caller instanceof AbortSignal) || !(method === 'POST' && (path === '/v1/enrollments' || confirmPath.test(path)) || method === 'GET' && reviewPath.test(path)) ||
+    if (!(caller instanceof AbortSignal) || !(method === 'POST' && (path === '/v1/enrollments' || path === '/v1/enrollments/host-terminal' || confirmPath.test(path)) || method === 'GET' && reviewPath.test(path)) ||
         (method === 'GET' ? body !== undefined || expectedStatus !== 200 : !body || expectedStatus !== (path === '/v1/enrollments' ? 201 : 200))) throw enrollmentError('invalid_config')
     if (this.#active >= 8) throw enrollmentError('unavailable')
     let encodedBody: string | undefined

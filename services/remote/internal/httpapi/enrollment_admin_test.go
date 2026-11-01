@@ -54,6 +54,11 @@ func (f *enrollmentAdminTestRepository) DenyEnrollmentAdmin(ctx context.Context,
 	return store.EnrollmentAdminDenial{EnrollmentID: enrollment, State: "denied"}, err
 }
 
+func (f *enrollmentAdminTestRepository) ObserveEnrollmentTerminal(ctx context.Context, identity store.UserIdentity, key, request string) (store.EnrollmentTerminal, error) {
+	_, err := f.ReviewEnrollmentAdmin(ctx, identity, "", key, request)
+	return store.EnrollmentTerminal{Version: 1, RequestID: request, State: "expired"}, err
+}
+
 func TestEnrollmentAdminHTTPRequiresPhoneDPoPAndExactReview(t *testing.T) {
 	issuerKey, err := rsa.GenerateKey(rand.Reader, 2048)
 	if err != nil {
@@ -177,5 +182,24 @@ func TestEnrollmentAdminHTTPRequiresPhoneDPoPAndExactReview(t *testing.T) {
 	}
 	if w := send(access, "POST", base+"/admin-deny", map[string]any{"review_sha256": strings.Repeat("a", 64)}); w.Code != 403 {
 		t.Fatal("repository denial authorization was ignored")
+	}
+	repo.err = nil
+	calls = repo.calls
+	terminal := "https://api.example.edu/v1/enrollments/host-terminal"
+	if w := send(access, "POST", terminal, map[string]any{"request_id": id}); w.Code != 403 || repo.calls != calls {
+		t.Fatal("phone client performed Host terminal observation")
+	}
+	for _, body := range []any{map[string]any{"request_id": id, "code": "PRIVATE_CODE"}, map[string]any{"Request_ID": id}, map[string]any{"request_id": nil}} {
+		if w := send(hostAccess, "POST", terminal, body); w.Code != 400 || repo.calls != calls {
+			t.Fatal("invalid Host terminal body reached repository")
+		}
+	}
+	repo.activeDeviceErr = store.ErrDeviceNotFound
+	if w := send(hostAccess, "POST", terminal, map[string]any{"request_id": id}); w.Code != 200 || repo.proof != proofJKT || repo.enrollment != id || repo.device != "" {
+		t.Fatal("Host terminal endpoint failed installation-bound authority")
+	}
+	calls = repo.calls
+	if w := send(hostAccess, "POST", terminal+"?runtime_id=attacker", map[string]any{"request_id": id}); w.Code != 400 || repo.calls != calls {
+		t.Fatal("Host terminal selector was accepted")
 	}
 }
