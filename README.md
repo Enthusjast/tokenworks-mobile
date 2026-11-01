@@ -4,6 +4,10 @@ TokenWorks / DSH 移动远程控制平台。主机插件与 Go 中继已通过�
 
 主机插件位于 [host/remote-control](host/remote-control/README.md)，Go 服务位于 [services/remote](services/remote/README.md)。当前可验证登记与绑定、授权、会话创建、目录与读取、消息与中断、普通问题应答、签名审批及结果对账、主动撤权。[Android 工程](android/README.md) 已提供 Compose/Hilt 开发 APK、PKCE/DPoP 登录、加密账号恢复、凭据刷新、Keystore 和设备登记入口，并通过共享协议与 API 26 界面测试；真实学校身份、端到端会话、可靠缓存及完整手机客户端仍有验收缺口。本机 IPC 调试入口默认关闭。
 
+本机持续开发可运行 `npm run dev`：启动回环 Go 中转、私有 PostgreSQL、TypeScript watch 和
+本机 npm dsh 的插件 HMR。`npm run dev:status` 查看状态，`npm run dev:stop` 停止；端口、
+本地身份夹具及验证范围见[持续开发环境](docs/local-development.md)。
+
 需要 Node.js 24（至少 24.15.0）：
 
 ```sh

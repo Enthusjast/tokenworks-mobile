@@ -5,6 +5,9 @@
   "engines": { "node": ">=24.15.0 <25" },
   "workspaces": ["host/remote-control"],
   "scripts": {
+    "dev": "python3 tools/dev/local.py start",
+    "dev:status": "python3 tools/dev/local.py status",
+    "dev:stop": "python3 tools/dev/local.py stop",
     "build": "npm run build --workspaces",
     "contracts": "tsx tools/generate-m0-contract.ts && tsx tools/generate-approval-contract.ts && tsx tools/generate-file-contract.ts && tsx tools/generate-export-contract.ts && tsx tools/generate-push-contract.ts && tsx tools/generate-native-observation-contract.ts",
     "contracts:check": "tsx tools/generate-m0-contract.ts --check && tsx tools/generate-approval-contract.ts --check && tsx tools/generate-file-contract.ts --check && tsx tools/generate-export-contract.ts --check && tsx tools/generate-push-contract.ts --check && tsx tools/generate-native-observation-contract.ts --check",
@@ -18,7 +21,7 @@
     "test:android:core": "cd android && ./gradlew -PjvmOnly=true check"
   },
   "devDependencies": {
-    "@deepseek-ai/dsh": "0.2.1-rc.2",
+    "@deepseek-ai/dsh": "0.2.1-rc.5",
     "@types/node": "24.10.1",
     "ajv": "8.17.1",
     "tsx": "4.23.15",

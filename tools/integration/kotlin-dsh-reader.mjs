@@ -84,7 +84,7 @@ function local(method, url, body) {
 let phase = 'startup'
 try {
   const probe = await until(async () => { try { return await local('GET', '/m0/probe') } catch { return undefined } }, phase)
-  assert.equal(probe.payload.dsh_version, '0.2.1-rc.2')
+  assert.equal(probe.payload.dsh_version, '0.2.1-rc.5')
   const command = (type, payload, session_id) => local('POST', '/m0/command', { v: 0, type, request_id: randomUUID(), runtime_epoch: probe.runtime_epoch, payload, ...(session_id === undefined ? {} : { session_id }) })
   phase = 'session-create'
   const sessionId = (await command('session.create', { workspace: 'probe', preset: 'standard' })).payload.session_id

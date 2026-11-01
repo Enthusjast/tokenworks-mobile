@@ -182,7 +182,7 @@ async function applyOwned(ctx: Context, config: Config, parentFiber: Context['fi
         if (keyOpen.signal.aborted) throw new Error('remote-control startup cancelled')
         if (options.relayUrl && credentials) relay = startHostRelay({
           url: options.relayUrl, runtime, credentials,
-          dshVersion: '0.2.1-rc.2', applicationVersion: options.applicationVersion!, pluginVersion: '0.0.1',
+          dshVersion: '0.2.1-rc.5', applicationVersion: options.applicationVersion!, pluginVersion: '0.0.1',
           ...(signed ? { approvals: binding => new RelayApprovals(signed!, binding) } : {}),
           questionReferences: binding => new RelayQuestionReferences(interactions, binding),
           files: binding => new RelayFiles(runtime!.files, binding),

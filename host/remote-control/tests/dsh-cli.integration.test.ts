@@ -92,7 +92,7 @@ async function waitForInteraction(command: (type: string, payload: unknown, sess
   throw new Error(`the real DSH Tool Runtime did not create a pending interaction. ${failureDetail}`)
 }
 
-test('DSH CLI 0.2.1-rc.2 loads the plugin and completes a local session round trip', async t => {
+test('DSH CLI 0.2.1-rc.5 loads the plugin and completes a local session round trip', async t => {
   const pluginEntry = await hostPackageEntry(t)
   const exportSupported = await PinnedExportSource.supported()
   const root = await mkdtemp(join(tmpdir(), 'dsh-mobile-cli-integration-'))
@@ -161,7 +161,7 @@ test('DSH CLI 0.2.1-rc.2 loads the plugin and completes a local session round tr
           assert.ok(Array.isArray(offered) && offered.length <= 64 && offered.every(value => typeof value === 'string' && /^[a-z0-9][a-z0-9._-]{0,63}$/.test(value)))
           assert.equal(new Set(offered).size, offered.length)
           const helloDigest = hostHelloDigest([
-            'host', runtimeId, relayRuntimeEpoch, '0.2.1-rc.2', 'dsh-cli-integration', '0.0.1', '1',
+            'host', runtimeId, relayRuntimeEpoch, '0.2.1-rc.5', 'dsh-cli-integration', '0.0.1', '1',
             [...offered].sort().join('\n'),
           ])
           const valid = JSON.parse(Buffer.from(headerPart, 'base64url').toString('utf8')).typ === 'dsh-relay-handshake-proof+jwt'
@@ -282,7 +282,7 @@ test('DSH CLI 0.2.1-rc.2 loads the plugin and completes a local session round tr
   const installedDsh = process.env.REMOTE_TEST_DSH_BIN
   if (installedDsh !== undefined) {
     assert.ok(isAbsolute(installedDsh), 'REMOTE_TEST_DSH_BIN must be an absolute path to the installed CLI')
-    assert.equal(execFileSync(installedDsh, ['--version'], { encoding: 'utf8', env: environment, timeout: 5_000 }).trim(), '0.2.1-rc.2')
+    assert.equal(execFileSync(installedDsh, ['--version'], { encoding: 'utf8', env: environment, timeout: 5_000 }).trim(), '0.2.1-rc.5')
   }
   const dshArgs = ['--profile', 'm0-probe', '--from-default-profile', 'web', '--patch', patchPath,
     '--host', '127.0.0.1', '--port', '0', '--no-open']
@@ -309,7 +309,7 @@ test('DSH CLI 0.2.1-rc.2 loads the plugin and completes a local session round tr
       } catch { await new Promise(resolve => setTimeout(resolve, 100)) }
     }
     assert.ok(probe, `DSH CLI did not open its probe before timeout; ${safeTail(stdout)} ${safeTail(stderr)}`)
-    assert.equal(probe.payload.dsh_version, '0.2.1-rc.2')
+    assert.equal(probe.payload.dsh_version, '0.2.1-rc.5')
     assert.ok(probe.payload.capabilities.includes('session.archive'))
     await Promise.race([relayConnected, new Promise<never>((_, reject) => setTimeout(() => reject(new Error('DSH plugin Relay handshake timed out')), 3000))])
     const optionsDeadline=Date.now()+3000

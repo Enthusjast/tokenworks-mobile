@@ -103,7 +103,7 @@ export async function startDebugServer(socketPath: string, runtime: ProbeRuntime
         writer.push({ v: 0, type: 'probe', runtime_epoch: runtime.epoch, payload: {
           runtime_id: runtime.client.runtimeId,
           transport: process.platform === 'win32' ? 'windows-named-pipe' : 'local-unix-socket',
-          dsh_version: '0.2.1-rc.2', plugin_version: '0.0.1',
+          dsh_version: '0.2.1-rc.5', plugin_version: '0.0.1',
           capabilities: ['session.list', 'session.create', 'message.text', 'session.cancel', 'session.archive', 'session.snapshot', 'session.page', 'assistant.stream', 'local.approval', 'local.question'],
           max_frame_bytes: MAX_FRAME_BYTES, max_queue_bytes: MAX_QUEUE_BYTES,
         } })

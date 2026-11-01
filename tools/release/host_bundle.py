@@ -16,7 +16,7 @@ import tarfile
 import tempfile
 
 FORMAT = "dsh-remote-host-bundle/v1"
-DSH = "0.2.1-rc.2"
+DSH = "0.2.1-rc.5"
 MAX_FILE = 8 << 20
 MAX_TOTAL = 32 << 20
 MAX_ARCHIVE = 16 << 20

@@ -63,7 +63,7 @@ export interface ExecutionSignalFence {
 }
 
 /**
- * DSH 0.2.1-rc.2 reads and fuses exec.signal immediately before resolving the
+ * DSH 0.2.1-rc.5 reads and fuses exec.signal immediately before resolving the
  * body. Validate there as well as at tools.guard, so async wrappers cannot move
  * a stale permit to a later dispatch or swap to an unadapted definition.
  */

@@ -430,7 +430,7 @@ test('real Go service and npm DSH share authorized sessions through PostgreSQL a
   const bindingPath = join(root, 'enrollment-binding', 'binding.bin')
   const recoveryKeyFile = join(root, 'enrollment-recovery-fixture.key'), recoveryTool = join(root, 'enrollment-secret-tool')
   t.after(() => { bindingStore?.close(); recoveryStore?.close(); enrollmentClient.close(); resourceLifetime.abort() })
-  const prepared = enrollmentClient.prepare({ organizationId: orgId, alias: 'DSH integration', profileRef: 'e2e', dshVersion: '0.2.1-rc.2',
+  const prepared = enrollmentClient.prepare({ organizationId: orgId, alias: 'DSH integration', profileRef: 'e2e', dshVersion: '0.2.1-rc.5',
     applicationVersion: 'dsh-go-integration', pluginVersion: '0.0.1', protocolVersion: 1, workspaceRefs: ['other-workspace', 'e2e-workspace'] })
   let attempt = prepared
   if (process.platform === 'linux') {
@@ -668,8 +668,8 @@ test('real Go service and npm DSH share authorized sessions through PostgreSQL a
   }
   if (installedDsh !== undefined) {
     assert.ok(isAbsolute(installedDsh), 'REMOTE_TEST_DSH_BIN must be an absolute path to the installed CLI')
-    assert.equal(execFileSync(installedDsh, ['--version'], { encoding: 'utf8', env: dshEnv, timeout: 5_000 }).trim(), '0.2.1-rc.2')
-    t.diagnostic('Using the explicitly selected installed DSH 0.2.1-rc.2 CLI.')
+    assert.equal(execFileSync(installedDsh, ['--version'], { encoding: 'utf8', env: dshEnv, timeout: 5_000 }).trim(), '0.2.1-rc.5')
+    t.diagnostic('Using the explicitly selected installed DSH 0.2.1-rc.5 CLI.')
   }
   const dshArgs = ['--profile', 'remote-e2e', '--from-default-profile', 'web', '--patch', patch,
     '--host', '127.0.0.1', '--port', '0', '--no-open']
@@ -699,7 +699,7 @@ test('real Go service and npm DSH share authorized sessions through PostgreSQL a
     dsh.check()
     try { return await local('GET', '/m0/probe') } catch { return undefined }
   }, 'DSH readiness', 30_000)
-  assert.equal(probe.payload.dsh_version, '0.2.1-rc.2')
+  assert.equal(probe.payload.dsh_version, '0.2.1-rc.5')
   const journalPath = join(root, 'journal', 'commands.sqlite')
   assert.equal((await lstat(`${journalPath}.wrapped-key`)).mode & 0o777, 0o600)
   await assert.rejects(lstat(`${journalPath}.key`), error => (error as NodeJS.ErrnoException).code === 'ENOENT')
@@ -711,7 +711,7 @@ test('real Go service and npm DSH share authorized sessions through PostgreSQL a
       const upgraded = await bindingStore.open(AbortSignal.timeout(10_000))
       assert.equal(upgraded?.installationId, persistedInstallationId); assert.equal(upgraded?.runtimeId, persistedRuntimeId)
     } finally {
-      query(`update hosts set alias='DSH integration' where id='${enrollment.host_id}'; update runtimes set dsh_version='0.2.1-rc.2' where id='${enrollment.runtime_id}'`)
+      query(`update hosts set alias='DSH integration' where id='${enrollment.host_id}'; update runtimes set dsh_version='0.2.1-rc.5' where id='${enrollment.runtime_id}'`)
     }
   }
   assert.equal(query(`select count(*) from audit_log where action='host.credential.issue'`), '2', 'normal plugin did not issue its own provider credential')
@@ -1378,7 +1378,7 @@ test('real Go service and npm DSH share authorized sessions through PostgreSQL a
   // Enroll a second profile under the same installation through normal dual
   // confirmation. Its metadata is a fixture; the surviving primary Host is real DSH.
   const profileAttempt = enrollmentClient.prepare({ organizationId: orgId, hostId: enrollment.host_id, alias: 'DSH integration',
-    profileRef: 'retirement-fixture', dshVersion: '0.2.1-rc.2', applicationVersion: 'fixture', pluginVersion: '0.0.1', protocolVersion: 1, workspaceRefs: [] })
+    profileRef: 'retirement-fixture', dshVersion: '0.2.1-rc.5', applicationVersion: 'fixture', pluginVersion: '0.0.1', protocolVersion: 1, workspaceRefs: [] })
   t.after(() => profileAttempt.destroy())
   const profileReceipt = await enrollmentClient.create(profileAttempt, AbortSignal.timeout(5000))
   await ownerPhone('POST', `/v1/enrollments/${profileReceipt.details.enrollment_id}/confirm`, { code: profileAttempt.code })
@@ -1436,7 +1436,7 @@ test('real Go service and npm DSH share authorized sessions through PostgreSQL a
   // The same local profile name can be bound again, but only with a new request,
   // new runtime identity and fresh confirmations. Historical UUIDs stay retired.
   const replacementAttempt = enrollmentClient.prepare({ organizationId: orgId, hostId: enrollment.host_id, alias: 'DSH integration',
-    profileRef: 'retirement-fixture', dshVersion: '0.2.1-rc.2', applicationVersion: 'fixture', pluginVersion: '0.0.1', protocolVersion: 1, workspaceRefs: [] })
+    profileRef: 'retirement-fixture', dshVersion: '0.2.1-rc.5', applicationVersion: 'fixture', pluginVersion: '0.0.1', protocolVersion: 1, workspaceRefs: [] })
   t.after(() => replacementAttempt.destroy())
   const replacementReceipt = await enrollmentClient.create(replacementAttempt, AbortSignal.timeout(5000))
   assert.equal(replacementReceipt.details.installation_id, listedInstallationId)
@@ -1920,5 +1920,5 @@ test('real Go service and npm DSH share authorized sessions through PostgreSQL a
   t.diagnostic(installationApiRevocation
     ? 'The registered installation owner phone discovered and explicitly retired the normal DSH installation; an exact DELETE retry wrote no second audit. Runtime retirement reached every relay node, the Host detached, fresh credentials and a still-unexpired cached secret were denied, while the school account stayed active.'
     : 'The production identity snapshot CLI initially provisioned the organization and three account mappings, then suspended the fixture owner and retired its installation at the next revision; an exact retry reconciled one committed receipt. The normal Host detached, fresh provider acquisition was denied and an old cached connection secret failed HTTP upgrade. No client cache restored authority.')
-  t.diagnostic('Go production entrypoint + isolated PostgreSQL + npm DSH 0.2.1-rc.2: signed enrollment/credentials/ticket, session creation, catalog, snapshots, assistant stream, pagination, idempotency, scoped receipts, cancellation, questions, body-storage boundary and proactive revocation passed. Identity and model are local fixtures; Android and production IdP are not involved.')
+  t.diagnostic('Go production entrypoint + isolated PostgreSQL + npm DSH 0.2.1-rc.5: signed enrollment/credentials/ticket, session creation, catalog, snapshots, assistant stream, pagination, idempotency, scoped receipts, cancellation, questions, body-storage boundary and proactive revocation passed. Identity and model are local fixtures; Android and production IdP are not involved.')
 })
