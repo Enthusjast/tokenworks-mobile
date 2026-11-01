@@ -171,7 +171,7 @@ func run() error {
 		}
 		apiConfig.Push = pushRuntime.repository
 	}
-	apiConfig.Releases, err = loadAppReleases(os.Getenv("REMOTE_APP_RELEASES_FILE"))
+	apiConfig.Releases, err = loadRegisteredAppReleases(context.Background(), os.Getenv("REMOTE_APP_RELEASES_FILE"), database, recovery.Epoch())
 	if err != nil {
 		return err
 	}
