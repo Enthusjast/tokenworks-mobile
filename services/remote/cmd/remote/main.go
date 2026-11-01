@@ -24,7 +24,9 @@ import (
 func main() {
 	operation := run
 	if len(os.Args) > 1 {
-		if os.Args[1] == "recovery" {
+		if os.Args[1] == "version" || os.Args[1] == "--version" {
+			operation = func() error { return runVersionCommand(os.Args[2:], os.Stdout) }
+		} else if os.Args[1] == "recovery" {
 			operation = func() error { return runRecoveryCommand(os.Args[2:], os.Stdout) }
 		} else if os.Args[1] == "archive" {
 			operation = func() error { return runArchiveCommand(os.Args[2:], os.Stdout) }
