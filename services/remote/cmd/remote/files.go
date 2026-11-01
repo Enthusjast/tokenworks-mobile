@@ -79,22 +79,38 @@ func (runtime *fileRuntime) Close() {
 	}
 }
 
-func readProtectedFile(path string, limit int64) ([]byte, error) {
+func readProtectedFile(path string, limit int64) (body []byte, resultErr error) {
 	info, err := os.Lstat(path)
-	if err != nil || !info.Mode().IsRegular() || info.Mode().Perm()&0077 != 0 || info.Size() <= 0 || info.Size() > limit {
+	if err != nil || !protectedFileShape(info, limit) {
 		return nil, errFileConfiguration
 	}
-	file, err := os.Open(path)
+	file, err := openProtectedFile(path)
 	if err != nil {
 		return nil, errFileConfiguration
 	}
-	defer file.Close()
+	defer func() {
+		if err := file.Close(); err != nil {
+			clear(body)
+			body = nil
+			resultErr = errFileConfiguration
+		}
+	}()
 	actual, err := file.Stat()
-	if err != nil || !os.SameFile(info, actual) {
+	if err != nil || !sameProtectedFile(info, actual, limit) {
 		return nil, errFileConfiguration
 	}
-	body, err := io.ReadAll(io.LimitReader(file, limit+1))
-	if err != nil || int64(len(body)) > limit {
+	body, err = io.ReadAll(io.LimitReader(file, limit+1))
+	if err != nil || int64(len(body)) != info.Size() || int64(len(body)) > limit {
+		clear(body)
+		return nil, errFileConfiguration
+	}
+	after, err := file.Stat()
+	if err != nil || !sameProtectedFile(info, after, limit) {
+		clear(body)
+		return nil, errFileConfiguration
+	}
+	current, err := os.Lstat(path)
+	if err != nil || !sameProtectedFile(info, current, limit) {
 		clear(body)
 		return nil, errFileConfiguration
 	}
@@ -111,6 +127,9 @@ func strictFileJSON(body []byte, target any) error {
 	}
 	var trailing any
 	if !errors.Is(decoder.Decode(&trailing), io.EOF) {
+		return errFileConfiguration
+	}
+	if !exactConfigFieldNames(body, target) {
 		return errFileConfiguration
 	}
 	return nil

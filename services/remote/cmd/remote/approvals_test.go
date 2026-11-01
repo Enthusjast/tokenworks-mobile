@@ -11,6 +11,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -125,5 +126,53 @@ func TestApprovalSigningKeyFileRejectsExposureSymlinksAndMultiplePEMBlocks(t *te
 	}
 	if _, err := readApprovalKey(keyPath); err == nil {
 		t.Fatal("ambiguous PEM key file accepted")
+	}
+}
+
+func TestApprovalDeploymentUsesProtectedLiteralPolicyFields(t *testing.T) {
+	path, config := deploymentFixture(t)
+	raw, _ := json.Marshal(config)
+	if err := os.WriteFile(path, raw, 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chmod(path, 0644); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := loadApprovalConfig(path, &store.Postgres{DB: &sql.DB{}}, "https://id.example.edu", []string{"android"}); !errors.Is(err, errApprovalConfiguration) {
+		t.Fatal("public approval policy accepted", err)
+	}
+	if err := os.Chmod(path, 0600); err != nil {
+		t.Fatal(err)
+	}
+	linked := path + ".hard"
+	if err := os.Link(path, linked); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := loadApprovalConfig(path, &store.Postgres{DB: &sql.DB{}}, "https://id.example.edu", []string{"android"}); !errors.Is(err, errApprovalConfiguration) {
+		t.Fatal("hardlinked approval policy accepted", err)
+	}
+	if err := os.Remove(linked); err != nil {
+		t.Fatal(err)
+	}
+	for _, candidate := range []string{
+		strings.Replace(string(raw), `"policy":`, `"Policy":`, 1),
+		strings.Replace(string(raw), `"version":7`, `"version":7,"Version":7`, 1),
+		strings.Replace(string(raw), `"client_id":`, `"Client_ID":`, 1),
+		strings.Replace(string(raw), `"private_key_file":`, `"Private_Key_File":`, 1),
+		strings.Replace(string(raw), `"signing":`, `"ſigning":`, 1),
+	} {
+		if err := os.WriteFile(path, []byte(candidate), 0600); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := loadApprovalConfig(path, &store.Postgres{DB: &sql.DB{}}, "https://id.example.edu", []string{"android"}); !errors.Is(err, errApprovalConfiguration) || strings.Contains(err.Error(), "key.pem") {
+			t.Fatal("ambiguous approval policy was accepted or leaked input", err)
+		}
+	}
+	key := filepath.Join(filepath.Dir(path), "key.pem")
+	if err := os.Link(key, key+".hard"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := readApprovalKey(key); !errors.Is(err, errApprovalConfiguration) {
+		t.Fatal("hardlinked signing key accepted", err)
 	}
 }

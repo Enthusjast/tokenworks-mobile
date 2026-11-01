@@ -4,11 +4,8 @@ import (
 	"bytes"
 	"crypto/ecdsa"
 	"crypto/x509"
-	"encoding/json"
 	"encoding/pem"
 	"errors"
-	"io"
-	"os"
 	"path/filepath"
 	"slices"
 	"time"
@@ -41,19 +38,13 @@ func loadApprovalConfig(path string, database *store.Postgres, issuer string, al
 	if path == "" {
 		return nil, nil
 	}
-	file, err := os.Open(path)
+	raw, err := readProtectedFile(path, 512<<10)
 	if err != nil {
 		return nil, errApprovalConfiguration
 	}
-	raw, readErr := io.ReadAll(io.LimitReader(file, 512*1024+1))
-	closeErr := file.Close()
-	if readErr != nil || closeErr != nil || len(raw) > 512*1024 || auth.ValidateJSONObject(raw) != nil {
-		return nil, errApprovalConfiguration
-	}
+	defer clear(raw)
 	var config approvalDeployment
-	decoder := json.NewDecoder(bytes.NewReader(raw))
-	decoder.DisallowUnknownFields()
-	if decoder.Decode(&config) != nil || config.Policy.MaxAge == nil || len(config.Mappings) == 0 {
+	if strictFileJSON(raw, &config) != nil || config.Policy.MaxAge == nil || len(config.Mappings) == 0 {
 		return nil, errApprovalConfiguration
 	}
 	mapped := false
@@ -108,22 +99,9 @@ func loadApprovalConfig(path string, database *store.Postgres, issuer string, al
 }
 
 func readApprovalKey(path string) (*ecdsa.PrivateKey, error) {
-	info, err := os.Lstat(path)
-	if err != nil || !info.Mode().IsRegular() || info.Mode().Perm()&0077 != 0 || info.Size() <= 0 || info.Size() > 16*1024 {
-		return nil, errApprovalConfiguration
-	}
-	file, err := os.Open(path)
-	if err != nil {
-		return nil, errApprovalConfiguration
-	}
-	defer file.Close()
-	actual, err := file.Stat()
-	if err != nil || !os.SameFile(info, actual) {
-		return nil, errApprovalConfiguration
-	}
-	raw, err := io.ReadAll(io.LimitReader(file, 16*1024+1))
+	raw, err := readProtectedFile(path, 16<<10)
 	defer clear(raw)
-	if err != nil || len(raw) > 16*1024 {
+	if err != nil {
 		return nil, errApprovalConfiguration
 	}
 	block, rest := pem.Decode(raw)
