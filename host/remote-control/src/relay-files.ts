@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto'
 import type { HostHandshakeSigner } from './relay-client.js'
 import { FileFrame, fileReadProof, type FileOffer } from './file-protocol.js'
 import type { NativeFileRegistry } from './file-registry.js'
-import { FileHandoffLease, fileHandoffClock } from './file-handoff-lease.js'
+import { FileOperationLease, fileOperationClock } from './file-operation-lease.js'
 import type { HostConnectionClock } from './connection-lease.js'
 
 export interface FileTransportBinding {
@@ -10,7 +10,7 @@ export interface FileTransportBinding {
   signal: AbortSignal; send(frame: unknown): Promise<void>; fail(): void
 }
 export interface HostFilePeer { handle(value: unknown): Promise<boolean>; close(): void }
-interface Transfer { offer: FileOffer; session: string; abort: AbortController; lease: FileHandoffLease; stage: 'queued' | 'reading' | 'reporting' | 'staged' }
+interface Transfer { offer: FileOffer; session: string; abort: AbortController; lease: FileOperationLease; stage: 'queued' | 'reading' | 'reporting' | 'staged' }
 interface Pending { type: string; ids: string[]; wall: number; mono: number; file?: string; session?: string }
 
 export class RelayFiles {
@@ -23,7 +23,7 @@ export class RelayFiles {
   private lastRenewal = -Infinity
   private readonly onAbort = () => this.close()
 
-  constructor(private readonly registry: NativeFileRegistry, private readonly binding: FileTransportBinding, private readonly clock: HostConnectionClock = fileHandoffClock) {
+  constructor(private readonly registry: NativeFileRegistry, private readonly binding: FileTransportBinding, private readonly clock: HostConnectionClock = fileOperationClock) {
     binding.signal.throwIfAborted()
     this.timer = setInterval(() => this.tick(), 250); this.timer.unref()
     binding.signal.addEventListener('abort', this.onAbort, { once: true })
@@ -45,8 +45,8 @@ export class RelayFiles {
       if (this.transfers.has(frame.payload.handoff_id)) return true
       for (const [id, previous] of this.transfers) if (previous.offer.file_id === frame.payload.file_id) this.end(id, previous)
       if (this.transfers.size >= 32) throw new Error('file transfer queue limit')
-      let lease: FileHandoffLease
-      try { lease = new FileHandoffLease(frame.payload.lease_until, frame.payload.expires_at, this.clock) } catch { return true }
+      let lease: FileOperationLease
+      try { lease = new FileOperationLease(frame.payload.lease_until, frame.payload.expires_at, this.clock) } catch { return true }
       const transfer: Transfer = { offer: frame.payload, session: frame.session_id, abort: new AbortController(), lease, stage: 'queued' }
       if (!this.valid(transfer)) return true
       this.transfers.set(frame.payload.handoff_id, transfer)

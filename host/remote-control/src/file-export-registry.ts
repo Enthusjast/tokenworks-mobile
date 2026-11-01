@@ -41,6 +41,7 @@ export class FileExportRegistry {
     this.#timer = setInterval(() => this.#prune(), 1000)
     this.#timer.unref()
   }
+  get accepting(): boolean { return !this.#closed && !this.#cleanupFailed }
   #valid(session: string, authority: ExportAuthority): void {
     if (this.#closed || !UUID.test(session) || !UUID.test(authority.owner.userId) || !UUID.test(authority.owner.deviceId)) throw new ProbeError('access.denied')
     if (this.#cleanupFailed) throw new ProbeError('file.export_unavailable')

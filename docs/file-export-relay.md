@@ -39,6 +39,9 @@ Host 根据该标记过滤根目录，并在准备时检查所选来源；Go 还
 
 Go 给每次 Host 操作生成新的 request ID，并保存原手机 request ID、确切 socket、目标、用户 / 设备及安装 / epoch / connection 对应关系。来源权限从数据库解析，Host 回复不能选择请求者或自行决定 scope。每个作业最长五分钟且不超过连接 / 凭据期限，权限租约最长五秒；过期回复不能恢复旧作业。
 
+[Host 导出期限与关闭](host-export-operation-leases.md)进一步约束迟到续租、墙钟变化、关闭后的晚返回结果，
+并使媒体验证和导出入口共同执行八项预算。
+
 当前每 Host 最多八个作业、每手机 socket 四个、每 Relay 进程二百五十六个，Host 队列也有上限。手机文件请求共用既有操作速率预算；续租、撤权、断线或取消与哈希 / 对象 I/O 分开处理，慢文件不能阻止租约消息被读取。
 
 工作区文件内容只经匿名 HTTPS PUT 进入隔离对象。发送方限制 URL / header、寿命、长度和摘要，不附带学校 Authorization、DPoP 或 Cookie，不跟随重定向，也不自动重放一次性输入流。S3 SDK 会为已知空 PUT 省略 Content-Type 签名，服务端仍明确返回固定的二进制传输 header；真实空文件链路已有回归。

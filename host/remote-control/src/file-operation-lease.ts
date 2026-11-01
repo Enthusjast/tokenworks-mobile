@@ -1,14 +1,14 @@
 import type { HostConnectionClock } from './connection-lease.js'
 import { ProbeError } from './protocol.js'
 
-export const fileHandoffClock: HostConnectionClock = Object.freeze({ wall: () => Date.now(), monotonic: () => performance.now() })
+export const fileOperationClock: HostConnectionClock = Object.freeze({ wall: () => Date.now(), monotonic: () => performance.now() })
 const margin = 100
 const leaseLimit = 5_000
 const hardLimit = 300_000
 
 /** A lease may be shortened or renewed while live; no later frame can revive
  * an observed expiry or clock reversal. The original hard deadline never moves. */
-export class FileHandoffLease {
+export class FileOperationLease {
   readonly expires: number
   private until: number
   private untilMono: number
@@ -17,7 +17,7 @@ export class FileHandoffLease {
   private lastMono: number
   private ended = false
 
-  constructor(leaseUntil: string, expiresAt: string, private readonly clock: HostConnectionClock = fileHandoffClock) {
+  constructor(leaseUntil: string, expiresAt: string, private readonly clock: HostConnectionClock = fileOperationClock) {
     this.lastWall = clock.wall(); this.lastMono = clock.monotonic()
     this.until = Date.parse(leaseUntil); this.expires = Date.parse(expiresAt)
     if (![this.lastWall, this.lastMono, this.until, this.expires].every(Number.isFinite) || this.lastWall < 0 || this.lastMono < 0 ||

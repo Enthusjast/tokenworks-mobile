@@ -1,4 +1,6 @@
 import { randomUUID } from 'node:crypto'
+import { FileOperationLease, fileOperationClock } from './file-operation-lease.js'
+import type { HostConnectionClock } from './connection-lease.js'
 import type { DshClient } from './dsh-client.js'
 import type { FileExportRegistry, ExportEntry } from './file-export-registry.js'
 import { ExportCatalog, type CatalogAuthority } from './export-catalog.js'
@@ -10,35 +12,50 @@ import { hostMediaFrame, mediaErrors, mediaResolveResult, type HostMediaResolveF
 
 export interface HostExportPeer { handle(value: unknown): boolean | Promise<boolean>; close(): void | Promise<void> }
 interface Job { id: string; session: string; source?: string; phase: 'listing' | 'preparing' | 'manifest' | 'uploading' | 'committing';
-  abort: AbortController; authority: CatalogAuthority; until: number; untilMono: number; created: number; expires: number; active: boolean; entry?: ExportEntry; file?: string }
+  abort: AbortController; authority: CatalogAuthority; lease: FileOperationLease; active: boolean; entry?: ExportEntry; file?: string }
 const inbound = new Set(['file.exports.list', 'file.export.request', 'file.export.upload', 'file.export.committed', 'file.export.abort', 'file.export.error', 'file.export.renewed'])
 
 export class RelayExports implements HostExportPeer {
   #catalog: ExportCatalog
   #jobs = new Map<string, Job>()
   #tasks = new Set<Promise<void>>()
+  #running = new Map<Job, number>()
   #closed = false
   #media = new Map<string, AbortController>()
   #timer: NodeJS.Timeout
-  #renew: { id: string; ids: string[]; until: number } | undefined
-  #lastRenew = 0
+  #renew: { id: string; ids: string[]; wall: number; mono: number } | undefined
+  #lastRenew = -Infinity
   constructor(private readonly registry: FileExportRegistry, client: DshClient, private readonly epoch: string, private readonly binding: FileTransportBinding,
-    mediaCurrent?: (session: string, sync: string) => boolean) {
+    mediaCurrent?: (session: string, sync: string) => boolean, private readonly clock: HostConnectionClock = fileOperationClock) {
     this.#catalog = new ExportCatalog(client, registry, mediaCurrent)
     this.runtimeId = client.runtimeId
     this.#timer = setInterval(() => this.#tick(), 250); this.#timer.unref()
   }
   private readonly runtimeId: string
-  #valid(job: Job) { return !this.#closed && job.active && !job.abort.signal.aborted && !this.binding.signal.aborted && Date.now() >= job.created && Date.now() < Math.min(job.until, job.expires) - 100 && performance.now() < job.untilMono - 100 }
+  #count(): number {
+    let count = this.#jobs.size + this.#media.size
+    for (const job of this.#running.keys()) if (this.#jobs.get(job.id) !== job) count++
+    return count
+  }
+  #reserved(id: string): boolean {
+    return this.#jobs.has(id) || this.#media.has(id) || [...this.#running.keys()].some(job => job.id === id)
+  }
+  #valid(job: Job) { return !this.#closed && this.registry.accepting && job.active && !job.abort.signal.aborted && !this.binding.signal.aborted && job.lease.current() }
   #current(job: Job) { if (!this.#valid(job)) throw new ProbeError('access.denied') }
   #send(type: string, job: Job, payload: unknown) { return this.binding.send({ v: 1, type, request_id: job.id, runtime_id: this.runtimeId, runtime_epoch: this.epoch, session_id: job.session, payload }) }
   #task(job: Job, work: () => Promise<void>, end: boolean) {
+    this.#running.set(job, (this.#running.get(job) ?? 0) + 1)
     let task!: Promise<void>
-    task = work().catch(async error => {
+    task = Promise.resolve().then(() => { this.#current(job); return work() }).catch(async error => {
       const code = error instanceof ProbeError && exportErrors.safeParse(error.code).success ? error.code : 'file.export_unavailable'
-      if (!this.#closed && !this.binding.signal.aborted) await this.#send('file.export.error', job, { code }).catch(() => this.binding.fail())
+      if (job.active && !this.#closed && this.registry.accepting && !this.binding.signal.aborted) await this.#send('file.export.error', job, { code }).catch(() => this.binding.fail())
       this.#end(job)
-    }).finally(() => { if (end) this.#end(job); this.#tasks.delete(task) })
+    }).finally(() => {
+      if (end) this.#end(job)
+      const remaining = (this.#running.get(job) ?? 1) - 1
+      if (remaining) this.#running.set(job, remaining); else this.#running.delete(job)
+      this.#tasks.delete(task)
+    })
     this.#tasks.add(task)
   }
   #end(job: Job) {
@@ -50,10 +67,10 @@ export class RelayExports implements HostExportPeer {
     if (!value || typeof value !== 'object') return false
     const type = String((value as { type?: unknown }).type)
     if (type === 'session.media.resolve') {
-      if (this.#closed) return true
+      if (this.#closed || !this.registry.accepting || this.binding.signal.aborted) return true
       const frame = hostMediaFrame.parse(value)
       if (frame.runtime_id !== this.runtimeId || frame.runtime_epoch !== this.epoch) throw new ProbeError('runtime.changed')
-      if (this.#jobs.size + this.#media.size >= 8 || this.#media.has(frame.request_id) || this.#jobs.has(frame.request_id)) throw new ProbeError('rate.limited')
+      if (this.#count() >= 8 || this.#reserved(frame.request_id)) throw new ProbeError('rate.limited')
       const abort = new AbortController()
       this.#media.set(frame.request_id, abort)
       let task!: Promise<void>
@@ -72,30 +89,30 @@ export class RelayExports implements HostExportPeer {
     if (frame.type === 'file.export.renewed') {
       const pending = this.#renew
       if (!pending || pending.id !== frame.request_id) throw new ProbeError('protocol.invalid')
+      if (!this.#renewCurrent(pending)) { this.#expireRenewal(pending); return true }
       const seen = new Set<string>()
       for (const lease of frame.payload.leases) {
         if (!pending.ids.includes(lease.operation_id) || seen.has(lease.operation_id)) throw new ProbeError('protocol.invalid')
         seen.add(lease.operation_id)
         const job = this.#jobs.get(lease.operation_id)
         if (!job) continue
-        const until = Date.parse(lease.lease_until)
-        if (Date.parse(lease.expires_at) !== job.expires || until > job.expires || until - Date.now() > 5500) throw new ProbeError('protocol.invalid')
-        // A response received after the previous lease expired cannot revive it.
-        if (!this.#valid(job)) { this.#end(job); continue }
-        job.until = until; job.untilMono = performance.now() + Math.min(5000, until - Date.now())
+        if (!this.#valid(job) || !job.lease.renew(lease.lease_until, lease.expires_at)) this.#end(job)
       }
       for (const id of pending.ids) if (!seen.has(id)) { const job = this.#jobs.get(id); if (job) this.#end(job) }
       this.#renew = undefined; return true
     }
     if (frame.type === 'file.exports.list' || frame.type === 'file.export.request') {
-      if (this.#jobs.size >= 8 || this.#jobs.has(frame.request_id)) throw new ProbeError('rate.limited')
-      const until = Date.parse(frame.payload.lease_until), expires = Date.parse(frame.payload.expires_at), created = Date.now()
-      if (until <= created + 100 || until > expires || until - created > 5500 || expires - created > 330_000) throw new ProbeError('access.denied')
+      if (!this.registry.accepting || this.binding.signal.aborted) return true
+      if (this.#count() >= 8 || this.#reserved(frame.request_id)) throw new ProbeError('rate.limited')
+      let lease: FileOperationLease
+      try { lease = new FileOperationLease(frame.payload.lease_until, frame.payload.expires_at, this.clock) }
+      catch { throw new ProbeError('access.denied') }
+      if (!lease.current()) throw new ProbeError('access.denied')
       const abort = new AbortController()
       const job: Job = { id: frame.request_id, session: frame.session_id, phase: frame.type === 'file.exports.list' ? 'listing' : 'preparing', abort,
         authority: { owner: { userId: frame.payload.user_id, deviceId: frame.payload.device_id }, keyVersion: frame.payload.key_version, grantVersion: frame.payload.grant_version,
-          allowWorkspace: frame.payload.allow_workspace, expiresAt: expires, signal: AbortSignal.any([abort.signal, this.binding.signal]), current: () => this.#current(job) },
-        until, untilMono: performance.now() + Math.min(5000, until - created), created, expires, active: true }
+          allowWorkspace: frame.payload.allow_workspace, expiresAt: lease.expires, signal: AbortSignal.any([abort.signal, this.binding.signal]), current: () => this.#current(job) },
+        lease, active: true }
       this.#jobs.set(job.id, job)
       if (frame.type === 'file.exports.list') {
         const payload = frame.payload
@@ -134,40 +151,46 @@ export class RelayExports implements HostExportPeer {
     throw new ProbeError('protocol.invalid')
   }
   async #resolveMedia(frame: HostMediaResolveFrame, abort: AbortController): Promise<void> {
-    const payload = frame.payload, created = Date.now(), started = performance.now()
-    const until = Date.parse(payload.lease_until), expires = Date.parse(payload.expires_at)
+    const payload = frame.payload
     const signal = AbortSignal.any([abort.signal, this.binding.signal])
-    const timer = setTimeout(() => abort.abort(), Math.max(1, Math.min(5000, until - created)))
+    const timer = setTimeout(() => abort.abort(), Math.max(1, Math.min(5000, Date.parse(payload.lease_until) - this.clock.wall())))
     timer.unref()
     const reply = (type: string, body: unknown) => this.binding.send({ v: 1, type, request_id: frame.request_id, runtime_id: this.runtimeId,
       runtime_epoch: this.epoch, session_id: frame.session_id, subscription_id: frame.subscription_id, sync_id: payload.sync_id, payload: body })
+    let lease: FileOperationLease
     const current = () => {
       signal.throwIfAborted()
-      if (this.#closed || this.#media.get(frame.request_id) !== abort || Date.now() < created || Date.now() >= until - 100 ||
-        performance.now() - started >= until - created - 100) throw new ProbeError('access.denied')
+      if (this.#closed || !this.registry.accepting || this.#media.get(frame.request_id) !== abort || !lease.current()) throw new ProbeError('access.denied')
     }
     try {
-      if (until <= created + 100 || until > expires || until - created > 5500 || expires - created > 330_000) throw new ProbeError('access.denied')
+      try { lease = new FileOperationLease(payload.lease_until, payload.expires_at, this.clock) }
+      catch { throw new ProbeError('access.denied') }
+      current()
       const authority: CatalogAuthority = { owner: { userId: payload.user_id, deviceId: payload.device_id }, keyVersion: payload.key_version,
-        grantVersion: payload.grant_version, allowWorkspace: false, expiresAt: expires, signal, current }
+        grantVersion: payload.grant_version, allowWorkspace: false, expiresAt: lease.expires, signal, current }
       const source = await this.#catalog.resolveMedia(frame.session_id, payload.sync_id, payload.reference, authority)
       current()
       await reply('session.media.result', mediaResolveResult.parse({ reference: payload.reference, source }))
     } catch (error) {
       const code = error instanceof ProbeError && mediaErrors.safeParse(error.code).success ? error.code : 'file.export_unavailable'
-      if (!this.#closed && !this.binding.signal.aborted) await reply('session.media.error', { code }).catch(() => this.binding.fail())
+      if (!this.#closed && this.registry.accepting && !this.binding.signal.aborted) await reply('session.media.error', { code }).catch(() => this.binding.fail())
     } finally { clearTimeout(timer); abort.abort() }
+  }
+  #renewCurrent(pending: { wall: number; mono: number }): boolean {
+    const wall = this.clock.wall(), mono = this.clock.monotonic()
+    return Number.isFinite(wall) && Number.isFinite(mono) && wall >= pending.wall && mono >= pending.mono && wall - pending.wall < 2500 && mono - pending.mono < 2500
+  }
+  #expireRenewal(pending: { ids: string[] }): void {
+    for (const id of pending.ids) { const job = this.#jobs.get(id); if (job) this.#end(job) }
+    this.#renew = undefined
   }
   #tick() {
     if (this.#closed) return
     for (const job of this.#jobs.values()) if (!this.#valid(job)) this.#end(job)
-    if (this.#renew && Date.now() >= this.#renew.until) {
-      for (const id of this.#renew.ids) { const job = this.#jobs.get(id); if (job) this.#end(job) }
-      this.#renew = undefined
-    }
-    if (this.#jobs.size && !this.#renew && Date.now() - this.#lastRenew >= 1000) {
-      const pending = { id: randomUUID(), ids: [...this.#jobs.keys()], until: Date.now() + 2500 }
-      this.#renew = pending; this.#lastRenew = Date.now()
+    if (this.#renew && !this.#renewCurrent(this.#renew)) this.#expireRenewal(this.#renew)
+    if (this.#jobs.size && !this.#renew && this.clock.monotonic() - this.#lastRenew >= 1000) {
+      const pending = { id: randomUUID(), ids: [...this.#jobs.keys()], wall: this.clock.wall(), mono: this.clock.monotonic() }
+      this.#renew = pending; this.#lastRenew = this.clock.monotonic()
       void this.binding.send({ v: 1, type: 'file.export.renew', request_id: pending.id, runtime_id: this.runtimeId, runtime_epoch: this.epoch, payload: { operation_ids: pending.ids } }).catch(() => this.binding.fail())
     }
   }
