@@ -14,27 +14,28 @@ import (
 // EnrollmentAdminReview is a separate admin-only response. Participant JSON
 // remains unchanged; an enrollment with both confirmations can still be pending.
 type EnrollmentAdminReview struct {
-	EnrollmentID              string                `json:"enrollment_id"`
-	OrganizationID            string                `json:"organization_id"`
-	HostID                    string                `json:"host_id"`
-	HostAlias                 string                `json:"host_alias"`
-	InstallationID            string                `json:"installation_id"`
-	InstallationKeyJKT        string                `json:"installation_key_jkt"`
-	RuntimeID                 string                `json:"runtime_id"`
-	ProfileRef                string                `json:"profile_ref"`
-	RequestSHA256             string                `json:"request_sha256"`
-	Owner                     EnrollmentReviewUser  `json:"owner"`
-	ConfirmedUser             *EnrollmentReviewUser `json:"confirmed_user"`
-	ConfirmedDeviceID         *string               `json:"confirmed_device_id"`
-	ConfirmedDeviceKeyVersion *int64                `json:"confirmed_device_key_version"`
-	UserConfirmedAt           *time.Time            `json:"user_confirmed_at"`
-	HostConfirmedAt           *time.Time            `json:"host_confirmed_at"`
-	Required                  bool                  `json:"admin_approval_required"`
-	State                     string                `json:"state"`
-	ExpiresAt                 time.Time             `json:"expires_at"`
-	Workspaces                []EnrollmentWorkspace `json:"workspaces"`
-	ApprovedReviewSHA256      string                `json:"approved_review_sha256,omitempty"`
-	ReviewSHA256              string                `json:"review_sha256,omitempty"`
+	EnrollmentID              string                 `json:"enrollment_id"`
+	OrganizationID            string                 `json:"organization_id"`
+	HostID                    string                 `json:"host_id"`
+	HostAlias                 string                 `json:"host_alias"`
+	InstallationID            string                 `json:"installation_id"`
+	InstallationKeyJKT        string                 `json:"installation_key_jkt"`
+	RuntimeID                 string                 `json:"runtime_id"`
+	ProfileRef                string                 `json:"profile_ref"`
+	RequestSHA256             string                 `json:"request_sha256"`
+	Owner                     EnrollmentReviewUser   `json:"owner"`
+	ConfirmedUser             *EnrollmentReviewUser  `json:"confirmed_user"`
+	ConfirmedDeviceID         *string                `json:"confirmed_device_id"`
+	ConfirmedDeviceKeyVersion *int64                 `json:"confirmed_device_key_version"`
+	UserConfirmedAt           *time.Time             `json:"user_confirmed_at"`
+	HostConfirmedAt           *time.Time             `json:"host_confirmed_at"`
+	Required                  bool                   `json:"admin_approval_required"`
+	State                     string                 `json:"state"`
+	ExpiresAt                 time.Time              `json:"expires_at"`
+	Workspaces                []EnrollmentWorkspace  `json:"workspaces"`
+	ApprovedReviewSHA256      string                 `json:"approved_review_sha256,omitempty"`
+	ReviewSHA256              string                 `json:"review_sha256,omitempty"`
+	Denial                    *EnrollmentAdminDenial `json:"denial,omitempty"`
 }
 
 func (postgres *Postgres) lockEnrollmentAdmin(ctx context.Context, tx *sql.Tx, identity UserIdentity, deviceID, proofJKT, enrollmentID string) (enrollmentRow, string, int64, error) {
@@ -64,7 +65,18 @@ func (postgres *Postgres) lockEnrollmentAdmin(ctx context.Context, tx *sql.Tx, i
 		return row, "", 0, ErrDatabaseUnavailable
 	}
 	if row.HostState == "revoked" || row.InstallationRevoked.Valid || row.RuntimeRevoked.Valid {
-		return row, "", 0, ErrAccessDenied
+		// Current administrators may reconcile a recorded terminal denial even
+		// after that same transaction retired its resources. This grants no use.
+		if row.State != "denied" {
+			return row, "", 0, ErrAccessDenied
+		}
+		var recorded bool
+		if err := tx.QueryRowContext(ctx, `select exists(select 1 from enrollment_admin_denials where enrollment_id=$1)`, row.ID).Scan(&recorded); err != nil {
+			return row, "", 0, ErrDatabaseUnavailable
+		}
+		if !recorded {
+			return row, "", 0, ErrAccessDenied
+		}
 	}
 	return row, actor, version, nil
 }
@@ -140,6 +152,15 @@ func enrollmentAdminReview(ctx context.Context, tx *sql.Tx, row enrollmentRow) (
 	if len(row.AdminReviewSHA256) != 0 {
 		value.ApprovedReviewSHA256 = hex.EncodeToString(row.AdminReviewSHA256)
 	}
+	if row.State == "denied" {
+		denial, err := readEnrollmentAdminDenial(ctx, tx, row.ID)
+		if err != nil && !errors.Is(err, errEnrollmentDenialNotFound) {
+			return value, err
+		}
+		if err == nil {
+			value.Denial = &denial
+		}
+	}
 	raw, err := json.Marshal(value)
 	if err != nil {
 		return value, ErrDatabaseUnavailable
@@ -188,6 +209,9 @@ func (postgres *Postgres) ApproveEnrollmentAdmin(parent context.Context, identit
 	row, actor, version, err := postgres.lockEnrollmentAdmin(ctx, tx, identity, deviceID, proofJKT, enrollmentID)
 	if err != nil {
 		return EnrollmentConfirmation{}, err
+	}
+	if row.State == "denied" {
+		return EnrollmentConfirmation{}, ErrEnrollmentConflict
 	}
 	if row.State == "approved" {
 		expected, _ := hex.DecodeString(expectedReview)

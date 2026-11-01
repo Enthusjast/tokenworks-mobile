@@ -206,6 +206,7 @@ func New(database Repository, identity *auth.Authenticator, configs ...Config) *
 	mux.Handle("DELETE /v1/installations/{id}", api.protected(http.HandlerFunc(api.revokeInstallation)))
 	mux.Handle("GET /v1/devices/current", api.phoneAuthenticated(http.HandlerFunc(api.currentDevice)))
 	mux.Handle("POST /v1/enrollments", api.hostAuthenticated(http.HandlerFunc(api.createEnrollment)))
+	mux.Handle("GET /v1/enrollments", api.protected(http.HandlerFunc(api.listEnrollmentApprovals)))
 	mux.Handle("GET /v1/enrollments/{id}", api.authenticated(http.HandlerFunc(api.getEnrollment)))
 	mux.Handle("GET /v1/enrollments/{id}/host-review", api.hostAuthenticated(http.HandlerFunc(api.reviewEnrollmentHost)))
 	mux.Handle("POST /v1/enrollments/{id}/preview", api.protected(http.HandlerFunc(api.previewEnrollment)))
@@ -213,6 +214,7 @@ func New(database Repository, identity *auth.Authenticator, configs ...Config) *
 	mux.Handle("POST /v1/enrollments/{id}/host-confirm", api.hostAuthenticated(http.HandlerFunc(api.confirmEnrollmentHost)))
 	mux.Handle("GET /v1/enrollments/{id}/admin-review", api.protected(http.HandlerFunc(api.reviewEnrollmentAdmin)))
 	mux.Handle("POST /v1/enrollments/{id}/admin-approve", api.protected(http.HandlerFunc(api.approveEnrollmentAdmin)))
+	mux.Handle("POST /v1/enrollments/{id}/admin-deny", api.protected(http.HandlerFunc(api.denyEnrollmentAdmin)))
 	mux.Handle("POST /v1/host-credentials/challenges", api.hostAuthenticated(http.HandlerFunc(api.createHostCredentialChallenge)))
 	mux.Handle("POST /v1/host-credentials", api.hostAuthenticated(http.HandlerFunc(api.exchangeHostCredential)))
 	mux.Handle("DELETE /v1/devices/{id}", api.protected(http.HandlerFunc(api.revokeDevice)))
@@ -860,6 +862,8 @@ func (api *API) writeStoreError(response http.ResponseWriter, err error) {
 	case errors.Is(err, store.ErrInstallationManagementInvalid):
 		writeError(response, http.StatusBadRequest, "protocol.invalid")
 	case errors.Is(err, store.ErrGrantDirectoryInvalid):
+		writeError(response, http.StatusBadRequest, "protocol.invalid")
+	case errors.Is(err, store.ErrEnrollmentDirectoryInvalid):
 		writeError(response, http.StatusBadRequest, "protocol.invalid")
 	case errors.Is(err, store.ErrSessionDirectoryInvalid):
 		writeError(response, http.StatusBadRequest, "protocol.invalid")
