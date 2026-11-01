@@ -77,13 +77,13 @@ export class RelayFiles {
       this.settle(frame.request_id)
       if (frame.type === 'file.staged.ack' && transfer) {
         if (transfer.stage !== 'reporting' || !this.valid(transfer)) { this.end(frame.payload.handoff_id, transfer); return true }
+        if (!this.registry.confirm(transfer.offer.file_id, transfer.offer.handoff_id)) { this.end(frame.payload.handoff_id, transfer); return true }
         transfer.stage = 'staged'
-        this.registry.confirm(transfer.offer.file_id)
       }
     } else throw new Error('unsupported file frame direction')
     return true
   }
-  private valid(transfer: Transfer): boolean { return !this.closed && !this.binding.signal.aborted && !transfer.abort.signal.aborted && transfer.lease.current() }
+  private valid(transfer: Transfer): boolean { return !this.closed && this.registry.accepting && !this.binding.signal.aborted && !transfer.abort.signal.aborted && transfer.lease.current() }
   private async send(type: string, transfer: Transfer | undefined, payload: unknown): Promise<void> {
     if (this.pending.size >= 96) throw new Error('file acknowledgement queue limit')
     const request = randomUUID()
@@ -137,13 +137,17 @@ export class RelayFiles {
       || response.headers.get('content-length') !== String(transfer.offer.size_bytes)
       || ![null, 'identity'].includes(response.headers.get('content-encoding'))) { await response.body?.cancel(); throw new Error('file download refused') }
     const reader = response.body.getReader()
+    let closing: Promise<void> | undefined
+    const closeReader = () => closing ??= (async () => { await reader.cancel().catch(() => {}); try { reader.releaseLock() } catch { /* Reader may already be detached by cancellation. */ } })()
     const check = () => { signal.throwIfAborted(); if (!this.valid(transfer)) throw new Error('file authority expired') }
     const chunks = async function* () {
       try { for (;;) { check(); const next = await reader.read(); check(); if (next.done) return
         for (let at = 0; at < next.value.byteLength; at += 65536) { check(); yield next.value.subarray(at, at + 65536) }
-      } } finally { await reader.cancel().catch(() => {}); reader.releaseLock() }
+      } } finally { await closeReader() }
     }
-    const name = await this.registry.stage(transfer.session, transfer.offer, chunks(), signal, () => this.valid(transfer))
+    let name: string
+    try { name = await this.registry.stage(transfer.session, transfer.offer, chunks(), signal, () => this.valid(transfer)) }
+    finally { await closeReader() }
     if (!this.valid(transfer)) throw new Error('file authority expired')
     transfer.stage = 'reporting'
     await this.send('file.staged', transfer, { handoff_id: transfer.offer.handoff_id, file_id: transfer.offer.file_id, name, size_bytes: transfer.offer.size_bytes, sha256: transfer.offer.sha256 })
@@ -151,7 +155,7 @@ export class RelayFiles {
   }
   private end(id: string, transfer: Transfer): void {
     if (!this.transfers.delete(id)) return
-    transfer.abort.abort(); this.registry.drop(transfer.offer.file_id)
+    transfer.abort.abort(); this.registry.drop(transfer.offer.file_id, transfer.offer.handoff_id)
     if (!this.closed && !this.binding.signal.aborted) void this.send('file.release', transfer, { handoff_id: id, file_id: transfer.offer.file_id }).catch(() => this.binding.fail())
   }
   close(): void {

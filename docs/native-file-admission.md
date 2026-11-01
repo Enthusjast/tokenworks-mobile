@@ -18,6 +18,9 @@ receipt 保存在原生 Session 的 WeakMap 中。已进入原生队列的文件
 
 原生存储没有文件大小准入限额，因此远控不能省略自己的校验。显示名仍由 DSH 规范化，例如 `资料?.bin` 变成 `资料_.bin`。适配拒绝路径分隔符、控制字符、非标量 Unicode 和过长名字。
 
+[暂存 registry 的关闭与竞争](host-file-registry-lifecycle.md)进一步约束在途上传、32 项合并预算、
+交接 ID 确认和晚返回 receipt 的回收。
+
 此内部适配现已接入 [Host 文件交接](file-host-handoffs.md)、[文件消息](file-message-native.md) 和 [Android 上传界面](android-files.md)。手机命令只能提供授权文件 ID，继续拒绝裸 receipt 和任意路径。原生工作目录上下文只推进手机 cursor，不出现在移动正文。
 
 历史投影将原生文件块转换为兼容既有读取方的文字摘要，只含合法显示名和字节数。没有文字的文件消息也能展示；无效元数据使用固定占位文案。不会导出 attachmentId、receipt、路径、URL 或其他原生字段，也不会将该摘要当成下载权限。

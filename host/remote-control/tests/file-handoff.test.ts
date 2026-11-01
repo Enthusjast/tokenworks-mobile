@@ -244,3 +244,26 @@ test('body chunks arriving after monotonic expiry never reach native storage', a
   assert.equal(f.sent.some(frame => frame.type === 'file.staged'), false)
   assert.equal(f.registry.available(offer.file_id), false)
 })
+
+test('an old handoff acknowledgement cannot confirm or retire a replacement mapping', async t => {
+  const f = await fixture(t), original = f.makeOffer()
+  await f.deliver(original)
+  await waitFor(() => f.sent.some(frame => frame.type === 'file.staged'))
+  const staged = f.sent.find(frame => frame.type === 'file.staged')
+  const replacement = { ...f.makeOffer(), file_id: original.file_id }
+  await f.registry.stage(f.session, replacement, (async function* () { yield f.body })(), f.lifetime.signal, () => true)
+  await f.ack(staged)
+  assert.equal(f.registry.available(replacement.file_id), false)
+  assert.equal(f.registry.confirm(replacement.file_id, replacement.handoff_id), true)
+  assert.equal(f.registry.resolve(replacement.file_id, f.session, owner).type, 'file')
+  assert.equal(f.sent.some(frame => frame.type === 'file.release' && frame.payload.handoff_id === original.handoff_id), true)
+})
+
+test('a closed native registry prevents a still-connected file peer from starting another GET', async t => {
+  const f = await fixture(t)
+  f.registry.close()
+  await f.deliver(f.makeOffer())
+  await new Promise(resolve => setImmediate(resolve))
+  assert.equal(f.reads, 0)
+  assert.equal(f.sent.some(frame => frame.type === 'file.staged'), false)
+})
