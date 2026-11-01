@@ -143,11 +143,22 @@ type ExportRead struct {
 	eof      atomic.Bool
 	failed   atomic.Bool
 	once     sync.Once
+	bodyOnce sync.Once
+	stateMu  sync.Mutex
+	closing  bool
+	closeErr error
 	finish   func(string) error
 	release  func()
 }
 
 func (read *ExportRead) Context() context.Context { return read.ctx }
+func (read *ExportRead) closeBody() {
+	read.bodyOnce.Do(func() {
+		if read.body != nil {
+			_ = read.body.Close()
+		}
+	})
+}
 func (read *ExportRead) Read(target []byte) (int, error) {
 	if read.ctx.Err() != nil {
 		return 0, read.ctx.Err()
@@ -167,30 +178,32 @@ func (read *ExportRead) Read(target []byte) (int, error) {
 // Complete records only that the server verified and served the full response;
 // the receiving phone still verifies its own saved bytes independently.
 func (read *ExportRead) Complete() error {
-	if !read.eof.Load() || read.failed.Load() || read.ctx.Err() != nil {
+	read.stateMu.Lock()
+	defer read.stateMu.Unlock()
+	if read.closing || !read.eof.Load() || read.failed.Load() || read.ctx.Err() != nil {
 		return ErrIntegrity
 	}
 	read.complete.Store(true)
 	return nil
 }
 func (read *ExportRead) Close() error {
-	var result error
 	read.once.Do(func() {
+		read.stateMu.Lock()
+		read.closing = true
 		outcome := "cancelled"
 		if read.complete.Load() {
 			outcome = "served"
 		} else if read.failed.Load() {
 			outcome = "failed"
 		}
+		read.stateMu.Unlock()
 		read.cancel()
-		if read.body != nil {
-			_ = read.body.Close()
-		}
+		read.closeBody()
 		<-read.done
-		result = read.finish(outcome)
+		read.closeErr = read.finish(outcome)
 		read.release()
 	})
-	return result
+	return read.closeErr
 }
 
 func (controller *Exports) Open(parent context.Context, actor Actor, id string) (*ExportRead, error) {
@@ -266,8 +279,11 @@ func (controller *Exports) Open(parent context.Context, actor Actor, id string) 
 	if err == nil {
 		read.body, err = controller.storage.OpenEncrypted(ctx, key, permit.File.SizeBytes)
 	}
+	if err == nil && read.body == nil {
+		err = ErrUnavailable
+	}
 	if err == nil {
-		context.AfterFunc(ctx, func() { _ = read.body.Close() })
+		context.AfterFunc(ctx, read.closeBody)
 		read.verified, err = newDownloadVerifier(read.body, permit.File.SizeBytes, permit.File.SHA256)
 	}
 	if err != nil || ctx.Err() != nil {
