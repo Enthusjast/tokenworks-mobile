@@ -2,29 +2,37 @@ openapi: 3.1.0
 info:
   title: DSH Mobile Remote Control API
   version: 0.1.0
-  description: Authenticated control plane and optional quarantined file uploads implemented by the Go service. File routes require explicit protected storage/scanner configuration and an operational scanner probe. Push routes and workers require a separate protected configuration; provider acceptance never grants interaction authority.
+  description: Standard JSON responses support explicit X-DSH-Response-Envelope=request-id.v1 negotiation. Top-level request_id is mandatory only for that acknowledged representation; business request_id fields retain their existing identities. Authenticated control plane and optional quarantined file uploads implemented by the Go service. File routes require explicit protected storage/scanner configuration and an operational scanner probe. Push routes and workers require a separate protected configuration; provider acceptance never grants interaction authority.
 servers:
   - url: https://remote.example.edu
 security:
   - DPoP: []
 paths:
   /healthz:
+    parameters:
+      - $ref: '#/components/parameters/ResponseEnvelope'
     get:
       security: []
       responses:
         '204': { description: Process is alive }
   /readyz:
+    parameters:
+      - $ref: '#/components/parameters/ResponseEnvelope'
     get:
       security: []
       responses:
         '204': { description: PostgreSQL is reachable }
         '503': { $ref: '#/components/responses/Error' }
   /v1/me:
+    parameters:
+      - $ref: '#/components/parameters/ResponseEnvelope'
     get:
       responses:
         '200':
           description: Verified token identity, resource scopes and the authoritative active service user with current organization memberships. Requires a provisioned active user; available before device enrollment. Memberships do not grant runtime access.
           headers:
+            X-Request-ID: { $ref: '#/components/headers/X-Request-ID' }
+            X-DSH-Response-Envelope: { $ref: '#/components/headers/X-DSH-Response-Envelope' }
             DPoP-Nonce: { $ref: '#/components/headers/DPoP-Nonce' }
           content:
             application/json:
@@ -34,6 +42,8 @@ paths:
         '403': { $ref: '#/components/responses/Error' }
         '503': { $ref: '#/components/responses/Error' }
   /v1/devices:
+    parameters:
+      - $ref: '#/components/parameters/ResponseEnvelope'
     get:
       description: List only the authenticated account's phone devices, including revoked records. Requires a currently active registered phone proof key; host clients and unregistered or revoked keys are denied. No runtime grant or organization membership is required. The cursor is an opaque metadata locator bound to the account and current proof key, not an authorization credential. Unknown or repeated query selectors are rejected.
       parameters:
@@ -47,6 +57,8 @@ paths:
         '200':
           description: Bounded own-device metadata in descending creation time and UUID order. Pages recheck current authority and may observe later status changes; they are not a historical snapshot. Responses contain no keys, credential material or push addresses.
           headers:
+            X-Request-ID: { $ref: '#/components/headers/X-Request-ID' }
+            X-DSH-Response-Envelope: { $ref: '#/components/headers/X-DSH-Response-Envelope' }
             DPoP-Nonce: { $ref: '#/components/headers/DPoP-Nonce' }
           content:
             application/json:
@@ -68,6 +80,8 @@ paths:
         '201':
           description: Device keys are registered for the verified user. The proof key must match the DPoP-bound access token; an ES256 approval-key possession proof binds the identity, keys, name digest and current DPoP request. The keys must be distinct. A fresh authenticated proof with the same account, key pair, normalized name and version 1 returns the original device without another audit row. Changed data conflicts; revoked devices are never revived.
           headers:
+            X-Request-ID: { $ref: '#/components/headers/X-Request-ID' }
+            X-DSH-Response-Envelope: { $ref: '#/components/headers/X-DSH-Response-Envelope' }
             DPoP-Nonce: { $ref: '#/components/headers/DPoP-Nonce' }
           content:
             application/json:
@@ -79,12 +93,16 @@ paths:
         '409': { $ref: '#/components/responses/Error' }
         '503': { $ref: '#/components/responses/Error' }
   /v1/devices/current:
+    parameters:
+      - $ref: '#/components/parameters/ResponseEnvelope'
     get:
       description: Reconcile phone enrollment using only the verified issuer, subject and token-bound DPoP key. Host OAuth clients are denied. Caller-supplied device/key selectors are ignored. This read is available before enrollment and for a revoked key; it grants no resource access and returns no other account/device.
       responses:
         '200':
           description: Current enrollment state for the authenticated key.
           headers:
+            X-Request-ID: { $ref: '#/components/headers/X-Request-ID' }
+            X-DSH-Response-Envelope: { $ref: '#/components/headers/X-DSH-Response-Envelope' }
             DPoP-Nonce: { $ref: '#/components/headers/DPoP-Nonce' }
           content:
             application/json:
@@ -94,6 +112,8 @@ paths:
         '403': { $ref: '#/components/responses/Error' }
         '503': { $ref: '#/components/responses/Error' }
   /v1/devices/{id}:
+    parameters:
+      - $ref: '#/components/parameters/ResponseEnvelope'
     delete:
       parameters:
         - $ref: '#/components/parameters/UUID'
@@ -101,6 +121,8 @@ paths:
         '200':
           description: Device revocation is stored transactionally with an audit row and control-outbox event. Repeating a successful revocation is idempotent.
           headers:
+            X-Request-ID: { $ref: '#/components/headers/X-Request-ID' }
+            X-DSH-Response-Envelope: { $ref: '#/components/headers/X-DSH-Response-Envelope' }
             DPoP-Nonce: { $ref: '#/components/headers/DPoP-Nonce' }
           content:
             application/json:
@@ -111,6 +133,8 @@ paths:
         '403': { $ref: '#/components/responses/Error' }
         '503': { $ref: '#/components/responses/Error' }
   /v1/installations:
+    parameters:
+      - $ref: '#/components/parameters/ResponseEnvelope'
     get:
       description: List installations owned by the current phone account or administered through a current organization-admin membership. An ordinary runtime owner grant does not confer installation management. Every page rechecks the active phone proof and organization membership, and exposes only bounded metadata.
       parameters:
@@ -124,6 +148,8 @@ paths:
         '200':
           description: Current manageable installations in descending creation time and UUID order. Cursors locate metadata and do not grant access or freeze a historical snapshot.
           headers:
+            X-Request-ID: { $ref: '#/components/headers/X-Request-ID' }
+            X-DSH-Response-Envelope: { $ref: '#/components/headers/X-DSH-Response-Envelope' }
             DPoP-Nonce: { $ref: '#/components/headers/DPoP-Nonce' }
           content:
             application/json:
@@ -133,6 +159,8 @@ paths:
         '403': { $ref: '#/components/responses/Error' }
         '503': { $ref: '#/components/responses/Error' }
   /v1/installations/{id}:
+    parameters:
+      - $ref: '#/components/parameters/ResponseEnvelope'
     delete:
       description: Explicitly revoke every profile and credential of one installation. Requires a current registered phone, current organization membership, and either installation ownership or organization-admin role. Other installations on the same host remain intact. No query selectors or body are accepted. Exact retries return success without repeating changes; no local key deletion or credential replacement is performed.
       parameters:
@@ -141,6 +169,8 @@ paths:
         '200':
           description: Revoked transactionally with grant/runtime control events and resource audit. Missing or unauthorized identifiers are denied without disclosing existence.
           headers:
+            X-Request-ID: { $ref: '#/components/headers/X-Request-ID' }
+            X-DSH-Response-Envelope: { $ref: '#/components/headers/X-DSH-Response-Envelope' }
             DPoP-Nonce: { $ref: '#/components/headers/DPoP-Nonce' }
           content:
             application/json:
@@ -150,6 +180,8 @@ paths:
         '403': { $ref: '#/components/responses/Error' }
         '503': { $ref: '#/components/responses/Error' }
   /v1/installations/{id}/runtimes:
+    parameters:
+      - $ref: '#/components/parameters/ResponseEnvelope'
     get:
       description: List all recorded profiles of an installation owned by the current phone account or managed by its current organization-admin membership. Requires an active account and registered DPoP key on every page. Runtime owner grants alone do not confer installation management. Returns bounded UUID/status metadata without local profile references or session content.
       parameters:
@@ -164,6 +196,8 @@ paths:
         '200':
           description: Profile records in ascending runtime UUID order, including revoked profiles. Active describes registration, not online status. The cursor binds account, proof key and installation but carries no authority or historical snapshot.
           headers:
+            X-Request-ID: { $ref: '#/components/headers/X-Request-ID' }
+            X-DSH-Response-Envelope: { $ref: '#/components/headers/X-DSH-Response-Envelope' }
             DPoP-Nonce: { $ref: '#/components/headers/DPoP-Nonce' }
           content:
             application/json:
@@ -173,6 +207,8 @@ paths:
         '403': { $ref: '#/components/responses/Error' }
         '503': { $ref: '#/components/responses/Error' }
   /v1/installations/{id}/runtimes/{runtime_id}:
+    parameters:
+      - $ref: '#/components/parameters/ResponseEnvelope'
     delete:
       description: Permanently retire one profile under the specified installation, preserving sibling profiles and the shared installation identity and credentials. Requires current registered phone proof, current organization membership and installation ownership or organization-admin authority inside the transaction. No query selectors or body. Exact retries recheck authority without repeating audit or events. Neither this operation nor deleting local files reactivates a retired runtime.
       parameters:
@@ -185,6 +221,8 @@ paths:
         '200':
           description: Runtime, its grants, tickets and active metadata retired atomically with audit and durable runtime invalidation. Missing, mismatched or unauthorized identifiers are generically denied. Existing installation credentials remain subject to current runtime checks at attach and every operation.
           headers:
+            X-Request-ID: { $ref: '#/components/headers/X-Request-ID' }
+            X-DSH-Response-Envelope: { $ref: '#/components/headers/X-DSH-Response-Envelope' }
             DPoP-Nonce: { $ref: '#/components/headers/DPoP-Nonce' }
           content:
             application/json:
@@ -194,6 +232,8 @@ paths:
         '403': { $ref: '#/components/responses/Error' }
         '503': { $ref: '#/components/responses/Error' }
   /v1/enrollments:
+    parameters:
+      - $ref: '#/components/parameters/ResponseEnvelope'
     post:
       description: Host-client-only registration. The installation public key must match the DPoP proof key; enrollment codes are generated by the host and never stored in plaintext. After a profile runtime is revoked, a fresh request and code may reuse its profile_ref under the still-active installation, creating new runtime/workspace identities with fresh dual confirmation and no inherited authority. An unrevoked runtime still reserves its name. Retrying the original request reconciles the original UUID.
       requestBody:
@@ -205,6 +245,8 @@ paths:
         '201':
           description: Creates a five-minute pending enrollment and a runtime with the requested opaque workspace references.
           headers:
+            X-Request-ID: { $ref: '#/components/headers/X-Request-ID' }
+            X-DSH-Response-Envelope: { $ref: '#/components/headers/X-DSH-Response-Envelope' }
             DPoP-Nonce: { $ref: '#/components/headers/DPoP-Nonce' }
           content:
             application/json:
@@ -216,6 +258,8 @@ paths:
         '429': { $ref: '#/components/responses/Error' }
         '503': { $ref: '#/components/responses/Error' }
   /v1/enrollments/{id}:
+    parameters:
+      - $ref: '#/components/parameters/ResponseEnvelope'
     get:
       parameters:
         - $ref: '#/components/parameters/UUID'
@@ -223,6 +267,8 @@ paths:
         '200':
           description: Status for the initiating installation owner or the user who confirmed. Phone access requires a registered device; an allowlisted host client must also prove the matching installation key. The code is never returned.
           headers:
+            X-Request-ID: { $ref: '#/components/headers/X-Request-ID' }
+            X-DSH-Response-Envelope: { $ref: '#/components/headers/X-DSH-Response-Envelope' }
             DPoP-Nonce: { $ref: '#/components/headers/DPoP-Nonce' }
           content:
             application/json:
@@ -232,6 +278,8 @@ paths:
         '403': { $ref: '#/components/responses/Error' }
         '503': { $ref: '#/components/responses/Error' }
   /v1/enrollments/{id}/host-review:
+    parameters:
+      - $ref: '#/components/parameters/ResponseEnvelope'
     get:
       description: Installation-owner-only review, requiring the allowlisted host client, the registered installation DPoP key and a non-revoked host, installation and runtime. Returns the verified identity of the already confirmed phone user and current eligibility. Rejects query selectors; never returns the enrollment code.
       parameters:
@@ -240,6 +288,8 @@ paths:
         '200':
           description: Key-bound enrollment and confirming-user review.
           headers:
+            X-Request-ID: { $ref: '#/components/headers/X-Request-ID' }
+            X-DSH-Response-Envelope: { $ref: '#/components/headers/X-DSH-Response-Envelope' }
             DPoP-Nonce: { $ref: '#/components/headers/DPoP-Nonce' }
           content:
             application/json:
@@ -249,6 +299,8 @@ paths:
         '403': { $ref: '#/components/responses/Error' }
         '503': { $ref: '#/components/responses/Error' }
   /v1/enrollments/{id}/preview:
+    parameters:
+      - $ref: '#/components/parameters/ResponseEnvelope'
     post:
       description: Read-only phone preview before confirmation. Requires a registered device, current organization membership and the exact 256-bit code in the JSON body. Does not activate resources or create grants.
       parameters:
@@ -262,6 +314,8 @@ paths:
         '200':
           description: Verified display metadata, installation key thumbprint and current-account confirmation attribution, without the code.
           headers:
+            X-Request-ID: { $ref: '#/components/headers/X-Request-ID' }
+            X-DSH-Response-Envelope: { $ref: '#/components/headers/X-DSH-Response-Envelope' }
             DPoP-Nonce: { $ref: '#/components/headers/DPoP-Nonce' }
           content:
             application/json:
@@ -271,6 +325,8 @@ paths:
         '403': { $ref: '#/components/responses/Error' }
         '503': { $ref: '#/components/responses/Error' }
   /v1/enrollments/{id}/confirm:
+    parameters:
+      - $ref: '#/components/parameters/ResponseEnvelope'
     post:
       parameters:
         - $ref: '#/components/parameters/UUID'
@@ -283,6 +339,8 @@ paths:
         '200':
           description: Phone user confirmation; the enrollment stays pending until the host owner confirms with the installation key. Pending confirmations recheck pairing expiry after authority locks and before commit; late attempts cannot retain confirmation or success evidence. Approved historical retries do not renew or reuse the pairing deadline.
           headers:
+            X-Request-ID: { $ref: '#/components/headers/X-Request-ID' }
+            X-DSH-Response-Envelope: { $ref: '#/components/headers/X-DSH-Response-Envelope' }
             DPoP-Nonce: { $ref: '#/components/headers/DPoP-Nonce' }
           content:
             application/json:
@@ -292,6 +350,8 @@ paths:
         '403': { $ref: '#/components/responses/Error' }
         '503': { $ref: '#/components/responses/Error' }
   /v1/enrollments/{id}/host-confirm:
+    parameters:
+      - $ref: '#/components/parameters/ResponseEnvelope'
     post:
       description: Host-client-only local confirmation after phone confirmation. The DPoP key must match the installation, and confirmed_user_id must match the identity reviewed by the host. Pending confirmations recheck pairing expiry after authority locks and phone-key validation, and again after initial grant/audit writes before commit. Expired attempts roll back all new confirmation authority; approved historical retries remain reconciliation only.
       parameters:
@@ -305,6 +365,8 @@ paths:
         '200':
           description: Host confirmation; both confirmations activate the host and create initial owner grants.
           headers:
+            X-Request-ID: { $ref: '#/components/headers/X-Request-ID' }
+            X-DSH-Response-Envelope: { $ref: '#/components/headers/X-DSH-Response-Envelope' }
             DPoP-Nonce: { $ref: '#/components/headers/DPoP-Nonce' }
           content:
             application/json:
@@ -314,12 +376,16 @@ paths:
         '403': { $ref: '#/components/responses/Error' }
         '503': { $ref: '#/components/responses/Error' }
   /v1/host-credentials/challenges:
+    parameters:
+      - $ref: '#/components/parameters/ResponseEnvelope'
     post:
       description: Host-client-only challenge issuance. The active installation owner must authenticate with a DPoP key matching the registered installation key. Challenges are valid for 90 seconds, at most four may be pending per installation, and no more than 20 may be created in five minutes.
       responses:
         '201':
           description: Returns a 256-bit one-use challenge. Only its SHA-256 digest is stored.
           headers:
+            X-Request-ID: { $ref: '#/components/headers/X-Request-ID' }
+            X-DSH-Response-Envelope: { $ref: '#/components/headers/X-DSH-Response-Envelope' }
             DPoP-Nonce: { $ref: '#/components/headers/DPoP-Nonce' }
           content:
             application/json:
@@ -329,6 +395,8 @@ paths:
         '429': { $ref: '#/components/responses/Error' }
         '503': { $ref: '#/components/responses/Error' }
   /v1/host-credentials:
+    parameters:
+      - $ref: '#/components/parameters/ResponseEnvelope'
     post:
       description: Host-client-only exchange. An ES256 proof signed by the enrolled installation key binds the installation ID, challenge ID, challenge nonce, audience, issuance time, and a unique proof ID. Challenge consumption and credential insertion are atomic.
       requestBody:
@@ -340,6 +408,8 @@ paths:
         '201':
           description: Returns an opaque five-minute connection credential. Only its SHA-256 digest is stored, and at most eight unexpired credentials may be active per installation. A Relay must still require a fresh signed installation-key challenge when the host connects.
           headers:
+            X-Request-ID: { $ref: '#/components/headers/X-Request-ID' }
+            X-DSH-Response-Envelope: { $ref: '#/components/headers/X-DSH-Response-Envelope' }
             DPoP-Nonce: { $ref: '#/components/headers/DPoP-Nonce' }
           content:
             application/json:
@@ -350,6 +420,8 @@ paths:
         '429': { $ref: '#/components/responses/Error' }
         '503': { $ref: '#/components/responses/Error' }
   /v1/app/releases/latest:
+    parameters:
+      - $ref: '#/components/parameters/ResponseEnvelope'
     get:
       description: Optional configured APK metadata selection. Rechecks the registered phone proof, active school user, exact organization membership and token validity; no runtime/list/content grant is required. The query cannot choose a user or device. Client version/API claims select metadata only. Selection uses stable per-release organization/user/device rollout and the current protocol/Android compatibility gates. No APK bytes, signing private keys or installation action are returned. Unknown, duplicate and noncanonical numeric selectors are rejected. The route is absent without REMOTE_APP_RELEASES_FILE.
       parameters:
@@ -379,6 +451,7 @@ paths:
                 additionalProperties: false
                 required: [ok, data]
                 properties:
+                  request_id: { $ref: '#/components/schemas/HTTPResponseRequestID' }
                   ok: { const: true }
                   data: { $ref: '#/components/schemas/AppReleaseSelection' }
         '400': { $ref: '#/components/responses/Error' }
@@ -387,6 +460,8 @@ paths:
         '404': { description: APK release publication is not configured. }
         '503': { $ref: '#/components/responses/Error' }
   /v1/host-directory:
+    parameters:
+      - $ref: '#/components/parameters/ResponseEnvelope'
     get:
       description: Bounded hosts discovery for the current active registered phone and DPoP key. Every page rechecks account, organization, approved runtime and current grants. Eligibility matches the existing full directories - explicit host.list, or session.list with at least one scoped session. Read permission or organization-admin role alone does not grant enumeration. No query selectors except limit/cursor and no body.
       parameters:
@@ -400,6 +475,8 @@ paths:
         '200':
           description: Current authorized metadata in stable ascending UUID order. Cursors bind account, proof key and directory purpose but carry no authority or historical snapshot. An eligible account with no visible resources receives an empty page. Metadata is not a credential or proof of online status.
           headers:
+            X-Request-ID: { $ref: '#/components/headers/X-Request-ID' }
+            X-DSH-Response-Envelope: { $ref: '#/components/headers/X-DSH-Response-Envelope' }
             DPoP-Nonce: { $ref: '#/components/headers/DPoP-Nonce' }
           content:
             application/json:
@@ -409,6 +486,8 @@ paths:
         '403': { $ref: '#/components/responses/Error' }
         '503': { $ref: '#/components/responses/Error' }
   /v1/runtime-directory:
+    parameters:
+      - $ref: '#/components/parameters/ResponseEnvelope'
     get:
       description: Bounded runtimes discovery for the current active registered phone and DPoP key. Every page rechecks account, organization, approved runtime and current grants. Eligibility matches the existing full directories - explicit host.list, or session.list with at least one scoped session. Read permission or organization-admin role alone does not grant enumeration. No query selectors except limit/cursor and no body.
       parameters:
@@ -422,6 +501,8 @@ paths:
         '200':
           description: Current authorized metadata in stable ascending UUID order. Cursors bind account, proof key and directory purpose but carry no authority or historical snapshot. An eligible account with no visible resources receives an empty page. Metadata is not a credential or proof of online status.
           headers:
+            X-Request-ID: { $ref: '#/components/headers/X-Request-ID' }
+            X-DSH-Response-Envelope: { $ref: '#/components/headers/X-DSH-Response-Envelope' }
             DPoP-Nonce: { $ref: '#/components/headers/DPoP-Nonce' }
           content:
             application/json:
@@ -431,11 +512,15 @@ paths:
         '403': { $ref: '#/components/responses/Error' }
         '503': { $ref: '#/components/responses/Error' }
   /v1/hosts:
+    parameters:
+      - $ref: '#/components/parameters/ResponseEnvelope'
     get:
       responses:
         '200':
           description: Hosts visible through active organization membership and runtime grants.
           headers:
+            X-Request-ID: { $ref: '#/components/headers/X-Request-ID' }
+            X-DSH-Response-Envelope: { $ref: '#/components/headers/X-DSH-Response-Envelope' }
             DPoP-Nonce: { $ref: '#/components/headers/DPoP-Nonce' }
           content:
             application/json:
@@ -443,6 +528,7 @@ paths:
                 type: object
                 required: [ok, data]
                 properties:
+                  request_id: { $ref: '#/components/schemas/HTTPResponseRequestID' }
                   ok: { const: true }
                   data:
                     type: object
@@ -455,11 +541,15 @@ paths:
         '403': { $ref: '#/components/responses/Error' }
         '503': { $ref: '#/components/responses/Error' }
   /v1/runtimes:
+    parameters:
+      - $ref: '#/components/parameters/ResponseEnvelope'
     get:
       responses:
         '200':
           description: Runtimes visible through active grants, including the current user's organization, role and exact grant scope/version. This directory snapshot is not a credential; ticket issuance and operations recheck authority.
           headers:
+            X-Request-ID: { $ref: '#/components/headers/X-Request-ID' }
+            X-DSH-Response-Envelope: { $ref: '#/components/headers/X-DSH-Response-Envelope' }
             DPoP-Nonce: { $ref: '#/components/headers/DPoP-Nonce' }
           content:
             application/json:
@@ -467,6 +557,7 @@ paths:
                 type: object
                 required: [ok, data]
                 properties:
+                  request_id: { $ref: '#/components/schemas/HTTPResponseRequestID' }
                   ok: { const: true }
                   data:
                     type: object
@@ -479,6 +570,8 @@ paths:
         '403': { $ref: '#/components/responses/Error' }
         '503': { $ref: '#/components/responses/Error' }
   /v1/runtimes/{id}/session-directory:
+    parameters:
+      - $ref: '#/components/parameters/ResponseEnvelope'
     get:
       description: Bounded session directory for a registered phone with current session.list authority. Each page verifies the active account, device/proof key, organization, approved runtime and current grant in the same statement snapshot as the scoped results. Optional projection=names.v1 adds bounded native display metadata only under the additional explicit session.metadata.read action; without that action the original identifier-only rows remain available. Missing projection preserves the strict legacy shape. Names are registered cached/sequenced native hints, never paths, first-message labels, or a promise of live current content. Manual refresh re-fetches this registered directory without activating Agents or reading cold conversation logs. Unknown selectors, projection versions and GET bodies are rejected.
       parameters:
@@ -496,6 +589,8 @@ paths:
         '200':
           description: Metadata in ascending session UUID order, including scoped archived/unavailable rows. Stable ordering is independent of activity updates. Cursors bind account, proof key and runtime but grant no authority or historical snapshot. This directory neither reads content nor grants a realtime ticket.
           headers:
+            X-Request-ID: { $ref: '#/components/headers/X-Request-ID' }
+            X-DSH-Response-Envelope: { $ref: '#/components/headers/X-DSH-Response-Envelope' }
             DPoP-Nonce: { $ref: '#/components/headers/DPoP-Nonce' }
           content:
             application/json:
@@ -505,6 +600,8 @@ paths:
         '403': { $ref: '#/components/responses/Error' }
         '503': { $ref: '#/components/responses/Error' }
   /v1/runtimes/{id}/sessions:
+    parameters:
+      - $ref: '#/components/parameters/ResponseEnvelope'
     get:
       parameters:
         - $ref: '#/components/parameters/UUID'
@@ -512,6 +609,8 @@ paths:
         '200':
           description: Session metadata visible through an active session.list grant.
           headers:
+            X-Request-ID: { $ref: '#/components/headers/X-Request-ID' }
+            X-DSH-Response-Envelope: { $ref: '#/components/headers/X-DSH-Response-Envelope' }
             DPoP-Nonce: { $ref: '#/components/headers/DPoP-Nonce' }
           content:
             application/json:
@@ -519,6 +618,7 @@ paths:
                 type: object
                 required: [ok, data]
                 properties:
+                  request_id: { $ref: '#/components/schemas/HTTPResponseRequestID' }
                   ok: { const: true }
                   data:
                     type: object
@@ -532,6 +632,8 @@ paths:
         '403': { $ref: '#/components/responses/Error' }
         '503': { $ref: '#/components/responses/Error' }
   /v1/runtimes/{id}/sessions/{session_id}:
+    parameters:
+      - $ref: '#/components/parameters/ResponseEnvelope'
     get:
       description: Resolve one already-known session under current registered phone proof, membership and session.read. Returns this session's real directory metadata and the caller's current runtime grant without requiring host.list or session.list. This grants no enumeration, subscription or execution authority. Host aliases, native session IDs, paths and bodies are absent. Query selectors are rejected.
       parameters:
@@ -550,6 +652,7 @@ paths:
                 additionalProperties: false
                 required: [ok, data]
                 properties:
+                  request_id: { $ref: '#/components/schemas/HTTPResponseRequestID' }
                   ok: { const: true }
                   data:
                     type: object
@@ -563,6 +666,8 @@ paths:
         '403': { $ref: '#/components/responses/Error' }
         '503': { $ref: '#/components/responses/Error' }
   /v1/runtimes/{id}/sessions/{session_id}/question-answers/{request_id}:
+    parameters:
+      - $ref: '#/components/parameters/ResponseEnvelope'
     get:
       description: Reconcile only this authenticated device's own typed question.answer request in this exact runtime/session. Requires current session.read and question.answer, owner/operator role and original resource membership; does not confer generic command.status. Records predating action classification and other command purposes are denied. Query selectors are rejected.
       parameters:
@@ -587,6 +692,8 @@ paths:
         '403': { $ref: '#/components/responses/Error' }
         '503': { $ref: '#/components/responses/Error' }
   /v1/runtimes/{id}/sessions/{session_id}/read-access:
+    parameters:
+      - $ref: '#/components/parameters/ResponseEnvelope'
     get:
       description: Revalidates this exact session's current read scope and workspace independently of host presence. The response bounds a local cached-history view; it is not a credential or a subscription. Requires an active registered phone's DPoP key and rejects query selectors.
       parameters:
@@ -599,6 +706,8 @@ paths:
         '200':
           description: Current per-session read authority, bounded by five minutes, the access token and the grant expiry.
           headers:
+            X-Request-ID: { $ref: '#/components/headers/X-Request-ID' }
+            X-DSH-Response-Envelope: { $ref: '#/components/headers/X-DSH-Response-Envelope' }
             DPoP-Nonce: { $ref: '#/components/headers/DPoP-Nonce' }
           content:
             application/json:
@@ -607,6 +716,7 @@ paths:
                 additionalProperties: false
                 required: [ok, data]
                 properties:
+                  request_id: { $ref: '#/components/schemas/HTTPResponseRequestID' }
                   ok: { const: true }
                   data: { $ref: '#/components/schemas/SessionReadAccess' }
         '400': { $ref: '#/components/responses/Error' }
@@ -614,6 +724,8 @@ paths:
         '403': { $ref: '#/components/responses/Error' }
         '503': { $ref: '#/components/responses/Error' }
   /v1/runtimes/{id}/grants:
+    parameters:
+      - $ref: '#/components/parameters/ResponseEnvelope'
     get:
       description: List recorded grants for an active, approved runtime. Requires a registered phone and current organization-admin membership or an unexpired owner grant with grant.manage. Installation ownership alone is insufficient. Each page rechecks current authority in the same statement snapshot as the results. No account subjects, device keys or credentials are returned.
       parameters:
@@ -628,6 +740,8 @@ paths:
         '200':
           description: Grants ordered by user UUID, including expired, revoked or currently inactive recipients. Cursors bind caller, proof key and runtime but do not grant authority or freeze a historical snapshot. State precedence is revoked, expired, inactive (recipient account or membership), then active.
           headers:
+            X-Request-ID: { $ref: '#/components/headers/X-Request-ID' }
+            X-DSH-Response-Envelope: { $ref: '#/components/headers/X-DSH-Response-Envelope' }
             DPoP-Nonce: { $ref: '#/components/headers/DPoP-Nonce' }
           content:
             application/json:
@@ -637,6 +751,8 @@ paths:
         '403': { $ref: '#/components/responses/Error' }
         '503': { $ref: '#/components/responses/Error' }
   /v1/runtimes/{id}/grants/{user_id}:
+    parameters:
+      - $ref: '#/components/parameters/ResponseEnvelope'
     put:
       description: Revalidate and lock the active account, registered phone and current DPoP proof key inside the grant transaction, including exact retries. Recheck the original manager grant expiry and requested target expiry against the database wall clock after target locking and before the commit decision; expiry rolls back the entire transaction. Current organization-admin authority is independent of an owner grant expiry. Accepts no query selectors. Confirmed database aborts may retry the whole transaction with current authorization; uncertain commits are not replayed automatically.
       parameters:
@@ -654,6 +770,8 @@ paths:
         '200':
           description: Grant is created or updated. Runtime owners can delegate only within their own scope; owner scopes include grant.manage. Organization admins may assign owner grants.
           headers:
+            X-Request-ID: { $ref: '#/components/headers/X-Request-ID' }
+            X-DSH-Response-Envelope: { $ref: '#/components/headers/X-DSH-Response-Envelope' }
             DPoP-Nonce: { $ref: '#/components/headers/DPoP-Nonce' }
           content:
             application/json:
@@ -673,6 +791,8 @@ paths:
         '200':
           description: Grant revocation is idempotent and transactionally records audit and outbox events. Every attempt revalidates and locks the current registered phone and proof key and rechecks original manager expiry against the database wall clock after target locking and before the commit decision. No query selectors or body are accepted. Device revocation completed before authorization prevents this write; an earlier valid grant commit remains independent of later device revocation.
           headers:
+            X-Request-ID: { $ref: '#/components/headers/X-Request-ID' }
+            X-DSH-Response-Envelope: { $ref: '#/components/headers/X-DSH-Response-Envelope' }
             DPoP-Nonce: { $ref: '#/components/headers/DPoP-Nonce' }
           content:
             application/json:
@@ -682,6 +802,8 @@ paths:
         '403': { $ref: '#/components/responses/Error' }
         '503': { $ref: '#/components/responses/Error' }
   /v1/realtime/tickets:
+    parameters:
+      - $ref: '#/components/parameters/ResponseEnvelope'
     post:
       requestBody:
         required: true
@@ -692,6 +814,8 @@ paths:
         '201':
           description: Issues a 30-second one-use ticket bound to the active device key version, runtime grant version, and requested scope. Only the ticket hash is stored. Database wall-clock checks after authority/resource waits and before the commit decision reject expired grants or newly expired tickets, rolling back the ticket and success audit. Handshake preparation/consumption recheck grant and ticket deadlines; established sockets retain their separate negotiated lifetime and current-grant checks.
           headers:
+            X-Request-ID: { $ref: '#/components/headers/X-Request-ID' }
+            X-DSH-Response-Envelope: { $ref: '#/components/headers/X-DSH-Response-Envelope' }
             DPoP-Nonce: { $ref: '#/components/headers/DPoP-Nonce' }
           content:
             application/json:
@@ -701,6 +825,8 @@ paths:
         '403': { $ref: '#/components/responses/Error' }
         '503': { $ref: '#/components/responses/Error' }
   /v1/realtime:
+    parameters:
+      - $ref: '#/components/parameters/ResponseEnvelope'
     get:
       security: []
       description: >-
@@ -787,6 +913,8 @@ paths:
         '401': { $ref: '#/components/responses/Error' }
         '503': { $ref: '#/components/responses/Error' }
   /v1/approvals/{id}:
+    parameters:
+      - $ref: '#/components/parameters/ResponseEnvelope'
     get:
       description: Read known approval status metadata without a live WSS connection or online Host. Requires an active registered phone, current DPoP key, organization membership and runtime owner grant with approval.decide plus session.read covering the original approval session/workspace. Uses the same locked current-owner policy as WSS status reads. Organization admin or installation ownership alone does not grant access. No query selectors or body. This endpoint returns no context/parameters, signs no permit, and does not enable decision submission when signed approval configuration is disabled.
       parameters:
@@ -795,6 +923,8 @@ paths:
         '200':
           description: Persisted approval metadata, including disconnected or terminal outcomes. A known allow or consumed state is not native execution success. Metadata can be read independently of the optional signing configuration; every decision or execution still requires its own current authorization.
           headers:
+            X-Request-ID: { $ref: '#/components/headers/X-Request-ID' }
+            X-DSH-Response-Envelope: { $ref: '#/components/headers/X-DSH-Response-Envelope' }
             DPoP-Nonce: { $ref: '#/components/headers/DPoP-Nonce' }
           content:
             application/json:
@@ -804,6 +934,8 @@ paths:
         '403': { $ref: '#/components/responses/Error' }
         '503': { $ref: '#/components/responses/Error' }
   /v1/approvals/{id}/decisions:
+    parameters:
+      - $ref: '#/components/parameters/ResponseEnvelope'
     post:
       description: Available only when REMOTE_APPROVAL_POLICY_FILE enables the signed approval service. A fresh JWT/DPoP request is bound to a live mobile WSS connection and that socket's exact owner/read/approval scope. The service retrieves the immutable context from the current host, verifies assurance and the phone JWS, commits the decision, and independently signs a short host authorization lease. A persisted acceptance or forwarded frame is not tool execution.
       parameters:
@@ -823,6 +955,8 @@ paths:
         '200':
           description: The decision is durably recorded. delivery pending requires reconciliation; forwarded confirms a transport write, and recorded returns an existing execution/status fact. None alone proves tool success.
           headers:
+            X-Request-ID: { $ref: '#/components/headers/X-Request-ID' }
+            X-DSH-Response-Envelope: { $ref: '#/components/headers/X-DSH-Response-Envelope' }
             DPoP-Nonce: { $ref: '#/components/headers/DPoP-Nonce' }
           content:
             application/json:
@@ -831,6 +965,7 @@ paths:
                 additionalProperties: false
                 required: [ok, data]
                 properties:
+                  request_id: { $ref: '#/components/schemas/HTTPResponseRequestID' }
                   ok: { const: true }
                   data:
                     type: object
@@ -847,6 +982,8 @@ paths:
         '429': { $ref: '#/components/responses/Error' }
         '503': { $ref: '#/components/responses/Error' }
   /v1/commands/{id}:
+    parameters:
+      - $ref: '#/components/parameters/ResponseEnvelope'
     get:
       parameters:
         - name: id
@@ -862,6 +999,8 @@ paths:
         '200':
           description: Command metadata only; request body and chat content are not returned.
           headers:
+            X-Request-ID: { $ref: '#/components/headers/X-Request-ID' }
+            X-DSH-Response-Envelope: { $ref: '#/components/headers/X-DSH-Response-Envelope' }
             DPoP-Nonce: { $ref: '#/components/headers/DPoP-Nonce' }
           content:
             application/json:
@@ -872,6 +1011,8 @@ paths:
         '403': { $ref: '#/components/responses/Error' }
         '503': { $ref: '#/components/responses/Error' }
   /v1/runtimes/{id}/sessions/{session_id}/files:
+    parameters:
+      - $ref: '#/components/parameters/ResponseEnvelope'
     post:
       description: Register an immutable to-host file intent and reserve organization/user/session quota. Requires the active phone device and current file.upload authority. Same-device same-ID identical retries return the original file; changed target/content conflicts. Upload URLs are ephemeral quarantine capabilities; no bytes or native receipt are accepted here. Returns 404 when files are not configured.
       parameters:
@@ -889,6 +1030,8 @@ paths:
         '201':
           description: Original file metadata and, only while currently authorized and uploading, a short-lived quarantine PUT capability. No capability is included for an already committed/terminal intent.
           headers:
+            X-Request-ID: { $ref: '#/components/headers/X-Request-ID' }
+            X-DSH-Response-Envelope: { $ref: '#/components/headers/X-DSH-Response-Envelope' }
             DPoP-Nonce: { $ref: '#/components/headers/DPoP-Nonce' }
           content:
             application/json:
@@ -901,6 +1044,8 @@ paths:
         '429': { $ref: '#/components/responses/Error' }
         '503': { $ref: '#/components/responses/Error' }
   /v1/files/{id}:
+    parameters:
+      - $ref: '#/components/parameters/ResponseEnvelope'
     get:
       description: Reconcile the original phone device's file metadata under current authority. Direction to_host uses file.upload; from_host uses session.read and file.download. Returns no object key, lease, native receipt or upload capability. Another device cannot select the original requester via request fields. Returns 404 when files are not configured.
       parameters:
@@ -909,6 +1054,8 @@ paths:
         '200':
           description: Current durable transfer metadata; clean means bytes/scan/storage evidence passed, not that a host received or queued a message.
           headers:
+            X-Request-ID: { $ref: '#/components/headers/X-Request-ID' }
+            X-DSH-Response-Envelope: { $ref: '#/components/headers/X-DSH-Response-Envelope' }
             DPoP-Nonce: { $ref: '#/components/headers/DPoP-Nonce' }
           content:
             application/json:
@@ -919,6 +1066,8 @@ paths:
         '404': { description: File service is not configured. }
         '503': { $ref: '#/components/responses/Error' }
   /v1/files/{id}/upload-url:
+    parameters:
+      - $ref: '#/components/parameters/ResponseEnvelope'
     post:
       description: Refresh a quarantine PUT capability for the exact original intent, device key/version and grant version. Allowed only in uploading before its original upload window expires. Signed URLs are not immediately revocable and never address committed objects. Returns 404 when files are not configured.
       parameters:
@@ -932,6 +1081,8 @@ paths:
         '200':
           description: Original metadata and a refreshed short-lived capability within the original expiry.
           headers:
+            X-Request-ID: { $ref: '#/components/headers/X-Request-ID' }
+            X-DSH-Response-Envelope: { $ref: '#/components/headers/X-DSH-Response-Envelope' }
             DPoP-Nonce: { $ref: '#/components/headers/DPoP-Nonce' }
           content:
             application/json:
@@ -943,6 +1094,8 @@ paths:
         '409': { $ref: '#/components/responses/Error' }
         '503': { $ref: '#/components/responses/Error' }
   /v1/file-exports/{id}:
+    parameters:
+      - $ref: '#/components/parameters/ResponseEnvelope'
     get:
       description: Resolve the original device's immutable export request UUID back to its file metadata after a lost registration response. Requires current session.read and file.download scope. This endpoint does not prepare a new Host source or re-admit an expired source. Export downloads must be explicitly enabled; missing and inaccessible records both fail closed.
       parameters:
@@ -951,6 +1104,8 @@ paths:
         '200':
           description: Original from_host file metadata without private Host provenance or capabilities.
           headers:
+            X-Request-ID: { $ref: '#/components/headers/X-Request-ID' }
+            X-DSH-Response-Envelope: { $ref: '#/components/headers/X-DSH-Response-Envelope' }
             DPoP-Nonce: { $ref: '#/components/headers/DPoP-Nonce' }
           content:
             application/json:
@@ -961,6 +1116,8 @@ paths:
         '404': { description: Export downloads are not configured. }
         '503': { $ref: '#/components/responses/Error' }
   /v1/files/{id}/content:
+    parameters:
+      - $ref: '#/components/parameters/ResponseEnvelope'
     get:
       description: Phone-only JWT/DPoP proxy for an owned, clean from_host export. Rechecks current device, session.read/file.download scope and scanner policy on renewable five-second leases; grant-generation changes cancel an existing stream. The request is bounded by token expiry and five minutes. Range and query selectors are refused. Committed object bytes are checked against exact length/SHA-256 before the final chunk; an interrupted response must not be published by the client. No public object URL or bearer download capability is returned. Export downloads must be explicitly enabled.
       parameters:
@@ -969,6 +1126,8 @@ paths:
         '200':
           description: Exact verified committed bytes; served is a server-side fact, and the phone independently verifies its saved document.
           headers:
+            X-Request-ID: { $ref: '#/components/headers/X-Request-ID' }
+            X-DSH-Response-Envelope: { $ref: '#/components/headers/X-DSH-Response-Envelope' }
             DPoP-Nonce: { $ref: '#/components/headers/DPoP-Nonce' }
             Content-Length: { schema: { type: integer, minimum: 0, maximum: 2000000000 } }
             Content-Disposition: { schema: { type: string }, description: Attachment with a safely encoded display filename. }
@@ -984,6 +1143,8 @@ paths:
         '429': { $ref: '#/components/responses/Error' }
         '503': { $ref: '#/components/responses/Error' }
   /v1/files/{id}/commit:
+    parameters:
+      - $ref: '#/components/parameters/ResponseEnvelope'
     post:
       description: Request a durable background scan after the client PUT. This call does not trust object HEAD as content evidence and does not mark clean. Idempotent repeats return current state. Returns 404 when files are not configured.
       parameters:
@@ -997,6 +1158,8 @@ paths:
         '202':
           description: Scanning is pending/in progress; query original status.
           headers:
+            X-Request-ID: { $ref: '#/components/headers/X-Request-ID' }
+            X-DSH-Response-Envelope: { $ref: '#/components/headers/X-DSH-Response-Envelope' }
             DPoP-Nonce: { $ref: '#/components/headers/DPoP-Nonce' }
           content:
             application/json:
@@ -1012,6 +1175,8 @@ paths:
         '404': { description: File service is not configured. }
         '503': { $ref: '#/components/responses/Error' }
   /v1/host-files/{id}/content:
+    parameters:
+      - $ref: '#/components/parameters/ResponseEnvelope'
     get:
       description: Host-only proxy read under negotiated file.handoff.v1. The five-second renewable handoff binds the live installation key, runtime epoch, connection, original uploader authority and clean scanner policy. A valid proof atomically consumes the ticket once before object I/O. Revocation, disconnect and expiry cancel pending headers and body reads. Interrupted reads need a new handoff; redirects and range/query selectors are unsupported.
       security:
@@ -1035,6 +1200,8 @@ paths:
         '409': { $ref: '#/components/responses/Error' }
         '503': { $ref: '#/components/responses/Error' }
   /v1/push/capabilities:
+    parameters:
+      - $ref: '#/components/parameters/ResponseEnvelope'
     get:
       description: Optional notification service capabilities for an active DPoP-bound device. Routes are absent unless protected push configuration is enabled. Provider configuration is public metadata, not a delivery guarantee.
       responses:
@@ -1046,6 +1213,8 @@ paths:
         '401': { $ref: '#/components/responses/Error' }
         '403': { $ref: '#/components/responses/Error' }
   /v1/push-bindings:
+    parameters:
+      - $ref: '#/components/parameters/ResponseEnvelope'
     post:
       description: Persist the original device/org-bound intent and encrypted FCM FID. A NORMAL-priority provider message carries a short one-use challenge; the HTTP response never returns that challenge or address. The channel stays pending until the same device proves receipt. Reusing the ID with another endpoint, org, key or deletion-secret hash conflicts.
       requestBody:
@@ -1066,6 +1235,7 @@ paths:
         '503': { $ref: '#/components/responses/Error' }
   /v1/push-bindings/{id}:
     parameters:
+      - $ref: '#/components/parameters/ResponseEnvelope'
       - $ref: '#/components/parameters/UUID'
     get:
       description: Read only this original device/key/org registration; it cannot create, verify or revive a channel.
@@ -1090,6 +1260,8 @@ paths:
         '400': { $ref: '#/components/responses/Error' }
         '503': { $ref: '#/components/responses/Error' }
   /v1/push-bindings/{id}/confirm:
+    parameters:
+      - $ref: '#/components/parameters/ResponseEnvelope'
     post:
       parameters:
         - $ref: '#/components/parameters/UUID'
@@ -1114,6 +1286,8 @@ paths:
         '409': { $ref: '#/components/responses/Error' }
         '410': { $ref: '#/components/responses/Error' }
   /v1/push-bindings/{id}/lease:
+    parameters:
+      - $ref: '#/components/parameters/ResponseEnvelope'
     post:
       parameters:
         - $ref: '#/components/parameters/UUID'
@@ -1132,6 +1306,8 @@ paths:
         '403': { $ref: '#/components/responses/Error' }
         '410': { $ref: '#/components/responses/Error' }
   /v1/notifications:
+    parameters:
+      - $ref: '#/components/parameters/ResponseEnvelope'
     get:
       description: Paged materialized notification references for this original channel, independently filtered by current device/key/org and source authority. This is not a second body store or an execution API. Reconcile native session state for details and any action.
       parameters:
@@ -1152,6 +1328,7 @@ paths:
                 additionalProperties: false
                 required: [ok, data]
                 properties:
+                  request_id: { $ref: '#/components/schemas/HTTPResponseRequestID' }
                   ok: { const: true }
                   data:
                     type: object
@@ -1165,6 +1342,8 @@ paths:
                       cursor: { type: [string, 'null'], format: uuid }
         '403': { $ref: '#/components/responses/Error' }
   /v1/notifications/{id}:
+    parameters:
+      - $ref: '#/components/parameters/ResponseEnvelope'
     get:
       parameters:
         - $ref: '#/components/parameters/UUID'
@@ -1179,6 +1358,7 @@ paths:
                 additionalProperties: false
                 required: [ok, data]
                 properties:
+                  request_id: { $ref: '#/components/schemas/HTTPResponseRequestID' }
                   ok: { const: true }
                   data:
                     type: object
@@ -1188,6 +1368,8 @@ paths:
                       reference: { $ref: '../push/v1/reference.schema.json' }
         '403': { $ref: '#/components/responses/Error' }
   /v1/notifications/{id}/receipts:
+    parameters:
+      - $ref: '#/components/parameters/ResponseEnvelope'
     post:
       parameters:
         - $ref: '#/components/parameters/UUID'
@@ -1221,6 +1403,12 @@ components:
       scheme: DPoP
       description: JWT access token sender-constrained with an ES256 DPoP proof; nonce and jti are single-use. Directory, command-status, and revocation routes also require the proof key to belong to a non-revoked device.
   parameters:
+    ResponseEnvelope:
+      in: header
+      name: X-DSH-Response-Envelope
+      required: false
+      description: Set request-id.v1 to add a top-level per-attempt request_id to standard JSON responses. Omission preserves the legacy envelope. Unknown formats return 406 before business dispatch; empty or repeated headers return 400. Binary/204/WebSocket responses are not JSON envelopes.
+      schema: { const: request-id.v1 }
     UUID:
       name: id
       in: path
@@ -1228,21 +1416,51 @@ components:
       schema: { type: string, format: uuid }
   responses:
     Error:
-      description: Stable non-sensitive service error.
+      description: Stable non-sensitive service error. The optional request_id is mandatory when X-DSH-Response-Envelope acknowledges request-id.v1; validate that representation with NegotiatedResponseEnvelope and compare its ID with the response header.
+      headers:
+        X-Request-ID: { $ref: '#/components/headers/X-Request-ID' }
+        X-DSH-Response-Envelope: { $ref: '#/components/headers/X-DSH-Response-Envelope' }
       content:
         application/json:
           schema:
             $ref: '#/components/schemas/ErrorResponse'
   headers:
+    X-Request-ID:
+      description: Service-generated per-HTTP-attempt correlation UUID; not the enrollment or command request identity. Public caller values are replaced.
+      schema: { $ref: '#/components/schemas/HTTPResponseRequestID' }
+    X-DSH-Response-Envelope:
+      description: Present only when a standard JSON response uses the requested envelope. Its request_id must equal X-Request-ID. Legacy and successful binary/204/WebSocket responses omit this acknowledgement.
+      schema: { const: request-id.v1 }
     DPoP-Nonce:
       description: One-use nonce to include in the next DPoP proof for this key.
       schema: { type: string, minLength: 32, maxLength: 64 }
   schemas:
+    HTTPResponseRequestID:
+      type: string
+      pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$'
+    NegotiatedResponseEnvelope:
+      description: Validate in addition to the endpoint business schema when request-id.v1 is acknowledged. Endpoint schemas accept legacy and negotiated representations; the response header determines which is required. The header/body ID equality is a runtime check, never an authorization proof.
+      oneOf:
+        - type: object
+          additionalProperties: false
+          required: [ok, data, request_id]
+          properties:
+            ok: { const: true }
+            request_id: { $ref: '#/components/schemas/HTTPResponseRequestID' }
+            data: {}
+        - type: object
+          additionalProperties: false
+          required: [ok, error, request_id]
+          properties:
+            ok: { const: false }
+            request_id: { $ref: '#/components/schemas/HTTPResponseRequestID' }
+            error: { $ref: '#/components/schemas/ErrorResponse/properties/error' }
     PushCapabilitiesResponse:
       type: object
       additionalProperties: false
       required: [ok, data]
       properties:
+        request_id: { $ref: '#/components/schemas/HTTPResponseRequestID' }
         ok: { const: true }
         data:
           type: object
@@ -1272,6 +1490,7 @@ components:
       additionalProperties: false
       required: [ok, data]
       properties:
+        request_id: { $ref: '#/components/schemas/HTTPResponseRequestID' }
         ok: { const: true }
         data:
           type: object
@@ -1369,6 +1588,7 @@ components:
       additionalProperties: false
       required: [ok, data]
       properties:
+        request_id: { $ref: '#/components/schemas/HTTPResponseRequestID' }
         ok: { const: true }
         data:
           type: object
@@ -1387,6 +1607,7 @@ components:
       additionalProperties: false
       required: [ok, data]
       properties:
+        request_id: { $ref: '#/components/schemas/HTTPResponseRequestID' }
         ok: { const: true }
         data:
           type: object
@@ -1399,6 +1620,7 @@ components:
       additionalProperties: false
       required: [ok, data]
       properties:
+        request_id: { $ref: '#/components/schemas/HTTPResponseRequestID' }
         ok: { const: true }
         data: { $ref: '#/components/schemas/ApprovalStatus' }
     ApprovalStatus:
@@ -1423,6 +1645,7 @@ components:
       additionalProperties: false
       required: [ok, error]
       properties:
+        request_id: { $ref: '#/components/schemas/HTTPResponseRequestID' }
         ok: { const: false }
         error:
           type: object
@@ -1435,6 +1658,7 @@ components:
       additionalProperties: false
       required: [ok, data]
       properties:
+        request_id: { $ref: '#/components/schemas/HTTPResponseRequestID' }
         ok: { const: true }
         data:
           type: object
@@ -1460,6 +1684,7 @@ components:
       additionalProperties: false
       required: [ok, data]
       properties:
+        request_id: { $ref: '#/components/schemas/HTTPResponseRequestID' }
         ok: { const: true }
         data:
           type: object
@@ -1485,6 +1710,7 @@ components:
       additionalProperties: false
       required: [ok, data]
       properties:
+        request_id: { $ref: '#/components/schemas/HTTPResponseRequestID' }
         ok: { const: true }
         data:
           type: object
@@ -1516,6 +1742,7 @@ components:
       additionalProperties: false
       required: [ok, data]
       properties:
+        request_id: { $ref: '#/components/schemas/HTTPResponseRequestID' }
         ok: { const: true }
         data:
           type: object
@@ -1544,6 +1771,7 @@ components:
       additionalProperties: false
       required: [ok, data]
       properties:
+        request_id: { $ref: '#/components/schemas/HTTPResponseRequestID' }
         ok: { const: true }
         data:
           oneOf:
@@ -1598,6 +1826,7 @@ components:
       additionalProperties: false
       required: [ok, data]
       properties:
+        request_id: { $ref: '#/components/schemas/HTTPResponseRequestID' }
         ok: { const: true }
         data:
           type: object
@@ -1611,6 +1840,7 @@ components:
       additionalProperties: false
       required: [ok, data]
       properties:
+        request_id: { $ref: '#/components/schemas/HTTPResponseRequestID' }
         ok: { const: true }
         data:
           type: object
@@ -1623,6 +1853,7 @@ components:
       additionalProperties: false
       required: [ok, data]
       properties:
+        request_id: { $ref: '#/components/schemas/HTTPResponseRequestID' }
         ok: { const: true }
         data:
           type: object
@@ -1681,6 +1912,7 @@ components:
       additionalProperties: false
       required: [ok, data]
       properties:
+        request_id: { $ref: '#/components/schemas/HTTPResponseRequestID' }
         ok: { const: true }
         data:
           type: object
@@ -1693,6 +1925,7 @@ components:
       additionalProperties: false
       required: [ok, data]
       properties:
+        request_id: { $ref: '#/components/schemas/HTTPResponseRequestID' }
         ok: { const: true }
         data:
           type: object
@@ -1735,6 +1968,7 @@ components:
       additionalProperties: false
       required: [ok, data]
       properties:
+        request_id: { $ref: '#/components/schemas/HTTPResponseRequestID' }
         ok: { const: true }
         data:
           type: object
@@ -1799,6 +2033,7 @@ components:
       additionalProperties: false
       required: [ok, data]
       properties:
+        request_id: { $ref: '#/components/schemas/HTTPResponseRequestID' }
         ok: { const: true }
         data:
           type: object
@@ -1815,6 +2050,7 @@ components:
       additionalProperties: false
       required: [ok, data]
       properties:
+        request_id: { $ref: '#/components/schemas/HTTPResponseRequestID' }
         ok: { const: true }
         data:
           type: object
@@ -1831,6 +2067,7 @@ components:
       additionalProperties: false
       required: [ok, data]
       properties:
+        request_id: { $ref: '#/components/schemas/HTTPResponseRequestID' }
         ok: { const: true }
         data:
           type: object
@@ -1851,6 +2088,7 @@ components:
       additionalProperties: false
       required: [ok, data]
       properties:
+        request_id: { $ref: '#/components/schemas/HTTPResponseRequestID' }
         ok: { const: true }
         data: { $ref: '#/components/schemas/EnrollmentRecord' }
     EnrollmentRecord:
@@ -1883,6 +2121,7 @@ components:
       additionalProperties: false
       required: [ok, data]
       properties:
+        request_id: { $ref: '#/components/schemas/HTTPResponseRequestID' }
         ok: { const: true }
         data:
           type: object
@@ -1915,6 +2154,7 @@ components:
       additionalProperties: false
       required: [ok, data]
       properties:
+        request_id: { $ref: '#/components/schemas/HTTPResponseRequestID' }
         ok: { const: true }
         data:
           type: object
@@ -1933,6 +2173,7 @@ components:
       additionalProperties: false
       required: [ok, data]
       properties:
+        request_id: { $ref: '#/components/schemas/HTTPResponseRequestID' }
         ok: { const: true }
         data:
           type: object
@@ -1949,6 +2190,7 @@ components:
       additionalProperties: false
       required: [ok, data]
       properties:
+        request_id: { $ref: '#/components/schemas/HTTPResponseRequestID' }
         ok: { const: true }
         data:
           type: object
@@ -2035,6 +2277,7 @@ components:
       additionalProperties: false
       required: [ok, data]
       properties:
+        request_id: { $ref: '#/components/schemas/HTTPResponseRequestID' }
         ok: { const: true }
         data:
           type: object
@@ -2103,6 +2346,7 @@ components:
       additionalProperties: false
       required: [ok, data]
       properties:
+        request_id: { $ref: '#/components/schemas/HTTPResponseRequestID' }
         ok: { const: true }
         data:
           type: object

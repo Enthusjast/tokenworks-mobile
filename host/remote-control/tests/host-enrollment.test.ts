@@ -23,6 +23,7 @@ import type { HostResourceAccess } from '../src/host-credentials.js'
 import { protectorFrom, type JournalKeyProtector } from '../src/journal-key-protection.js'
 import { createEnrolledRemoteControlPlugin } from '../src/index.js'
 import { host as dshHost } from './harness.js'
+import { restEnvelopeHeader, restEnvelopeVersion } from '../src/rest-envelope.js'
 
 const expected = { issuer: 'https://id.example.edu', subject: 'fixture-owner', audience: 'urn:fixture-host', clientId: 'fixture-host' }
 const organization = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'
@@ -40,7 +41,7 @@ const valid = (code: string) => (cause: unknown) => cause instanceof HostEnrollm
 const bindingError = (code: string) => (cause: unknown) => cause instanceof HostEnrollmentBindingError && cause.code === `host.enrollment_binding.${code}`
 const workflowError = (code: string) => (cause: unknown) => cause instanceof HostTerminalEnrollmentWorkflowError && cause.code === `host.terminal_enrollment.${code}`
 const runtimeError = (code: string) => (cause: unknown) => cause instanceof HostEnrolledRuntimeError && cause.code === `host.enrolled_runtime.${code}`
-const send = (response: ServerResponse, status: number, body: unknown, next: string) => {
+const sendLegacy = (response: ServerResponse, status: number, body: unknown, next: string) => {
   response.writeHead(status, { 'content-type': 'application/json', 'cache-control': 'no-store', 'dpop-nonce': next })
   response.end(JSON.stringify(body))
 }
@@ -67,13 +68,20 @@ async function fixture(t: test.TestContext) {
   const requests: Array<{ method: string; path: string; body: any; proof: any }> = []
   let origin = '', input: any, createdCount = 0, confirmedCount = 0, reviews = 0
   const expires = new Date(Date.now() + 300_000).toISOString()
-  const state = { phoneConfirmed: false, hostConfirmed: false, adminRequired: false, approved: false, eligible: true, confirmedUser: user, subject: 'fixture-phone', organizationName: 'Fixture organization',
+  const state = { modernEnvelope: false, phoneConfirmed: false, hostConfirmed: false, adminRequired: false, approved: false, eligible: true, confirmedUser: user, subject: 'fixture-phone', organizationName: 'Fixture organization',
     dropCreate: false, holdCreate: false, redirectCreate: false, dropConfirm: false, dropReviewAt: 0, holdReview: false, denyReview: false, wrongReceipt: false,
     aliasOverride: undefined as string | undefined, dshOverride: undefined as string | undefined, appOverride: undefined as string | undefined,
     pluginOverride: undefined as string | undefined, protocolOverride: undefined as number | undefined,
     onCreate: undefined as undefined | (() => void), onReview: undefined as undefined | ((count: number) => void) }
+  const send = (response: ServerResponse, status: number, body: Record<string, unknown>, next: string) => {
+    if (!state.modernEnvelope) { sendLegacy(response, status, body, next); return }
+    const id = randomUUID()
+    response.setHeader(restEnvelopeHeader, restEnvelopeVersion); response.setHeader('x-request-id', id)
+    sendLegacy(response, status, { ...body, request_id: id }, next)
+  }
   const server = createServer(async (request, response) => {
     try {
+      assert.equal(request.headers[restEnvelopeHeader], restEnvelopeVersion)
       assert.equal(request.headers.authorization, `DPoP ${token}`)
       assert.equal(request.headers.cookie, undefined)
       const compact = String(request.headers.dpop), [head, payload, signature] = compact.split('.')
@@ -170,6 +178,15 @@ test('host enrollment restores a private attempt, validates the peer and require
   assert.equal(result.state, 'approved'); assert.equal(approvals, 1)
   assert.equal(f.counts().createdCount, 1); assert.equal(f.counts().confirmedCount, 1)
   assert.equal(f.requests.filter(item => item.path.endsWith('/host-confirm') && item.proof.nonce).length, 1)
+})
+
+test('negotiated REST enrollment preserves the business request identity through confirmation', async t => {
+  const f = await fixture(t); f.state.modernEnvelope = true
+  const attempt = f.prepare(), receipt = await f.client.create(attempt, AbortSignal.timeout(5_000))
+  assert.equal(receipt.details.request_id, attempt.requestId)
+  f.state.phoneConfirmed = true
+  assert.equal((await f.client.confirm(attempt, receipt, () => true, AbortSignal.timeout(5_000))).state, 'approved')
+  assert.equal(f.counts().createdCount, 1); assert.equal(f.counts().confirmedCount, 1)
 })
 
 test('host enrollment refuses absent, declined, changed or cancelled local approval', async t => {

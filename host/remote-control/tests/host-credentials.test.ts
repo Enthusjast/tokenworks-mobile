@@ -6,6 +6,7 @@ import { createRequire } from 'node:module'
 import { inspect } from 'node:util'
 import { HostCredentialError, HostRestCredentialProvider, type HostResourceAccess, type HostRestCredentialOptions } from '../src/host-credentials.js'
 import { startHostRelay } from '../src/relay-client.js'
+import { restEnvelopeHeader, restEnvelopeVersion } from '../src/rest-envelope.js'
 
 const installationId = '88888888-8888-4888-8888-888888888888'
 const expected = { issuer: 'https://id.example.edu', subject: 'fixture-owner', audience: 'urn:remote-host-fixture', clientId: 'fixture-host' }
@@ -18,6 +19,8 @@ const send = (response: ServerResponse, status: number, body: unknown, next = no
   response.end(JSON.stringify(body))
 }
 type Hooks = {
+  envelope?: 'valid' | 'missing_id' | 'mismatch' | 'unacknowledged' | 'unknown_version' | 'duplicate_header'
+  envelopeAtExchange?: boolean
   lifetime?: number
   session?: (value: HostResourceAccess, signal: AbortSignal) => Promise<HostResourceAccess>
   reply?: (path: string, response: ServerResponse, body: any) => boolean
@@ -40,6 +43,15 @@ async function fixture(t: test.TestContext, hooks: Hooks = {}) {
   const normalSign = (input: Uint8Array) => sign('sha256', Buffer.from(input), { key: keys.privateKey, dsaEncoding: 'ieee-p1363' })
   const server = createServer(async (request, response) => {
     try {
+      assert.equal(request.headers[restEnvelopeHeader], restEnvelopeVersion)
+      const respond = (response: ServerResponse, status: number, body: Record<string, unknown>, next: string) => {
+        const mode = hooks.envelopeAtExchange && request.url !== '/v1/host-credentials' ? 'valid' : hooks.envelope
+        if (!mode) { send(response, status, body, next); return }
+        const id = randomUUID(), envelope = { ...body, ...(mode === 'missing_id' ? {} : { request_id: id }) }
+        if (mode !== 'unacknowledged') response.setHeader(restEnvelopeHeader, mode === 'unknown_version' ? 'request-id.v2' : restEnvelopeVersion)
+        response.setHeader('x-request-id', mode === 'duplicate_header' ? [id, id] : mode === 'mismatch' ? randomUUID() : id)
+        send(response, status, envelope, next)
+      }
       assert.equal(request.method, 'POST')
       assert.equal(request.headers.authorization, `DPoP ${token}`)
       assert.equal(request.headers.cookie, undefined)
@@ -61,14 +73,14 @@ async function fixture(t: test.TestContext, hooks: Hooks = {}) {
       if (exchangeNonce || !claims.nonce || !nonces.delete(claims.nonce)) {
         const next = nonce(); nonces.add(next)
         response.setHeader('www-authenticate', 'DPoP error="use_dpop_nonce"')
-        send(response, 401, { ok: false, error: { code: 'auth.proof_invalid' } }, next)
+        respond(response, 401, { ok: false, error: { code: 'auth.proof_invalid' } }, next)
         return
       }
       const next = nonce(); nonces.add(next)
       if (request.url === '/v1/host-credentials/challenges') {
         challengeWrites++
         const id = randomUUID(), value = nonce(); challenges.set(id, value)
-        send(response, 201, { ok: true, data: { challenge_id: id, challenge: value, installation_id: installationId,
+        respond(response, 201, { ok: true, data: { challenge_id: id, challenge: value, installation_id: installationId,
           audience: 'urn:dsh-mobile-ustc:host-credential', expires_at: new Date(Date.now() + 90_000).toISOString(), ...hooks.challengePatch } }, next)
       } else {
         assert.equal(request.url, '/v1/host-credentials')
@@ -82,7 +94,7 @@ async function fixture(t: test.TestContext, hooks: Hooks = {}) {
         challenges.delete(body.challenge_id)
         exchangeWrites++
         const credential = nonce(); credentials.push(credential)
-        send(response, 201, { ok: true, data: { credential, token_type: 'DSH-Host', installation_id: installationId,
+        respond(response, 201, { ok: true, data: { credential, token_type: 'DSH-Host', installation_id: installationId,
           key_thumbprint: thumbprint, expires_at: new Date(Date.now() + (hooks.lifetime ?? 300_000)).toISOString(), ...hooks.issuedPatch } }, next)
       }
     } catch (cause) { t.assert.fail(cause instanceof Error ? cause.message : 'fixture protocol failure'); response.destroy() }
@@ -108,6 +120,21 @@ async function fixture(t: test.TestContext, hooks: Hooks = {}) {
 }
 
 const denied = (code?: string) => (cause: unknown) => cause instanceof HostCredentialError && (!code || cause.code === `host.credentials.${code}`)
+
+test('Host credentials accept negotiated REST envelopes and refuse malformed metadata without replay', async t => {
+  const valid = await fixture(t, { envelope: 'valid' })
+  assert.equal((await valid.provider.acquire(AbortSignal.timeout(5_000))).credential, valid.credentials[0])
+  assert.equal(valid.requests.length, 3)
+  for (const envelope of ['missing_id', 'mismatch', 'unacknowledged', 'unknown_version', 'duplicate_header'] as const) {
+    const f = await fixture(t, { envelope })
+    await assert.rejects(f.provider.acquire(AbortSignal.timeout(5_000)), denied('response_invalid'))
+    assert.equal(f.requests.length, 1, 'malformed challenge must not cause an automatic nonce retry')
+    assert.equal(f.counts().exchangeWrites, 0)
+  }
+  const late = await fixture(t, { envelope: 'mismatch', envelopeAtExchange: true })
+  await assert.rejects(late.provider.acquire(AbortSignal.timeout(5_000)), denied('response_invalid'))
+  assert.equal(late.counts().exchangeWrites, 1); assert.equal(late.requests.length, 3)
+})
 
 test('Host REST provider signs both purposes, serializes concurrent minting and reuses a valid bound credential', async t => {
   const f = await fixture(t)

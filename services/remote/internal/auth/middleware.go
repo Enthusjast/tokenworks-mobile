@@ -2,10 +2,11 @@ package auth
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"net/http"
 	"strings"
+
+	"dsh-mobile-ustc/services/remote/internal/requestlog"
 )
 
 type contextKey struct{}
@@ -61,10 +62,7 @@ func (auth *Authenticator) Middleware(next http.Handler) http.Handler {
 }
 
 func (auth *Authenticator) writeError(response http.ResponseWriter, status int, code string) {
-	response.Header().Set("Cache-Control", "no-store")
-	response.Header().Set("Content-Type", "application/json")
-	response.WriteHeader(status)
-	_ = json.NewEncoder(response).Encode(map[string]any{"ok": false, "error": map[string]string{"code": code}})
+	requestlog.Error(response, status, code)
 }
 
 func IsUnauthorized(err error) bool {

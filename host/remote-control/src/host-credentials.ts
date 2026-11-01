@@ -2,6 +2,7 @@ import { createHash, createPublicKey, randomUUID, verify, type KeyObject } from 
 import { isIP } from 'node:net'
 import { z } from 'zod'
 import { parseSigningObject } from './canonical.js'
+import { normalizeRestEnvelope, restEnvelopeHeader, restEnvelopeVersion } from './rest-envelope.js'
 import type { HostConnectionCredential, HostCredentialProvider, HostHandshakeSigner } from './relay-client.js'
 
 const inspect = Symbol.for('nodejs.util.inspect.custom')
@@ -244,6 +245,7 @@ export class HostRestCredentialProvider implements HostCredentialProvider {
       let response: Response
       try { response = await fetch(url, { method: 'POST', body: JSON.stringify(body), headers: {
         authorization: `DPoP ${token}`, dpop, 'content-type': 'application/json', accept: 'application/json', 'accept-encoding': 'identity', 'cache-control': 'no-store',
+        [restEnvelopeHeader]: restEnvelopeVersion,
       }, signal, credentials: 'omit', redirect: 'error', cache: 'no-store' }) }
       catch { this.#nonce = ''; this.#current(signal); throw error('unavailable') }
       const value = await this.#read(response, signal)
@@ -283,7 +285,7 @@ export class HostRestCredentialProvider implements HostCredentialProvider {
         if (size > maxBody) throw error('response_invalid')
         chunks.push(next.value)
       }
-      return parseSigningObject(Buffer.concat(chunks, size))
+      return normalizeRestEnvelope(parseSigningObject(Buffer.concat(chunks, size)), response.headers)
     } catch (cause) { throw cause instanceof HostCredentialError ? cause : error('response_invalid') }
     finally { void reader.cancel().catch(() => {}); reader.releaseLock() }
   }

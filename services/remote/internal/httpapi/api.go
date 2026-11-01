@@ -20,6 +20,7 @@ import (
 	"dsh-mobile-ustc/services/remote/internal/observability"
 	"dsh-mobile-ustc/services/remote/internal/relay"
 	"dsh-mobile-ustc/services/remote/internal/releases"
+	"dsh-mobile-ustc/services/remote/internal/requestlog"
 	"dsh-mobile-ustc/services/remote/internal/store"
 )
 
@@ -273,7 +274,7 @@ func New(database Repository, identity *auth.Authenticator, configs ...Config) *
 			mux.HandleFunc("GET /v1/host-files/{id}/content", api.hostFileContent)
 		}
 	}
-	return &Handler{router: mux, realtime: realtime, api: api}
+	return &Handler{router: routerWithJSONErrors(mux), realtime: realtime, api: api}
 }
 
 func (api *API) protected(next http.Handler) http.Handler {
@@ -902,17 +903,11 @@ func (api *API) writeStoreError(response http.ResponseWriter, err error) {
 }
 
 func writeData(response http.ResponseWriter, status int, data any) {
-	response.Header().Set("Cache-Control", "no-store")
-	response.Header().Set("Content-Type", "application/json")
-	response.WriteHeader(status)
-	_ = json.NewEncoder(response).Encode(map[string]any{"ok": true, "data": data})
+	requestlog.Data(response, status, data)
 }
 
 func writeError(response http.ResponseWriter, status int, code string) {
-	response.Header().Set("Cache-Control", "no-store")
-	response.Header().Set("Content-Type", "application/json")
-	response.WriteHeader(status)
-	_ = json.NewEncoder(response).Encode(map[string]any{"ok": false, "error": map[string]string{"code": code}})
+	requestlog.Error(response, status, code)
 }
 
 func sortedScopes(scopes map[string]struct{}) []string {

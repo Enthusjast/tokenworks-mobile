@@ -2,6 +2,7 @@ import { createHash, createPublicKey, randomUUID, verify, type KeyObject } from 
 import { isIP } from 'node:net'
 import { z } from 'zod'
 import { parseSigningObject } from './canonical.js'
+import { normalizeRestEnvelope, restEnvelopeHeader, restEnvelopeVersion } from './rest-envelope.js'
 import { hostEnrollmentOwnerBinding, type HostResourceAccessProvider, type HostResourceIdentity, type HostResourceRequest } from './host-credentials.js'
 import type { HostHandshakeSigner } from './relay-client.js'
 
@@ -140,6 +141,7 @@ export class HostEnrollmentTransport {
         try {
           response = await fetch(url, { method, ...(encodedBody === undefined ? {} : { body: encodedBody }), headers: {
             authorization: `DPoP ${session.token}`, dpop: `${input}.${Buffer.from(signed).toString('base64url')}`,
+            [restEnvelopeHeader]: restEnvelopeVersion,
             ...(body === undefined ? {} : { 'content-type': 'application/json' }), accept: 'application/json', 'accept-encoding': 'identity', 'cache-control': 'no-store',
           }, signal, credentials: 'omit', redirect: 'error', cache: 'no-store' })
         } catch {
@@ -181,7 +183,7 @@ export class HostEnrollmentTransport {
         if (size > 16 * 1024) throw enrollmentError('response_invalid')
         chunks.push(next.value)
       }
-      return parseSigningObject(Buffer.concat(chunks, size))
+      return normalizeRestEnvelope(parseSigningObject(Buffer.concat(chunks, size)), response.headers)
     } catch (cause) { throw cause instanceof HostEnrollmentError ? cause : enrollmentError('response_invalid') }
     finally { void reader.cancel().catch(() => {}); reader.releaseLock() }
   }

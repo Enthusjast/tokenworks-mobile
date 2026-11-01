@@ -175,6 +175,9 @@ func (server *Server) ForwardOwnerHTTP(response http.ResponseWriter, request *ht
 		return true
 	}
 	defer reply.Body.Close()
+	if server.forwardJSONEnvelope(response, request, reply) {
+		return true
+	}
 	for _, name := range []string{"Content-Type", "Content-Length", "Content-Disposition", "Content-Encoding", "X-Content-Type-Options", "X-DSH-Content-SHA256", "Cache-Control", "DPoP-Nonce", "WWW-Authenticate"} {
 		if values := reply.Header.Values(name); len(values) == 1 {
 			response.Header().Set(name, values[0])

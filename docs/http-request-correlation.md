@@ -39,13 +39,57 @@ WebSocket 包含升级后的连接寿命，不能当作握手时延或完整业�
 中间件不缓冲或修改响应正文，保留信息响应、Flush、ResponseController 的传输控制及
 WebSocket Hijack。它也不处理升级之后的消息内容。
 
-## 响应兼容与验证
+## JSON 响应格式协商
 
-本批以响应头补齐 HTTP 关联能力。现有 Host 和 Android 使用严格 JSON schema，
-因此现有 `{ok,data}` / `{ok,error}` 响应体保持原样。PLAN §6.2 的顶层 JSON `request_id`
-尚需另行完成版本协商与客户端兼容；本批不宣称完成该协议升级，也不改变 Android。
+请求携带单个 `X-DSH-Response-Envelope: request-id.v1` 后，标准 JSON 响应增加顶层
+`request_id`，同时通过同名响应头确认格式。该 ID 必须与 `X-Request-ID` 相等。
+成功响应为 `{ok:true,data:...,request_id:...}`；错误响应为
+`{ok:false,error:{code:...},request_id:...}`。这是 PLAN §6.2 的响应关联格式，
+与 `data.request_id` 等既有业务身份相互独立。
+
+不发送协商头时继续返回严格的 `{ok,data}` / `{ok,error}`。
+当前 Android 使用这个兼容格式，本批没有修改其代码。
+空或重复的协商头返回 400 / protocol.invalid；不支持的值返回 406 / protocol.unsupported，
+都在业务分派之前拒绝，并用未协商的错误格式返回，不确认未知格式。
+框架路由的 404 / 405 在新格式下也是标准 JSON；405 保留原有 Allow 语义。
+认证、Relay 凭据失败和数据库恢复保护的错误也复用同一构造器。
+JSON 响应为 no-store，并按协商头设置 Vary。
+
+204、成功的文件内容流和 WebSocket 升级/数据不是 JSON envelope，不增加正文或格式确认头，
+仍返回原有 HTTP 关联头。HTTP/TLS 解析失败和框架重定向也不属于标准 JSON 响应。
+公开协议见 [OpenAPI](../contracts/openapi/remote.yaml)：各 endpoint 业务 schema 接受两种表示，
+有格式确认时还必须满足 `NegotiatedResponseEnvelope`，并在运行时核对头部和正文 ID。
+
+## Host 与混合版本节点
+
+Host 登记和连接凭据传输层主动请求新格式，先严格解码 JSON，验证版本、UUID 和头部一致性，
+再移除已验证的顶层传输元数据，交给原有业务 schema。
+它不会删除未知业务字段，也不会覆盖嵌套的业务 request_id。
+缺少、重复、不同或未确认的关联 ID，以及未知响应格式，都会使该响应失效；
+损坏的 401 不能触发 nonce 重试，POST 损坏响应也不会被自动重放。
+旧服务没有格式确认且返回原有响应体时，继续按旧 schema 验证；不会额外发送一次 POST 来探测版本。
+Issuer/JWKS、对象存储、文件内容和 WebSocket 数据维持各自的独立协议，不发送此 REST 协商头。
+
+跨节点入口从服务上下文传递协商结果。新格式请求的 owner JSON 元数据响应有 64 KiB 上限，
+读取最多两秒；入口校验整个 envelope 后，重新使用入口 ID 构造公开响应，
+保留业务数据及 DPoP nonce / challenge，移除旧正文长度，由 HTTP 重新确定长度或使用分块传输。
+这也兼容旧 owner 的原有标准 JSON，或 owner 在内部身份检查之前生成的本地错误 ID。
+owner 的不规范/重复字段、错误版本、头部与正文 ID 不一致、无效状态组合、编码或大小超限，
+会在输出公开响应之前失败关闭，返回带入口 ID 的 503 / internal。
+这类失败不能证明 owner 的 POST 未提交，必须按原业务身份对账，不能自动重放。
+成功文件内容直接走原流式路径，即使字节看起来像 JSON，也不会被解析或重新封装。
+
+## 验证范围
 
 定向验证覆盖独立尝试与公共 ID 替换、日志字段和隐私、成功/失败探测与 panic、
 实际 HTTP 信息响应和分段 Flush、实际 WebSocket 升级、已有 API 认证/错误响应，
 以及实际 mTLS owner HTTP 转发和私有 Relay 的节点代次/证书身份/路由信任边界。
-测试使用本地证书与内存目录夹具，不代表学校生产配置或目标负载验收。
+新格式另覆盖明确协商与拒绝、头部/正文一致性、嵌套业务身份保持、
+框架错误及恢复保护、实际 mTLS 新旧 owner 转发和文件内容不被包装，
+以及 Host 对损坏元数据的拒绝与 POST 不重放。
+这些使用本地身份/证书、隔离 PostgreSQL 和协议夹具，不代表学校生产配置或目标负载验收。
+
+本批集中检查中，TypeScript 检查、89 个相关 Host / HTTP 契约用例及所选 Go race 用例通过；
+API 测试的编译问题修正后仅补跑该包。随后单次隔离 PostgreSQL、生产 Go 入口与本机 npm
+dsh 0.2.1-rc.5 组合通过，实际登记、凭据获取、原生会话及撤权链路继续正常工作。
+未运行全量测试、Windows / Wine、Android、真机或负载测试。

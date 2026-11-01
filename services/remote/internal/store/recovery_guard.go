@@ -3,11 +3,12 @@ package store
 import (
 	"context"
 	"database/sql"
-	"dsh-mobile-ustc/services/remote/internal/auth"
-	"encoding/json"
 	"errors"
 	"net/http"
 	"time"
+
+	"dsh-mobile-ustc/services/remote/internal/auth"
+	"dsh-mobile-ustc/services/remote/internal/requestlog"
 )
 
 const OriginalDatabaseEpoch = auth.OriginalDatabaseEpoch
@@ -101,10 +102,7 @@ func (guard *RecoveryGuard) Middleware(next http.Handler) http.Handler {
 			return
 		}
 		if err := guard.Check(r.Context()); err != nil {
-			w.Header().Set("Cache-Control", "no-store")
-			w.Header().Set("Content-Type", "application/json")
-			w.WriteHeader(http.StatusServiceUnavailable)
-			_ = json.NewEncoder(w).Encode(map[string]any{"ok": false, "error": map[string]string{"code": "internal"}})
+			requestlog.Error(w, http.StatusServiceUnavailable, "internal")
 			return
 		}
 		next.ServeHTTP(w, r)

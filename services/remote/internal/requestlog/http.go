@@ -18,8 +18,13 @@ const Header = "X-Request-ID"
 
 var validID = regexp.MustCompile(`^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$`)
 
+func ValidID(value string) bool { return validID.MatchString(value) }
+
 type contextKey struct{}
-type attempt struct{ id atomic.Value }
+type attempt struct {
+	id           atomic.Value
+	jsonEnvelope bool
+}
 
 // ID identifies one HTTP attempt, not a command or its retries.
 func ID(ctx context.Context) string {
@@ -62,6 +67,20 @@ func Middleware(next http.Handler, listener string, logger *slog.Logger) http.Ha
 					"hijacked", response.hijacked, "completed", completed)
 			}
 		}()
+		versions := r.Header.Values(EnvelopeHeader)
+		if len(versions) > 1 || len(versions) == 1 && versions[0] == "" {
+			Error(response, http.StatusBadRequest, "protocol.invalid")
+			completed = true
+			return
+		}
+		if len(versions) == 1 {
+			if versions[0] != RequestIDEnvelope {
+				Error(response, http.StatusNotAcceptable, "protocol.unsupported")
+				completed = true
+				return
+			}
+			value.jsonEnvelope = true
+		}
 		next.ServeHTTP(response, r)
 		completed = true
 	})
@@ -72,6 +91,9 @@ func Middleware(next http.Handler, listener string, logger *slog.Logger) http.Ha
 func ForwardHeaders(ctx context.Context, target http.Header) {
 	if id := ID(ctx); id != "" {
 		target.Set(Header, id)
+	}
+	if JSONEnabled(ctx) {
+		target.Set(EnvelopeHeader, RequestIDEnvelope)
 	}
 }
 

@@ -26,6 +26,7 @@ import (
 	"dsh-mobile-ustc/services/remote/internal/files"
 	"dsh-mobile-ustc/services/remote/internal/hostmetrics"
 	"dsh-mobile-ustc/services/remote/internal/observability"
+	"dsh-mobile-ustc/services/remote/internal/requestlog"
 	"dsh-mobile-ustc/services/remote/internal/store"
 	"github.com/coder/websocket"
 )
@@ -1919,10 +1920,7 @@ func decodePayload(data []byte, target any) error {
 }
 
 func writeError(response http.ResponseWriter, status int, code string) {
-	response.Header().Set("Cache-Control", "no-store")
-	response.Header().Set("Content-Type", "application/json")
-	response.WriteHeader(status)
-	_ = json.NewEncoder(response).Encode(map[string]any{"ok": false, "error": map[string]string{"code": code}})
+	requestlog.Error(response, status, code)
 }
 
 func randomUUID() (string, error) {
