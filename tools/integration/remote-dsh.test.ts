@@ -132,6 +132,14 @@ test('real Go service and npm DSH share authorized sessions through PostgreSQL a
   const serviceBin = process.env.REMOTE_TEST_SERVICE_BIN
   assert.ok(cluster && database && psql && pgDump && serviceBin, 'Use npm run test:remote-dsh to create an isolated cluster')
   assert.ok(database.startsWith(`host=${cluster} `), 'Only the disposable Unix-socket cluster is allowed')
+  const contractRoot = process.env.REMOTE_TEST_CONTRACT_ROOT ?? resolve('contracts')
+  if (process.env.REMOTE_TEST_CONTRACT_ROOT !== undefined) {
+    assert.equal(contractRoot, join(cluster, 'service-bundle/service/contracts'))
+    assert.match(process.env.REMOTE_TEST_SERVICE_BUNDLE_MANIFEST_SHA256 ?? '', /^[0-9a-f]{64}$/)
+    assert.equal(serviceBin, join(cluster, 'service-bundle/service/bin/remote'))
+    t.diagnostic('Go binary, applied SQL migrations and protocol schemas come from the pinned service artifact; no Go compiler is used.')
+  }
+  const contract = (name: string) => join(contractRoot, name)
   const root = await mkdtemp(join(cluster, 'clients-'))
   const query = (sql: string) => execFileSync(psql, ['-X', '--dbname', database, '-v', 'ON_ERROR_STOP=1', '-At'], { input: sql, encoding: 'utf8' }).trim()
   const packagedEntry = await hostPackageEntry(t)
@@ -346,7 +354,7 @@ test('real Go service and npm DSH share authorized sessions through PostgreSQL a
   const siblingDevice = await register(siblingPhone, siblingKey, siblingApprovalKey, 'phone')
   await register(outsider, outsiderKey, outsiderApprovalKey, 'outsider')
   const ownerDevice = await register(ownerPhone, ownerPhoneKey, ownerApprovalKey, 'owner')
-  const deviceContract = parseYaml(await readFile('contracts/openapi/remote.yaml', 'utf8'))
+  const deviceContract = parseYaml(await readFile(contract('openapi/remote.yaml'), 'utf8'))
   const deviceValidator = new Ajv2020({ strict: false })
   deviceValidator.addFormat('date-time', value => Number.isFinite(Date.parse(value)))
   deviceValidator.addFormat('uuid', /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/)
@@ -472,7 +480,7 @@ test('real Go service and npm DSH share authorized sessions through PostgreSQL a
   const alternateWorkspace = enrollment.workspaces.find(item => item.reference === 'other-workspace')?.workspace_id
   assert.ok(primaryWorkspace && alternateWorkspace)
   const reviewPath = `/v1/enrollments/${enrollment.enrollment_id}/host-review`
-  const apiContract = parseYaml(await readFile('contracts/openapi/remote.yaml', 'utf8'))
+  const apiContract = parseYaml(await readFile(contract('openapi/remote.yaml'), 'utf8'))
   const apiValidator = new Ajv2020({ strict: false })
   apiValidator.addFormat('date-time', value => Number.isFinite(Date.parse(value)))
   apiValidator.addFormat('uuid', /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/)
@@ -786,10 +794,10 @@ test('real Go service and npm DSH share authorized sessions through PostgreSQL a
   const scope = { actions: ['approval.decide', 'message.submit', 'question.answer', 'session.archive', 'session.cancel', 'session.create', 'session.model.select', 'session.read'], workspaces: [primaryWorkspace], sessions: [] }
   await outsider('POST', '/v1/realtime/tickets', { runtime_id: enrollment.runtime_id, scope }, 403)
   const ticket = await phone('POST', '/v1/realtime/tickets', { runtime_id: enrollment.runtime_id, scope }, 201)
-  const schema = JSON.parse(await readFile('contracts/ws/v1/relay.schema.json', 'utf8'))
+  const schema = JSON.parse(await readFile(contract('ws/v1/relay.schema.json'), 'utf8'))
   const ajv = new Ajv2020({ strict: true }); ajv.addFormat('date-time', value => Number.isFinite(Date.parse(value)))
   const validate = ajv.compile(schema)
-  const validateApproval = ajv.compile(JSON.parse(await readFile('contracts/ws/v1/approval.schema.json', 'utf8')))
+  const validateApproval = ajv.compile(JSON.parse(await readFile(contract('ws/v1/approval.schema.json'), 'utf8')))
   const connectPhone = async (api: typeof phone, deviceId: string, proofKey: ReturnType<typeof key>, issued?: typeof ticket) => {
     const connectionTicket = issued ?? await api('POST', '/v1/realtime/tickets', { runtime_id: enrollment.runtime_id, scope }, 201)
     const socket = new WebSocket(phoneOrigin.replace('http:', 'ws:') + '/v1/realtime', 'dsh.remote.v1', { headers: { authorization: `DSH-Ticket ${connectionTicket.ticket}` }, perMessageDeflate: false, maxPayload: 65_536 })

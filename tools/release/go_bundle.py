@@ -281,7 +281,7 @@ def verify(directory, expected, unpack=None):
     value, files = validate(manifest, raw, expected)
     if unpack is not None:
         unpack_files(files, unpack)
-    return {'manifest_sha256': expected, 'artifact_sha256': value['artifact']['sha256'], 'source_commit': value['source']['commit'], 'file_count': len(files)}
+    return {'manifest_sha256': expected, 'artifact_sha256': value['artifact']['sha256'], 'source_commit': value['source']['commit'], 'file_count': len(files), 'version': value['version']}
 
 
 def json_stream(raw):

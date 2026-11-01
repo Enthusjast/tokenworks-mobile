@@ -38,7 +38,14 @@ def main():
     arguments.add_argument("--load-race", action="store_true", help="Race-instrument both service and probe; use only for protocol smoke, not capacity measurements")
     arguments.add_argument("--host-bundle-directory", type=Path, help="Use a protected, offline-verified Host npm bundle in the native composition")
     arguments.add_argument("--host-bundle-manifest-sha256", help="Independently trusted manifest digest for the explicit Host bundle")
+    arguments.add_argument("--service-bundle-directory", type=Path, help="Use the verified Linux service binary, migrations and contracts instead of compiling Go")
+    arguments.add_argument("--service-bundle-manifest-sha256", help="Independently trusted service bundle manifest digest")
     options = arguments.parse_args()
+    if (options.service_bundle_directory is None) != (options.service_bundle_manifest_sha256 is None):
+        arguments.error("Service bundle directory and manifest digest must be supplied together")
+    if options.service_bundle_directory is not None and (not options.dsh_only or not options.service_bundle_directory.is_absolute() or
+            not re.fullmatch(r"[0-9a-f]{64}", options.service_bundle_manifest_sha256)):
+        arguments.error("Service bundle requires --dsh-only, an absolute directory and a pinned manifest digest")
     if (options.host_bundle_directory is None) != (options.host_bundle_manifest_sha256 is None):
         arguments.error("Host bundle directory and manifest digest must be supplied together")
     if options.host_bundle_directory is not None and (not options.dsh_only or not options.host_bundle_directory.is_absolute() or not re.fullmatch(r"[0-9a-f]{64}", options.host_bundle_manifest_sha256)):
@@ -96,6 +103,12 @@ def main():
         if checked.returncode != 0:
             arguments.error("Host bundle failed offline verification before opening composition resources")
 
+    if options.service_bundle_directory is not None:
+        checked = subprocess.run([sys.executable, str(repo / "tools/release/go_bundle.py"), "verify", "--directory", str(options.service_bundle_directory),
+                                  "--expected-manifest-sha256", options.service_bundle_manifest_sha256], capture_output=True, timeout=15)
+        if checked.returncode != 0:
+            arguments.error("Service bundle failed offline verification before opening composition resources")
+
     if options.relay_load is not None:
         options.load_output = options.load_output.resolve()
         if not options.load_output.is_relative_to((repo / ".local").resolve()) or options.load_output == (repo / ".local").resolve() or options.load_output.exists():
@@ -120,17 +133,40 @@ def main():
         subprocess.run([str(repo / "android/gradlew"), "-PjvmOnly=true", ":core:network:writeFixtureClasspath"], cwd=repo / "android", check=True)
         kotlin_classpath = (repo / "android/core/network/build/fixtures/classpath.txt").read_text().strip()
     pg_bin = Path(os.environ.get("REMOTE_TEST_PG_BIN", "/usr/lib/postgresql/18/bin"))
-    go = os.environ.get("REMOTE_TEST_GO") or shutil.which("go")
-    if not go and Path("/opt/go1.26.10/bin/go").is_file():
-        go = "/opt/go1.26.10/bin/go"
-    if not go or not all((pg_bin / name).is_file() for name in ("initdb", "pg_ctl", "psql", "pg_dump")):
-        raise SystemExit("Set REMOTE_TEST_GO and REMOTE_TEST_PG_BIN to installed Go and PostgreSQL binaries.")
+    go = None
+    if options.service_bundle_directory is None:
+        go = os.environ.get("REMOTE_TEST_GO") or shutil.which("go")
+        if not go and Path("/opt/go1.26.10/bin/go").is_file():
+            go = "/opt/go1.26.10/bin/go"
+    if (not go and options.service_bundle_directory is None) or not all((pg_bin / name).is_file() for name in ("initdb", "pg_ctl", "psql", "pg_dump")):
+        raise SystemExit("Set REMOTE_TEST_PG_BIN to installed PostgreSQL binaries." if options.service_bundle_directory is not None
+                         else "Set REMOTE_TEST_GO and REMOTE_TEST_PG_BIN to installed Go and PostgreSQL binaries.")
     if hasattr(os, "geteuid") and os.geteuid() == 0:
         raise SystemExit("Run as an unprivileged user; PostgreSQL initdb refuses root.")
     with tempfile.TemporaryDirectory(prefix="dsh-go-e2e-") as root:
         fixture_root = Path(root)
         data, log = fixture_root / "pgdata", fixture_root / "postgres.log"
         binary = fixture_root / "remote"
+        migrations = repo / "deploy/sql"
+        contracts = None
+        if options.service_bundle_directory is not None:
+            extracted = fixture_root / "service-bundle"
+            checked = subprocess.run([sys.executable, str(repo / "tools/release/go_bundle.py"), "verify", "--directory", str(options.service_bundle_directory),
+                                      "--expected-manifest-sha256", options.service_bundle_manifest_sha256, "--unpack", str(extracted)],
+                                     capture_output=True, timeout=15)
+            if checked.returncode != 0:
+                arguments.error("Service bundle changed or could not be privately extracted before database startup")
+            try:
+                verified = json.loads(checked.stdout)
+                binary = extracted / "service/bin/remote"
+                version = subprocess.run([str(binary), "version"], env={}, capture_output=True, timeout=5)
+                if version.returncode != 0 or json.loads(version.stdout) != verified["version"]:
+                    raise ValueError("service version mismatch")
+            except (OSError, ValueError, TypeError, KeyError, subprocess.SubprocessError):
+                arguments.error("Verified service binary failed its embedded version check before database startup")
+            migrations = extracted / "service/migrations"
+            contracts = extracted / "service/contracts"
+            print("Using pinned service artifact: " + json.dumps(verified, sort_keys=True), flush=True)
         started = False
         try:
             subprocess.run([str(pg_bin / "initdb"), "-D", str(data), "--auth=trust", "--username=dsh_e2e", "--no-locale", "--encoding=UTF8"], check=True, stdout=subprocess.DEVNULL)
@@ -138,16 +174,20 @@ def main():
             subprocess.run([str(pg_bin / "pg_ctl"), "-D", str(data), "-l", str(log), "-o", postgres_options, "-w", "start"], check=True, stdout=subprocess.DEVNULL)
             started = True
             dsn = "host=" + root + " port=55439 user=dsh_e2e dbname=postgres sslmode=disable"
-            for migration in sorted((repo / "deploy/sql").glob("*.up.sql")):
+            for migration in sorted(migrations.glob("*.up.sql")):
                 subprocess.run([str(pg_bin / "psql"), "-X", "--dbname", dsn, "-v", "ON_ERROR_STOP=1", "-q", "-f", str(migration)], check=True, stdout=subprocess.DEVNULL)
-            subprocess.run([go, "build"] + (["-race"] if options.load_race else []) + ["-o", str(binary), "./cmd/remote"], cwd=repo / "services/remote", check=True)
-            if not options.android_upgrade and options.relay_load is None:
+            if options.service_bundle_directory is None:
+                subprocess.run([go, "build"] + (["-race"] if options.load_race else []) + ["-o", str(binary), "./cmd/remote"], cwd=repo / "services/remote", check=True)
+            if not options.android_upgrade and options.relay_load is None and options.host_bundle_directory is None:
                 subprocess.run(["npm", "run", "build"], cwd=repo, check=True)
             env = dict(os.environ, REMOTE_TEST_CLUSTER_ROOT=root, REMOTE_TEST_DATABASE_URL=dsn,
                        REMOTE_TEST_PSQL=str(pg_bin / "psql"), REMOTE_TEST_PG_DUMP=str(pg_bin / "pg_dump"), REMOTE_TEST_SERVICE_BIN=str(binary))
             # Activation is explicit per invocation, never inherited from a prior run.
-            for field in ("REMOTE_TEST_CROSS_NODE", "REMOTE_TEST_HOST_RENEWAL", "REMOTE_TEST_INSTALLATION_REVOKE", "REMOTE_TEST_HOST_ACCOUNT_RETIRE", "REMOTE_TEST_DATABASE_OUTAGE", "REMOTE_TEST_RELAY_CRASH", "REMOTE_TEST_RELAY_CERTIFICATE_RENEWAL", "REMOTE_TEST_HOST_BUNDLE_DIRECTORY", "REMOTE_TEST_HOST_BUNDLE_MANIFEST_SHA256", "REMOTE_TEST_KOTLIN_CLASSPATH", "REMOTE_TEST_ANDROID_SERIAL", "REMOTE_TEST_ANDROID_BIOMETRIC", "REMOTE_TEST_ANDROID_UPGRADE_SERIAL", "REMOTE_TEST_ANDROID_UPGRADE_RECEIPT", "REMOTE_TEST_RELAY_CAPACITY_CONFIG", "REMOTE_TEST_RELAY_CAPACITY_OUTPUT"):
+            for field in ("REMOTE_TEST_CROSS_NODE", "REMOTE_TEST_HOST_RENEWAL", "REMOTE_TEST_INSTALLATION_REVOKE", "REMOTE_TEST_HOST_ACCOUNT_RETIRE", "REMOTE_TEST_DATABASE_OUTAGE", "REMOTE_TEST_RELAY_CRASH", "REMOTE_TEST_RELAY_CERTIFICATE_RENEWAL", "REMOTE_TEST_HOST_BUNDLE_DIRECTORY", "REMOTE_TEST_HOST_BUNDLE_MANIFEST_SHA256", "REMOTE_TEST_SERVICE_BUNDLE_MANIFEST_SHA256", "REMOTE_TEST_CONTRACT_ROOT", "REMOTE_TEST_KOTLIN_CLASSPATH", "REMOTE_TEST_ANDROID_SERIAL", "REMOTE_TEST_ANDROID_BIOMETRIC", "REMOTE_TEST_ANDROID_UPGRADE_SERIAL", "REMOTE_TEST_ANDROID_UPGRADE_RECEIPT", "REMOTE_TEST_RELAY_CAPACITY_CONFIG", "REMOTE_TEST_RELAY_CAPACITY_OUTPUT"):
                 env.pop(field, None)
+            if contracts is not None:
+                env["REMOTE_TEST_CONTRACT_ROOT"] = str(contracts)
+                env["REMOTE_TEST_SERVICE_BUNDLE_MANIFEST_SHA256"] = options.service_bundle_manifest_sha256
             if options.host_bundle_directory is not None:
                 env["REMOTE_TEST_HOST_BUNDLE_DIRECTORY"] = str(options.host_bundle_directory)
                 env["REMOTE_TEST_HOST_BUNDLE_MANIFEST_SHA256"] = options.host_bundle_manifest_sha256

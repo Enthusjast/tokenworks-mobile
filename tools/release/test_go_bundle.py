@@ -60,6 +60,7 @@ class GoBundleTests(unittest.TestCase):
             with patch.object(bundle.subprocess, 'run', side_effect=AssertionError('verifier executed a process')):
                 report = bundle.verify(root, bundle.digest(bundle.encoded(value)), root / 'unpacked')
             self.assertEqual(report['file_count'], 7)
+            self.assertEqual(report['version'], value['version'])
             self.assertEqual((root / 'unpacked/service/bin/remote').read_bytes(), files['service/bin/remote'])
             self.assertEqual((root / 'unpacked/service/bin/remote').stat().st_mode & 0o777, 0o755)
             with self.assertRaises(bundle.common.BundleError):
