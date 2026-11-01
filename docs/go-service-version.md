@@ -11,3 +11,6 @@
 本机 Linux 使用 Go 1.26.10 验证：命令包测试通过；在无效的数据库／issuer 配置下运行
 `go run ./cmd/remote --version` 仍成功输出 JSON。原无参数服务启动及管理命令的选择保持原行为。
 未运行 Windows／Wine、Android、真机或大负载测试。
+
+[Go 服务发行构建器](go-service-bundle.md)现在把固定 Git 源码清单摘要与 revision 嵌入
+Linux 静态二进制，构建时自检输出；离线校验归档时不会执行候选。
