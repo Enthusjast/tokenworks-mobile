@@ -1,0 +1,387 @@
+{
+  "base": "2026-11-03T12:00:00.000Z",
+  "cases": [
+    {
+      "name": "default",
+      "headers": {},
+      "expectedMs": 60000,
+      "startedMs": 0,
+      "receivedMs": 0,
+      "readyMs": 0
+    },
+    {
+      "name": "cap",
+      "headers": {
+        "Cache-Control": [
+          "max-age=3600"
+        ]
+      },
+      "expectedMs": 60000,
+      "startedMs": 0,
+      "receivedMs": 0,
+      "readyMs": 0
+    },
+    {
+      "name": "short",
+      "headers": {
+        "Cache-Control": [
+          "max-age=5"
+        ]
+      },
+      "expectedMs": 5000,
+      "startedMs": 0,
+      "receivedMs": 0,
+      "readyMs": 0
+    },
+    {
+      "name": "zero",
+      "headers": {
+        "Cache-Control": [
+          "max-age=0"
+        ]
+      },
+      "expectedMs": 0,
+      "startedMs": 0,
+      "receivedMs": 0,
+      "readyMs": 0
+    },
+    {
+      "name": "quoted",
+      "headers": {
+        "Cache-Control": [
+          "private, MAX-AGE = \"5\""
+        ]
+      },
+      "expectedMs": 5000,
+      "startedMs": 0,
+      "receivedMs": 0,
+      "readyMs": 0
+    },
+    {
+      "name": "no-cache",
+      "headers": {
+        "Cache-Control": [
+          "max-age=30, no-cache"
+        ]
+      },
+      "expectedMs": 0,
+      "startedMs": 0,
+      "receivedMs": 0,
+      "readyMs": 0
+    },
+    {
+      "name": "no-store parameter",
+      "headers": {
+        "Cache-Control": [
+          "no-store=\"keys\", max-age=30"
+        ]
+      },
+      "expectedMs": 0,
+      "startedMs": 0,
+      "receivedMs": 0,
+      "readyMs": 0
+    },
+    {
+      "name": "duplicate",
+      "headers": {
+        "Cache-Control": [
+          "max-age=30, max-age=30"
+        ]
+      },
+      "expectedMs": 0,
+      "startedMs": 0,
+      "receivedMs": 0,
+      "readyMs": 0
+    },
+    {
+      "name": "negative",
+      "headers": {
+        "Cache-Control": [
+          "max-age=-1"
+        ]
+      },
+      "expectedMs": 0,
+      "startedMs": 0,
+      "receivedMs": 0,
+      "readyMs": 0
+    },
+    {
+      "name": "fraction",
+      "headers": {
+        "Cache-Control": [
+          "max-age=1.5"
+        ]
+      },
+      "expectedMs": 0,
+      "startedMs": 0,
+      "receivedMs": 0,
+      "readyMs": 0
+    },
+    {
+      "name": "missing",
+      "headers": {
+        "Cache-Control": [
+          "max-age"
+        ]
+      },
+      "expectedMs": 0,
+      "startedMs": 0,
+      "receivedMs": 0,
+      "readyMs": 0
+    },
+    {
+      "name": "empty",
+      "headers": {
+        "Cache-Control": [
+          "max-age="
+        ]
+      },
+      "expectedMs": 0,
+      "startedMs": 0,
+      "receivedMs": 0,
+      "readyMs": 0
+    },
+    {
+      "name": "overflow",
+      "headers": {
+        "Cache-Control": [
+          "max-age=18446744073709551616"
+        ]
+      },
+      "expectedMs": 0,
+      "startedMs": 0,
+      "receivedMs": 0,
+      "readyMs": 0
+    },
+    {
+      "name": "uint64 cap",
+      "headers": {
+        "Cache-Control": [
+          "max-age=18446744073709551615"
+        ]
+      },
+      "expectedMs": 60000,
+      "startedMs": 0,
+      "receivedMs": 0,
+      "readyMs": 0
+    },
+    {
+      "name": "sign",
+      "headers": {
+        "Cache-Control": [
+          "max-age=+5"
+        ]
+      },
+      "expectedMs": 0,
+      "startedMs": 0,
+      "receivedMs": 0,
+      "readyMs": 0
+    },
+    {
+      "name": "broken quote",
+      "headers": {
+        "Cache-Control": [
+          "max-age=\"5"
+        ]
+      },
+      "expectedMs": 0,
+      "startedMs": 0,
+      "receivedMs": 0,
+      "readyMs": 0
+    },
+    {
+      "name": "age",
+      "headers": {
+        "Cache-Control": [
+          "max-age=30"
+        ],
+        "Age": [
+          "20"
+        ]
+      },
+      "expectedMs": 5000,
+      "startedMs": 0,
+      "receivedMs": 2000,
+      "readyMs": 5000
+    },
+    {
+      "name": "date",
+      "headers": {
+        "Cache-Control": [
+          "max-age=30"
+        ],
+        "Date": [
+          "Tue, 03 Nov 2026 11:59:52 GMT"
+        ]
+      },
+      "expectedMs": 17000,
+      "startedMs": 0,
+      "receivedMs": 2000,
+      "readyMs": 5000
+    },
+    {
+      "name": "date and age",
+      "headers": {
+        "Cache-Control": [
+          "max-age=30"
+        ],
+        "Date": [
+          "Tue, 03 Nov 2026 11:59:52 GMT"
+        ],
+        "Age": [
+          "20"
+        ]
+      },
+      "expectedMs": 5000,
+      "startedMs": 0,
+      "receivedMs": 2000,
+      "readyMs": 5000
+    },
+    {
+      "name": "future date",
+      "headers": {
+        "Cache-Control": [
+          "max-age=30"
+        ],
+        "Date": [
+          "Tue, 03 Nov 2026 12:01:00 GMT"
+        ]
+      },
+      "expectedMs": 25000,
+      "startedMs": 0,
+      "receivedMs": 2000,
+      "readyMs": 5000
+    },
+    {
+      "name": "exhausted age",
+      "headers": {
+        "Age": [
+          "60"
+        ]
+      },
+      "expectedMs": 0,
+      "startedMs": 0,
+      "receivedMs": 0,
+      "readyMs": 0
+    },
+    {
+      "name": "exhausted date",
+      "headers": {
+        "Date": [
+          "Tue, 03 Nov 2026 11:58:00 GMT"
+        ]
+      },
+      "expectedMs": 0,
+      "startedMs": 0,
+      "receivedMs": 0,
+      "readyMs": 0
+    },
+    {
+      "name": "bad age",
+      "headers": {
+        "Age": [
+          "-1"
+        ]
+      },
+      "expectedMs": 0,
+      "startedMs": 0,
+      "receivedMs": 0,
+      "readyMs": 0
+    },
+    {
+      "name": "multiple age",
+      "headers": {
+        "Age": [
+          "1",
+          "2"
+        ]
+      },
+      "expectedMs": 0,
+      "startedMs": 0,
+      "receivedMs": 0,
+      "readyMs": 0
+    },
+    {
+      "name": "bad date",
+      "headers": {
+        "Date": [
+          "yesterday"
+        ]
+      },
+      "expectedMs": 0,
+      "startedMs": 0,
+      "receivedMs": 0,
+      "readyMs": 0
+    },
+    {
+      "name": "noncanonical date",
+      "headers": {
+        "Date": [
+          "2026-11-03T12:00:00Z"
+        ]
+      },
+      "expectedMs": 0,
+      "startedMs": 0,
+      "receivedMs": 0,
+      "readyMs": 0
+    },
+    {
+      "name": "multiple date",
+      "headers": {
+        "Date": [
+          "Tue, 03 Nov 2026 12:00:00 GMT",
+          "Tue, 03 Nov 2026 12:00:00 GMT"
+        ]
+      },
+      "expectedMs": 0,
+      "startedMs": 0,
+      "receivedMs": 0,
+      "readyMs": 0
+    },
+    {
+      "name": "multiple max-age lines",
+      "headers": {
+        "Cache-Control": [
+          "max-age=10",
+          "max-age=20"
+        ]
+      },
+      "expectedMs": 0,
+      "startedMs": 0,
+      "receivedMs": 0,
+      "readyMs": 0
+    },
+    {
+      "name": "parse time",
+      "headers": {},
+      "expectedMs": 59500,
+      "startedMs": 0,
+      "receivedMs": 0,
+      "readyMs": 500
+    },
+    {
+      "name": "elapsed exhausted",
+      "headers": {},
+      "expectedMs": 0,
+      "startedMs": 0,
+      "receivedMs": 61000,
+      "readyMs": 61000
+    },
+    {
+      "name": "clock backwards network",
+      "headers": {},
+      "expectedMs": 0,
+      "startedMs": 0,
+      "receivedMs": -1,
+      "readyMs": 0
+    },
+    {
+      "name": "clock backwards parse",
+      "headers": {},
+      "expectedMs": 0,
+      "startedMs": 0,
+      "receivedMs": 2000,
+      "readyMs": 1000
+    }
+  ]
+}

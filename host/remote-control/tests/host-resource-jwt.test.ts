@@ -28,6 +28,7 @@ async function fixture(t: test.TestContext) {
   const server = createServer((request, response) => {
     state.requests++
     assert.equal(request.method, 'GET'); assert.equal(request.url, '/jwks')
+    assert.equal(request.headers['cache-control'], 'no-cache'); assert.equal(request.headers['accept-encoding'], 'identity')
     assert.equal(request.headers.authorization, undefined); assert.equal(request.headers.cookie, undefined)
     if (state.reply) { state.reply(response); return }
     response.setHeader('content-type', 'application/json'); response.end(JSON.stringify({ keys: state.keys }))
@@ -111,10 +112,11 @@ test('RSA signatures and issuer key rotation work without accepting unknown keys
   assert.equal(f.state.requests, 2)
 })
 
-test('no-store key sets are fetched again and unknown identifiers remain rate limited', async t => {
+for (const headers of [{ 'cache-control': 'no-store' }, { 'cache-control': 'no-cache' }, { 'cache-control': 'max-age=0' },
+  { 'cache-control': 'max-age=30', age: '30' }]) test(`non-reusable key sets refetch and limit unknown identifiers: ${JSON.stringify(headers)}`, async t => {
   const f = await fixture(t), signal = AbortSignal.timeout(5_000)
   f.state.reply = response => {
-    response.writeHead(200, { 'content-type': 'application/json', 'cache-control': 'no-store' })
+    response.writeHead(200, { 'content-type': 'application/json', ...headers })
     response.end(JSON.stringify({ keys: f.state.keys }))
   }
   await f.provider.acquire(f.request, signal); await f.provider.acquire(f.request, signal)
@@ -123,11 +125,14 @@ test('no-store key sets are fetched again and unknown identifiers remain rate li
   f.state.keys = [{ ...replacement.publicKey.export({ format: 'jwk' }), kid: 'issuer-a', alg: 'ES256', use: 'sig' }]
   f.state.token = f.issue({}, {}, replacement.privateKey)
   assert.equal((await f.provider.acquire(f.request, signal)).token, f.state.token)
+  f.state.reply = response => { response.writeHead(503); response.end() }
+  await assert.rejects(f.provider.acquire(f.request, signal), denied('unavailable'))
+  f.state.reply = response => { response.writeHead(200, { 'content-type': 'application/json', ...headers }); response.end(JSON.stringify({ keys: f.state.keys })) }
   f.state.token = f.issue({}, { kid: 'unknown' })
   await assert.rejects(f.provider.acquire(f.request, signal), denied('invalid_token'))
   f.state.token = f.issue({}, { kid: 'another-unknown' })
   await assert.rejects(f.provider.acquire(f.request, signal), denied('invalid_token'))
-  assert.equal(f.state.requests, 4)
+  assert.equal(f.state.requests, 5)
 })
 
 test('untrusted key-set responses fail closed and cannot redirect verification', async t => {
@@ -194,5 +199,26 @@ test('pinned requests and configuration are checked before reading a source toke
   for (const altered of [{ jwksUrl: 'http://example.edu/jwks' }, { jwksUrl: 'https://user:secret@example.edu/jwks' },
     { jwksUrl: 'https://example.edu/jwks?url=attacker' }, { allowLoopbackHttp: false }]) {
     assert.throws(() => new HostResourceJwtProvider({ ...f.options, ...altered }), denied('invalid_config'))
+  }
+})
+
+test('issuer key validation rejects weak RSA keys and noncanonical metadata before trusting signatures', async t => {
+  const rsa = generateKeyPairSync('rsa', { modulusLength: 2047, publicExponent: 0x10001 })
+  const modulus = Buffer.from(rsa.publicKey.export({ format: 'jwk' }).n!, 'base64url')
+  assert.equal(modulus.length, 256)
+  const f = await fixture(t)
+  f.state.keys = [{ ...rsa.publicKey.export({ format: 'jwk' }), kid: 'issuer-a', alg: 'RS256' }]
+  f.state.token = token(rsa.privateKey, { alg: 'RS256', typ: 'at+jwt', kid: 'issuer-a' }, f.claims(), 'RS256')
+  await assert.rejects(f.provider.acquire(f.request, AbortSignal.timeout(5_000)), denied('unavailable'))
+  for (const patch of [{ kid: 1 }, { kid: 'bad\u0085id' }, { kid: '界'.repeat(86) }, { alg: false }, { alg: '' }, { alg: 'RS256' }]) {
+    f.state.keys = [{ ...f.issuerJwk, ...patch }]
+    f.state.token = f.issue()
+    await assert.rejects(f.provider.acquire(f.request, AbortSignal.timeout(5_000)), denied('unavailable'))
+  }
+  for (const kid of ['bad\u0085id', '界'.repeat(86)]) {
+    const before = f.state.requests
+    f.state.token = f.issue({}, { kid })
+    await assert.rejects(f.provider.acquire(f.request, AbortSignal.timeout(5_000)), denied('invalid_token'))
+    assert.equal(f.state.requests, before)
   }
 })

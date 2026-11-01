@@ -14,14 +14,15 @@ import (
 	"math/big"
 	"net/http"
 	"net/url"
-	"strconv"
 	"strings"
 	"sync"
 	"time"
+	"unicode"
 	"unicode/utf8"
 )
 
-const maxJWKSBytes = 1 << 20
+const maxJWKSBytes = 128 << 10
+const maxJWKSKeys = 32
 const unknownKIDRefreshCooldown = 5 * time.Second
 
 type publicJWK struct {
@@ -38,6 +39,7 @@ type keySet struct {
 	mu                  sync.Mutex
 	keys                map[string]publicJWK
 	expires             time.Time
+	cachedAt            time.Time
 	unknownRefreshAfter time.Time
 }
 
@@ -74,16 +76,38 @@ func isLoopbackHTTP(u *url.URL) bool {
 }
 
 func (set *keySet) get(ctx context.Context, kid, alg string) (crypto.PublicKey, error) {
+	if kid == "" || len(kid) > 256 || strings.IndexFunc(kid, unicode.IsControl) >= 0 || alg != "ES256" && alg != "RS256" {
+		return nil, errors.New("auth: signing key not found")
+	}
 	set.mu.Lock()
 	defer set.mu.Unlock()
+	now := set.clock()
+	if !set.cachedAt.IsZero() && now.Round(0).Before(set.cachedAt.Round(0)) {
+		set.keys = make(map[string]publicJWK)
+		set.expires = time.Time{}
+		set.cachedAt = time.Time{}
+		set.unknownRefreshAfter = time.Time{}
+		return nil, errors.New("auth: signing key cache clock changed")
+	}
 	refreshed := false
-	if !set.clock().Before(set.expires) {
+	if !now.Before(set.expires) {
+		// Previously verified IDs may refresh even during the unknown-ID cooldown.
+		// They must still pass a new fetch; expired material never authorizes.
+		if _, known := set.keys[kid]; !known && now.Before(set.unknownRefreshAfter) {
+			return nil, errors.New("auth: signing key not found")
+		}
 		if err := set.refresh(ctx); err != nil {
+			if _, known := set.keys[kid]; !known {
+				set.unknownRefreshAfter = set.clock().Add(unknownKIDRefreshCooldown)
+			}
 			return nil, err
 		}
 		refreshed = true
 	}
 	key, ok := set.keys[kid]
+	if !ok && refreshed {
+		set.unknownRefreshAfter = set.clock().Add(unknownKIDRefreshCooldown)
+	}
 	if !ok && !refreshed {
 		now := set.clock()
 		if now.Before(set.unknownRefreshAfter) {
@@ -102,18 +126,25 @@ func (set *keySet) get(ctx context.Context, kid, alg string) (crypto.PublicKey, 
 }
 
 func (set *keySet) refresh(ctx context.Context) error {
+	started := set.clock()
 	request, err := http.NewRequestWithContext(ctx, http.MethodGet, set.url, nil)
 	if err != nil {
 		return errors.New("auth: JWKS fetch failed")
 	}
 	request.Header.Set("Accept", "application/json")
+	request.Header.Set("Accept-Encoding", "identity")
+	request.Header.Set("Cache-Control", "no-cache")
 	response, err := set.client.Do(request)
 	if err != nil {
 		return errors.New("auth: JWKS fetch failed")
 	}
 	defer response.Body.Close()
+	received := set.clock()
 	if response.StatusCode != http.StatusOK {
 		return errors.New("auth: JWKS fetch failed")
+	}
+	if encoding := response.Header.Get("Content-Encoding"); encoding != "" && encoding != "identity" {
+		return errors.New("auth: invalid JWKS response")
 	}
 	body, err := io.ReadAll(io.LimitReader(response.Body, maxJWKSBytes+1))
 	if err != nil || len(body) > maxJWKSBytes {
@@ -127,7 +158,7 @@ func (set *keySet) refresh(ctx context.Context) error {
 		return errors.New("auth: invalid JWKS response")
 	}
 	entries, ok := document["keys"].([]any)
-	if !ok || len(entries) == 0 {
+	if !ok || len(entries) == 0 || len(entries) > maxJWKSKeys {
 		return errors.New("auth: invalid JWKS response")
 	}
 	keys := make(map[string]publicJWK, len(entries))
@@ -152,29 +183,11 @@ func (set *keySet) refresh(ctx context.Context) error {
 		return errors.New("auth: no usable signing keys")
 	}
 	set.keys = keys
-	set.expires = set.clock().Add(cacheDuration(response.Header.Get("Cache-Control")))
+	ready := set.clock()
+	set.cachedAt = ready
+	// Zero remaining freshness permits only this lookup. Later lookups refresh.
+	set.expires = ready.Add(jwksFreshness(response.Header, started, received, ready))
 	return nil
-}
-
-func cacheDuration(value string) time.Duration {
-	for _, part := range strings.Split(value, ",") {
-		name, raw, ok := strings.Cut(strings.TrimSpace(part), "=")
-		if !ok || !strings.EqualFold(name, "max-age") {
-			continue
-		}
-		seconds, err := strconv.Atoi(strings.Trim(raw, "\""))
-		if err == nil {
-			duration := time.Duration(seconds) * time.Second
-			if duration < time.Minute {
-				return time.Minute
-			}
-			if duration > time.Hour {
-				return time.Hour
-			}
-			return duration
-		}
-	}
-	return 5 * time.Minute
 }
 
 func parsePublicJWK(raw map[string]any) (publicJWK, error) {
@@ -183,6 +196,16 @@ func parsePublicJWK(raw map[string]any) (publicJWK, error) {
 		return value
 	}
 	kid, alg := stringClaim("kid"), stringClaim("alg")
+	if value, exists := raw["kid"]; exists {
+		if _, ok := value.(string); !ok || len(kid) > 256 || strings.IndexFunc(kid, unicode.IsControl) >= 0 {
+			return publicJWK{}, errors.New("auth: invalid JWK key ID")
+		}
+	}
+	if value, exists := raw["alg"]; exists {
+		if _, ok := value.(string); !ok || alg != "RS256" && alg != "ES256" {
+			return publicJWK{}, errors.New("auth: unsupported JWK algorithm")
+		}
+	}
 	for _, name := range []string{"d", "p", "q", "dp", "dq", "qi", "oth", "k", "jku", "x5u"} {
 		if _, exists := raw[name]; exists {
 			return publicJWK{}, errors.New("auth: private or remote JWK is not accepted")
@@ -202,21 +225,25 @@ func parsePublicJWK(raw map[string]any) (publicJWK, error) {
 	}
 	switch stringClaim("kty") {
 	case "RSA":
-		nBytes, err := base64.RawURLEncoding.DecodeString(stringClaim("n"))
-		if err != nil || len(nBytes) < 256 || len(nBytes) > 1024 {
+		nBytes, err := decodeJWKBytes(stringClaim("n"))
+		if err != nil || len(nBytes) < 256 || len(nBytes) > 1024 || nBytes[0] == 0 {
 			return publicJWK{}, errors.New("auth: invalid RSA modulus")
 		}
-		eBytes, err := base64.RawURLEncoding.DecodeString(stringClaim("e"))
-		if err != nil || len(eBytes) == 0 || len(eBytes) > 4 {
+		eBytes, err := decodeJWKBytes(stringClaim("e"))
+		if err != nil || len(eBytes) == 0 || len(eBytes) > 4 || eBytes[0] == 0 {
 			return publicJWK{}, errors.New("auth: invalid RSA exponent")
 		}
 		exponent := int(new(big.Int).SetBytes(eBytes).Int64())
 		if exponent < 3 || exponent%2 == 0 {
 			return publicJWK{}, errors.New("auth: invalid RSA exponent")
 		}
-		return publicJWK{kid: kid, alg: alg, key: &rsa.PublicKey{N: new(big.Int).SetBytes(nBytes), E: exponent}}, nil
+		modulus := new(big.Int).SetBytes(nBytes)
+		if modulus.BitLen() < 2048 || modulus.BitLen() > 8192 || modulus.Bit(0) != 1 || alg != "" && alg != "RS256" {
+			return publicJWK{}, errors.New("auth: invalid RSA signing key")
+		}
+		return publicJWK{kid: kid, alg: alg, key: &rsa.PublicKey{N: modulus, E: exponent}}, nil
 	case "EC":
-		if stringClaim("crv") != "P-256" {
+		if stringClaim("crv") != "P-256" || alg != "" && alg != "ES256" {
 			return publicJWK{}, errors.New("auth: unsupported elliptic curve")
 		}
 		x, err := decodeCoordinate(stringClaim("x"))
@@ -233,8 +260,17 @@ func parsePublicJWK(raw map[string]any) (publicJWK, error) {
 	}
 }
 
+// Strict decoding also rejects CR/LF, which encoding/base64 otherwise ignores.
+func decodeJWKBytes(value string) ([]byte, error) {
+	decoded, err := base64.RawURLEncoding.Strict().DecodeString(value)
+	if err != nil || base64.RawURLEncoding.EncodeToString(decoded) != value {
+		return nil, errors.New("auth: noncanonical JWK encoding")
+	}
+	return decoded, nil
+}
+
 func decodeCoordinate(value string) (*big.Int, error) {
-	bytes, err := base64.RawURLEncoding.DecodeString(value)
+	bytes, err := decodeJWKBytes(value)
 	if err != nil || len(bytes) != 32 {
 		return nil, errors.New("auth: invalid elliptic curve coordinate")
 	}

@@ -2,6 +2,7 @@ import { createHash, createPublicKey, verify, type KeyObject } from 'node:crypto
 import { isIP } from 'node:net'
 import { z } from 'zod'
 import { parseSigningObject } from './canonical.js'
+import { jwksCacheTTL } from './jwks-cache.js'
 import type { HostResourceAccess, HostResourceAccessProvider, HostResourceIdentity, HostResourceRequest } from './host-credentials.js'
 
 type Code = 'invalid_config' | 'cancelled' | 'busy' | 'unavailable' | 'invalid_token'
@@ -83,15 +84,15 @@ function issuerKey(value: unknown): { id: string; value: IssuerKey } | undefined
   if (row.use !== undefined && row.use !== 'sig') throw fail('unavailable')
   if (row.key_ops !== undefined && (!Array.isArray(row.key_ops) || row.key_ops.length !== 1 || row.key_ops[0] !== 'verify')) throw fail('unavailable')
   if (row.kid === undefined || row.kid === '') return undefined
-  if (typeof row.kid !== 'string' || row.kid.length > 256 || /[\x00-\x1f\x7f]/.test(row.kid)) throw fail('unavailable')
+  if (typeof row.kid !== 'string' || Buffer.byteLength(row.kid) > 256 || /\p{Cc}/u.test(row.kid)) throw fail('unavailable')
   let algorithm: Algorithm, key: KeyObject
   if (row.kty === 'EC' && row.crv === 'P-256') {
     bytes(row.x, 32, 32); bytes(row.y, 32, 32)
     algorithm = 'ES256'
     key = createPublicKey({ format: 'jwk', key: { kty: 'EC', crv: 'P-256', x: row.x as string, y: row.y as string } })
   } else if (row.kty === 'RSA') {
-    bytes(row.n, 256, 1024); const encodedExponent = bytes(row.e, 1, 4), exponent = encodedExponent.readUIntBE(0, encodedExponent.length)
-    if (exponent < 3 || exponent % 2 === 0) throw fail('unavailable')
+    const modulus = bytes(row.n, 256, 1024); const encodedExponent = bytes(row.e, 1, 4), exponent = encodedExponent.readUIntBE(0, encodedExponent.length)
+    if (modulus[0] === 0 || !(modulus[modulus.length - 1]! & 1) || encodedExponent[0] === 0 || exponent < 3 || exponent % 2 === 0) throw fail('unavailable')
     algorithm = 'RS256'
     key = createPublicKey({ format: 'jwk', key: { kty: 'RSA', n: row.n as string, e: row.e as string } })
     if (!key.asymmetricKeyDetails?.modulusLength || key.asymmetricKeyDetails.modulusLength < 2048) throw fail('unavailable')
@@ -199,8 +200,8 @@ export class HostResourceJwtProvider implements HostResourceAccessProvider {
       if (lifetime.aborted) throw fail('cancelled')
       const parsed = compact(sourceValue.token), { header, claims } = parsed
       if (typeof header.typ !== 'string' || !['at+jwt', 'application/at+jwt'].includes(header.typ.toLowerCase()) ||
-          header.alg !== 'ES256' && header.alg !== 'RS256' || typeof header.kid !== 'string' || !header.kid || header.kid.length > 256 ||
-          /[\x00-\x1f\x7f]/.test(header.kid) || ['jku', 'x5u', 'jwk', 'x5c', 'crit', 'b64'].some(name => Object.hasOwn(header, name))) throw fail()
+          header.alg !== 'ES256' && header.alg !== 'RS256' || typeof header.kid !== 'string' || !header.kid || Buffer.byteLength(header.kid) > 256 ||
+          /\p{Cc}/u.test(header.kid) || ['jku', 'x5u', 'jwk', 'x5c', 'crit', 'b64'].some(name => Object.hasOwn(header, name))) throw fail()
       const now = Date.now(), monotonic = performance.now(), issued = numericDate(claims.iat), expires = numericDate(claims.exp)
       const audiences = typeof claims.aud === 'string' ? [claims.aud] : Array.isArray(claims.aud) ? claims.aud : []
       const cnf = object(claims.cnf)
@@ -258,9 +259,11 @@ export class HostResourceJwtProvider implements HostResourceAccessProvider {
   async #fetchKeys(): Promise<KeyCache> {
     const signal = AbortSignal.any([this.signal, AbortSignal.timeout(5_000)])
     let response: Response | undefined
+    const startedWall = Date.now(), startedMono = performance.now()
     try {
-      response = await fetch(this.#url, { method: 'GET', headers: { accept: 'application/json', 'accept-encoding': 'identity' },
+      response = await fetch(this.#url, { method: 'GET', headers: { accept: 'application/json', 'accept-encoding': 'identity', 'cache-control': 'no-cache' },
         redirect: 'error', credentials: 'omit', cache: 'no-store', signal })
+      const receivedWall = Date.now(), receivedMono = performance.now()
       const kind = response.headers.get('content-type')?.split(';')[0]?.trim().toLowerCase()
       const encoding = response.headers.get('content-encoding')?.trim().toLowerCase()
       const length = response.headers.get('content-length')
@@ -287,10 +290,9 @@ export class HostResourceJwtProvider implements HostResourceAccessProvider {
         keys.set(item.id, item.value)
       }
       if (!keys.size) throw fail('unavailable')
-      const control = response.headers.get('cache-control') ?? ''
-      const maxAge = /(?:^|,)\s*max-age\s*=\s*(\d+)\s*(?:,|$)/i.exec(control)
-      const ttl = /(?:^|,)\s*(?:no-cache|no-store)\s*(?:,|$)/i.test(control) ? 0 : Math.min(60_000, maxAge ? Number(maxAge[1]) * 1000 : 60_000)
-      return { keys, wall: Date.now(), monotonic: performance.now(), ttl }
+      const wall = Date.now(), monotonic = performance.now()
+      const ttl = jwksCacheTTL(response.headers, { startedWall, receivedWall, readyWall: wall, startedMono, receivedMono, readyMono: monotonic })
+      return { keys, wall, monotonic, ttl }
     } catch (cause) {
       if (this.signal.aborted) throw fail('cancelled')
       if (cause instanceof HostResourceJwtError && cause.code === 'host.resource_jwt.cancelled') throw fail('unavailable')
