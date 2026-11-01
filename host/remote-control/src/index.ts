@@ -21,6 +21,8 @@ export type { HostConnectionCredential, HostCredentialProvider, HostHandshakeSig
 export { HostRestCredentialProvider, HostCredentialError } from './host-credentials.js'
 export type { HostResourceIdentity, HostResourceAccess, HostResourceRequest, HostResourceAccessProvider, HostRestCredentialOptions } from './host-credentials.js'
 export { HostResourceJwtProvider, HostResourceJwtError } from './host-resource-jwt.js'
+export { parsePinnedApprovalAuthorityDescription, APPROVAL_AUTHORITY_DESCRIPTION_FORMAT } from './approval-authority.js'
+export type { ApprovalAuthorityDescription } from './approval-authority.js'
 export type { HostResourceJwtOptions, HostResourceTokenSource } from './host-resource-jwt.js'
 export { HostEnrollmentClient } from './host-enrollment.js'
 export { HostEnrollmentError } from './host-enrollment-transport.js'

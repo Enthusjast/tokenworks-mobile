@@ -40,6 +40,8 @@ func main() {
 			operation = func() error { return runSendQueueDescription(os.Args[2:], os.Stdout) }
 		} else if os.Args[1] == "identities" {
 			operation = func() error { return runIdentityCommand(os.Args[2:], os.Stdout) }
+		} else if os.Args[1] == "approval-authority" {
+			operation = func() error { return runApprovalAuthorityCommand(os.Args[2:], os.Stdout) }
 		} else {
 			operation = func() error { return errors.New("remote service arguments are invalid") }
 		}

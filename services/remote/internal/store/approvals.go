@@ -34,6 +34,14 @@ type ApprovalPolicy struct {
 	MaxAuthAgeSeconds int64
 }
 
+// Validate checks deployment metadata without opening a database or enabling a controller.
+func (policy ApprovalPolicy) Validate() error {
+	if policy.Version < 1 || policy.Version > 9_007_199_254_740_991 || !approvalAssuranceProfile.MatchString(policy.AssuranceProfile) || policy.MaxAuthAgeSeconds < 0 || policy.MaxAuthAgeSeconds > 900 {
+		return ErrApprovalInvalid
+	}
+	return nil
+}
+
 type ApprovalControl struct {
 	database  *Postgres
 	assurance *auth.AssuranceVerifier
@@ -57,9 +65,7 @@ type ApprovalStatus struct {
 }
 
 func NewApprovalControl(database *Postgres, policy ApprovalPolicy, assurance *auth.AssuranceVerifier) (*ApprovalControl, error) {
-	if database == nil || database.DB == nil || assurance == nil || policy.Version < 1 || policy.Version > 9_007_199_254_740_991 ||
-		!approvalAssuranceProfile.MatchString(policy.AssuranceProfile) ||
-		policy.MaxAuthAgeSeconds < 0 || policy.MaxAuthAgeSeconds > 900 {
+	if database == nil || database.DB == nil || assurance == nil || policy.Validate() != nil {
 		return nil, ErrApprovalInvalid
 	}
 	return &ApprovalControl{database: database, assurance: assurance, policy: policy}, nil
