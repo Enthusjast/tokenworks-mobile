@@ -26,7 +26,7 @@ var profileRefPattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$`)
 var keyThumbprintPattern = regexp.MustCompile(`^[A-Za-z0-9_-]{43}$`)
 
 // Legacy resources without enrollment rows were explicitly provisioned. Every
-// API-created profile has a row and stays unavailable until both confirmations.
+// API-created profile has a row and stays unavailable until all required decisions.
 const runtimeEnrollmentApprovedSQL = `not exists (select 1 from enrollments binding where binding.runtime_id = r.id and binding.state <> 'approved')`
 const installationHasApprovedRuntimeSQL = `exists (select 1 from runtimes r where r.installation_id = i.id and r.revoked_at is null and ` + runtimeEnrollmentApprovedSQL + `)`
 
@@ -140,6 +140,9 @@ type enrollmentRow struct {
 	RuntimeRevoked                sql.NullTime
 	InstallationOwnerID           string
 	InstallationKeyJKT            string
+	AdminApprovalRequired         bool
+	AdminApprovedBy               sql.NullString
+	AdminReviewSHA256             []byte
 }
 
 func NormalizeEnrollmentInput(input EnrollmentInput) (EnrollmentInput, []byte, []byte, error) {
@@ -673,7 +676,7 @@ func (postgres *Postgres) confirmEnrollment(ctx context.Context, identity UserId
 	if row.UserConfirmedBy.Valid {
 		state = "user_confirmed"
 	}
-	approved := row.UserConfirmedBy.Valid && row.HostConfirmedAt.Valid
+	approved := row.UserConfirmedBy.Valid && row.HostConfirmedAt.Valid && !row.AdminApprovalRequired
 	if approved {
 		state = "approved"
 	}
@@ -713,52 +716,8 @@ func (postgres *Postgres) confirmEnrollment(ctx context.Context, identity UserId
 		return EnrollmentConfirmation{}, ErrDatabaseUnavailable
 	}
 	if approved {
-		if _, err := activeOrganizationUser(ctx, transaction, row.OrgID, row.InstallationOwnerID); err != nil {
-			return EnrollmentConfirmation{}, ErrAccessDenied
-		}
-		if _, err := activeOrganizationUser(ctx, transaction, row.OrgID, row.UserConfirmedBy.String); err != nil {
-			return EnrollmentConfirmation{}, ErrAccessDenied
-		}
-		if _, err := transaction.ExecContext(ctx, `update hosts set state = 'active' where id = $1 and state = 'pending'`, row.HostID); err != nil {
-			return EnrollmentConfirmation{}, ErrDatabaseUnavailable
-		}
-		workspaces, err := enrollmentWorkspaces(ctx, transaction, row.RuntimeID)
-		if err != nil {
+		if err := activateEnrollment(ctx, transaction, row, actorID, auditDeviceID); err != nil {
 			return EnrollmentConfirmation{}, err
-		}
-		workspaceIDs := make([]string, 0, len(workspaces))
-		for _, workspace := range workspaces {
-			workspaceIDs = append(workspaceIDs, workspace.ID)
-		}
-		actions := make([]string, 0, len(roleActions["owner"]))
-		for action := range roleActions["owner"] {
-			actions = append(actions, action)
-		}
-		sort.Strings(actions)
-		ownerGrant, err := NormalizeRuntimeGrantInput(RuntimeGrantInput{Role: "owner", Scope: GrantScope{
-			Actions: actions, Workspaces: workspaceIDs, Sessions: []string{},
-		}}, time.Now())
-		if err != nil {
-			return EnrollmentConfirmation{}, ErrDatabaseUnavailable
-		}
-		scopeJSON, err := json.Marshal(ownerGrant.Scope)
-		if err != nil {
-			return EnrollmentConfirmation{}, ErrDatabaseUnavailable
-		}
-		owners := []string{row.InstallationOwnerID}
-		if row.UserConfirmedBy.String != row.InstallationOwnerID {
-			owners = append(owners, row.UserConfirmedBy.String)
-		}
-		for _, ownerID := range owners {
-			if _, err := transaction.ExecContext(ctx, `
-				insert into runtime_grants (runtime_id, user_id, role, scope, grant_version, granted_by)
-				values ($1, $2, 'owner', $3::jsonb, 1, $4)`, row.RuntimeID, ownerID, string(scopeJSON), actorID); err != nil {
-				return EnrollmentConfirmation{}, ErrDatabaseUnavailable
-			}
-			if err := writeGrantChange(ctx, transaction, actorID, auditDeviceID, row.OrgID, row.RuntimeID,
-				ownerID, "owner", 1, nil, "runtime_grant.updated", "runtime_grant.update", scopeJSON); err != nil {
-				return EnrollmentConfirmation{}, ErrDatabaseUnavailable
-			}
 		}
 	}
 	// Audit, outbox and initial grant writes may wait too. Expiry rolls all of
@@ -793,7 +752,8 @@ func loadEnrollmentForUpdate(ctx context.Context, transaction *sql.Tx, enrollmen
 		select e.id::text, e.host_id::text, e.installation_id::text, e.runtime_id::text,
 		       e.requested_by::text, h.org_id::text, e.state, e.code_hash,
 	       e.expires_at, e.user_confirmed_by::text, e.user_confirmed_at, e.user_confirmed_device_id::text, e.user_confirmed_device_key_version, e.host_confirmed_at,
-	       h.state, i.revoked_at, r.revoked_at, i.owner_user_id::text, i.public_key_thumbprint
+	       h.state, i.revoked_at, r.revoked_at, i.owner_user_id::text, i.public_key_thumbprint,
+	       e.admin_approval_required,e.admin_approved_by::text,e.admin_review_sha256
 		from enrollments e
 		join hosts h on h.id = e.host_id
 		join installations i on i.id = e.installation_id and i.host_id = e.host_id
@@ -803,7 +763,8 @@ func loadEnrollmentForUpdate(ctx context.Context, transaction *sql.Tx, enrollmen
 		&row.ID, &row.HostID, &row.InstallationID, &row.RuntimeID, &row.RequestedBy, &row.OrgID,
 		&row.State, &row.CodeHash, &row.ExpiresAt, &row.UserConfirmedBy,
 		&row.UserConfirmedAt, &row.UserConfirmedDeviceID, &row.UserConfirmedDeviceKeyVersion, &row.HostConfirmedAt,
-		&row.HostState, &row.InstallationRevoked, &row.RuntimeRevoked, &row.InstallationOwnerID, &row.InstallationKeyJKT)
+		&row.HostState, &row.InstallationRevoked, &row.RuntimeRevoked, &row.InstallationOwnerID, &row.InstallationKeyJKT,
+		&row.AdminApprovalRequired, &row.AdminApprovedBy, &row.AdminReviewSHA256)
 	return row, err
 }
 
@@ -875,4 +836,56 @@ func enrollmentCodeHash(code string) ([]byte, error) {
 	}
 	hash := sha256.Sum256([]byte(code))
 	return hash[:], nil
+}
+
+// Activation and both initial owner grants share the final confirmation transaction.
+func activateEnrollment(ctx context.Context, transaction *sql.Tx, row enrollmentRow, actorID, auditDeviceID string) error {
+	if _, err := activeOrganizationUser(ctx, transaction, row.OrgID, row.InstallationOwnerID); err != nil {
+		return ErrAccessDenied
+	}
+	if _, err := activeOrganizationUser(ctx, transaction, row.OrgID, row.UserConfirmedBy.String); err != nil {
+		return ErrAccessDenied
+	}
+	if _, err := transaction.ExecContext(ctx, `update hosts set state = 'active' where id = $1 and state = 'pending'`, row.HostID); err != nil {
+		return ErrDatabaseUnavailable
+	}
+	workspaces, err := enrollmentWorkspaces(ctx, transaction, row.RuntimeID)
+	if err != nil {
+		return err
+	}
+	workspaceIDs := make([]string, 0, len(workspaces))
+	for _, workspace := range workspaces {
+		workspaceIDs = append(workspaceIDs, workspace.ID)
+	}
+	actions := make([]string, 0, len(roleActions["owner"]))
+	for action := range roleActions["owner"] {
+		actions = append(actions, action)
+	}
+	sort.Strings(actions)
+	ownerGrant, err := NormalizeRuntimeGrantInput(RuntimeGrantInput{Role: "owner", Scope: GrantScope{
+		Actions: actions, Workspaces: workspaceIDs, Sessions: []string{},
+	}}, time.Now())
+	if err != nil {
+		return ErrDatabaseUnavailable
+	}
+	scopeJSON, err := json.Marshal(ownerGrant.Scope)
+	if err != nil {
+		return ErrDatabaseUnavailable
+	}
+	owners := []string{row.InstallationOwnerID}
+	if row.UserConfirmedBy.String != row.InstallationOwnerID {
+		owners = append(owners, row.UserConfirmedBy.String)
+	}
+	for _, ownerID := range owners {
+		if _, err := transaction.ExecContext(ctx, `
+			insert into runtime_grants (runtime_id, user_id, role, scope, grant_version, granted_by)
+			values ($1, $2, 'owner', $3::jsonb, 1, $4)`, row.RuntimeID, ownerID, string(scopeJSON), actorID); err != nil {
+			return ErrDatabaseUnavailable
+		}
+		if err := writeGrantChange(ctx, transaction, actorID, auditDeviceID, row.OrgID, row.RuntimeID,
+			ownerID, "owner", 1, nil, "runtime_grant.updated", "runtime_grant.update", scopeJSON); err != nil {
+			return ErrDatabaseUnavailable
+		}
+	}
+	return nil
 }

@@ -171,6 +171,7 @@ export async function approveHostEnrollmentOnTerminal(source: HostEnrollmentAppr
     ...row.workspaces.map(item => `工作区: ${literal(item.reference)} (${item.workspace_id})`),
     `有效期至: ${row.expires_at}`,
     '请通过可信组织目录核对用户身份；非 ASCII 和控制字符以转义形式显示。',
+    '组织策略可能要求管理员另行审批；本机确认后会等待最终激活，超时后可恢复原申请。',
     `仅在明确同意绑定时输入 APPROVE ${challenge} 并按回车；其他输入均拒绝。`, '',
   ].join('\n')
   return await withTerminal(signal, async terminal => {

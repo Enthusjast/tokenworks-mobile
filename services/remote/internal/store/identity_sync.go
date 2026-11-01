@@ -25,6 +25,8 @@ type IdentityOrganization struct {
 	ID   string `json:"organization_id"`
 	Slug string `json:"slug"`
 	Name string `json:"name"`
+	// Omission preserves an existing policy, including for older snapshots.
+	EnrollmentAdminApprovalRequired *bool `json:"enrollment_admin_approval_required,omitempty"`
 }
 type IdentitySnapshot struct {
 	Version          int                    `json:"v"`
@@ -81,6 +83,12 @@ func normalizeIdentitySnapshot(input IdentitySnapshot, epoch, issuer string) (Id
 		return IdentitySnapshot{}, "", ErrIdentitySnapshot
 	}
 	result.Organizations = append([]IdentityOrganization{}, input.Organizations...)
+	for index := range result.Organizations {
+		if policy := result.Organizations[index].EnrollmentAdminApprovalRequired; policy != nil {
+			copy := *policy
+			result.Organizations[index].EnrollmentAdminApprovalRequired = &copy
+		}
+	}
 	orgs, slugs := map[string]bool{}, map[string]bool{}
 	for _, org := range result.Organizations {
 		if !grantUUIDPattern.MatchString(org.ID) || orgs[org.ID] || !identitySlug.MatchString(org.Slug) || slugs[org.Slug] || org.Name != strings.TrimSpace(org.Name) || len([]rune(org.Name)) < 1 || len([]rune(org.Name)) > 160 || !utf8.ValidString(org.Name) || strings.IndexFunc(org.Name, unicode.IsControl) >= 0 {
@@ -265,7 +273,20 @@ func (postgres *Postgres) applyIdentitySnapshotOnce(ctx context.Context, input I
 	if conflict {
 		return IdentitySyncRun{}, ErrIdentitySyncConflict
 	}
-	if err = apply("organizations_changed", `insert into orgs(id,slug,name) select organization_id,slug,name from jsonb_to_recordset($1::jsonb) as s(organization_id uuid,slug text,name text) on conflict(id) do update set name=excluded.name where orgs.slug=excluded.slug and orgs.name is distinct from excluded.name`, string(orgs)); err != nil {
+	if err = apply("enrollment_policy_audits", `insert into audit_log(org_id,actor_type,actor_id,action,result,metadata)
+	 select o.id,'system',$2,'enrollment.policy.change','success',jsonb_build_object('operation_id',$2::text,'required',s.enrollment_admin_approval_required)
+	 from jsonb_to_recordset($1::jsonb) as s(organization_id uuid,enrollment_admin_approval_required boolean)
+	 join orgs o on o.id=s.organization_id where s.enrollment_admin_approval_required is not null
+	 and o.enrollment_admin_approval_required is distinct from s.enrollment_admin_approval_required`, string(orgs), input.OperationID); err != nil {
+		return IdentitySyncRun{}, err
+	}
+	if err = apply("organizations_changed", `insert into orgs(id,slug,name,enrollment_admin_approval_required)
+	 select organization_id,slug,name,coalesce(enrollment_admin_approval_required,false)
+	 from jsonb_to_recordset($1::jsonb) as s(organization_id uuid,slug text,name text,enrollment_admin_approval_required boolean)
+	 on conflict(id) do update set name=excluded.name,
+	 enrollment_admin_approval_required=coalesce((select s.enrollment_admin_approval_required from jsonb_to_recordset($1::jsonb) as s(organization_id uuid,enrollment_admin_approval_required boolean) where s.organization_id=excluded.id),orgs.enrollment_admin_approval_required)
+	 where orgs.slug=excluded.slug and (orgs.name is distinct from excluded.name or
+	 exists(select 1 from jsonb_to_recordset($1::jsonb) as s(organization_id uuid,enrollment_admin_approval_required boolean) where s.organization_id=excluded.id and s.enrollment_admin_approval_required is not null and s.enrollment_admin_approval_required is distinct from orgs.enrollment_admin_approval_required))`, string(orgs)); err != nil {
 		return IdentitySyncRun{}, err
 	}
 	if err = tx.QueryRowContext(ctx, `select exists(select 1 from jsonb_to_recordset($1::jsonb) as s(organization_id uuid,slug text) join orgs o on o.id=s.organization_id where o.slug<>s.slug)`, string(orgs)).Scan(&conflict); err != nil {

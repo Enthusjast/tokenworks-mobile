@@ -1,5 +1,6 @@
 import { createHash, randomBytes, randomUUID } from 'node:crypto'
 import { inspect } from 'node:util'
+import { setTimeout as delay } from 'node:timers/promises'
 import { z } from 'zod'
 import { parseSigningObject } from './canonical.js'
 import { enrollmentAbortable, enrollmentError, HostEnrollmentError, HostEnrollmentTransport, type HostEnrollmentTransportOptions } from './host-enrollment-transport.js'
@@ -293,6 +294,9 @@ export class HostEnrollmentClient {
     activeApprovals.add(approvalKey)
     try {
       const first = await this.review(attempt, receipt, signal)
+      if (first.enrollment.state === 'user_confirmed' && first.enrollment.user_confirmed && first.enrollment.host_confirmed && first.confirmed_user?.eligible) {
+        return await this.#awaitApproval(attempt, receipt, first, signal)
+      }
       const user = requireReview(first)
       const remaining = Date.parse(first.enrollment.expires_at) - Date.now()
       if (remaining <= 0) throw enrollmentError('review_required')
@@ -314,10 +318,46 @@ export class HostEnrollmentClient {
       catch (cause) { if (cause instanceof HostEnrollmentError) throw cause; throw enrollmentError('outcome_unknown') }
       try { this.#transport.current(consentSignal); currentAttempt(attempt, this.#transport.binding) } catch { throw enrollmentError('outcome_unknown') }
       if (result.enrollment_id !== saved.data.enrollment_id || result.host_id !== saved.data.host_id || result.runtime_id !== saved.data.runtime_id ||
-          result.state !== 'approved' || !result.user_confirmed || !result.host_confirmed || Date.parse(result.expires_at) !== Date.parse(saved.data.expires_at)) throw enrollmentError('outcome_unknown')
+          !['approved', 'user_confirmed'].includes(result.state) || !result.user_confirmed || !result.host_confirmed || Date.parse(result.expires_at) !== Date.parse(saved.data.expires_at)) throw enrollmentError('outcome_unknown')
+      if (result.state === 'user_confirmed') return await this.#awaitApproval(attempt, receipt, first, signal)
       return result
     } finally { activeApprovals.delete(approvalKey) }
   }
+
+  // Waiting never creates a second request or replays local consent. The same
+  // protected attempt can resume this read-only phase after cancellation/restart.
+  async #awaitApproval(attempt: HostEnrollmentIntent, receipt: HostEnrollmentReceipt, expected: HostEnrollmentReview, signal: AbortSignal): Promise<HostEnrollmentConfirmation> {
+    const expires = Date.parse(expected.enrollment.expires_at)
+    if (expires <= Date.now()) throw enrollmentError('expired')
+    const deadline = AbortSignal.timeout(Math.max(1, Math.min(expires - Date.now(), 300_000)))
+    const lifetime = AbortSignal.any([attemptSignal(attempt, signal), this.signal, deadline])
+    try {
+      for (;;) {
+        this.#transport.current(lifetime)
+        const value = await this.review(attempt, receipt, lifetime)
+        if (value.confirmed_user?.user_id !== expected.confirmed_user?.user_id ||
+            value.confirmed_user?.issuer !== expected.confirmed_user?.issuer || value.confirmed_user?.subject !== expected.confirmed_user?.subject ||
+            value.enrollment.organization_name !== expected.enrollment.organization_name ||
+            value.enrollment.user_confirmed_by_me !== expected.enrollment.user_confirmed_by_me ||
+            !value.enrollment.user_confirmed || !value.enrollment.host_confirmed) throw enrollmentError('identity_changed')
+        if (value.enrollment.state === 'approved') return approvedConfirmation(value)
+        if (value.enrollment.state !== 'user_confirmed' || Date.now() >= expires) throw enrollmentError('expired')
+        if (!value.confirmed_user?.eligible) throw enrollmentError('identity_changed')
+        await delay(Math.min(1_000, Math.max(1, expires - Date.now())), undefined, { signal: lifetime })
+      }
+    } catch (cause) {
+      if (deadline.aborted) throw enrollmentError('expired')
+      if (lifetime.aborted) throw enrollmentError('cancelled')
+      throw cause
+    }
+  }
+}
+
+function approvedConfirmation(value: HostEnrollmentReview): HostEnrollmentConfirmation {
+  const row = value.enrollment
+  if (row.state !== 'approved' || !row.user_confirmed || !row.host_confirmed || !value.confirmed_user) throw enrollmentError('review_required')
+  return { enrollment_id: row.enrollment_id, host_id: row.host_id, runtime_id: row.runtime_id,
+    state: 'approved', expires_at: row.expires_at, user_confirmed: true, host_confirmed: true }
 }
 
 function attemptSignal(attempt: HostEnrollmentIntent, caller: AbortSignal): AbortSignal {

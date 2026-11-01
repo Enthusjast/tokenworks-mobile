@@ -67,7 +67,7 @@ async function fixture(t: test.TestContext) {
   const requests: Array<{ method: string; path: string; body: any; proof: any }> = []
   let origin = '', input: any, createdCount = 0, confirmedCount = 0, reviews = 0
   const expires = new Date(Date.now() + 300_000).toISOString()
-  const state = { phoneConfirmed: false, approved: false, eligible: true, confirmedUser: user, subject: 'fixture-phone', organizationName: 'Fixture organization',
+  const state = { phoneConfirmed: false, hostConfirmed: false, adminRequired: false, approved: false, eligible: true, confirmedUser: user, subject: 'fixture-phone', organizationName: 'Fixture organization',
     dropCreate: false, holdCreate: false, redirectCreate: false, dropConfirm: false, dropReviewAt: 0, holdReview: false, denyReview: false, wrongReceipt: false,
     aliasOverride: undefined as string | undefined, dshOverride: undefined as string | undefined, appOverride: undefined as string | undefined,
     pluginOverride: undefined as string | undefined, protocolOverride: undefined as number | undefined,
@@ -115,17 +115,18 @@ async function fixture(t: test.TestContext) {
           installation_id: installation, installation_key_jkt: thumbprint, runtime_id: runtime, profile_ref: input.profile_ref,
           dsh_version: state.dshOverride ?? input.dsh_version, application_version: state.appOverride ?? input.application_version, plugin_version: state.pluginOverride ?? input.plugin_version,
           protocol_version: state.protocolOverride ?? input.protocol_version, state: state.approved ? 'approved' : state.phoneConfirmed ? 'user_confirmed' : 'pending',
-          expires_at: expires, host_confirmed: state.approved, user_confirmed: state.phoneConfirmed, user_confirmed_by_me: false, workspaces },
+          expires_at: expires, host_confirmed: state.approved || state.hostConfirmed, user_confirmed: state.phoneConfirmed, user_confirmed_by_me: false, workspaces },
         confirmed_user: state.phoneConfirmed ? { user_id: state.confirmedUser, issuer: expected.issuer, subject: state.subject, eligible: state.eligible } : null } }, next)
       } else if (request.method === 'POST' && request.url === `/v1/enrollments/${enrollment}/host-confirm`) {
         assert.ok(input)
         if (!state.phoneConfirmed || !state.eligible || body.code !== input.code || body.confirmed_user_id !== state.confirmedUser) {
           send(response, 403, { ok: false, error: { code: 'access.denied' } }, next); return
         }
-        if (!state.approved) { state.approved = true; confirmedCount++ }
+        if (!state.hostConfirmed) { state.hostConfirmed = true; confirmedCount++ }
+        if (!state.adminRequired) state.approved = true
         if (state.dropConfirm) { state.dropConfirm = false; response.destroy(); return }
         send(response, 200, { ok: true, data: { enrollment_id: enrollment, host_id: host, runtime_id: runtime,
-          state: 'approved', expires_at: expires, host_confirmed: true, user_confirmed: true } }, next)
+          state: state.approved ? 'approved' : 'user_confirmed', expires_at: expires, host_confirmed: true, user_confirmed: true } }, next)
       } else { t.assert.fail('unexpected enrollment route'); response.destroy() }
     } catch (cause) { t.assert.fail(cause instanceof Error ? cause.message : 'fixture protocol failure'); response.destroy() }
   })
@@ -140,7 +141,7 @@ async function fixture(t: test.TestContext) {
   t.after(async () => { client.close(); owner.abort(); server.closeAllConnections(); await new Promise<void>(resolve => server.close(() => resolve())) })
   const prepare = () => client.prepare({ organizationId: organization, alias: 'Fixture host', profileRef: 'profile', dshVersion: '0.2.1-rc.2',
     applicationVersion: 'fixture', pluginVersion: '0.0.1', protocolVersion: 1, workspaceRefs: ['z-workspace', 'a-workspace'] })
-  return { client, options, account, privateKey: keys.privateKey, owner, requests, prepare, state, resetEnrollment: () => { input = undefined; state.phoneConfirmed = false; state.approved = false },
+  return { client, options, account, privateKey: keys.privateKey, owner, requests, prepare, state, resetEnrollment: () => { input = undefined; state.phoneConfirmed = false; state.hostConfirmed = false; state.approved = false },
     counts: () => ({ createdCount, confirmedCount, reviews }) }
 }
 
@@ -208,6 +209,47 @@ test('unknown create and confirmation outcomes require explicit reconciliation',
   assert.equal((await f.client.review(attempt, receipt, AbortSignal.timeout(5_000))).enrollment.state, 'approved')
   await assert.rejects(f.client.confirm(attempt, receipt, () => true, AbortSignal.timeout(5_000)), valid('review_required'))
   assert.equal(f.counts().confirmedCount, 1)
+})
+
+test('administrator approval keeps Host pending after local consent and resumes without replaying it', async t => {
+  const f = await fixture(t), attempt = f.prepare(), receipt = await f.client.create(attempt, AbortSignal.timeout(5_000))
+  f.state.phoneConfirmed = true; f.state.adminRequired = true
+  let approvals = 0, pending!: () => void
+  const observedPending = new Promise<void>(resolve => { pending = resolve })
+  f.state.onReview = () => { if (f.state.hostConfirmed && !f.state.approved) pending() }
+  const cancel = new AbortController()
+  let resolved = false
+  const operation = f.client.confirm(attempt, receipt, () => { approvals++; return true }, cancel.signal).then(value => { resolved = true; return value })
+  await observedPending
+  assert.equal(resolved, false); assert.equal(approvals, 1); assert.equal(f.counts().confirmedCount, 1)
+  const recovery = attempt.exportRecovery()
+  cancel.abort()
+  await assert.rejects(operation, valid('cancelled'))
+  attempt.destroy(); f.client.close()
+  const restarted = new HostEnrollmentClient(f.options)
+  t.after(() => restarted.close())
+  const restored = restarted.restore(recovery); recovery.fill(0)
+  t.after(() => restored.destroy())
+  const reconciled = await restarted.create(restored, AbortSignal.timeout(5_000))
+  let resumedReviews = 0
+  f.state.onReview = () => { if (++resumedReviews > 1) f.state.approved = true }
+  const result = await restarted.confirm(restored, reconciled, () => { approvals++; return false }, AbortSignal.timeout(5_000))
+  assert.equal(result.state, 'approved'); assert.equal(approvals, 1)
+  assert.equal(f.counts().createdCount, 1); assert.equal(f.counts().confirmedCount, 1)
+})
+
+test('administrator wait refuses a changed confirmer or withdrawn local consent', async t => {
+  for (const mode of ['phone', 'local'] as const) {
+    const f = await fixture(t), attempt = f.prepare(), receipt = await f.client.create(attempt, AbortSignal.timeout(5_000))
+    f.state.phoneConfirmed = true; f.state.adminRequired = true
+    f.state.onReview = () => {
+      if (!f.state.hostConfirmed) return
+      if (mode === 'phone') { f.state.confirmedUser = alternateUser; f.state.subject = 'changed-phone' }
+      else f.state.hostConfirmed = false
+    }
+    await assert.rejects(f.client.confirm(attempt, receipt, () => true, AbortSignal.timeout(5_000)), valid('identity_changed'))
+    assert.equal(f.state.approved, false); assert.equal(f.counts().confirmedCount, 1)
+  }
 })
 
 test('protected recovery reconciles a lost create response without a second enrollment', { skip: process.platform !== 'linux' }, async t => {

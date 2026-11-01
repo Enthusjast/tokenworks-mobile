@@ -210,6 +210,8 @@ func New(database Repository, identity *auth.Authenticator, configs ...Config) *
 	mux.Handle("POST /v1/enrollments/{id}/preview", api.protected(http.HandlerFunc(api.previewEnrollment)))
 	mux.Handle("POST /v1/enrollments/{id}/confirm", api.protected(http.HandlerFunc(api.confirmEnrollmentUser)))
 	mux.Handle("POST /v1/enrollments/{id}/host-confirm", api.hostAuthenticated(http.HandlerFunc(api.confirmEnrollmentHost)))
+	mux.Handle("GET /v1/enrollments/{id}/admin-review", api.protected(http.HandlerFunc(api.reviewEnrollmentAdmin)))
+	mux.Handle("POST /v1/enrollments/{id}/admin-approve", api.protected(http.HandlerFunc(api.approveEnrollmentAdmin)))
 	mux.Handle("POST /v1/host-credentials/challenges", api.hostAuthenticated(http.HandlerFunc(api.createHostCredentialChallenge)))
 	mux.Handle("POST /v1/host-credentials", api.hostAuthenticated(http.HandlerFunc(api.exchangeHostCredential)))
 	mux.Handle("DELETE /v1/devices/{id}", api.protected(http.HandlerFunc(api.revokeDevice)))
