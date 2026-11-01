@@ -14,11 +14,13 @@ var ErrAppReleasePolicyStale = errors.New("store: APK publication policy is not 
 var errAppReleaseOperationMissing = errors.New("store: APK publication operation is not recorded")
 
 type AppReleasePolicyStatus struct {
-	DatabaseEpoch string `json:"database_epoch"`
-	PackageName   string `json:"package_name"`
-	Configured    bool   `json:"configured"`
-	PolicySHA256  string `json:"policy_sha256,omitempty"`
-	Revision      int64  `json:"revision"`
+	DatabaseEpoch  string `json:"database_epoch"`
+	PackageName    string `json:"package_name"`
+	Configured     bool   `json:"configured"`
+	PolicySHA256   string `json:"policy_sha256,omitempty"`
+	Revision       int64  `json:"revision"`
+	ValidatedEpoch string `json:"validated_epoch,omitempty"`
+	Current        bool   `json:"current"`
 }
 type AppReleasePolicyChange struct {
 	OperationID    string    `json:"operation_id"`
@@ -49,11 +51,12 @@ func (postgres *Postgres) AppReleasePolicyStatus(parent context.Context, epoch, 
 	if state.Epoch != epoch || state.Phase != "ready" {
 		return result, ErrRecoveryUnavailable
 	}
-	err = tx.QueryRowContext(ctx, `select encode(policy_sha256,'hex'),revision from app_release_policies where package_name=$1`, packageName).Scan(&result.PolicySHA256, &result.Revision)
+	err = tx.QueryRowContext(ctx, `select encode(policy_sha256,'hex'),revision,validated_epoch::text from app_release_policies where package_name=$1`, packageName).Scan(&result.PolicySHA256, &result.Revision, &result.ValidatedEpoch)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return result, ErrDatabaseUnavailable
 	}
 	result.Configured = err == nil
+	result.Current = result.Configured && result.ValidatedEpoch == epoch
 	if tx.Commit() != nil {
 		return result, ErrDatabaseUnavailable
 	}

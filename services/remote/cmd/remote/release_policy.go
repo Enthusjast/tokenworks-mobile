@@ -14,7 +14,7 @@ import (
 )
 
 func runAppReleaseCommand(args []string, output io.Writer) error {
-	if len(args) == 0 || args[0] != "describe" && args[0] != "status" && args[0] != "replace" {
+	if len(args) == 0 || args[0] != "describe" && args[0] != "status" && args[0] != "replace" && args[0] != "confirm" {
 		return errReleaseConfiguration
 	}
 	command := args[0]
@@ -26,7 +26,7 @@ func runAppReleaseCommand(args []string, output io.Writer) error {
 	} else {
 		path = flags.String("catalog-file", "", "protected publication catalog")
 	}
-	if command == "replace" {
+	if command == "replace" || command == "confirm" {
 		id = flags.String("operation-id", "", "stable operation UUID")
 		expected = flags.String("expected-sha256", "", "current policy digest")
 	}
@@ -61,7 +61,7 @@ func runAppReleaseCommand(args []string, output io.Writer) error {
 		}{"dsh-app-release-policy/v1", ref})
 	}
 	epoch := os.Getenv("REMOTE_DATABASE_EPOCH")
-	if !commandRateEpochPattern.MatchString(epoch) || command == "replace" && !store.ValidAppReleasePolicyChange(epoch, *id, *expected, catalog) {
+	if !commandRateEpochPattern.MatchString(epoch) || command == "replace" && !store.ValidAppReleasePolicyChange(epoch, *id, *expected, catalog) || command == "confirm" && !store.ValidAppReleasePolicyConfirmation(epoch, *id, *expected, catalog) {
 		return errReleaseConfiguration
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 8*time.Second)
@@ -74,6 +74,8 @@ func runAppReleaseCommand(args []string, output io.Writer) error {
 	var result any
 	if command == "status" {
 		result, err = database.AppReleasePolicyStatus(ctx, epoch, ref.PackageName)
+	} else if command == "confirm" {
+		result, err = database.ConfirmAppReleasePolicy(ctx, epoch, *id, *expected, catalog)
 	} else {
 		result, err = database.ReplaceAppReleasePolicy(ctx, epoch, *id, *expected, catalog)
 	}

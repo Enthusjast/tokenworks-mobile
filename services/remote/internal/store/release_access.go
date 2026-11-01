@@ -3,9 +3,10 @@ package store
 import (
 	"context"
 	"database/sql"
-	"dsh-mobile-ustc/services/remote/internal/releases"
 	"errors"
 	"time"
+
+	"dsh-mobile-ustc/services/remote/internal/releases"
 )
 
 // AppReleaseAccess rechecks the current school user, organization and registered
@@ -19,7 +20,8 @@ func (postgres *Postgres) AppReleaseAccess(ctx context.Context, identity UserIde
 	}
 	var current bool
 	var user string
-	err := postgres.DB.QueryRowContext(ctx, `select u.id::text,exists(select 1 from app_release_policies p where p.package_name=$7 and p.policy_sha256=decode($8,'hex')) from users u
+	err := postgres.DB.QueryRowContext(ctx, `select u.id::text,exists(select 1 from app_release_policies p cross join remote_recovery_state s
+ where s.slot=1 and s.phase='ready' and p.validated_epoch=s.epoch and p.package_name=$7 and p.policy_sha256=decode($8,'hex')) from users u
 	 join devices d on d.user_id=u.id and d.id=$3 and d.revoked_at is null and d.proof_key_thumbprint=$4
 	 join org_memberships m on m.user_id=u.id and m.org_id=$5
 	 where u.issuer=$1 and u.subject=$2 and u.status='active' and $6::timestamptz>clock_timestamp()`,

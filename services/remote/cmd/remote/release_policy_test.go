@@ -17,7 +17,7 @@ import (
 func TestAppReleasePolicyCLIValidatesBeforeDatabaseAndDescribesOffline(t *testing.T) {
 	t.Setenv("REMOTE_DATABASE_URL", "PRIVATE_INVALID_DATABASE")
 	t.Setenv("REMOTE_DATABASE_EPOCH", store.OriginalDatabaseEpoch)
-	for _, args := range [][]string{nil, {"unknown"}, {"status"}, {"status", "--package-name", "bad"}, {"replace"}, {"describe", "--catalog-file", ""}, {"status", "--package-name", "cn.edu.valid", "extra"}} {
+	for _, args := range [][]string{nil, {"unknown"}, {"status"}, {"status", "--package-name", "bad"}, {"replace"}, {"confirm"}, {"describe", "--catalog-file", ""}, {"status", "--package-name", "cn.edu.valid", "extra"}} {
 		var output bytes.Buffer
 		if err := runAppReleaseCommand(args, &output); err == nil || strings.Contains(err.Error(), "PRIVATE_INVALID_DATABASE") || output.Len() != 0 {
 			t.Fatal("invalid command reached database or returned metadata", err)

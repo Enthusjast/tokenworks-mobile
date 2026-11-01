@@ -240,6 +240,10 @@ func TestAppReleaseRegistryRecoveryFenceAndIrreversibleIdentity(t *testing.T) {
 	if err = db.RegisterAppReleaseCatalog(ctx, epoch, catalog); !errors.Is(err, ErrRecoveryUnavailable) {
 		t.Fatal("quarantine admitted publication", err)
 	}
+	policyBeforeRelease, _ := catalog.Policy()
+	if _, err = db.ConfirmAppReleasePolicy(ctx, epoch, "11111111-1111-4111-8111-111111111111", policyBeforeRelease.SHA256, catalog); !errors.Is(err, ErrRecoveryUnavailable) {
+		t.Fatal("quarantine admitted confirmation", err)
+	}
 	authority := RecoveryAuthority{Version: 1, Complete: true, RecoveryID: operation, DatabaseEpoch: epoch, Issuer: "https://id.example.edu", CapturedAt: time.Now().UTC(), ExpiresAt: time.Now().Add(time.Minute).UTC(), Users: []RecoveryUser{}}
 	if _, err = db.ReleaseRecovery(ctx, epoch, authority.Issuer, authority); err != nil {
 		t.Fatal(err)
@@ -247,8 +251,15 @@ func TestAppReleaseRegistryRecoveryFenceAndIrreversibleIdentity(t *testing.T) {
 	if err = db.RegisterAppReleaseCatalog(ctx, OriginalDatabaseEpoch, catalog); !errors.Is(err, ErrRecoveryUnavailable) {
 		t.Fatal("old epoch reused registry", err)
 	}
+	if err = db.RegisterAppReleaseCatalog(ctx, epoch, catalog); !errors.Is(err, ErrAppReleasePolicyConflict) {
+		t.Fatal("new epoch silently accepted restored policy", err)
+	}
+	policy, _ := catalog.Policy()
+	if _, err = db.ConfirmAppReleasePolicy(ctx, epoch, "11111111-1111-4111-8111-111111111111", policy.SHA256, catalog); err != nil {
+		t.Fatal(err)
+	}
 	if err = db.RegisterAppReleaseCatalog(ctx, epoch, catalog); err != nil {
-		t.Fatal("new epoch lost old identity", err)
+		t.Fatal("confirmed epoch lost old identity", err)
 	}
 
 	registryCounts(t, ctx, db, 1)

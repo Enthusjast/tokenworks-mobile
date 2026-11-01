@@ -49,7 +49,7 @@ func (postgres *Postgres) RegisterAppReleaseCatalog(parent context.Context, epoc
 		return ErrDatabaseUnavailable
 	}
 	var current bool
-	if err = tx.QueryRowContext(ctx, `select policy_sha256=decode($2,'hex') from app_release_policies where package_name=$1`, ref.PackageName, ref.SHA256).Scan(&current); err != nil {
+	if err = tx.QueryRowContext(ctx, `select policy_sha256=decode($2,'hex') and validated_epoch=$3 from app_release_policies where package_name=$1`, ref.PackageName, ref.SHA256, epoch).Scan(&current); err != nil {
 		return ErrDatabaseUnavailable
 	}
 	if !current {
