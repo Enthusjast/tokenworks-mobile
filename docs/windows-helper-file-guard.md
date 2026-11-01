@@ -72,3 +72,7 @@ ACE 缺失；程序没有把这种结果当作 Windows 权限正确。合成描�
 `.local/windows-helper-acl-host-verify.log` 记录原有 Host 495 项验证全部通过，含本机 npm dsh
 0.2.1-rc.2 CLI；本批未更改 Host 生产 TS 或 Go 代码。没有修改 Android APP、提交 PLAN.md、
 尝试 TokenWorks，也没有执行大负载、真机或厂商推送配置。
+
+后续[固定摘要启动器](windows-pinned-launcher.md)将共享路径检查改为从盘根向下锁定，
+拒绝非固定磁盘及非规范组成部分，并在传递管道前检查目标摘要。它尚未接入可信 Node
+启动端，不改变本文的 Windows 日志和原生验收限制。

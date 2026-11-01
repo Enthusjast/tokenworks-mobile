@@ -48,6 +48,12 @@ int wmain(int argc, wchar_t **argv) {
         dsh_safe_helper_attributes(FILE_ATTRIBUTE_NORMAL | FILE_ATTRIBUTE_REPARSE_POINT, 1, FALSE) ||
         dsh_safe_helper_attributes(FILE_ATTRIBUTE_DIRECTORY | FILE_ATTRIBUTE_REPARSE_POINT, 1, TRUE) ||
         dsh_safe_helper_attributes(FILE_ATTRIBUTE_DIRECTORY, 1, FALSE)) goto done;
+    if (!dsh_helper_path_syntax(L"C:\\private\\helper.exe", wcslen(L"C:\\private\\helper.exe")) ||
+        dsh_helper_path_syntax(L"C:\\private\\..\\helper.exe", wcslen(L"C:\\private\\..\\helper.exe")) ||
+        dsh_helper_path_syntax(L"C:\\private.\\helper.exe", wcslen(L"C:\\private.\\helper.exe")) ||
+        dsh_helper_path_syntax(L"C:\\private\\helper.exe:stream", wcslen(L"C:\\private\\helper.exe:stream")) ||
+        dsh_helper_path_syntax(L"C:/private/helper.exe", wcslen(L"C:/private/helper.exe")) ||
+        dsh_helper_path_syntax(L"C:\\private\\\\helper.exe", wcslen(L"C:\\private\\\\helper.exe"))) goto done;
     result = 0;
 done:
     if (regular != NULL) LocalFree(regular);

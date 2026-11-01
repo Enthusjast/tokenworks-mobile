@@ -77,42 +77,74 @@ static void dsh_close_helper_guard(DSH_HELPER_GUARD *guard) {
     while (guard->count != 0) CloseHandle(guard->handles[--guard->count]);
 }
 
-static BOOL dsh_lock_helper_image(DSH_HELPER_GUARD *guard) {
+/* Strict canonical DOS paths only: never normalize an untrusted launch path.
+ * Lock parents from the root down so every later open has an already checked,
+ * non-replaceable parent. The final handle is the image used for hashing. */
+static BOOL dsh_helper_path_syntax(const wchar_t *path, size_t length) {
+    size_t index, component = 3;
+    if (length < 4u || length >= DSH_HELPER_PATH_MAX || path[1] != L':' || path[2] != L'\\' ||
+        !((path[0] >= L'A' && path[0] <= L'Z') || (path[0] >= L'a' && path[0] <= L'z'))) return FALSE;
+    for (index = 3; index <= length; index++) {
+        wchar_t value = path[index];
+        if (value == L'\\' || value == L'\0') {
+            if (index == component || path[index - 1] == L'.' || path[index - 1] == L' ') return FALSE;
+            component = index + 1;
+        } else if (value < 32 || wcschr(L"/:*?\"<>|", value) != NULL) return FALSE;
+    }
+    return TRUE;
+}
+
+static BOOL dsh_lock_helper_path(DSH_HELPER_GUARD *guard, const wchar_t *source) {
     HANDLE token = NULL;
     TOKEN_USER *user = NULL;
-    DWORD needed = 0, allocated = 0, length;
+    DWORD needed = 0, allocated = 0;
+    size_t length, end;
     wchar_t *path = NULL;
-    BOOL directory = FALSE, safe = FALSE;
+    BOOL safe = FALSE;
     guard->count = 0;
+    length = wcsnlen(source, DSH_HELPER_PATH_MAX);
+    if (!dsh_helper_path_syntax(source, length)) goto done;
     if (!OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, &token)) goto done;
     if (GetTokenInformation(token, TokenUser, NULL, 0, &needed) || GetLastError() != ERROR_INSUFFICIENT_BUFFER ||
         needed < sizeof(TOKEN_USER) || needed > 65536u) goto done;
     allocated = needed;
     user = (TOKEN_USER *)HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, allocated);
-    path = (wchar_t *)HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, DSH_HELPER_PATH_MAX * sizeof(wchar_t));
+    path = (wchar_t *)HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, (length + 1u) * sizeof(wchar_t));
     if (user == NULL || path == NULL || !GetTokenInformation(token, TokenUser, user, allocated, &needed) || dsh_service_sid(user->User.Sid)) goto done;
-    length = GetModuleFileNameW(NULL, path, DSH_HELPER_PATH_MAX);
-    if (length < 4u || length >= DSH_HELPER_PATH_MAX || path[1] != L':' || path[2] != L'\\' ||
-        !((path[0] >= L'A' && path[0] <= L'Z') || (path[0] >= L'a' && path[0] <= L'z'))) goto done;
+    memcpy(path, source, (length + 1u) * sizeof(wchar_t));
+    end = 3;
     for (;;) {
         HANDLE file;
-        wchar_t *separator;
+        wchar_t saved = path[end];
         if (guard->count >= DSH_HELPER_DEPTH_MAX) goto done;
-        file = dsh_open_helper_component(path, directory, user->User.Sid);
+        path[end] = L'\0';
+        if (guard->count == 0 && GetDriveTypeW(path) != DRIVE_FIXED) goto done;
+        file = dsh_open_helper_component(path, end != length, user->User.Sid);
+        path[end] = saved;
         if (file == INVALID_HANDLE_VALUE) goto done;
         guard->handles[guard->count++] = file;
-        if (directory && wcslen(path) == 3u) break;
-        separator = wcsrchr(path, L'\\');
-        if (separator == NULL || separator < path + 2) goto done;
-        if (separator == path + 2) path[3] = L'\0'; else *separator = L'\0';
-        directory = TRUE;
+        if (end == length) break;
+        end = end == 3 ? 3 : end + 1;
+        while (end < length && path[end] != L'\\') end++;
     }
     safe = TRUE;
 done:
     if (!safe) dsh_close_helper_guard(guard);
-    if (path != NULL) { SecureZeroMemory(path, DSH_HELPER_PATH_MAX * sizeof(wchar_t)); HeapFree(GetProcessHeap(), 0, path); }
+    if (path != NULL) { SecureZeroMemory(path, (length + 1u) * sizeof(wchar_t)); HeapFree(GetProcessHeap(), 0, path); }
     if (user != NULL) { SecureZeroMemory(user, allocated); HeapFree(GetProcessHeap(), 0, user); }
     if (token != NULL) CloseHandle(token);
+    return safe;
+}
+
+static BOOL dsh_lock_helper_image(DSH_HELPER_GUARD *guard) {
+    DWORD length;
+    wchar_t *path = (wchar_t *)HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, DSH_HELPER_PATH_MAX * sizeof(wchar_t));
+    BOOL safe = FALSE;
+    if (path == NULL) return FALSE;
+    length = GetModuleFileNameW(NULL, path, DSH_HELPER_PATH_MAX);
+    if (length > 0 && length < DSH_HELPER_PATH_MAX) safe = dsh_lock_helper_path(guard, path);
+    SecureZeroMemory(path, DSH_HELPER_PATH_MAX * sizeof(wchar_t));
+    HeapFree(GetProcessHeap(), 0, path);
     return safe;
 }
 #endif

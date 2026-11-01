@@ -6,6 +6,7 @@ import hmac
 import json
 import os
 import shutil
+import selectors
 from pathlib import Path
 import struct
 import subprocess
@@ -46,10 +47,10 @@ def compile_helpers(repo, output, compiler, sdk):
              "-B" + str(runtime[0]) + "/", "-B" + str(sdk / "usr/x86_64-w64-mingw32/bin") + "/",
              "-isystem", str(sdk / "usr/x86_64-w64-mingw32/include"), "-L" + str(sdk / "usr/x86_64-w64-mingw32/lib")]
     sources, binaries = {}, {}
-    for name in ("dpapi-helper", "dpapi-policy-test", "dpapi-acl-test"):
+    for name in ("dpapi-helper", "dpapi-policy-test", "dpapi-acl-test", "dpapi-launcher", "dpapi-launch-child-test"):
         source = repo / "tools/native/windows" / (name + ".c")
         binary = output / (name + ".exe")
-        result = subprocess.run([str(compiler), *flags, str(source), "-o", str(binary), "-lcrypt32", "-ladvapi32"],
+        result = subprocess.run([str(compiler), *flags, str(source), "-o", str(binary), "-lcrypt32", "-ladvapi32", "-lbcrypt"],
                                 cwd=repo, capture_output=True, timeout=45)
         log = output / (name + ".build.log")
         log.write_bytes(result.stdout + result.stderr); log.chmod(0o600)
@@ -81,24 +82,33 @@ def probe(repo, output, compiler, sdk, wine, wineserver):
         shutil.copyfile(output / "dpapi-helper.exe", installed / "dpapi-helper.exe")
         (installed / "dpapi-helper.exe").chmod(0o600)
         helper = r"C:\dsh-helper-fixture\dpapi-helper.exe"
+        launcher = r"C:\dsh-helper-fixture\dpapi-launcher.exe"
+        child_fixture = r"C:\dsh-helper-fixture\dpapi-launch-child-test.exe"
+        for name in ("dpapi-launcher.exe", "dpapi-launch-child-test.exe"):
+            shutil.copyfile(output / name, installed / name)
+            (installed / name).chmod(0o600)
+        pin = summary["build"]["binaries"]["dpapi-helper.exe"]
+        environment["DSH_LAUNCHER_LEAK"] = "must-not-reach-child"
         acl_test = subprocess.run([str(wine), str(output / "dpapi-acl-test.exe"), helper], env=environment, capture_output=True, timeout=20)
         (output / "acl-test.stderr").write_bytes(acl_test.stderr); (output / "acl-test.stderr").chmod(0o600)
         require(acl_test.returncode == 0 and acl_test.stdout in (b"", b"ACL_FIXTURE_WRITE_DAC_NOT_RETAINED\r\n", b"ACL_FIXTURE_WRITE_DAC_NOT_RETAINED\n"))
         summary["unverified_cases"] = ["wine-file-object-write-dac-ace-readback"] if acl_test.stdout else []
         cases = ["helper-owner-and-dacl-policy", "helper-attributes-and-links", "helper-file-sharing-lock"]
+        summary["cases"] = cases
         def call(operation, raw, accepted):
-            result = subprocess.run([str(wine), helper, operation], input=raw, env=environment, capture_output=True, timeout=15)
+            result = subprocess.run([str(wine), launcher, helper, pin, operation], input=raw, env=environment, capture_output=True, timeout=15)
             if accepted:
                 require(result.returncode == 0 and len(result.stdout) <= 12 + MAX_WRAPPED)
             else:
-                require(result.returncode != 0 and result.stdout == b"" and result.stderr.endswith(ERROR))
+                error = ERROR if operation in ("journal-protect-v1", "journal-unprotect-v1") else b"DPAPI launch unavailable\n"
+                require(result.returncode != 0 and result.stdout == b"" and result.stderr.endswith(error))
             return result.stdout
-        def rejected_before_input(path):
-            child = subprocess.Popen([str(wine), path, "journal-protect-v1"], env=environment, stdin=subprocess.PIPE,
+        def rejected_before_input(path, arguments=None, error=ERROR, timeout=5):
+            child = subprocess.Popen([str(wine), path, *(arguments if arguments is not None else ["journal-protect-v1"])], env=environment, stdin=subprocess.PIPE,
                                      stdout=subprocess.PIPE, stderr=subprocess.PIPE)
             try:
-                child.wait(timeout=5)
-                require(child.returncode != 0 and child.stdout.read() == b"" and child.stderr.read().endswith(ERROR))
+                child.wait(timeout=timeout)
+                require(child.returncode != 0 and child.stdout.read() == b"" and child.stderr.read().endswith(error))
             finally:
                 if child.poll() is None:
                     child.kill(); child.wait(timeout=5)
@@ -118,8 +128,71 @@ def probe(repo, output, compiler, sdk, wine, wineserver):
             rejected_before_input(helper); cases.append("unsafe-parent-rejected-before-stdin")
         finally:
             installed.chmod(0o700)
+        launch_error = b"DPAPI launch unavailable\n"
+        for name, target, digest, operation in [
+                ("launcher-wrong-pin", helper, "0" * 64, "journal-protect-v1"),
+                ("launcher-uppercase-pin", helper, pin.upper(), "journal-protect-v1"),
+                ("launcher-short-pin", helper, pin[:-1], "journal-protect-v1"),
+                ("launcher-relative-path", r"dsh-helper-fixture\dpapi-helper.exe", pin, "journal-protect-v1"),
+                ("launcher-dot-path", r"C:\dsh-helper-fixture\..\dsh-helper-fixture\dpapi-helper.exe", pin, "journal-protect-v1"),
+                ("launcher-unknown-operation", helper, pin, "other-operation")]:
+            rejected_before_input(launcher, [target, digest, operation], launch_error)
+            cases.append(name + "-before-stdin")
+        # A distinct pinned fixture checks the child's actual environment, cwd,
+        # standard pipe handles and active-process job limit.
+        child_pin = summary["build"]["binaries"]["dpapi-launch-child-test.exe"]
+        launch_fixture = subprocess.run([str(wine), launcher, child_fixture, child_pin, "journal-protect-v1"],
+                                       input=b"", env=environment, capture_output=True, timeout=15)
+        (output / "launch-child.stderr").write_bytes(launch_fixture.stderr)
+        (output / "launch-child.stderr").chmod(0o600)
+        require(launch_fixture.returncode == 0 and launch_fixture.stdout in (b"PINNED_CHILD_OK\n", b"PINNED_CHILD_OK\nCURRENT_JOB_QUERY_ZERO\n", b"PINNED_CHILD_OK\nCURRENT_JOB_QUERY_ZERO\nACTIVE_PROCESS_LIMIT_NOT_ENFORCED\n") and launch_fixture.stderr == b"")
+        if b"CURRENT_JOB_QUERY_ZERO\n" in launch_fixture.stdout:
+            summary["unverified_cases"].append("wine-current-job-limit-query")
+        if b"ACTIVE_PROCESS_LIMIT_NOT_ENFORCED\n" in launch_fixture.stdout:
+            summary["unverified_cases"].append("wine-job-active-process-limit")
+        cases.append("launcher-child-environment-cwd-pipes-job-membership")
+        inheritance = subprocess.run([str(wine), child_fixture, "inheritance-driver", launcher, child_fixture, child_pin],
+                                     input=b"", env=environment, capture_output=True, timeout=20)
+        (output / "inheritance.stderr").write_bytes(inheritance.stderr)
+        (output / "inheritance.stderr").chmod(0o600)
+        require(inheritance.returncode == 0 and inheritance.stdout == launch_fixture.stdout + b"INHERITANCE_CHECK_OK\n" and inheritance.stderr == b"")
+        cases.append("launcher-excludes-extra-inheritable-handle")
+        rejected_before_input(launcher, [child_fixture, pin, "journal-protect-v1"], launch_error)
+        cases.append("launcher-different-image-not-executed")
+        rejected_before_input(launcher, [helper, pin, "journal-protect-v1"], launch_error, timeout=17)
+        cases.append("launcher-timeout-before-input")
+        # Observe readiness, kill only the launcher, and require the child's
+        # stdout to close while the driver still holds stdin open. Closing
+        # stdin or communicate() first would give a false cleanup result.
+        child = subprocess.Popen([str(wine), launcher, child_fixture, child_pin, "journal-unprotect-v1"],
+                                 env=environment, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        try:
+            with selectors.DefaultSelector() as selector:
+                selector.register(child.stdout, selectors.EVENT_READ)
+                require(selector.select(timeout=5))
+                require(os.read(child.stdout.fileno(), 1024) == b"PINNED_CHILD_WAITING\n")
+                child.kill(); child.wait(timeout=5)
+                require(selector.select(timeout=5))
+                require(os.read(child.stdout.fileno(), 1024) == b"")
+            cases.append("launcher-death-kills-child-with-stdin-open")
+        finally:
+            if child.poll() is None:
+                child.kill(); child.wait(timeout=5)
+            child.stdin.close(); child.stdout.close(); child.stderr.close()
         key = os.urandom(32)
         context = b"fixture/runtime/path/provider\0" + os.urandom(16)
+        spaced = installed / "安装 space"
+        spaced.mkdir(mode=0o700)
+        shutil.copyfile(installed / "dpapi-helper.exe", spaced / "日志 helper.exe")
+        (spaced / "日志 helper.exe").chmod(0o600)
+        original_helper = helper
+        try:
+            helper = r"C:\dsh-helper-fixture\安装 space\日志 helper.exe"
+            spaced_blob = response(call("journal-protect-v1", request(key, context), True))
+            require(hmac.compare_digest(response(call("journal-unprotect-v1", request(spaced_blob, context), True), 32), key))
+            cases.append("launcher-unicode-and-space-path-roundtrip")
+        finally:
+            helper = original_helper
         wrapped = response(call("journal-protect-v1", request(key, context), True))
         require(48 <= len(wrapped) <= MAX_WRAPPED and key not in wrapped)
         restored = response(call("journal-unprotect-v1", request(wrapped, context), True), 32)
@@ -156,6 +229,7 @@ def probe(repo, output, compiler, sdk, wine, wineserver):
         # Wine server or accept a caller-selected prefix.
         cleanup = subprocess.run([str(wineserver), "-k"], env=environment, capture_output=True, timeout=10)
         stopped = subprocess.run([str(wineserver), "-w"], env=environment, capture_output=True, timeout=10)
+        summary["case_count"] = len(summary.get("cases", []))
         summary["owned_prefix_stop_result"] = cleanup.returncode
         summary["owned_prefix_cleanup"] = stopped.returncode == 0
         path = output / "summary.json"

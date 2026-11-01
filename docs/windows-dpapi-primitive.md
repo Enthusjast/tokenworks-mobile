@@ -101,3 +101,6 @@ Android APP 或 PLAN.md，没有尝试 TokenWorks，也未执行大负载、真�
 
 后续[helper 安装文件自检](windows-helper-file-guard.md)增加 owner／DACL、重解析点、
 链接及共享句柄门禁；仍不是完整的启动端可信验证，也不启用 Windows 日志。
+
+后续[固定摘要启动器](windows-pinned-launcher.md)提供原生启动前摘要／句柄／进程门禁；
+Node provider、可信发行安装、Windows 数据 ACL 和日志持久化仍未接入。
