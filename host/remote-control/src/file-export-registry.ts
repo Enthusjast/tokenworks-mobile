@@ -28,6 +28,10 @@ const TTL_MS = 5 * 60_000
 export class FileExportRegistry {
   #entries = new Map<string, Entry>()
   #preparing = 0
+  #slots = 0
+  #owned = new Set<PinnedExportSource>()
+  #disposing = new Map<PinnedExportSource, Promise<void>>()
+  #cleanupFailed = false
   #pending = new Set<Promise<void>>()
   #lifetime = new AbortController()
   #timer: NodeJS.Timeout
@@ -39,7 +43,10 @@ export class FileExportRegistry {
   }
   #valid(session: string, authority: ExportAuthority): void {
     if (this.#closed || !UUID.test(session) || !UUID.test(authority.owner.userId) || !UUID.test(authority.owner.deviceId)) throw new ProbeError('access.denied')
-    authority.signal.throwIfAborted(); authority.current()
+    if (this.#cleanupFailed) throw new ProbeError('file.export_unavailable')
+    authority.signal.throwIfAborted(); authority.current(); authority.signal.throwIfAborted()
+    if (this.#closed) throw new ProbeError('access.denied')
+    if (this.#cleanupFailed) throw new ProbeError('file.export_unavailable')
   }
   #alive(entry: Pick<Entry, 'wall' | 'started' | 'authority'>): boolean {
     return !entry.authority.signal.aborted && Date.now() >= entry.wall && Date.now() < entry.wall + TTL_MS
@@ -47,28 +54,25 @@ export class FileExportRegistry {
   }
   #prune(): void {
     for (const [id, entry] of this.#entries) {
-      let active = this.#alive(entry) && entry.owner.userId === entry.authority.owner.userId && entry.owner.deviceId === entry.authority.owner.deviceId
+      let active = !this.#cleanupFailed && this.#alive(entry) && entry.owner.userId === entry.authority.owner.userId && entry.owner.deviceId === entry.authority.owner.deviceId
       if (active) { try { entry.authority.current() } catch { active = false } }
-      if (!active) { this.#entries.delete(id); void entry.source.close() }
+      if (!active) { this.#entries.delete(id); void this.#dispose(entry.source).catch(() => {}) }
     }
   }
 
   /** Called by a trusted Host artifact selector under a configured root, never with a phone-supplied path. */
-  registerWorkspaceArtifact(session: string, root: string, parts: readonly string[], authority: ExportAuthority,version?:string): Promise<ExportEntry> {
+  registerWorkspaceArtifact(session: string, root: string, parts: readonly string[], authority: ExportAuthority, version?: string): Promise<ExportEntry> {
     const selected = [...parts]
-    return this.#register(session, 'workspace_artifact', authority, async (signal, current) => {
-      const source=await this.sources.workspaceExportSource(session,root,selected,signal,current)
-      if(version!==undefined&&source.version()!==version){await source.close();throw new ProbeError('file.export_changed')}
-      return source
-    })
+    return this.#register(session, 'workspace_artifact', authority,
+      (signal, current) => this.sources.workspaceExportSource(session, root, selected, signal, current), version)
   }
   registerSessionAttachment(session: string, seq: number, index: number, authority: ExportAuthority): Promise<ExportEntry> {
     return this.#register(session, 'session_attachment', authority, (signal, current) => this.sources.attachmentExportSource(session, seq, index, signal, current))
   }
-  async #register(session: string, origin: ExportEntry['origin'], authority: ExportAuthority, create: (signal: AbortSignal, current: () => void) => Promise<PinnedExportSource>): Promise<ExportEntry> {
-    this.#valid(session, authority); this.#prune()
-    if (this.#entries.size + this.#preparing >= 32 || this.#preparing >= 2) throw new ProbeError('rate.limited')
-    this.#preparing++
+  async #register(session: string, origin: ExportEntry['origin'], authority: ExportAuthority, create: (signal: AbortSignal, current: () => void) => Promise<PinnedExportSource>, version?: string): Promise<ExportEntry> {
+    this.#valid(session, authority); this.#prune(); this.#valid(session, authority)
+    if (this.#slots >= 32 || this.#preparing >= 2) throw new ProbeError('rate.limited')
+    this.#preparing++; this.#slots++
     let finish!: () => void
     const done = new Promise<void>(resolve => { finish = resolve }); this.#pending.add(done)
     const wall = Date.now(), started = process.hrtime.bigint(), owner = { ...authority.owner }
@@ -77,9 +81,12 @@ export class FileExportRegistry {
       this.#valid(session, authority)
       if (!this.#alive({ wall, started, authority }) || authority.owner.userId !== owner.userId || authority.owner.deviceId !== owner.deviceId) throw new ProbeError('access.denied')
     }
-    let source: PinnedExportSource | undefined
+    let source: PinnedExportSource | undefined, reserved = true
     try {
       source = await create(lifetime, guard)
+      if (this.#owned.has(source)) { source = undefined; throw new ProbeError('file.export_unavailable') }
+      this.#owned.add(source); reserved = false
+      if (version !== undefined && source.version() !== version) throw new ProbeError('file.export_changed')
       const manifest = await source.prepare(lifetime)
       guard()
       const value = Object.freeze({ ...manifest, export_id: randomUUID(), origin, expires_at: new Date(wall + TTL_MS).toISOString() })
@@ -87,7 +94,8 @@ export class FileExportRegistry {
       source = undefined
       return { ...value }
     } finally {
-      await source?.close(); this.#preparing--; this.#pending.delete(done); finish()
+      try { if (source) await this.#dispose(source) }
+      finally { if (reserved) this.#slots--; this.#preparing--; this.#pending.delete(done); finish() }
     }
   }
   #find(id: string, session: string, authority: ExportAuthority): Entry {
@@ -107,18 +115,47 @@ export class FileExportRegistry {
         if (entry.owner.userId !== authority.owner.userId || entry.owner.deviceId !== authority.owner.deviceId) throw new ProbeError('access.denied')
         yield chunk
       }
-    } finally { this.#entries.delete(id); await entry.source.close() }
+    } finally { this.#entries.delete(id); await this.#dispose(entry.source) }
   }
   async release(id: string, session: string, authority: ExportAuthority): Promise<void> {
     this.#valid(session, authority)
     const entry = this.#entries.get(id)
     if (!entry || entry.session !== session || entry.owner.userId !== authority.owner.userId || entry.owner.deviceId !== authority.owner.deviceId) return
-    this.#entries.delete(id); await entry.source.close()
+    this.#entries.delete(id); await this.#dispose(entry.source)
+  }
+  /** Every close stays owned and consumes a slot until its actual settlement. */
+  #dispose(source: PinnedExportSource): Promise<void> {
+    const ongoing = this.#disposing.get(source)
+    if (ongoing) return ongoing
+    if (!this.#owned.has(source)) return Promise.resolve()
+    let finish!: () => void, fail!: () => void
+    const completion = new Promise<void>((resolve, reject) => {
+      finish = resolve
+      fail = () => { this.#cleanupFailed = true; reject(new ProbeError('file.export_unavailable')) }
+    })
+    const tracked = completion.finally(() => {
+      this.#disposing.delete(source)
+      if (this.#owned.delete(source)) this.#slots--
+    })
+    this.#disposing.set(source, tracked)
+    // Pruning initiates cleanup without an awaiting caller; retain failure for close().
+    void tracked.catch(() => {})
+    try { void source.close().then(finish, fail) } catch { fail() }
+    return tracked
   }
   async close(): Promise<void> {
     if (this.#closing) return this.#closing
     this.#closed = true; clearInterval(this.#timer); this.#lifetime.abort()
-    this.#closing = Promise.all([...this.#entries.values()].map(entry => entry.source.close()).concat([...this.#pending])).then(() => { this.#entries.clear() })
+    this.#entries.clear()
+    this.#closing = (async () => {
+      // Preparing tasks may acquire a source after this snapshot. Their completion
+      // includes cleanup, and the loop also drains all detached read/release closes.
+      while (this.#pending.size || this.#owned.size || this.#disposing.size) {
+        for (const source of this.#owned) void this.#dispose(source).catch(() => {})
+        await Promise.allSettled([...this.#pending, ...this.#disposing.values()])
+      }
+      if (this.#cleanupFailed) throw new ProbeError('file.export_unavailable')
+    })()
     return this.#closing
   }
   toJSON() { return {} }
