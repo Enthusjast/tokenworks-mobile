@@ -1,6 +1,8 @@
 import { createHash } from 'node:crypto'
 import { symbols, type Context } from '@deepseek-ai/cordis'
 import { SessionId } from '@deepseek-ai/dsh-session'
+import type { Agent } from '@deepseek-ai/dsh-agent'
+import { FlowObservations, flowKind } from './flow-observations.js'
 import type { SessionController } from '@deepseek-ai/dsh-api-session-controller'
 import type { SessionFollowFrame, SessionPageRequest } from '@deepseek-ai/dsh-api-session-controller/types'
 import type { PromptContentPart } from '@deepseek-ai/dsh-api-session-controller/types'
@@ -54,6 +56,7 @@ export class DshClient {
     private readonly workspaces: readonly Workspace[],
     private readonly presets: readonly string[],
     readonly observations = new NativeObservations(),
+    readonly flow = new FlowObservations(),
   ) {
     for (const workspace of workspaces) {
       const roots = workspace.exportRoots ?? []
@@ -61,6 +64,25 @@ export class DshClient {
         !/^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/.test(root.id) || typeof root.directory !== 'string' ||
         root.directory !== '.' && (root.directory.split('/').length > 16 || root.directory.split('/').some(part => !fileManifest.shape.name.safeParse(part).success)))) throw new ProbeError('file.export_invalid')
     }
+  }
+
+  observeAgentFlow(): () => void {
+    return this.ctx.on('agent/assistant-stream', ({ agent, frame }) => {
+      if (!this.flow.enabled) return
+      try { if (this.observesAgent(agent)) this.flow.record('agent', flowKind('agent', frame.type)) } catch { /* Observation is never an execution guard. */ }
+    }, { global: true })
+  }
+
+  private observesAgent(agent: Agent): boolean {
+    let session: Agent['session'] | undefined = agent.session
+    const seen = new Set<string>()
+    while (session) {
+      if (this.workspaces.some(workspace => workspace.cwd === session!.header.cwd)) return true
+      if (!session.header.parentSession || seen.has(session.id)) return false
+      seen.add(session.id)
+      session = this.ctx.sessions.get(session.header.parentSession)
+    }
+    return false
   }
 
   private get controller(): SessionController { return this.ctx.sessionController }

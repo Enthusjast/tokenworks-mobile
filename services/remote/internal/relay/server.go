@@ -142,6 +142,8 @@ type liveConnection struct {
 	filePeer               *filePeer
 	expectedRoute          *store.RuntimeRoute
 	nativeReport           *hostmetrics.Report
+	flowReport             *hostmetrics.FlowReport
+	lastFlowReport         time.Time
 	lastNativeReport       time.Time
 }
 
@@ -337,7 +339,7 @@ func New(database Repository, approvalConfigs ...ApprovalConfig) *Server {
 func (server *Server) capabilities() []string {
 	capabilities := append([]string{}, supportedCapabilities...)
 	if server.metrics != nil {
-		capabilities = append(capabilities, hostmetrics.Capability, hostmetrics.JournalCapability)
+		capabilities = append(capabilities, hostmetrics.Capability, hostmetrics.JournalCapability, hostmetrics.FlowCapability)
 	}
 	if server.questionReferences != nil {
 		capabilities = append(capabilities, questionReferencesCapability)
@@ -887,7 +889,7 @@ func (server *Server) finishDeviceHandshake(parent context.Context, live *liveCo
 	defer cancel()
 	accepted := intersectCapabilities(hello.Capabilities, server.capabilities())
 	accepted = slices.DeleteFunc(accepted, func(capability string) bool {
-		return capability == files.HandoffCapability || capability == files.ReconcileCapability || capability == hostmetrics.Capability || capability == hostmetrics.JournalCapability
+		return capability == files.HandoffCapability || capability == files.ReconcileCapability || capability == hostmetrics.Capability || capability == hostmetrics.JournalCapability || capability == hostmetrics.FlowCapability
 	})
 	if live.sendHello(leaseCtx, map[string]any{
 		"v": 1, "type": "hello.ok", "payload": map[string]any{
@@ -1062,6 +1064,8 @@ func (server *Server) runHeartbeat(parent context.Context, live *liveConnection,
 		}
 		envelope.receivedAt = receivedAt
 		switch envelope.Type {
+		case "host.flow.observations":
+			server.routeHostFlow(parent, live, envelope)
 		case "host.observations":
 			server.routeHostObservations(parent, live, envelope)
 		case "question.references":

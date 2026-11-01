@@ -1,3 +1,4 @@
+import { flowKind } from './flow-observations.js'
 import { randomUUID } from 'node:crypto'
 import type { DshClient } from './dsh-client.js'
 import type { Command, Frame } from './protocol.js'
@@ -45,14 +46,18 @@ export class SessionSync {
         if (nativeFailed) throw nativeError
         if (changed && syncId && baselineReady) {
           changed = false
+          const payload = this.questions.snapshot(command.session_id)
+          this.client.flow?.record('projection', 'question')
           yield { v: 0, type: 'question.snapshot', runtime_epoch: this.epoch, request_id: command.request_id,
-            session_id: command.session_id, sync_id: syncId, payload: this.questions.snapshot(command.session_id) }
+            session_id: command.session_id, sync_id: syncId, payload }
           continue
         }
         if (timedChanged && this.timed && syncId && baselineReady) {
           timedChanged = false
+          const payload = this.timed.snapshot(command.session_id)
+          this.client.flow?.record('projection', 'question')
           yield { v: 0, type: 'question.timed.snapshot', runtime_epoch: this.epoch, request_id: command.request_id,
-            session_id: command.session_id, sync_id: syncId, payload: this.timed.snapshot(command.session_id) }
+            session_id: command.session_id, sync_id: syncId, payload }
           continue
         }
         if (!nativeValue) {
@@ -82,11 +87,13 @@ export class SessionSync {
     if (this.cuts.size >= 32) throw new ProbeError('rate.limited')
     const native = await this.client.resolve(command.session_id, signal)
     const syncId = randomUUID()
-    const frame = (type: string, payload: unknown): Frame => ({
-      v: 0, type, runtime_epoch: this.epoch, request_id: command.request_id, session_id: command.session_id, sync_id: syncId, payload,
-    })
+    const frame = (type: string, payload: unknown): Frame => {
+      this.client.flow?.record('projection', flowKind('projection', type))
+      return { v: 0, type, runtime_epoch: this.epoch, request_id: command.request_id, session_id: command.session_id, sync_id: syncId, payload }
+    }
     try {
       for await (const source of this.client.follow(native, command.payload.max_messages, signal)) {
+        this.client.flow?.record('follow', flowKind('follow', source.type === 'assistant-stream' ? source.frame.type : source.type))
         if (source.type === 'snapshot') {
           this.cuts.set(syncId, { session: command.session_id, through: source.cursor, media: command.payload.media_refs === true, signal })
           yield frame('session.snapshot', {

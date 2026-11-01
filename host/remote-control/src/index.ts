@@ -140,6 +140,7 @@ async function applyOwned(ctx: Context, config: Config, parentFiber: Context['fi
     return false
   }
   const client = new DshClient(ctx, options.runtimeId!, workspaces, presets)
+  client.observeAgentFlow()
   const keyOpen = new AbortController()
   const ownerFiber = ctx.fiber
   ctx.on('internal/plugin', fiber => { if ((fiber === ownerFiber || fiber === parentFiber) && fiber.uid === null) keyOpen.abort() }, { global: true })

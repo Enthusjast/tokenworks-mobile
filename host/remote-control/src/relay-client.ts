@@ -1,3 +1,4 @@
+import { bindFlowObservations, HOST_FLOW_CAPABILITY, type FlowObservations } from './flow-observations.js'
 import { createHash, randomUUID } from 'node:crypto'
 import { createRequire } from 'node:module'
 import { setTimeout as delay } from 'node:timers/promises'
@@ -148,6 +149,7 @@ export interface HostRelayOptions {
       modelPage?(binding: ModelPageBinding, request: ModelPageRequest, signal: AbortSignal): Promise<ModelPage>
       creationOptions?(): SessionCreationOptions
       observations?: NativeObservations
+      flow?: FlowObservations
       resolveImageFile?: DshClient['resolveImageFile']
       nativeForkSupported?: () => boolean
       workspaceChangesContext?: NonNullable<SessionReaderRuntime['client']['workspaceChangesContext']>
@@ -471,6 +473,7 @@ async function connectOnce(options: HostRelayOptions, url: string, credential: H
   let files: HostFilePeer | undefined
   let exports: HostExportPeer | undefined
   let observations: ReturnType<typeof bindNativeObservations> | undefined
+  let flow: ReturnType<typeof bindFlowObservations> | undefined
   const abortConnection = () => {
     connection.abort()
     socket.terminate()
@@ -503,6 +506,7 @@ async function connectOnce(options: HostRelayOptions, url: string, credential: H
     if(options.exports)offered.push(EXPORT_CAPABILITY)
     if (options.runtime.client.modelPage) offered.push(MODEL_CATALOG_CAPABILITY)
     if (options.runtime.client.observations) offered.push(HOST_OBSERVATIONS_CAPABILITY, HOST_JOURNAL_OBSERVATIONS_CAPABILITY)
+    if (options.runtime.client.flow) offered.push(HOST_FLOW_CAPABILITY)
     connection.signal.throwIfAborted()
     const proof = await withAbort(proofForHello(credential, challenge, options.runtime.client.runtimeId, options.runtime.epoch, options, offered), connection.signal)
     await sendFrame(socket, {
@@ -548,6 +552,14 @@ async function connectOnce(options: HostRelayOptions, url: string, credential: H
         if (socket.readyState !== 1 || socket.bufferedAmount > MAX_BUFFERED_BYTES / 4 || Buffer.byteLength(encoded) > 16 * 1024) return false
         try { socket.send(encoded, () => {}); return true } catch { return false }
       }, ack.data.payload.capabilities.includes(HOST_JOURNAL_OBSERVATIONS_CAPABILITY))
+    }
+    if (options.runtime.client.flow && ack.data.payload.capabilities.includes(HOST_FLOW_CAPABILITY)) {
+      flow = bindFlowObservations(options.runtime.client.flow, { connectionId: challenge.connection_id, runtimeId: options.runtime.client.runtimeId, epoch: options.runtime.epoch }, frame => {
+        if (lease.remaining() <= 0 || connection.signal.aborted) { abortConnection(); return false }
+        const encoded = JSON.stringify(frame)
+        if (socket.readyState !== 1 || socket.bufferedAmount > MAX_BUFFERED_BYTES / 4 || Buffer.byteLength(encoded) > 4096) return false
+        try { socket.send(encoded, () => {}); return true } catch { return false }
+      })
     }
     if (options.files && ack.data.payload.capabilities.includes(FILE_HANDOFF_CAPABILITY)) {
       if (!ack.data.payload.capabilities.includes('session.catalog.v1')) throw new ProbeError('protocol.unsupported')
@@ -834,6 +846,7 @@ async function connectOnce(options: HostRelayOptions, url: string, credential: H
   } finally {
     if (leaseTimer) clearTimeout(leaseTimer)
     observations?.close()
+    flow?.close()
     await exports?.close()
     files?.close()
     approvals?.close()

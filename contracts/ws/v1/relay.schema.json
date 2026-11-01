@@ -4,6 +4,7 @@
   "title": "DSH Mobile Relay v1 frames",
   "description": "Strict challenge, heartbeat, commands, scoped session reads and negotiated feature frames. Metadata requires session.metadata.v1 plus explicit metadata_version=1 and independent session.metadata.read; legacy catalog and model catalog/select shapes remain unchanged. Image parts require message.images.v1 and all existing file gates. Media references require session.media.v1/current reader and never grant independent export/download authority. Changes and message previews are bounded current-reader queries. Forks require session.fork.v1 and preserve source session_id, exact anchor/workspace and original-once partial outcomes. Runtime validators enforce cross-field identities, byte/pixel limits and current authorization. Fragmented projected payloads are at most 2 MiB.",
   "oneOf": [
+    {"$ref":"#/$defs/hostFlowObservations"},
     { "$ref": "#/$defs/messagePreviewGet" },
     { "$ref": "#/$defs/hostMessagePreviewGet" },
     { "$ref": "#/$defs/messagePreviewConfirm" },
@@ -91,6 +92,186 @@
     {"$ref": "#/$defs/sessionClosed"}
   ],
   "$defs": {
+    "hostFlowObservations": {
+      "type": "object",
+      "properties": {
+        "v": {
+          "type": "number",
+          "const": 1
+        },
+        "type": {
+          "type": "string",
+          "const": "host.flow.observations"
+        },
+        "runtime_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+        },
+        "runtime_epoch": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+        },
+        "payload": {
+          "type": "object",
+          "properties": {
+            "connection_id": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+            },
+            "sequence": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 1000000000
+            },
+            "dropped": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 1000000000
+            },
+            "cells": {
+              "maxItems": 20,
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "stage": {
+                    "type": "string",
+                    "enum": [
+                      "agent",
+                      "follow",
+                      "projection"
+                    ]
+                  },
+                  "kind": {
+                    "type": "string",
+                    "enum": [
+                      "start",
+                      "chunk",
+                      "end",
+                      "replace",
+                      "snapshot",
+                      "event",
+                      "checkpoint",
+                      "question",
+                      "other"
+                    ]
+                  },
+                  "count": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 1000000000
+                  }
+                },
+                "required": [
+                  "stage",
+                  "kind",
+                  "count"
+                ],
+                "additionalProperties": false,
+                "allOf": [
+                  {
+                    "if": {
+                      "required": [
+                        "stage"
+                      ],
+                      "properties": {
+                        "stage": {
+                          "const": "agent"
+                        }
+                      }
+                    },
+                    "then": {
+                      "properties": {
+                        "kind": {
+                          "enum": [
+                            "start",
+                            "chunk",
+                            "end",
+                            "other"
+                          ]
+                        }
+                      }
+                    }
+                  },
+                  {
+                    "if": {
+                      "required": [
+                        "stage"
+                      ],
+                      "properties": {
+                        "stage": {
+                          "const": "follow"
+                        }
+                      }
+                    },
+                    "then": {
+                      "properties": {
+                        "kind": {
+                          "enum": [
+                            "snapshot",
+                            "event",
+                            "start",
+                            "chunk",
+                            "replace",
+                            "end",
+                            "other"
+                          ]
+                        }
+                      }
+                    }
+                  },
+                  {
+                    "if": {
+                      "required": [
+                        "stage"
+                      ],
+                      "properties": {
+                        "stage": {
+                          "const": "projection"
+                        }
+                      }
+                    },
+                    "then": {
+                      "properties": {
+                        "kind": {
+                          "enum": [
+                            "snapshot",
+                            "event",
+                            "checkpoint",
+                            "start",
+                            "chunk",
+                            "replace",
+                            "end",
+                            "question",
+                            "other"
+                          ]
+                        }
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          },
+          "required": [
+            "connection_id",
+            "sequence",
+            "dropped",
+            "cells"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "v",
+        "type",
+        "runtime_id",
+        "runtime_epoch",
+        "payload"
+      ],
+      "additionalProperties": false,
+      "description": "Optional installation-only host.flow.observations.v1. Counts Agent publications, per-consumer live follow input and created projection envelopes; not delivery, unique tokens, authority or a coalescing ratio. Runtime checks also enforce unique cells and monotone connection deltas."
+    },
     "forkAnchor": {
       "type": "object",
       "properties": {

@@ -46,3 +46,35 @@ for (const [name, value] of [['host-observations', first], ['host-observations-n
   if (process.argv.includes('--check')) { if (await readFile(path, 'utf8').catch(() => '') !== body) { console.error(`${name} golden is stale`); process.exitCode = 1 } }
   else { await mkdir(new URL('../contracts/ws/v1/golden/', import.meta.url), { recursive: true }); await writeFile(path, body) }
 }
+
+// Flow counters negotiate independently of duration observations.
+const { hostFlowFrame, flowPairs, FlowWindow } = await import('../host/remote-control/src/flow-observations.js')
+const flowDefinition = plain(z.toJSONSchema(hostFlowFrame, { target: 'draft-2020-12' }))
+flowDefinition.properties.payload.properties.cells.items.allOf = Object.entries(flowPairs).map(([stage, kinds]) => ({
+  if: { required: ['stage'], properties: { stage: { const: stage } } }, then: { properties: { kind: { enum: kinds } } },
+}))
+flowDefinition.description = 'Optional installation-only host.flow.observations.v1. Counts Agent publications, per-consumer live follow input and created projection envelopes; not delivery, unique tokens, authority or a coalescing ratio. Runtime checks also enforce unique cells and monotone connection deltas.'
+const flowPath = new URL('../contracts/ws/v1/relay.schema.json', import.meta.url)
+let flowText = await readFile(flowPath, 'utf8')
+const flowRoot = JSON.parse(flowText), flowName = 'hostFlowObservations', flowRef = `#/$defs/${flowName}`
+if (JSON.stringify(flowRoot.$defs[flowName]) !== JSON.stringify(flowDefinition) || !flowRoot.oneOf.some((item: any) => item.$ref === flowRef)) {
+  if (process.argv.includes('--check')) { console.error('Relay Host flow schema is stale; run npm run contracts'); process.exitCode = 1 }
+  else {
+    const entry = `    "${flowName}": ` + JSON.stringify(flowDefinition, null, 2).replaceAll('\n', '\n    ')
+    const pattern = new RegExp(`^    "${flowName}": \\{[\\s\\S]*?^    \\},?`, 'm')
+    flowText = pattern.test(flowText) ? flowText.replace(pattern, () => entry + ',') : flowText.replace('  "$defs": {', '  "$defs": {\n' + entry + ',')
+    if (!flowRoot.oneOf.some((item: any) => item.$ref === flowRef)) flowText = flowText.replace('  "oneOf": [', '  "oneOf": [\n    ' + JSON.stringify({ $ref: flowRef }) + ',')
+    await writeFile(flowPath, flowText)
+  }
+}
+const flow = new FlowWindow()
+flow.record('agent', 'start'); flow.record('agent', 'chunk'); flow.record('follow', 'snapshot'); flow.record('projection', 'snapshot')
+const flowFirst = { v: 1, type: 'host.flow.observations', ...identity, payload: flow.snapshot(connection) }
+flow.record('agent', 'chunk'); flow.record('follow', 'chunk'); flow.record('projection', 'chunk'); flow.record('projection', 'checkpoint')
+const flowNext = { ...flowFirst, payload: flow.snapshot(connection) }
+for (const [name, value] of [['host-flow-observations', flowFirst], ['host-flow-observations-next', flowNext]] as const) {
+  hostFlowFrame.parse(value)
+  const path = new URL(`../contracts/ws/v1/golden/${name}.json`, import.meta.url), body = JSON.stringify(value, null, 2) + '\n'
+  if (process.argv.includes('--check')) { if (await readFile(path, 'utf8').catch(() => '') !== body) { console.error(`${name} golden is stale`); process.exitCode = 1 } }
+  else await writeFile(path, body)
+}

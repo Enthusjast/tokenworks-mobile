@@ -15,6 +15,9 @@ import (
 var durationBuckets = []float64{.001, .005, .01, .025, .05, .1, .25, .3, .5, 1, 2, 5, 10}
 
 type Metrics struct {
+	flowEvents                *prometheus.CounterVec
+	flowDropped               prometheus.Counter
+	flowReports               *prometheus.CounterVec
 	registry                  *prometheus.Registry
 	receivedFrames            *prometheus.CounterVec
 	receivedBytes             *prometheus.CounterVec
@@ -99,6 +102,9 @@ func New() *Metrics {
 		native:                    newNativeCollector(),
 		nativeReports:             counter("host_observation_reports_total", "Connection-scoped Host observation report validation outcomes.", "result"),
 		registry:                  prometheus.NewRegistry(),
+		flowEvents:                counter("host_flow_events_total", "Self-reported Host Agent publications, per-consumer follow input, and created projection envelopes; stages differ in fanout and baseline semantics, not delivery or unique model tokens.", "stage", "kind"),
+		flowDropped:               prometheus.NewCounter(prometheus.CounterOpts{Namespace: "dsh_remote", Name: "host_flow_dropped_samples_total", Help: "Host-reported flow samples discarded by bounded connection windows; not total event loss."}),
+		flowReports:               counter("host_flow_reports_total", "Current-connection Host flow report validation outcomes.", "result"),
 		receivedFrames:            counter("relay_received_frames_total", "Complete received WebSocket data messages, including rejected messages.", "role"),
 		receivedBytes:             counter("relay_received_bytes_total", "Payload bytes of complete received WebSocket data messages.", "role"),
 		writtenFrames:             counter("relay_written_frames_total", "WebSocket data messages whose write completed successfully.", "role"),
@@ -132,7 +138,7 @@ func New() *Metrics {
 	}
 	m.Register(m.fileScans, m.fileHandoffOperations, m.fileHandoffEvents, m.fileHandoffAge, m.fileHandoffStage, m.fileClock)
 	m.Register(m.pushSends, m.pushOperations, m.pushDeliveries, m.pushReceipts, m.pushDeliveryAge, m.pushReceiptAge, m.pushClock)
-	m.Register(m.unknown, m.unknownSnapshots)
+	m.Register(m.unknown, m.unknownSnapshots, m.flowEvents, m.flowDropped, m.flowReports)
 	m.Register(m.receivedFrames, m.receivedBytes, m.writtenFrames, m.writtenBytes, m.writeDuration, m.queueDuration, m.routeDuration, m.rejectedSends,
 		m.protocolErrors, m.resyncs, m.forwards, m.revocations, m.controlRuns, m.controlReady, m.controlSuccess,
 		m.controlEvents, m.controlAge, m.clockSkew, m.tunnelDuration, m.commandTransitions, m.commandAge, m.commandDwell, m.commandStore, m.commandClock, m.native, m.nativeReports, m.approvalStates, m.approvalHosts, m.approvalOps, m.approvalLeasePrepared, m.approvalLeaseLifetime, m.approvalLeaseRemaining, m.approvalLeaseAvailability, collectors.NewGoCollector(), collectors.NewProcessCollector(collectors.ProcessCollectorOpts{}))

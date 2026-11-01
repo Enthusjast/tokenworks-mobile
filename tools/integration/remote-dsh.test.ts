@@ -1314,7 +1314,7 @@ test('real Go service and npm DSH share authorized sessions through PostgreSQL a
   await until(async () => query(`select count(*) from control_outbox where published_at is null and topic in ('device.revoked','runtime_grant.updated','runtime_grant.revoked')`) === '0' ? true : undefined, 'control outbox acknowledgement')
   await phone('POST', '/v1/realtime/tickets', { runtime_id: enrollment.runtime_id, scope }, 403)
   const commandActions = ['message.submit', 'session.create', 'session.cancel', 'session.archive', 'question.answer']
-  const finalMetrics = await until(async () => {
+  let finalMetrics = await until(async () => {
     const body = await readMetrics()
     const commandsMatch = commandActions.every(action => metricSample(body, 'command_transitions_total', { action, from: 'none', to: 'received', origin: 'device' }) ===
       Number(query(`select count(*) from command_records where action='${action}'`)))
@@ -1326,6 +1326,14 @@ test('real Go service and npm DSH share authorized sessions through PostgreSQL a
     return metricSample(body, 'relay_revoked_connections_total', { reason: 'access_revoked', role: 'device' }) >= 2 &&
       metricSample(body, 'control_event_age_seconds_count', { topic: 'runtime_grant.revoked' }) >= 1 && commandsMatch && receiptsMatch && approvalsMatch && leasesMatch ? body : undefined
   }, 'measured revocation propagation')
+  if (!process.env.REMOTE_TEST_HOST_BUNDLE_DIRECTORY && !process.env.REMOTE_TEST_SERVICE_BUNDLE_MANIFEST_SHA256) {
+    finalMetrics = await until(async () => {
+      const body = await readMetrics()
+      return metricSample(body, 'host_flow_reports_total', { result: 'accepted' }) > 0 &&
+        ['agent', 'follow', 'projection'].every(stage => metricSample(body, 'host_flow_events_total', { stage, kind: 'chunk' }) > 0) ? body : undefined
+    }, 'native Host flow publications through the negotiated owner metrics')
+    t.diagnostic('The source Host negotiated host.flow.observations.v1; real Agent chunks, per-consumer follow input and created projections reached private owner counters without being used as receipts or permission.')
+  }
   assert.ok(metricSample(finalMetrics, 'relay_received_frames_total', { role: 'installation' }) > 20)
   assert.ok(metricSample(finalMetrics, 'relay_written_frames_total', { role: 'device' }) > 20)
   assert.ok(metricSample(finalMetrics, 'relay_session_route_duration_seconds_count') > 0)

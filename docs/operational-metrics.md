@@ -153,3 +153,9 @@ posted/opened/blocked 去重回执分开。`push_delivery_results_total` 使用�
 
 [采集与规则包](monitoring-rules.md)提供带数据库作用域的 recording／告警示例，检查指标
 合同、控制任务和未知快照可用性。它不会自动加载或通知，示例窗口仍需实际部署审核。
+
+## Host 发布与投影计数
+
+[可选 Host flow 观测](host-flow-observations.md)将 Agent 发布、每消费者 live follow 和内部
+投影信封创建分开计数。它只在私有指标启用并协商后上报，不能当作唯一 token／事件数、实际
+投递或直接合并率；业务持久回执与权限边界保持独立。

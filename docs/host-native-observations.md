@@ -100,3 +100,6 @@ Go/race 测试核对 TypeScript goldens、累计差值、重复/回退、桶和�
 - `.local/native-observations-source-final2.log`：最后的 Source 发送重入/背压回归通过；发送过程中完成的样本仍留给下次累计报告。
 
 TypeScript check、contract check、构建和 `go vet ./...` 通过。早期测试的未初始化零值轮询及旧能力列表断言失败日志仍保留；相应断言和零值初始化已修正。
+
+发布／消费／投影次数现在由独立的[Host flow 扩展](host-flow-observations.md)提供；它不复用
+原生操作耗时直方图，也不把非互斥阶段相加为总命令数。

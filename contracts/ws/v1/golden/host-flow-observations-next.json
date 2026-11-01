@@ -1,0 +1,48 @@
+{
+  "v": 1,
+  "type": "host.flow.observations",
+  "runtime_id": "33333333-3333-4333-8333-333333333333",
+  "runtime_epoch": "44444444-4444-4444-8444-444444444444",
+  "payload": {
+    "connection_id": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+    "sequence": 2,
+    "dropped": 0,
+    "cells": [
+      {
+        "stage": "agent",
+        "kind": "chunk",
+        "count": 2
+      },
+      {
+        "stage": "agent",
+        "kind": "start",
+        "count": 1
+      },
+      {
+        "stage": "follow",
+        "kind": "chunk",
+        "count": 1
+      },
+      {
+        "stage": "follow",
+        "kind": "snapshot",
+        "count": 1
+      },
+      {
+        "stage": "projection",
+        "kind": "checkpoint",
+        "count": 1
+      },
+      {
+        "stage": "projection",
+        "kind": "chunk",
+        "count": 1
+      },
+      {
+        "stage": "projection",
+        "kind": "snapshot",
+        "count": 1
+      }
+    ]
+  }
+}
