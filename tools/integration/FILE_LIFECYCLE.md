@@ -25,6 +25,28 @@ composition. It does not build Host `lib`, run other Go packages, the general No
 composition, Android, platform or load tests. Use a separate focused CLI check when
 changing installed-CLI compatibility.
 
+For installed-CLI file compatibility on Linux, build the plugin and select just
+the file adapter test (set the absolute CLI path for the local installation):
+
+```sh
+npm run build
+REMOTE_TEST_DSH_BIN=/absolute/path/to/dsh node --import tsx --test host/remote-control/tests/dsh-cli-files.integration.test.ts
+```
+
+This check creates a temporary web profile with isolated `HOME` and `DSH_HOME`,
+loads the normal compiled plugin, creates a session through its local IPC, and
+checks native receipt admission, persisted attachment bytes, checksum rejection,
+attachment export, declared workspace export, symlink denial and workspace-change
+adapter availability inside that same CLI process. A test-only plugin exercises
+the internal file adapters through a private Unix socket. It uses the offline
+model and does not start Go/PostgreSQL or repeat the TLS composition. No CLI output
+is copied into test reports because the native web launcher prints auth tokens.
+
+The installed CLI can resolve its native filesystem packages separately from the
+plugin's npm peers. Host read adapters compare exact native constructor identity,
+including the fixed native modules resolved by the CLI's Loader. Class names,
+subclasses and arbitrary filesystem providers do not grant Host read access.
+
 The flag cannot be combined with other composition, bundle or load options. The
 runner stops its own cluster and removes temporary state even if a selected test
 fails. It leaves the local development stack running.

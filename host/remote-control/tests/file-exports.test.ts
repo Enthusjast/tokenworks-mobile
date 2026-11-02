@@ -11,6 +11,7 @@ import { PinnedExportSource } from '../src/file-export-source.js'
 import { sessionAttachmentSource } from '../src/session-file-export.js'
 import { ProbeError } from '../src/protocol.js'
 import { ProbeRuntime } from '../src/runtime.js'
+import { LocalFileSystem } from '@deepseek-ai/dsh-fs-local'
 import type { InteractionRouter } from '../src/interaction-router.js'
 
 const signal = () => new AbortController().signal
@@ -162,6 +163,42 @@ test('a different filesystem execution world cannot export a coincidentally matc
     const client = new DshClient(context, h.runtimeId, [{ id: 'fixture', cwd: h.cwd, exportRoots: [{ id: 'output', directory: 'output' }] }], ['fixture'])
     const session = (await client.create('fixture', 'fixture')).session_id
     await assert.rejects(client.workspaceExportSource(session, 'output', ['result'], signal(), current), /file.export_unsupported/)
+  } finally { await h.close() }
+})
+
+test('native backend subclasses and matching class names cannot authorize Host export or change reads', { skip: !supported }, async () => {
+  const h = await host({ probe: false })
+  class RestrictedFileSystem extends LocalFileSystem {}
+  const SameName = class LocalFileSystem {}
+  try {
+    for (const backend of [RestrictedFileSystem, SameName]) {
+      const provider = Object.create(backend.prototype)
+      const context = new Proxy(h.ctx, { get(target, key) {
+        if (key === 'fs') return provider
+        return Reflect.get(target, key, target)
+      } })
+      const client = new DshClient(context, h.runtimeId, [{ id: 'fixture', cwd: h.cwd, exportRoots: [{ id: 'output', directory: '.' }] }], ['fixture'])
+      const session = (await client.create('fixture', 'fixture')).session_id
+      await assert.rejects(client.workspaceExportSource(session, 'output', ['result'], signal(), current), /file.export_unsupported/)
+      await assert.rejects(client.workspaceChangesContext(session, signal()), /changes.unavailable/)
+    }
+  } finally { await h.close() }
+})
+
+test('provider replacement during native backend resolution cannot publish Host read authority', { skip: !supported }, async () => {
+  const h = await host({ probe: false })
+  const provider = h.ctx.fs
+  let reads = 0
+  try {
+    const context = new Proxy(h.ctx, { get(target, key) {
+      if (key === 'fs') return ++reads === 1 ? provider : {}
+      return Reflect.get(target, key, target)
+    } })
+    const client = new DshClient(context, h.runtimeId, [{ id: 'fixture', cwd: h.cwd, exportRoots: [{ id: 'output', directory: '.' }] }], ['fixture'])
+    const session = (await client.create('fixture', 'fixture')).session_id
+    await assert.rejects(client.workspaceExportSource(session, 'output', ['result'], signal(), current), /access.denied/)
+    reads = 0
+    await assert.rejects(client.workspaceChangesContext(session, signal()), /access.denied/)
   } finally { await h.close() }
 })
 

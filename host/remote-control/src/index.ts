@@ -53,7 +53,7 @@ export { HostEnrolledRuntimeError } from './host-enrolled-runtime.js'
 export type { HostEnrolledRuntimeOptions } from './host-enrolled-runtime.js'
 
 export const name = 'ustc-remote-control'
-export const inject = ['sessionController', 'sessions', 'agents', 'tools', 'approval', 'userQuestions', 'sessionProjections', 'workspaceRegistry', 'fileUploads', 'attachments', 'fs']
+export const inject = ['sessionController', 'sessions', 'agents', 'tools', 'approval', 'userQuestions', 'sessionProjections', 'workspaceRegistry', 'fileUploads', 'attachments', 'fs', 'loader']
 
 export interface Config {
   enabled?: boolean

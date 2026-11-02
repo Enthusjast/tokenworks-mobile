@@ -14,8 +14,7 @@ import { admitNativeFile, fileManifest, releaseNativeFile, type FileManifest } f
 import { PinnedExportSource } from './file-export-source.js'
 import { sessionAttachmentSource,sessionAttachmentManifest } from './session-file-export.js'
 import { ExportDirectory } from './export-directory.js'
-import { LocalFileSystem } from '@deepseek-ai/dsh-fs-local'
-import { SandboxedFileSystem } from '@deepseek-ai/dsh-fs-sandbox'
+import { nativeHostFileSystem } from './native-host-filesystem.js'
 import { readModelPage, type ModelPageBinding, type ModelPageRequest } from './model-catalog.js'
 import { NativeObservations } from './native-observations.js'
 import { nativeDirectoryMetadata, ordinaryDirectorySession, type DirectoryMetadata } from './directory-metadata.js'
@@ -246,8 +245,7 @@ export class DshClient {
     const filesystem = this.ctx.fs
     if (!filesystem) throw new ProbeError('changes.unavailable')
     const provider = Reflect.get(filesystem, symbols.original) ?? filesystem
-    const backend = Object.getPrototypeOf(provider)?.constructor
-    if (backend !== LocalFileSystem && backend !== SandboxedFileSystem) throw new ProbeError('changes.unavailable')
+    if (!await nativeHostFileSystem(this.ctx, provider, signal)) throw new ProbeError('changes.unavailable')
     const { id: workspaceId, cwd, remoteId } = workspace
     const guard = () => {
       signal.throwIfAborted()
@@ -283,8 +281,7 @@ export class DshClient {
     // These pinned native backends share unrestricted read semantics. An
     // unknown execution world or read-policy wrapper needs its own adapter;
     // opening a coincidentally matching Host path would bypass that provider.
-    const backend = Object.getPrototypeOf(provider)?.constructor
-    if (backend !== LocalFileSystem && backend !== SandboxedFileSystem) throw new ProbeError('file.export_unsupported')
+    if (!await nativeHostFileSystem(this.ctx, provider, signal)) throw new ProbeError('file.export_unsupported')
     const guard = () => {
       current()
       const active = this.ctx.fs
