@@ -1,5 +1,9 @@
 # Go / DSH integration evidence
 
+The dated results below are historical evidence. The current runner pins
+`0.2.1-rc.5`; see [current development status](development-status.md) for recent
+focused checks, source commits and remaining acceptance gates.
+
 On 2026-10-24, `npm run test:remote-dsh` passed with the real Go `cmd/remote` entrypoint, an isolated PostgreSQL 18.6 cluster, and the installed npm DSH 0.2.1-rc.2. The plugin uses the same DSH session controller and Agent for local IPC and outbound Relay traffic. No TokenWorks process is involved.
 
 Run from the repository root:
@@ -16,13 +20,16 @@ REMOTE_TEST_DSH_BIN="$(command -v dsh)" python3 tools/integration/run_remote_dsh
 ```
 
 Without this setting the test uses the repository's pinned npm package. Both
-paths require DSH `0.2.1-rc.2`; neither starts TokenWorks.
+paths now require DSH `0.2.1-rc.5`; neither starts TokenWorks. The earlier dated
+`rc.2` results are retained with their original scope.
 The same `REMOTE_TEST_DSH_BIN` setting also selects the installed CLI for the
 Host suite's local DSH integration (`REMOTE_TEST_DSH_BIN="$(command -v dsh)" npm run verify`).
 When rerunning only the DSH composition after a Host change, add `--dsh-only`
 to skip the separate Go test suite. It still starts disposable PostgreSQL,
 applies migrations and builds the real Go service and Host plugin. Run the
-full command separately when Go changes or full regression is needed.
+full command separately when full regression is needed. A Go change can instead
+use its package-specific tests; `--file-lifecycle` selects only the three file
+composition cases in `./internal/httpapi` without the general Node composition.
 On 2026-10-29, the explicitly selected locally installed CLI passed the
 cross-node composition, including active-session archive refusal and the
 separate installation signer and journal protector fixture lookups.

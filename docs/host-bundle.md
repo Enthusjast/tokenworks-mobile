@@ -21,7 +21,7 @@ python3 tools/release/host_bundle.py build \
 平台打包不在这份证据内。失败时没有 verified 成功输出；已有失败目录不会被自动覆盖，应保存
 证据并用新目录重试。
 
-工具要求 Node 24.15+ 且低于 25，以及真实 `dsh --version` 为 `0.2.1-rc.2`。
+工具要求 Node 24.15+ 且低于 25，以及真实 `dsh --version` 为 `0.2.1-rc.5`。
 它检查正常发行输入的 Git 状态，包括根 package/lock/tsconfig、Host package/build 配置、README、
 全部 Host src 和 contracts；这些输入有修改、删除、未跟踪文件（包括被 gitignore 隐藏的文件）或符号链接时拒绝构建。
 无关工作区改动不被当作 Host 输入，PLAN.md 和 Android 代码不会进入包或输入清单。
@@ -105,6 +105,9 @@ python3 tools/integration/run_host_enrollment_terminal.py \
 没有声称执行了生产安装或真实企业发行装配。
 
 ## 本地证据
+
+以下结果绑定各自源码 commit，不是当前 HEAD 的发行产物。
+后续 `rc.5` 包组合及最近源码定向验证见[当前状态页](development-status.md)。
 
 - `.local/host-bundle-approved-a.json`、`host-bundle-approved-b.json`：两次独立构建，包与清单一致，221 个文件。
 - `.local/host-bundle-peer-verify-final.log`：481 个 Host 测试、契约、类型和构建通过，无跳过。
