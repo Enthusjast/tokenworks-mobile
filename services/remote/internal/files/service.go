@@ -58,11 +58,16 @@ type Service struct {
 	metrics          *observability.Metrics
 }
 
-func NewService(repository Repository, storage BlobStore, scanner Scanner, config ServiceConfig) (*Service, error) {
-	if repository == nil || storage == nil || scanner == nil || config.Workers < 1 || config.Workers > 8 || config.TaskTimeout < time.Second || config.TaskTimeout > 15*time.Minute {
-		return nil, ErrInvalid
+func (config ServiceConfig) Validate() error {
+	_, valid := checksum(config.PolicySHA256)
+	if !valid || config.Workers < 1 || config.Workers > 8 || config.TaskTimeout < time.Second || config.TaskTimeout > 15*time.Minute {
+		return ErrInvalid
 	}
-	if _, valid := checksum(config.PolicySHA256); !valid {
+	return nil
+}
+
+func NewService(repository Repository, storage BlobStore, scanner Scanner, config ServiceConfig) (*Service, error) {
+	if repository == nil || storage == nil || scanner == nil || config.Validate() != nil {
 		return nil, ErrInvalid
 	}
 	return &Service{repository: repository, storage: storage, scanner: scanner, config: config, renewEvery: 5 * time.Second, probeGate: make(chan struct{}, 1)}, nil
@@ -99,8 +104,23 @@ func (service *Service) ProbeScanner(ctx context.Context) (result error) {
 		}
 		service.metrics.FileScannerProbe(outcome, time.Since(started))
 	}()
+	result = ProbeScanner(ctx, service.scanner)
+	if ctx.Err() != nil {
+		result = ErrScanUnavailable
+	}
+	service.recordProbe(result == nil)
+	return result
+}
+
+// ProbeScanner tests clean and harmless EICAR streams without file tasks,
+// database state, object storage or a persistent health grant. Only a running
+// Service can publish its own local health generation after this call.
+func ProbeScanner(ctx context.Context, scanner Scanner) error {
+	if ctx.Err() != nil || scanner == nil {
+		return ErrScanUnavailable
+	}
 	for index, data := range [][]byte{[]byte("DSH remote file scanner health check"), ScannerTestPattern()} {
-		scan, err := service.scanner.Begin(ctx)
+		scan, err := scanner.Begin(ctx)
 		if err == nil {
 			err = scan.Write(data)
 			if err == nil {
@@ -109,15 +129,12 @@ func (service *Service) ProbeScanner(ctx context.Context) (result error) {
 			_ = scan.Close()
 		}
 		if ctx.Err() != nil || index == 0 && err != nil || index == 1 && !errors.Is(err, ErrRejected) {
-			service.recordProbe(false)
 			return ErrScanUnavailable
 		}
 	}
 	if ctx.Err() != nil {
-		service.recordProbe(false)
 		return ErrScanUnavailable
 	}
-	service.recordProbe(true)
 	return nil
 }
 

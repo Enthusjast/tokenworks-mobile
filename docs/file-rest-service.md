@@ -20,6 +20,9 @@ S3 只接受明确 HTTPS 端点、region、bucket、KMS key ID 和外部凭据�
 
 scanner policy 读取实际部署的 clamd 配置（或内容一致的受保护副本）并计算 SHA-256。解析要求明确、足够的 StreamMaxLength / MaxFileSize / MaxScanSize、启用 ScanArchive / AlertExceedsMax、有限的 MaxRecursion / MaxFiles / MaxScanTime；不接受 Include、关键项重复或无限阈值。该检查不能证明 socket 对端确实使用同一配置，部署必须核对。
 
+启用前可运行 [`remote files check --config /absolute/path/to/files.json`](file-dependency-check.md)，
+复用同一配置校验并独立探测 scanner；该命令不访问数据库或对象服务，也不替代运行中进程的健康自检。
+
 ## 扫描自检和健康
 
 文件服务启动后先通过 scanner 扫描一个干净样本，再要求标准无害 EICAR 测试样本返回拒绝。样本只在内存中构造和发送给 scanner，不创建工作区文件或对象存储对象。没有 always-clean 生产后备实现。

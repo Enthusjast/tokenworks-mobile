@@ -244,10 +244,17 @@ func fileScannerPolicyLimit(path string, maximum int64) (string, error) {
 	return hex.EncodeToString(digest[:]), nil
 }
 
-func loadFileRuntime(path string, database *store.Postgres) (*fileRuntime, error) {
-	if path == "" {
-		return nil, nil
-	}
+type fileDependencies struct {
+	storage        *files.S3
+	scanner        *files.ClamAV
+	limits         files.Limits
+	serviceConfig  files.ServiceConfig
+	exportsEnabled bool
+}
+
+// Validate the same dependencies for service startup and the standalone check.
+// No database, object request or scanner connection is opened here.
+func loadFileDependencies(path string) (*fileDependencies, error) {
 	body, err := readProtectedFile(path, 64<<10)
 	if err != nil {
 		return nil, err
@@ -321,25 +328,52 @@ func loadFileRuntime(path string, database *store.Postgres) (*fileRuntime, error
 	if err != nil {
 		return nil, err
 	}
-	repository, err := store.NewFileStore(database, files.Limits{OrganizationBytes: config.Limits.OrganizationBytes, UserBytes: config.Limits.UserBytes, SessionBytes: config.Limits.SessionBytes,
-		OrganizationFiles: config.Limits.OrganizationFiles, UserFiles: config.Limits.UserFiles, SessionFiles: config.Limits.SessionFiles, UploadURLTTL: urlTTL, AbandonAfter: abandon, RetainFor: retain})
-	if err != nil {
+	limits := files.Limits{OrganizationBytes: config.Limits.OrganizationBytes, UserBytes: config.Limits.UserBytes, SessionBytes: config.Limits.SessionBytes,
+		OrganizationFiles: config.Limits.OrganizationFiles, UserFiles: config.Limits.UserFiles, SessionFiles: config.Limits.SessionFiles, UploadURLTTL: urlTTL, AbandonAfter: abandon, RetainFor: retain}
+	if limits.Validate() != nil {
 		return nil, errFileConfiguration
 	}
 	task, err := fileSeconds(config.TaskTimeoutSeconds, time.Second, 15*time.Minute)
 	if err != nil {
 		return nil, err
 	}
-	service, err := files.NewService(repository, storage, scanner, files.ServiceConfig{Workers: config.Workers, PolicySHA256: policy, TaskTimeout: task})
+	serviceConfig := files.ServiceConfig{Workers: config.Workers, PolicySHA256: policy, TaskTimeout: task}
+	if serviceConfig.Validate() != nil {
+		return nil, errFileConfiguration
+	}
+	complete = true
+	return &fileDependencies{storage: storage, scanner: scanner, limits: limits, serviceConfig: serviceConfig, exportsEnabled: config.Exports.Enabled}, nil
+}
+
+func loadFileRuntime(path string, database *store.Postgres) (*fileRuntime, error) {
+	if path == "" {
+		return nil, nil
+	}
+	dependencies, err := loadFileDependencies(path)
+	if err != nil {
+		return nil, err
+	}
+	storage := dependencies.storage
+	complete := false
+	defer func() {
+		if !complete {
+			_ = storage.Close()
+		}
+	}()
+	repository, err := store.NewFileStore(database, dependencies.limits)
 	if err != nil {
 		return nil, errFileConfiguration
 	}
-	handoffs, err := files.NewHandoffs(repository, storage, policy)
+	service, err := files.NewService(repository, storage, dependencies.scanner, dependencies.serviceConfig)
+	if err != nil {
+		return nil, errFileConfiguration
+	}
+	handoffs, err := files.NewHandoffs(repository, storage, dependencies.serviceConfig.PolicySHA256)
 	if err != nil {
 		return nil, errFileConfiguration
 	}
 	var exports *files.Exports
-	if config.Exports.Enabled {
+	if dependencies.exportsEnabled {
 		exports, err = files.NewExports(repository, storage, service)
 		if err != nil {
 			return nil, errFileConfiguration
