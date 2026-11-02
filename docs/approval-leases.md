@@ -22,6 +22,18 @@ The provider prepares audit/outbox metadata in the same transaction as its autho
 
 `ApprovalLeaseCache` is created for one host/installation/runtime/epoch/connection and one to eight pinned authority keys. It bounds concurrent verification and retained entries to 64, copies all accepted values, removes expired entries, and supplies synchronous evidence only for the same context/decision digest. Its `authorization` method is suitable for the journal's admission and final-guard authorizers. It never fetches authority or extends an expiry. Close clears all entries and fences in-flight results; a backwards or invalid clock closes it. The normal plugin closes the cache on connection/profile disposal.
 
+Cache time is anchored when the connection cache is created. Each comparison uses the later of wall time and its monotonic projection.
+A wall freeze or an unobserved backward step therefore cannot stretch the signed three-second window. Forward wall steps consume
+lifetime immediately and rebase the projection, so freezing afterward cannot wait for an older projection to catch up. Fractional
+monotonic time is retained; conservative integer rounding occurs only when checking the signed dates. Verification completion,
+guard lookup and retries all use the same clock anchor, including a delayed first proof or a repeated copy of an expired proof.
+Invalid, reversed or throwing clocks close the cache; restoring the clock cannot reopen it. The optional fourth constructor
+callback supplies a monotonic clock for controlled tests; normal integration uses `performance.now()`. No system clock is changed.
+
+Focused clock regressions cover freeze, unseen backward adjustment, forward-then-freeze, fractional reads, delayed verification/first proof,
+and invalid monotonic values. They can explicitly select an offline-verified Host bundle through the existing bundle test variables;
+pure `verifyApprovalLease` remains a one-time verifier, while repeatable guard authority stays in the cache.
+
 Negotiated `approval.invalidation.v1` adds actor-scoped negative authority facts on the authenticated host connection. A device tombstone rejects that device for the connection's lifetime; a user's grant-version floor rejects older proofs without rejecting equal/newer versions or another actor. Floors only increase. At most 1024 combined actor entries are retained; overflow closes authority instead of evicting a fence. Admission checks these facts after both signatures verify, so an in-flight proof cannot restore revoked authority. Synchronous authorization checks apply the same fence. A valid but fenced proof cancels its native pending request, while invalid signatures still cannot consume pending state. Three-second expiry remains the fallback bound during event loss, and fresh issuance independently rechecks authoritative database state. Production account/key provisioning hooks still need verification. The journal independently compares grant versions, checks live context/resource facts, persists one-use consumption and refuses replay after restart.
 
 The shared schema now includes leases. `contracts/security/approval-leases.json` contains public-only Go/Node interoperability vectors, including valid allow/reject and malformed/boundary cases. Regenerate explicitly with `tsx tools/generate-approval-leases.ts` (`REMOTE_TEST_GO` overrides the Go binary). Fresh private keys exist only in generator process memory, so regeneration intentionally changes public keys/signatures. Both language suites verify all vectors. Go tests must use `-count=1` because shared fixtures live outside the Go module.

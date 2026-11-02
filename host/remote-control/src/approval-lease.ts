@@ -89,12 +89,17 @@ export class ApprovalLeaseCache {
   private readonly grantFloors = new Map<string, number>()
   private closed = false
   private inFlight = 0
-  private lastTime = -Infinity
+  private lastWall = -Infinity
+  private lastMonotonic = -Infinity
+  private wallAnchor = 0
+  private monotonicAnchor = 0
 
-  constructor(connection: ApprovalLeaseConnection, authorities: TrustedApprovalAuthority[], private readonly now: () => number = Date.now) {
+  constructor(connection: ApprovalLeaseConnection, authorities: TrustedApprovalAuthority[], private readonly now: () => number = Date.now,
+    private readonly monotonic: () => number = () => performance.now()) {
     this.connection = ApprovalLeaseConnection.parse(connection)
     if (authorities.length < 1 || authorities.length > 8 || new Set(authorities.map(item => item.key_id)).size !== authorities.length) throw invalid()
     this.authorities = authorities.map(value => TrustedApprovalAuthority.parse(value))
+    this.time() // Anchor at connection-cache creation, before the first proof can be delayed.
   }
 
   async admit(contextValue: unknown, decisionJWS: string, leaseJWS: string): Promise<RegisteredApprovalKey> {
@@ -180,9 +185,19 @@ export class ApprovalLeaseCache {
   }
 
   private time(): number {
-    const now = this.now()
-    if (!Number.isSafeInteger(now) || now < this.lastTime) { this.close(); throw invalid() }
-    this.lastTime = now
+    let wall: number, mono: number
+    try { wall = this.now(); mono = this.monotonic() } catch { this.close(); throw invalid() }
+    if (!Number.isSafeInteger(wall) || wall < 0 || wall < this.lastWall || !Number.isFinite(mono) || mono < 0 || mono < this.lastMonotonic) {
+      this.close(); throw invalid()
+    }
+    if (this.lastMonotonic === -Infinity) { this.wallAnchor = wall; this.monotonicAnchor = mono }
+    const projected = this.wallAnchor + (mono - this.monotonicAnchor)
+    // A forward wall step consumes lifetime immediately. Rebase so a later
+    // freeze cannot wait for the old monotonic projection to catch up.
+    if (wall > projected) { this.wallAnchor = wall; this.monotonicAnchor = mono }
+    const now = Math.max(wall, Math.ceil(projected))
+    if (!Number.isSafeInteger(now)) { this.close(); throw invalid() }
+    this.lastWall = wall; this.lastMonotonic = mono
     return now
   }
 }

@@ -8,6 +8,7 @@ import { Ajv2020 } from 'ajv/dist/2020.js'
 import { ApprovalLeaseCache, verifyApprovalLease, type TrustedApprovalAuthority } from '../src/approval-lease.js'
 import { PersistentCommandJournal } from '../src/command-journal.js'
 import { type ApprovalContext, type ApprovalDecision } from '../src/approval-contract.js'
+import { hostPackageModule } from '../../../tools/integration/host-package-module.js'
 
 const fixture = JSON.parse(await readFile(new URL('../../../contracts/security/approval-leases.json', import.meta.url), 'utf8')) as {
   now: string; context: ApprovalContext; decision_jws: string; connection_id: string; lease: Record<string, unknown>; authorities: TrustedApprovalAuthority[];
@@ -156,4 +157,70 @@ test('a signed lease enables one durable guard consumption and cannot revive it 
     assert.throws(() => recovered.consume(fixture.context.approval_id, fixture.context, authorize), /approval.stale/)
     recovered.close()
   } finally { await parent?.close(); await rm(root, { recursive: true, force: true }) }
+})
+
+test('approval cache never stretches signed leases when wall time stalls', async t => {
+  const {module:{ApprovalLeaseCache}}=await hostPackageModule<typeof import('../src/approval-lease.js')>(t,'approval-lease')
+  const verified=await verifyApprovalLease(valid.compact,fixture.authorities[0]!,fixture.context,fixture.decision_jws,fixture.connection_id,now)
+  for(const mode of ['frozen','unobserved-step','forward-then-freeze','fractional-reads'] as const) await t.test(mode,async()=>{
+    let wall=now,mono=100
+    const cache=new ApprovalLeaseCache(connection,fixture.authorities,()=>wall,()=>mono)
+    try {
+      await cache.admit(fixture.context,fixture.decision_jws,valid.compact)
+      assert.ok(cache.authorization(fixture.context,verified.decision))
+      if(mode==='frozen')mono+=3000
+      else if(mode==='unobserved-step') {
+        wall+=1000;mono+=2000
+        assert.ok(cache.authorization(fixture.context,verified.decision))
+        wall+=900;mono+=1100 // wall still increases, despite 3.1s actual elapsed time
+      } else if(mode==='forward-then-freeze') {
+        wall+=1000;mono+=10
+        assert.ok(cache.authorization(fixture.context,verified.decision))
+        mono+=2000
+      } else {
+        mono+=2996
+        assert.ok(cache.authorization(fixture.context,verified.decision))
+        for(let index=0;index<16;index++){mono+=0.25;cache.authorization(fixture.context,verified.decision)}
+      }
+      assert.equal(cache.authorization(fixture.context,verified.decision),undefined)
+      assert.equal(cache.decision(fixture.context),undefined)
+      await assert.rejects(cache.admit(fixture.context,fixture.decision_jws,valid.compact),/invalid signed authorization/)
+    } finally {cache.close()}
+  })
+})
+
+test('in-flight approval verification cannot outlive its monotonic lease budget', async t=>{
+  const {module:{ApprovalLeaseCache}}=await hostPackageModule<typeof import('../src/approval-lease.js')>(t,'approval-lease')
+  let mono=100
+  const cache=new ApprovalLeaseCache(connection,fixture.authorities,()=>now,()=>mono)
+  try {
+    const pending=cache.admit(fixture.context,fixture.decision_jws,valid.compact)
+    mono+=3000
+    await assert.rejects(pending,/invalid signed authorization/)
+  } finally {cache.close()}
+})
+
+test('delaying the first approval proof cannot reset the connection clock anchor',async t=>{
+  const {module:{ApprovalLeaseCache}}=await hostPackageModule<typeof import('../src/approval-lease.js')>(t,'approval-lease')
+  let mono=100
+  const cache=new ApprovalLeaseCache(connection,fixture.authorities,()=>now,()=>mono)
+  try {
+    mono+=3000
+    await assert.rejects(cache.admit(fixture.context,fixture.decision_jws,valid.compact),/invalid signed authorization/)
+  } finally {cache.close()}
+})
+
+test('invalid or reversed monotonic clocks irreversibly close approval authority', async t=>{
+  const {module:{ApprovalLeaseCache}}=await hostPackageModule<typeof import('../src/approval-lease.js')>(t,'approval-lease')
+  for(const mode of ['reverse','nan','infinite','negative','throws'] as const) await t.test(mode,async()=>{
+    let mono=100,throws=false
+    const cache=new ApprovalLeaseCache(connection,fixture.authorities,()=>now,()=>{if(throws)throw new Error('PRIVATE_CLOCK_DETAIL');return mono})
+    const verified=await verifyApprovalLease(valid.compact,fixture.authorities[0]!,fixture.context,fixture.decision_jws,fixture.connection_id,now)
+    await cache.admit(fixture.context,fixture.decision_jws,valid.compact)
+    if(mode==='throws')throws=true
+    else mono=mode==='reverse'?99:mode==='nan'?NaN:mode==='infinite'?Infinity:-1
+    assert.equal(cache.authorization(fixture.context,verified.decision),undefined)
+    mono=100;throws=false
+    await assert.rejects(cache.admit(fixture.context,fixture.decision_jws,valid.compact),/invalid signed authorization/)
+  })
 })

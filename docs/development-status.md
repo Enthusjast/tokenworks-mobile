@@ -81,6 +81,9 @@ Linux [真实 Secret Service 专项](linux-native-secret-service.md)随后使用
 [PostgreSQL 加密 WAL/PITR 专项](postgres-pitr-fixture.md)又补齐具名恢复点的本地物理恢复证据，
 核对旧权限行回退后的代次阻断和幂等隔离/释放；它不构成生产备份设施或 RPO/RTO 通过。
 
+审批授权缓存随后加入[单调时钟约束](approval-leases.md)，防止墙钟停滞或未被观察到的回拨拉长签名窗口。
+该后续源码修复不在 `1a40092` Host 包内，需包含修复的新构建交付。
+
 ## 按改动范围选择验证
 
 先完成相关改动，再集中运行适用入口。下面是选择说明，不是要求每轮逐项执行。
