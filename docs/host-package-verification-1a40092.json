@@ -1,0 +1,51 @@
+{
+  "format": "dsh-remote-local-host-verification/v1",
+  "observed_at": "2026-11-02T06:47:29.979628+00:00",
+  "host": {
+    "directory": ".local/host-release-1a40092-evidence/host",
+    "artifact_sha256": "9dc4c4114e58b2245a47a7b689105a574d12c79f4663707428f58dd728565899",
+    "file_count": 260,
+    "manifest_sha256": "7f66a71250257d618b1605b444ad4bf11420038d9deae6edd719b0b6d4f71059",
+    "source_commit": "1a40092e37f9da48f24296797b7eb795083ad55d",
+    "node": "v24.20.0",
+    "dsh": "0.2.1-rc.5"
+  },
+  "fix_commits": [
+    "80ef253",
+    "16a0844",
+    "1a40092"
+  ],
+  "checks": {
+    "source_mode_passed": true,
+    "verified_package_results": 9,
+    "source_host_lib_absent_before_and_after": true,
+    "guarded_path_go_or_npm_invoked": false,
+    "two_node_composition_run": false,
+    "full_go_suite_run": false,
+    "command_exit_codes": {
+      "typecheck": 0,
+      "source-mode": 0,
+      "packaged-regressions": 0
+    }
+  },
+  "logs": {
+    "typecheck": {
+      "path": ".local/host-release-1a40092-evidence/typecheck.log",
+      "sha256": "1bf0ba66b18844679324a6eb740eeed93b19cab6a5a910aff498168693a70e96"
+    },
+    "source-mode": {
+      "path": ".local/host-release-1a40092-evidence/source-mode.log",
+      "sha256": "5b2c67a413c870161d440cb76520d03398d5794d64542c6c22c3f369b32df96e"
+    },
+    "packaged-regressions": {
+      "path": ".local/host-release-1a40092-evidence/packaged-regressions.log",
+      "sha256": "7f4568f2c0d6b08cc495b0b29bc879982fdfc33eaa0863c5c1ed832fdd125c08"
+    }
+  },
+  "scope": {
+    "identity": "local fixtures",
+    "model": "offline deterministic fixture",
+    "secret_service": "isolated real GNOME keyring",
+    "production_acceptance": false
+  }
+}

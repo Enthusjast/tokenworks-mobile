@@ -8,14 +8,15 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { createInterface } from 'node:readline'
 import { fileURLToPath } from 'node:url'
-import { PersistentCommandJournal, type CommandState } from '../src/command-journal.js'
+import type { CommandState } from '../src/command-journal.js'
 import { parseCommand } from '../src/protocol.js'
+import { hostPackageModule } from '../../../tools/integration/host-package-module.js'
 
 const owner = { userId: 'fixture-user', deviceId: 'fixture-device' }
 const fixture = fileURLToPath(new URL('./fixtures/journal-transition-child.ts', import.meta.url))
 
-function peer(path: string, runtime: string, request: string, role: string, operation: string) {
-  const child = spawn(process.execPath, ['--import', 'tsx', fixture, path, runtime, request, role, operation], {
+function peer(path: string, runtime: string, request: string, role: string, operation: string, modules: { journal: string; protocol: string }) {
+  const child = spawn(process.execPath, ['--import', 'tsx', fixture, path, runtime, request, role, operation, modules.journal, modules.protocol], {
     env: { ...process.env, NODE_NO_WARNINGS: '1' }, stdio: ['pipe', 'pipe', 'ignore'],
   })
   const exited = once(child, 'exit')
@@ -42,6 +43,9 @@ function peer(path: string, runtime: string, request: string, role: string, oper
 }
 
 test('SQLite journal transitions preserve a competing committed terminal fact', { skip: process.platform === 'win32', timeout: 30_000 }, async t => {
+  const selected = await hostPackageModule<typeof import('../src/command-journal.js')>(t, 'command-journal')
+  const { PersistentCommandJournal } = selected.module
+  const modules = { journal: selected.url.href, protocol: new URL(selected.url.pathname.endsWith('.ts') ? './protocol.ts' : './protocol.js', selected.url).href }
   const cases: Array<{ name: string; writer: string; contender: string; initial: 'host_accepted' | 'dispatching'; state: CommandState; error?: string; result?: object; rejected: boolean }> = [
     { name: 'late completion cannot overwrite unknown', writer: 'unknown', contender: 'queued', initial: 'dispatching', state: 'outcome_unknown', error: 'fixture.unknown', rejected: true },
     { name: 'late failure cannot overwrite settled', writer: 'settled', contender: 'unknown', initial: 'dispatching', state: 'settled', result: { source: 'writer' }, rejected: true },
@@ -56,8 +60,8 @@ test('SQLite journal transitions preserve a competing committed terminal fact', 
     journal.admit(command, owner)
     if (scenario.initial === 'dispatching') journal.start(command.request_id, owner)
     journal.close()
-    const writer = peer(path, runtime, command.request_id, 'writer', scenario.writer)
-    const contender = peer(path, runtime, command.request_id, 'contender', scenario.contender)
+    const writer = peer(path, runtime, command.request_id, 'writer', scenario.writer, modules)
+    const contender = peer(path, runtime, command.request_id, 'contender', scenario.contender, modules)
     t.after(async () => { await Promise.all([writer.close(), contender.close()]); await rm(root, { recursive: true, force: true }) })
     await Promise.all([writer.next('ready'), contender.next('ready')])
     writer.send()

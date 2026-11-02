@@ -108,6 +108,8 @@ python3 tools/integration/run_host_enrollment_terminal.py \
 
 以下结果绑定各自源码 commit，不是当前 HEAD 的发行产物。
 后续 `rc.5` 包组合及最近源码定向验证见[当前状态页](development-status.md)。
+源 `1a40092` 的[新 Host 包专项记录](host-package-verification-1a40092.md)进一步验证包内日志并发、
+审批额度和密钥写入预算修复，保留了源码默认模式及显式选包失败关闭的行为。
 
 - `.local/host-bundle-approved-a.json`、`host-bundle-approved-b.json`：两次独立构建，包与清单一致，221 个文件。
 - `.local/host-bundle-peer-verify-final.log`：481 个 Host 测试、契约、类型和构建通过，无跳过。

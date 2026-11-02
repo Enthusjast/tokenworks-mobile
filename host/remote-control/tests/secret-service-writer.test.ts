@@ -3,11 +3,12 @@ import assert from 'node:assert/strict'
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { LinuxSecretServiceWriter } from '../src/linux-secret-service.js'
+import { hostPackageModule } from '../../../tools/integration/host-package-module.js'
 
 test('Secret Service writer bounds live children and restores capacity after cancelled children exit', {
   skip: process.platform !== 'linux', timeout: 8000,
 }, async t => {
+  const { module: { LinuxSecretServiceWriter } } = await hostPackageModule<typeof import('../src/linux-secret-service.js')>(t, 'linux-secret-service')
   const root = await mkdtemp(join(tmpdir(), 'dsh-secret-writer-')), executable = join(root, 'secret-tool'), pids = join(root, 'children')
   const children = async () => (await readFile(pids, 'utf8').catch(() => '')).trim().split('\n').filter(Boolean).map(Number)
   t.after(async () => {

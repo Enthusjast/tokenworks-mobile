@@ -75,6 +75,9 @@ Linux [真实 Secret Service 专项](linux-native-secret-service.md)随后使用
 [安装密钥写入](linux-installation-key.md)随后补齐每 writer 实例八个存活子进程的预算，取消后仍待实际退出再释放。
 该源码修复也需通过后续新构建交付，不包含在 `9fa43c4` 包内。
 
+上述三项 Host 修复现已进入源 `1a40092` 的[新 Host 包](host-package-verification-1a40092.md)，
+包内定向回归、安装 CLI 文件与原生密钥库验证通过。该批未重跑 Go 全量或通用双节点组合，旧包记录保持原范围。
+
 ## 按改动范围选择验证
 
 先完成相关改动，再集中运行适用入口。下面是选择说明，不是要求每轮逐项执行。

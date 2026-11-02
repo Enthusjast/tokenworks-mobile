@@ -15,6 +15,7 @@ import type { RegisteredApprovalKey } from '../src/approval-signature.js'
 import type { ApprovalAuthorization } from '../src/approval-authorization.js'
 import { PersistentApprovalJournal } from '../src/approval-journal.js'
 import { parseCommand } from '../src/protocol.js'
+import { hostPackageModule } from '../../../tools/integration/host-package-module.js'
 
 async function actor() {
   const { privateKey, publicKey } = generateKeyPairSync('ec', { namedCurve: 'prime256v1' })
@@ -23,12 +24,12 @@ async function actor() {
   return { privateKey, registered }
 }
 
-async function fixture(t: TestContext) {
+async function fixture(t: TestContext, Journal = PersistentCommandJournal) {
   const root = await mkdtemp(join(tmpdir(), 'dsh-approval-journal-'))
   const path = join(root, 'state', 'commands.sqlite'), runtime = randomUUID(), epoch = randomUUID()
   let now = Date.now()
   const signer = await actor()
-  let parent = await PersistentCommandJournal.open(path, runtime)
+  let parent = await Journal.open(path, runtime)
   let ledger = parent.approvals(epoch, () => now)
   t.after(async () => { try { parent.close() } finally { await rm(root, { recursive:true, force:true }) } })
   const context = (): ApprovalContext => ({
@@ -55,7 +56,7 @@ async function fixture(t: TestContext) {
   })
   return { root,path,runtime,epoch,signer,context,sign,authority, clock:()=>now, advance(ms:number){now+=ms},
     get parent(){return parent}, get ledger(){return ledger},
-    async reopen(nextEpoch = randomUUID()) { parent.close(); parent = await PersistentCommandJournal.open(path,runtime); ledger=parent.approvals(nextEpoch,()=>now); return ledger },
+    async reopen(nextEpoch = randomUUID()) { parent.close(); parent = await Journal.open(path,runtime); ledger=parent.approvals(nextEpoch,()=>now); return ledger },
   }
 }
 
@@ -449,7 +450,8 @@ test('in-flight decision verification is bounded even for repeated proofs of one
 })
 
 test('timed-out approval admission retains capacity until ignored authorization work settles', { timeout:10_000 }, async t => {
-  const h=await fixture(t), context=h.context();h.ledger.register(context)
+  const selected=await hostPackageModule<typeof import('../src/command-journal.js')>(t,'command-journal')
+  const h=await fixture(t,selected.module.PersistentCommandJournal), context=h.context();h.ledger.register(context)
   const compact=await h.sign(context)
   let release!:(value:unknown)=>void, started!:()=>void, entered=0
   const held=new Promise<unknown>(resolve=>{release=resolve}), ready=new Promise<void>(resolve=>{started=resolve})

@@ -1,10 +1,10 @@
 /** Real SQLite writer; only the transaction boundaries are synchronized. */
 import { readSync, writeSync } from 'node:fs'
 import { DatabaseSync } from 'node:sqlite'
-import { PersistentCommandJournal } from '../../src/command-journal.js'
-import { ProbeError } from '../../src/protocol.js'
 
-const [path, runtime, request, role, operation] = process.argv.slice(2) as [string, string, string, string, string]
+const [path, runtime, request, role, operation, journalModule, protocolModule] = process.argv.slice(2) as [string, string, string, string, string, string, string]
+const { PersistentCommandJournal } = await import(journalModule) as typeof import('../../src/command-journal.js')
+const { ProbeError } = await import(protocolModule) as typeof import('../../src/protocol.js')
 const owner = { userId: 'fixture-user', deviceId: 'fixture-device' }
 const report = (phase: string, values: object = {}) => writeSync(1, JSON.stringify({ phase, ...values }) + '\n')
 const wait = () => { if (readSync(0, Buffer.alloc(1), 0, 1, null) !== 1) throw new Error('fixture control closed') }
