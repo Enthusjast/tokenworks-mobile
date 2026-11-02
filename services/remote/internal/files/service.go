@@ -42,16 +42,20 @@ type ServiceConfig struct {
 	TaskTimeout  time.Duration
 }
 type Service struct {
-	repository  Repository
-	storage     BlobStore
-	scanner     Scanner
-	config      ServiceConfig
-	healthy     atomic.Bool
-	probedAt    atomic.Int64
-	running     atomic.Bool
-	renewEvery  time.Duration
-	metricsOnce sync.Once
-	metrics     *observability.Metrics
+	repository       Repository
+	storage          BlobStore
+	scanner          Scanner
+	config           ServiceConfig
+	healthy          atomic.Bool
+	probedAt         atomic.Int64
+	healthMu         sync.RWMutex
+	healthGeneration uint64
+	probeCompleted   time.Time
+	probeGate        chan struct{}
+	running          atomic.Bool
+	renewEvery       time.Duration
+	metricsOnce      sync.Once
+	metrics          *observability.Metrics
 }
 
 func NewService(repository Repository, storage BlobStore, scanner Scanner, config ServiceConfig) (*Service, error) {
@@ -61,7 +65,7 @@ func NewService(repository Repository, storage BlobStore, scanner Scanner, confi
 	if _, valid := checksum(config.PolicySHA256); !valid {
 		return nil, ErrInvalid
 	}
-	return &Service{repository: repository, storage: storage, scanner: scanner, config: config, renewEvery: 5 * time.Second}, nil
+	return &Service{repository: repository, storage: storage, scanner: scanner, config: config, renewEvery: 5 * time.Second, probeGate: make(chan struct{}, 1)}, nil
 }
 
 // ScannerTestPattern builds the standard harmless EICAR diagnostic bytes in
@@ -71,6 +75,18 @@ func ScannerTestPattern() []byte {
 }
 
 func (service *Service) ProbeScanner(ctx context.Context) error {
+	if ctx.Err() != nil {
+		return ErrScanUnavailable
+	}
+	select {
+	case service.probeGate <- struct{}{}:
+	case <-ctx.Done():
+		return ErrScanUnavailable
+	}
+	defer func() { <-service.probeGate }()
+	if ctx.Err() != nil {
+		return ErrScanUnavailable
+	}
 	for index, data := range [][]byte{[]byte("DSH remote file scanner health check"), ScannerTestPattern()} {
 		scan, err := service.scanner.Begin(ctx)
 		if err == nil {
@@ -80,20 +96,40 @@ func (service *Service) ProbeScanner(ctx context.Context) error {
 			}
 			_ = scan.Close()
 		}
-		if index == 0 && err != nil || index == 1 && !errors.Is(err, ErrRejected) {
-			service.healthy.Store(false)
-			service.probedAt.Store(time.Now().UnixMilli())
+		if ctx.Err() != nil || index == 0 && err != nil || index == 1 && !errors.Is(err, ErrRejected) {
+			service.recordProbe(false)
 			return ErrScanUnavailable
 		}
 	}
-	service.probedAt.Store(time.Now().UnixMilli())
-	service.healthy.Store(true)
+	if ctx.Err() != nil {
+		service.recordProbe(false)
+		return ErrScanUnavailable
+	}
+	service.recordProbe(true)
 	return nil
 }
 
-func (service *Service) Ready() bool {
+func (service *Service) recordProbe(healthy bool) {
+	service.healthMu.Lock()
+	defer service.healthMu.Unlock()
+	if !healthy {
+		service.healthGeneration++
+	}
+	service.probeCompleted = time.Now()
+	service.probedAt.Store(service.probeCompleted.UnixMilli())
+	service.healthy.Store(healthy)
+}
+func (service *Service) scannerAdmission() (uint64, bool) {
+	service.healthMu.RLock()
+	defer service.healthMu.RUnlock()
 	age := time.Since(time.UnixMilli(service.probedAt.Load()))
-	return service.healthy.Load() && age >= 0 && age < 2*time.Minute
+	elapsed := time.Since(service.probeCompleted)
+	return service.healthGeneration, service.healthy.Load() && !service.probeCompleted.IsZero() && age >= 0 && age < 2*time.Minute && elapsed >= 0 && elapsed < 2*time.Minute
+}
+func (service *Service) Ready() bool { _, ready := service.scannerAdmission(); return ready }
+func (service *Service) scannerCurrent(generation uint64) bool {
+	current, ready := service.scannerAdmission()
+	return ready && current == generation
 }
 
 type UploadPrepared struct {
@@ -229,7 +265,8 @@ func (service *Service) repeat(ctx context.Context, period time.Duration, name s
 }
 
 func (service *Service) ScanNext(ctx context.Context) (bool, error) {
-	if !service.Ready() {
+	generation, ready := service.scannerAdmission()
+	if !ready {
 		return false, ErrScanUnavailable
 	}
 	admit, cancel := context.WithTimeout(ctx, 2*time.Second)
@@ -238,10 +275,10 @@ func (service *Service) ScanNext(ctx context.Context) (bool, error) {
 	if err != nil || claim == nil {
 		return false, err
 	}
-	return true, service.scan(ctx, *claim)
+	return true, service.scan(ctx, *claim, generation)
 }
 
-func (service *Service) scan(parent context.Context, claim ScanClaim) (result error) {
+func (service *Service) scan(parent context.Context, claim ScanClaim, generation uint64) (result error) {
 	started := time.Now()
 	bounded, stop := context.WithTimeout(parent, service.config.TaskTimeout)
 	defer stop()
@@ -283,10 +320,15 @@ func (service *Service) scan(parent context.Context, claim ScanClaim) (result er
 			}
 		}
 	}()
-	err := service.copyVerified(ctx, claim)
+	err := ErrScanUnavailable
+	if service.scannerCurrent(generation) {
+		err = service.copyVerified(ctx, claim)
+	}
 	if err == nil {
 		if ctx.Err() != nil {
 			err = context.Cause(ctx)
+		} else if !service.scannerCurrent(generation) {
+			err = ErrScanUnavailable
 		} else {
 			err = service.repository.CompleteScan(ctx, claim)
 		}

@@ -67,8 +67,7 @@ func TestUploadControllersRejectExpiredLateOrOverlongPresignedCapabilities(t *te
 				if err != nil {
 					t.Fatal(err)
 				}
-				service.healthy.Store(true)
-				service.probedAt.Store(time.Now().UnixMilli())
+				service.recordProbe(true)
 				var prepared UploadPrepared
 				if direction == "to_host" {
 					prepared, err = service.Upload(t.Context(), Actor{}, record.ID)
