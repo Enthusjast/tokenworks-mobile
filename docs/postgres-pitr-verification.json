@@ -1,0 +1,30 @@
+{
+  "format": "dsh-pitr-fixture-result/v1",
+  "service_source": "9fa43c4e758f37d173b95338e075876a31effc44",
+  "base_manifest_verified": true,
+  "physical_identity_preserved": true,
+  "timeline_advanced": true,
+  "wal_only_marker_replayed": true,
+  "after_target_marker_absent": true,
+  "old_authority_rows_restored": true,
+  "wrong_passphrase_rejected": true,
+  "tampered_archive_rejected": true,
+  "unauthenticated_plaintext_not_published": true,
+  "external_epoch_rejected_startup": true,
+  "quarantine_reconciled": true,
+  "release_reconciled": true,
+  "old_devices_and_grants_stay_revoked": true,
+  "encrypted_files": {
+    "000000010000000000000001.gpg": "60b677a88fb8cd3159a326eb9c8922623f78fd8da968bd13b4cb5af7d429f6e7",
+    "000000010000000000000002.00000028.backup.gpg": "7234909c5be5b6500deb5151f63842d27f398dc569e6ab66efe292f1a5857478",
+    "000000010000000000000002.gpg": "ace286a6e2fb21f57d53fdc45b4105478c5ce624604daf4c2ec69f5a42cee836",
+    "000000010000000000000003.gpg": "1dc04153cbef3fdef77e3f3f8682920215fd064d4ebae1e180ca60e2f1476d4e",
+    "base.tar.gpg": "d4e0337493564f08f08f777b59b269061cf3de38a889ada1e741284b1778ad91"
+  },
+  "production_rpo_rto_measured": false,
+  "full_go_suite_run": false,
+  "owned_resources_stopped": true,
+  "recorded_at": "2026-11-02T07:48:11.113933+00:00",
+  "startup_guard_tests": 3,
+  "evidence_directory": ".local/pitr-evidence"
+}

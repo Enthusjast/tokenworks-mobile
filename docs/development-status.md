@@ -78,6 +78,9 @@ Linux [真实 Secret Service 专项](linux-native-secret-service.md)随后使用
 上述三项 Host 修复现已进入源 `1a40092` 的[新 Host 包](host-package-verification-1a40092.md)，
 包内定向回归、安装 CLI 文件与原生密钥库验证通过。该批未重跑 Go 全量或通用双节点组合，旧包记录保持原范围。
 
+[PostgreSQL 加密 WAL/PITR 专项](postgres-pitr-fixture.md)又补齐具名恢复点的本地物理恢复证据，
+核对旧权限行回退后的代次阻断和幂等隔离/释放；它不构成生产备份设施或 RPO/RTO 通过。
+
 ## 按改动范围选择验证
 
 先完成相关改动，再集中运行适用入口。下面是选择说明，不是要求每轮逐项执行。
