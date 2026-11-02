@@ -17,6 +17,7 @@ import { PinnedExportSource } from './file-export-source.js'
 import { RelayQuestionReferences } from './relay-question-references.js'
 import type { JournalKeyProtector } from './journal-key-protection.js'
 import { HostEnrolledRuntimeError, verifyEnrolledHostRuntime, type HostEnrolledRuntimeOptions } from './host-enrolled-runtime.js'
+import { registerDesktopUI } from './desktop-ui.js'
 export type { HostConnectionCredential, HostCredentialProvider, HostHandshakeSigner } from './relay-client.js'
 export { HostRestCredentialProvider, HostCredentialError } from './host-credentials.js'
 export type { HostResourceIdentity, HostResourceAccess, HostResourceRequest, HostResourceAccessProvider, HostRestCredentialOptions } from './host-credentials.js'
@@ -192,6 +193,14 @@ async function applyOwned(ctx: Context, config: Config, parentFiber: Context['fi
           files: binding => new RelayFiles(runtime!.files, binding),
           ...(exportSupported?{exports:binding=>new RelayExports(runtime!.exports,client,epoch,binding,(session,sync)=>runtime!.mediaCurrent(session,sync))}:{}),
         })
+        registerDesktopUI(ctx, () => ({
+          runtimeId: options.runtimeId!, epoch,
+          relay: options.relayUrl ? { origin: new URL(options.relayUrl).origin, phase: relay?.status() ?? 'stopped' } : null,
+          localSocket: Boolean(server), protectedJournal: Boolean(journalKeyProtector),
+          development: options.applicationVersion === 'local-development-fixture',
+          workspaces: workspaces.map(workspace => ({ id: workspace.id, label: workspace.label || workspace.id })),
+          presets: [...presets],
+        }))
       } catch (error) {
         await relay?.close()
         await server?.close()

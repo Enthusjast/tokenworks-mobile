@@ -132,7 +132,7 @@ def terminate(child):
         child.wait(timeout=5)
 
 
-def serve(profile):
+def serve(profile, attach=None):
     STATE.mkdir(mode=0o700, parents=True, exist_ok=True)
     if STATE.is_symlink() or STATE.stat().st_uid != os.getuid() or STATE.stat().st_mode & 0o777 != 0o700:
         raise RuntimeError('development state directory must be private and owned by this user')
@@ -153,7 +153,7 @@ def serve(profile):
     dsh_version = subprocess.check_output([dsh, '--version'], text=True).strip()
     if not re.fullmatch(r'0\.2\.1(?:-rc\.[0-9]+)?', dsh_version):
         raise RuntimeError('this development composition requires installed npm dsh 0.2.1')
-    for port in PORTS.values():
+    for port in [PORTS['relay'], PORTS['issuer'], *([] if attach else [PORTS['dsh']])]:
         with socket.socket() as check:
             check.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
             check.bind(('127.0.0.1', port))
@@ -162,6 +162,9 @@ def serve(profile):
              'socket': str(SOCKET), 'fixture_identity': True, 'relay_plugin_connected': False,
              'go_reloads': 0, 'children': {}}
     save(STATUS, state)
+    if attach:
+        state.update(external_dsh=attach, dsh=attach['url'])
+        save(STATUS, state)
     children = {}
     database_started = False
     issuer = None
@@ -321,11 +324,16 @@ def serve(profile):
         save(STATE / 'dsh.patch.yml', overlay)
         launch('typescript', [node, str(ROOT / 'node_modules/typescript/bin/tsc'), '-p', str(ROOT / 'host/remote-control/tsconfig.build.json'),
                               '--watch', '--preserveWatchOutput', '--noEmitOnError'])
-        launch('dsh', [node, '--expose-internals', str(Path(dsh).resolve()), '--profile', profile,
-                       '--patch', str(STATE / 'dsh.patch.yml'), '--host', '127.0.0.1', '--port', '3000', '--no-open'])
+        if attach:
+            command([node, str(ROOT / 'tools/dev/attach-profile.mjs'), profile])
+        else:
+            launch('dsh', [node, '--expose-internals', str(Path(dsh).resolve()), '--profile', profile,
+                           '--patch', str(STATE / 'dsh.patch.yml'), '--host', '127.0.0.1', '--port', '3000', '--no-open'])
         observed = snapshot()
         deadline = time.monotonic() + 60
         while not stopping.is_set():
+            if attach and identity(attach['pid']) != attach['started']:
+                raise RuntimeError('external DSH exited; its process is never owned or restarted by this supervisor')
             for name, child in children.items():
                 if child.poll() is not None:
                     if name == 'relay' and state['state'] == 'running':
@@ -378,9 +386,33 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('action', choices=['start', 'run', 'status', 'stop'])
     parser.add_argument('--profile', default='web')
+    parser.add_argument('--attach-pid', type=int, help='attach backend/watchers to this existing DSH; never stop or restart it')
+    parser.add_argument('--dsh-url', default='http://127.0.0.1:3080', help='existing loopback Web address for --attach-pid')
     args = parser.parse_args()
+    attach = None
+    if args.attach_pid is not None:
+        from urllib.parse import urlsplit
+        url = urlsplit(args.dsh_url)
+        if url.scheme != 'http' or url.hostname not in ('127.0.0.1', 'localhost', '::1') or url.username or url.password or url.query or url.fragment or url.path not in ('', '/'):
+            raise RuntimeError('attachment requires a plain loopback Web origin')
+        process = Path('/proc') / str(args.attach_pid)
+        started = identity(args.attach_pid)
+        if not started or process.stat().st_uid != os.getuid():
+            raise RuntimeError('external DSH must be a live process owned by this user')
+        argv = (process / 'cmdline').read_bytes().split(b'\0')
+        if not any(Path(os.fsdecode(item)).name == 'dsh' for item in argv if item) or b'web' not in argv:
+            raise RuntimeError('attachment requires an installed dsh web process')
+        if not health(args.dsh_url):
+            # The Web root can return 401 until its browser authenticates.
+            import urllib.error, urllib.request
+            try:
+                urllib.request.urlopen(args.dsh_url, timeout=2).close()
+            except urllib.error.HTTPError as error:
+                if error.code != 401:
+                    raise RuntimeError('external DSH Web is unavailable') from None
+        attach = {'pid': args.attach_pid, 'started': started, 'url': args.dsh_url.rstrip('/')}
     if args.action == 'run':
-        serve(args.profile)
+        serve(args.profile, attach)
         return
     state = read_status()
     if args.action == 'status':
@@ -402,18 +434,21 @@ def main():
         print('development stack is not running')
         return
     if running(state):
+        if state.get('profile') != args.profile or state.get('external_dsh') != attach:
+            raise RuntimeError('development stack already running in a different mode/profile; stop explicitly before switching')
         print('development stack already running; use status for live readiness')
         return
     STATE.mkdir(mode=0o700, parents=True, exist_ok=True)
     with open(STATE / 'supervisor.log', 'ab', buffering=0) as output:
         os.fchmod(output.fileno(), 0o600)
-        child = subprocess.Popen([sys.executable, str(Path(__file__).resolve()), 'run', '--profile', args.profile], cwd=ROOT,
+        child = subprocess.Popen([sys.executable, str(Path(__file__).resolve()), 'run', '--profile', args.profile,
+                                  *(['--attach-pid', str(args.attach_pid), '--dsh-url', args.dsh_url] if attach else [])], cwd=ROOT,
                                  stdin=subprocess.DEVNULL, stdout=output, stderr=subprocess.STDOUT, start_new_session=True)
     print(f'development supervisor started pid={child.pid}; logs: {STATE}', flush=True)
     for _ in range(120):
         current = read_status()
         if current.get('pid') == child.pid and current.get('state') == 'running':
-            print('ready: relay http://127.0.0.1:8080; dsh http://127.0.0.1:3000; both reloaders enabled')
+            print('ready: relay http://127.0.0.1:8080; dsh ' + current['dsh'] + '; both reloaders enabled')
             return
         if child.poll() is not None:
             raise RuntimeError('development startup failed; inspect .local/dev/supervisor.log')

@@ -45,6 +45,20 @@ def validate(manifest, raw):
 
 
 class HostBundleTests(unittest.TestCase):
+    def test_client_metadata_requires_the_exact_ui_asset_and_excludes_fixture_exports(self):
+        files, _, _ = fixture()
+        package = json.loads(files['package/package.json'])
+        package.update(files=['lib', 'README.md', 'client'], dsh={'client': {
+            'platform': 'web', 'inject': ['@deepseek-ai/dsh-client-ui-settings-general']}})
+        package['exports']['./client'] = './client/index.js'
+        files['package/package.json'] = bundle.json_bytes(package)
+        with self.assertRaises(bundle.BundleError): bundle.inspect_archive(archive(files))
+        files['package/client/index.js'] = b'window.__ModuleLoader__.load({id:"fixture"})'
+        bundle.inspect_archive(archive(files))
+        package['exports']['./development'] = './development.mjs'
+        files['package/package.json'] = bundle.json_bytes(package)
+        with self.assertRaises(bundle.BundleError): bundle.inspect_archive(archive(files))
+
     def test_private_offline_verification_and_fresh_bounded_extraction(self):
         files, raw, manifest = fixture()
         with tempfile.TemporaryDirectory() as name:

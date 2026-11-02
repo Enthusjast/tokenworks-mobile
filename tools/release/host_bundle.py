@@ -26,7 +26,7 @@ MAX_TAR = MAX_TOTAL + MAX_FILES * 1024 + 10240
 HEX = re.compile(r"^[0-9a-f]{64}$")
 VERSION = re.compile(r"^[0-9]+\.[0-9]+\.[0-9]+(?:-[a-zA-Z0-9.]+)?$")
 INPUTS = ["package.json", "package-lock.json", "tsconfig.json", "host/remote-control/package.json",
-          "host/remote-control/tsconfig.build.json", "host/remote-control/README.md", "host/remote-control/src", "contracts"]
+          "host/remote-control/tsconfig.build.json", "host/remote-control/README.md", "host/remote-control/src", "host/remote-control/client", "contracts"]
 
 class BundleError(Exception):
     pass
@@ -74,7 +74,7 @@ def package_path(value):
             and not any(ord(char) < 32 or ord(char) == 127 for char in value))
     path = PurePosixPath(value)
     require(not path.is_absolute() and path.as_posix() == value and ".." not in path.parts)
-    return value in ("package/package.json", "package/README.md") or (
+    return value in ("package/package.json", "package/README.md", "package/client/index.js") or (
         value.startswith("package/lib/") and len(path.parts) >= 3
         and value.endswith((".js", ".js.map", ".d.ts")))
 
@@ -110,9 +110,16 @@ def inspect_archive(raw):
     package = parse_json(files["package/package.json"])
     require(package.get("name") == "@ustc/dsh-remote-control" and VERSION.fullmatch(package.get("version", ""))
             and package.get("type") == "module" and package.get("main") == "lib/index.js"
-            and package.get("types") == "lib/index.d.ts" and package.get("files") == ["lib", "README.md"]
-            and package.get("private") is True
-            and package.get("exports") == {".": {"types": "./lib/index.d.ts", "default": "./lib/index.js"}})
+            and package.get("types") == "lib/index.d.ts" and package.get("private") is True)
+    base_exports = {".": {"types": "./lib/index.d.ts", "default": "./lib/index.js"}}
+    if package.get("dsh") is None:
+        require(package.get("files") == ["lib", "README.md"] and package.get("exports") == base_exports
+                and "package/client/index.js" not in files)
+    else:
+        require(package.get("files") == ["lib", "README.md", "client"]
+                and package.get("exports") == {**base_exports, "./client": "./client/index.js"}
+                and package["dsh"] == {"client": {"platform": "web", "inject": ["@deepseek-ai/dsh-client-ui-settings-general"]}}
+                and "package/client/index.js" in files)
     require(not any(hook in package.get("scripts", {}) for hook in ["preinstall", "install", "postinstall", "prepare", "prepack", "postpack"]))
     for section in ("dependencies", "peerDependencies"):
         require(isinstance(package.get(section), dict) and package[section]
@@ -134,7 +141,7 @@ def validate(manifest_raw, archive_raw, expected):
         require(isinstance(entry, dict) and set(entry) == {"path", "sha256", "size"}
                 and isinstance(entry["path"], str) and not PurePosixPath(entry["path"]).is_absolute()
                 and ".." not in PurePosixPath(entry["path"]).parts and "\\" not in entry["path"]
-                and (entry["path"] in INPUTS or any(entry["path"].startswith(prefix + "/") for prefix in ["host/remote-control/src", "contracts"]))
+                and (entry["path"] in INPUTS or any(entry["path"].startswith(prefix + "/") for prefix in ["host/remote-control/src", "host/remote-control/client", "contracts"]))
                 and HEX.fullmatch(entry["sha256"])
                 and type(entry["size"]) is int and entry["size"] >= 0)
     artifact = manifest["artifact"]
@@ -271,6 +278,10 @@ process.stdout.write(JSON.stringify(result));"""
         staged = Path(temporary) / "package"
         staged.mkdir(mode=0o700)
         (staged / "package.json").write_bytes((root / "host/remote-control/package.json").read_bytes())
+        client = root / "host/remote-control/client/index.js"
+        if client.exists():
+            (staged / "client").mkdir()
+            (staged / "client/index.js").write_bytes(client.read_bytes())
         (staged / "README.md").write_bytes((root / "host/remote-control/README.md").read_bytes())
         run(["node", str(root / "node_modules/typescript/bin/tsc"), "--project", "host/remote-control/tsconfig.build.json",
              "--outDir", str(staged / "lib"), "--sourceRoot", "../src/"], root, log)

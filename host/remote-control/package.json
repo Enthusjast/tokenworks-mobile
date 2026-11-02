@@ -9,12 +9,17 @@
     ".": {
       "types": "./lib/index.d.ts",
       "default": "./lib/index.js"
-    }
+    },
+    "./client": "./client/index.js"
   },
   "files": [
     "lib",
-    "README.md"
+    "README.md",
+    "client"
   ],
+  "dsh": {
+    "client": { "platform": "web", "inject": ["@deepseek-ai/dsh-client-ui-settings-general"] }
+  },
   "scripts": {
     "build": "tsc -p tsconfig.build.json"
   },

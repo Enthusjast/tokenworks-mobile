@@ -863,16 +863,17 @@ async function connectOnce(options: HostRelayOptions, url: string, credential: H
   }
 }
 
-async function run(options: HostRelayOptions, url: string, signal: AbortSignal): Promise<void> {
+async function run(options: HostRelayOptions, url: string, signal: AbortSignal, phase: (value: 'connecting' | 'connected' | 'reconnecting') => void): Promise<void> {
   const backoff = new HostReconnectBackoff()
   while (!signal.aborted) {
     try {
       const credential = await withAbort(options.credentials.acquire(signal), signal)
-      await connectOnce(options, url, credential, signal, () => backoff.connected())
+      await connectOnce(options, url, credential, signal, () => { backoff.connected(); phase('connected') })
     } catch {
       if (signal.aborted) return
     }
     if (signal.aborted) return
+    phase('reconnecting')
     try { await delay(backoff.retryDelay(), undefined, { signal }) }
     catch { return }
   }
@@ -910,8 +911,10 @@ export function startHostRelay(options: HostRelayOptions) {
   }
   const controller = new AbortController()
   const lifetime = options.credentials.signal ? AbortSignal.any([controller.signal, options.credentials.signal]) : controller.signal
-  const task = run(options, url, lifetime).catch(() => {})
+  let phase: 'connecting' | 'connected' | 'reconnecting' = 'connecting'
+  const task = run(options, url, lifetime, value => { phase = value }).catch(() => {})
   return {
+    status(): 'connecting' | 'connected' | 'reconnecting' | 'stopped' { return lifetime.aborted ? 'stopped' : phase },
     async close() {
       controller.abort()
       await task
