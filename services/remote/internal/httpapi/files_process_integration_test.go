@@ -116,8 +116,8 @@ func TestConfiguredFileServiceProcessRunsWorkersAndShutsDownCleanly(t *testing.T
 		}
 		time.Sleep(20 * time.Millisecond)
 	}
-	// /readyz proves database availability, not completion of the scanner's
-	// active self-test. Registration must wait for that independent proof.
+	// /readyz includes scanner health. Also wait for its successful probe
+	// telemetry before checking production scan-outcome metrics below.
 	deadline = time.Now().Add(8 * time.Second)
 	for {
 		response, err := metricsClient.Get("http://" + metricsAddress + "/metrics")
