@@ -32,6 +32,7 @@ export class LinuxSecretServiceLookup {
 export class LinuxSecretServiceWriter {
   #reference: LinuxSecretServiceReference
   #pendingChecks = 0
+  #pendingChildren = 0
 
   constructor(options: LinuxSecretServiceReference) {
     const reference = { executable: options.executable, service: options.service, account: options.account }
@@ -57,8 +58,15 @@ export class LinuxSecretServiceWriter {
       } finally { removeAbort() }
       if (signal.aborted) throw unavailable()
       await new Promise<void>((resolveResult, rejectResult) => {
-        const child = spawn(this.#reference.executable, ['store', '--label=DSH remote installation key', 'service', this.#reference.service, 'account', this.#reference.account],
+        if (this.#pendingChildren >= 8) { rejectResult(unavailable()); return }
+        this.#pendingChildren++
+        const launch = () => spawn(this.#reference.executable, ['store', '--label=DSH remote installation key', 'service', this.#reference.service, 'account', this.#reference.account],
           { shell: false, env: sanitizedEnvironment(), stdio: ['pipe', 'ignore', 'ignore'] })
+        let child: ReturnType<typeof launch>
+        try { child = launch() } catch { this.#pendingChildren--; rejectResult(unavailable()); return }
+        // Caller cancellation returns before process reaping. Retain the slot
+        // until close, just like the shared read-only lookup implementation.
+        child.once('close', () => { this.#pendingChildren-- })
         let settled = false
         let killTimer: NodeJS.Timeout | undefined
         const stop = () => {

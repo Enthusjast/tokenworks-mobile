@@ -43,6 +43,10 @@ if (!installation) throw new Error('installation identity requires setup or reco
 文件返回 `host.installation_key.exists`；应使用 `open` 核对原身份。同一 JavaScript 运行域内
 同一路径只允许一个操作，独立进程通过不可覆盖发布竞争，失败者不能覆盖成功者。
 
+底层 Secret Service writer 的路径检查和存活子进程分别有每实例八项预算。写入检查结束不释放子进程槽；
+取消仍及时返回并发送 SIGTERM，250 ms 后必要时升级 SIGKILL，只有实际 `close` 才归还进程槽。
+这与查找命令的清理边界一致，不是整个宿主或系统的全局进程上限，也不改变随机引用和未知写入结果的语义。
+
 Secret Service 写入、文件发布或取消可能发生在调用方收到结果之前。`host.installation_key.outcome_unknown`
 表示需要先调用 `open` 对账；若引用已经存在且能验证，继续使用该身份。若引用不存在但操作曾
 进入密钥库，可能留下未被引用的密钥库条目；此时本 API 尚未返回身份，也没有发起服务端登记。
