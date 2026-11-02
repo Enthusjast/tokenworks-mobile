@@ -11,15 +11,25 @@ import { setApprovalPolicy } from '@deepseek-ai/dsh-user-approval'
 import { host } from './harness.js'
 import { DshClient } from '../src/dsh-client.js'
 import { PersistentCommandJournal } from '../src/command-journal.js'
-import { SignedApprovals, type NativeApprovalSession } from '../src/signed-approvals.js'
+import type { NativeApprovalSession } from '../src/signed-approvals.js'
 import { approvalBinding, approvalKeyID, APPROVAL_JWS_TYPE, type ApprovalContext, type ApprovalDecision } from '../src/approval-contract.js'
 import { canonicalObject } from '../src/canonical.js'
 import { APPROVAL_AUTHORIZATION_DOMAIN, APPROVAL_AUTHORIZATION_AUDIENCE, APPROVAL_AUTHORIZATION_JWS_TYPE } from '../src/approval-lease.js'
+import { hostPackageModule } from '../../../tools/integration/host-package-module.js'
 
 test('normal native approval owner requires both phone proof and native policy at the actual body boundary', async t => {
+  const { module: { SignedApprovals } } = await hostPackageModule<typeof import('../src/signed-approvals.js')>(t, 'signed-approvals')
   for (const mode of ['allow', 'reject', 'invalid-proof', 'no-phone', 'auto-allow', 'auto-with-phone', 'pre-allow', 'guard-before', 'guard-after',
     'changed-file', 'changed-directory', 'late-directory', 'call-swap', 'agent-swap', 'token-swap', 'expired-around', 'long-body', 'native-never', 'disconnect', 'disconnect-running', 'dispose-around',
-    'device-revoke-flight', 'grant-revoke-flight', 'equal-grant', 'other-device', 'revoke-around', 'revoke-running'] as const) await t.test(mode, async () => {
+    'device-revoke-flight', 'grant-revoke-flight', 'equal-grant', 'other-device', 'revoke-around', 'revoke-running', 'stalled-wall-body'] as const) await t.test(mode, async subtest => {
+    const realNow = Date.now
+    let frozen: number | undefined
+    if (mode === 'stalled-wall-body') {
+      // Constructors capture this stable callback while the clock still runs.
+      // Freeze only this test process, after the signed proof was accepted.
+      Date.now = () => frozen ?? realNow()
+      subtest.after(() => { Date.now = realNow })
+    }
     const h = await host({ probe: false })
     const workspaceID = randomUUID(), epoch = randomUUID(), hostID = randomUUID(), installationID = randomUUID(), connectionID = randomUUID()
     const parent = await PersistentCommandJournal.open(join(h.directory, 'signed', 'commands.sqlite'), h.runtimeId), journal = parent.approvals(epoch)
@@ -67,6 +77,14 @@ test('normal native approval owner requires both phone proof and native policy a
       if (mode === 'call-swap') (exec as unknown as { callId: string }).callId = randomUUID()
       if (mode === 'agent-swap') (exec as unknown as { agent: typeof agent }).agent = otherAgent!
       if (mode === 'token-swap') (exec as unknown as { token: symbol }).token = Symbol('other execution')
+      if (mode === 'stalled-wall-body') {
+        frozen = realNow()
+        try {
+          // Synchronous blocking keeps the ordinary expiry timer pending.
+          Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 2300)
+          return await next()
+        } finally { frozen = undefined }
+      }
       return next()
     }, { prepend: true })
     session = owner.attach({ ...owner.identity, connection_id: connectionID }, async context => {
@@ -108,7 +126,7 @@ test('normal native approval owner requires both phone proof and native policy a
       assert.equal(calls, executed ? 1 : 0, mode)
       assert.equal(result.isError, !executed, mode)
       if (mode === 'pre-allow') assert.equal(published, 0)
-      if (mode === 'expired-around') assert.equal(around, true)
+      if (mode === 'expired-around' || mode === 'stalled-wall-body') assert.equal(around, true)
       if (captured) {
         const status = journal.get(captured.approval_id).status
         if (executed) { assert.equal(status.state, 'settled'); assert.equal(status.outcome, 'succeeded') }

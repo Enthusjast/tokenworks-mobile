@@ -1,0 +1,54 @@
+{
+  "format": "dsh-remote-local-host-verification/v1",
+  "observed_at": "2026-11-02T08:57:06.893295+00:00",
+  "host": {
+    "directory": ".local/host-release-365b025-evidence/host",
+    "artifact_sha256": "6f9e3a9c5331cf5f6eef6faa6fbd97a23dd500fa6c0c2c7abdccc9baef5aa4a8",
+    "file_count": 260,
+    "manifest_sha256": "41bdf1e382e2fbb07be8cddbd09248980a5d20ef0ee74cbd7b91de912b78f512",
+    "source_commit": "365b02534e5ff6f423d13f3142295462af4fc398",
+    "node": "v24.20.0",
+    "dsh": "0.2.1-rc.5"
+  },
+  "fix_commits": [
+    "365b025"
+  ],
+  "checks": {
+    "verified_package_results": 42,
+    "source_host_lib_absent_before_and_after": true,
+    "guarded_path_go_or_npm_invoked": false,
+    "two_node_composition_run": false,
+    "installed_cli_run": false,
+    "full_go_suite_run": false,
+    "command_exit_codes": {
+      "typecheck": 0,
+      "packaged-regressions": 0,
+      "previous-package-expected-negative": 1
+    }
+  },
+  "negative_control": {
+    "source_commit": "1a40092e37f9da48f24296797b7eb795083ad55d",
+    "manifest_sha256": "7f66a71250257d618b1605b444ad4bf11420038d9deae6edd719b0b6d4f71059",
+    "stalled_wall_native_body_calls": 1,
+    "expected_body_calls": 0
+  },
+  "logs": {
+    "typecheck": {
+      "path": ".local/host-release-365b025-evidence/typecheck.log",
+      "sha256": "1bf0ba66b18844679324a6eb740eeed93b19cab6a5a910aff498168693a70e96"
+    },
+    "packaged-regressions": {
+      "path": ".local/host-release-365b025-evidence/packaged-regressions.log",
+      "sha256": "68e83d2447168d2f00a8a4db564278378963f33bcc822cf49d50266d8bdcf03d"
+    },
+    "previous-package-boundary": {
+      "path": ".local/host-release-365b025-evidence/previous-package-boundary.log",
+      "sha256": "2eb06ba903ec2ac438f26ec5ee8b11c80a3c53af667f00712cb9239a05c25402"
+    }
+  },
+  "scope": {
+    "identity": "local fixtures",
+    "native_execution": "locked npm DSH SDK with temporary host",
+    "production_acceptance": false
+  }
+}
