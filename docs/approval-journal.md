@@ -27,6 +27,16 @@ The trusted authority integration must provide a current owner `approval.decide`
 
 Decision admission bounds 64 in-flight operations and a 1.5-second deadline, passes an abort signal to the provider, and rejects late resolution after timeout/close. Providers may perform asynchronous work during admission. A final native `tools.guard` is synchronous, so `consume` requires a synchronous fresh authority lookup and rejects promises. It recomputes the actual execution/resource binding, checks the accepted decision expiry and exact current grant/key/assurance, then commits `approved` -> `consumed` with compare-and-set. Permission is returned only after the update really changed one row and COMMIT succeeded. Time is rechecked after authorization and after the commit: an expired lease/decision cannot be stretched by a slow SQLite write. A spent marker that cannot yield a timely permit becomes unknown without dispatch. A changed binding or unavailable/changed authority invalidates the unconsumed approval. The producer/guard must collect live resource facts; journal storage does not inspect files itself.
 
+The in-flight budget includes timed-out or closed calls whose underlying verification/authorization promise has not settled.
+Caller timeout and close still return promptly and abort the provider signal; they release the slot only when that task ends.
+Otherwise repeated timed-out batches could exceed the 64-operation bound while retaining private contexts and pending provider work.
+Once retired tasks settle, later independent calls may use the released capacity; late results cannot consume pending approval state.
+This is a per-owner work budget, separate from the 64 active approval-record limit, and adds no automatic retries.
+
+A focused SQLite regression uses one pending signed request and 64 held authorizer calls, waits for their caller deadlines,
+then requires another admission to remain rate-limited. Releasing the held work preserves the pending nonce/digest and permits
+a subsequent fresh admission. This exercises a fixed resource boundary, not throughput or target-load capacity.
+
 `consumed` is a spent permit, not proof that the tool body ran successfully. Another monotonic guard may still deny afterward; `settle` records the observed native result as succeeded/failed/cancelled and cannot rewrite a different final outcome. A SQLite write/commit error poisons further approval use through that handle. No ignored or failed update grants permission. Unknown results are not replayed.
 
 Every attached approval owner has a fresh boot UUID in addition to the runtime epoch. Attaching another handle atomically replaces the active owner, invalidates old pending/approved records and marks old consumed records unknown. All old-handle mutations are fenced, even when an epoch is accidentally reused. Close invalidates only that handle's records and cannot close a newer owner. Reopening preserves terminal/audit records but never recreates callbacks, unspent permits or execution tokens. A backwards/non-integer clock fails closed until clock availability is restored.

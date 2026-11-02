@@ -448,6 +448,36 @@ test('in-flight decision verification is bounded even for repeated proofs of one
   assert.ok((await settled).every(result=>result.status==='rejected'))
 })
 
+test('timed-out approval admission retains capacity until ignored authorization work settles', { timeout:10_000 }, async t => {
+  const h=await fixture(t), context=h.context();h.ledger.register(context)
+  const compact=await h.sign(context)
+  let release!:(value:unknown)=>void, started!:()=>void, entered=0
+  const held=new Promise<unknown>(resolve=>{release=resolve}), ready=new Promise<void>(resolve=>{started=resolve})
+  const signals:AbortSignal[]=[]
+  const waiting=Array.from({length:64},()=>h.ledger.decide(context.approval_id,compact,h.signer.registered,(_c,_d,signal)=>{
+    signals.push(signal)
+    if(++entered===64)started()
+    return held
+  }))
+  const settled=Promise.allSettled(waiting)
+  try {
+    await ready
+    assert.ok((await settled).every(result=>result.status==='rejected'))
+    assert.equal(signals.length,64)
+    assert.ok(signals.every(signal=>signal.aborted))
+    const pending=h.ledger.get(context.approval_id).status
+    assert.equal(pending.state,'pending')
+    assert.equal(pending.decision_sha256,undefined)
+    await assert.rejects(h.ledger.decide(context.approval_id,compact,h.signer.registered,(c,d)=>h.authority(c,d)),/rate.limited/)
+  } finally {
+    release(undefined)
+    await settled
+    await new Promise<void>(resolve=>setImmediate(resolve))
+  }
+  assert.equal(h.ledger.get(context.approval_id).status.decision_sha256,undefined,'late tasks consumed pending approval')
+  assert.equal((await h.ledger.decide(context.approval_id,compact,h.signer.registered,(c,d)=>h.authority(c,d))).state,'approved')
+})
+
 test('a lease that expires while SQLite writes the consumption marker cannot grant late execution', async t => {
   const h=await fixture(t), key=await readFile(`${h.path}.key`), database=new DatabaseSync(h.path)
   database.exec('PRAGMA journal_mode=WAL; PRAGMA synchronous=FULL')

@@ -138,8 +138,12 @@ export class PersistentApprovalJournal {
       aborted = () => reject(operation.signal.reason instanceof ApprovalJournalError ? operation.signal.reason : failure('approval.authorization_unavailable'))
       operation.signal.addEventListener('abort',aborted,{once:true})
     })
-    try { return await Promise.race([this.decidePending(approvalId,compact,key,authorize,operation.signal),cancelled]) }
-    finally { clearTimeout(timeout); operation.signal.removeEventListener('abort',aborted); this.operations.delete(operation); operation.abort() }
+    // A retired caller may leave verification or an uncooperative authority
+    // pending. Keep its admission slot until that task actually settles.
+    const pending = this.decidePending(approvalId,compact,key,authorize,operation.signal)
+      .finally(() => { this.operations.delete(operation) })
+    try { return await Promise.race([pending,cancelled]) }
+    finally { clearTimeout(timeout); operation.signal.removeEventListener('abort',aborted); operation.abort() }
   }
 
   private async decidePending(approvalId: string, compact: string, key: RegisteredApprovalKey, authorize: ApprovalAuthorizer, signal: AbortSignal): Promise<ApprovalStatus> {
