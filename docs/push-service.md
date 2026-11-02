@@ -61,6 +61,9 @@ HTTP 路由和错误形状见 `contracts/openapi/remote.yaml`；共享严格 sch
 
 配置及 service-account JSON 必须是普通文件、owner-only 权限，不接受最后组件的符号链接或超限文件。凭据路径相对配置文件解析。服务账号 RSA key 至少 2048 位，只向固定 Google OAuth token 端点签署 firebase.messaging 用途的短期 JWT assertion；缓存短期 Bearer token，不把学校 token 转给 Google。发送端固定 HTTPS FCM endpoint，不跟随重定向、不带 cookie、不输出原始错误响应或服务账号内容。成功 provider message name 只保留摘要。
 
+[凭据刷新生命周期](push-oauth-lifecycle.md)允许等待者独立取消，并把同批调用合并到一次有界请求。
+匹配 token 的失效、发起者取消和迟到响应不能跨本地代次恢复缓存；provider I/O 未结束时保留刷新槽。
+
 静态文件权限不是生产 KMS / workload identity 的验收。生产账号权限、私钥保管与轮换、实际 FCM project/app 登记、真实设备到达率和设备锁屏 / Doze / 通知权限行为仍需部署与实机验证。Android 已锁定 Firebase Messaging 26.0.1；默认 APK 没有推送配置，不初始化 Firebase、不自动登记。显式配置且用户启用后才登记；SDK 自动展示路径在非导出接收服务中被拒绝，展示由本地账号围栏控制。
 
 官方接口依据：[FCM HTTP Message/FID](https://firebase.google.com/docs/reference/fcm/rest/v1/projects.messages)、[服务端认证](https://firebase.google.com/docs/cloud-messaging/auth-server)、[Android 接收与后台行为](https://firebase.google.com/docs/cloud-messaging/android/receive)、[优先级与可见通知要求](https://firebase.google.com/docs/cloud-messaging/android/message-priority)、[错误与重试](https://firebase.google.com/docs/cloud-messaging/error-codes)。此处使用普通 data-only HTTP 消息，不采用可能由服务端补发自动展示的 EAP remote notification。
