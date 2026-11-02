@@ -1,0 +1,59 @@
+{
+  "format": "dsh-remote-local-package-verification/v1",
+  "date": "2026-11-02",
+  "source_revision": "9fa43c4e758f37d173b95338e075876a31effc44",
+  "host": {
+    "directory": ".local/current-bundles-evidence/host",
+    "artifact_sha256": "5f419eac7ea6002b5b83f3dfecc5e858fe05eee4c3270d581cf43befdfa151d6",
+    "file_count": 260,
+    "manifest_sha256": "1211b6ec9a2d8e4fafe3d5ae0a10a8e0989f45f8a2c8e53ed46e1c199faed449",
+    "source_commit": "9fa43c4e758f37d173b95338e075876a31effc44",
+    "node": "v24.20.0",
+    "dsh": "0.2.1-rc.5"
+  },
+  "service": {
+    "directory": ".local/current-bundles-evidence/service",
+    "artifact_sha256": "08051153c467356ec165564a5e0a2738f9249573f714c19e27e5e153d559c3a4",
+    "file_count": 116,
+    "manifest_sha256": "78671159025d000f2f16a59c9244ecd74a2bb3a0e8c0a60948a5a6a13997d2a0",
+    "source_commit": "9fa43c4e758f37d173b95338e075876a31effc44",
+    "version": {
+      "format": "dsh-remote-service-version/v1",
+      "go": "go1.26.10",
+      "platform": "linux/amd64",
+      "revision": "9fa43c4e758f37d173b95338e075876a31effc44",
+      "source_sha256": "e5e7ca44701221339bde224e4014a182c16adf17219463046e88ac0e32e53e85"
+    }
+  },
+  "checks": {
+    "unpacked_service_version_matches_manifest": true,
+    "source_host_lib_absent_before_and_after": true,
+    "guarded_path_go_or_npm_invoked": false,
+    "command_exit_codes": {
+      "installed-cli-files": 0,
+      "packaged-file-check": 0,
+      "two-node-packages": 0
+    }
+  },
+  "evidence_logs": {
+    "installed-cli-files": {
+      "path": ".local/current-bundles-evidence/installed-cli-files.log",
+      "sha256": "3bd175fa253f7d96feb75b9ec691e0706e57cad970e00353b54c7c20e93e6d71"
+    },
+    "packaged-file-check": {
+      "path": ".local/current-bundles-evidence/packaged-file-check.log",
+      "sha256": "e51f24b57e5a3b3101849545adf7f6ba2dd8821d49fe563dcae4c15fed125ee7"
+    },
+    "two-node-packages": {
+      "path": ".local/current-bundles-evidence/two-node-packages.log",
+      "sha256": "4c336464ef018a0773c8c6ac5078733f33139cf21f7b9fce722f4fa051d6f0da"
+    }
+  },
+  "scope": {
+    "identity": "local fixtures",
+    "model": "offline deterministic fixture",
+    "file_scanner": "Unix clamd protocol fixture",
+    "full_go_suite_run": false,
+    "production_acceptance": false
+  }
+}
