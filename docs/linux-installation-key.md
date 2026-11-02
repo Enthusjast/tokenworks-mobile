@@ -68,3 +68,6 @@ OpenSSL、密钥库或内核中的所有副本被擦除。
 `949b1223e548aa2a2b33e63493b2ee174ff3da986cc38c2d8ac4328d578e99c3`。
 Go / PostgreSQL / 本机 DSH 双节点组合使用测试命令对端，验证生成身份、登记、
 Host 凭据和 Relay。学校 SSO、生产密钥库、发行版解锁策略及桌面确认界面仍需独立验收。
+
+后续[原生 Secret Service 专项](linux-native-secret-service.md)使用同一真实程序和已校验 Host 包，
+进一步验证安装签名与受保护 journal 在真实 collection 锁定时拒绝、正确密码解锁后重开，以及正常 daemon 重启后保留同一身份。

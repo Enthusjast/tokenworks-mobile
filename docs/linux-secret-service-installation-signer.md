@@ -60,8 +60,9 @@ JavaScript、OpenSSL 或内核中的所有副本，也不提供硬件隔离；�
 清理。隔离 D-Bus / 临时 GNOME Keyring 使用 libsecret 测试命令读取临时安装私钥并验证签名；
 Go / PostgreSQL / npm DSH 双节点夹具使用独立测试命令对端。没有访问用户现有密钥库。
 
-本机没有 `secret-tool`，因此这些证据不代表已验证目标发行版的该二进制、生产会话解锁策略、
-学校资源登录、安装登记或恢复流程；生产部署前仍需分别验收。
+上述是早期 libsecret 命令适配层记录。后续[原生专项](linux-native-secret-service.md)使用 APT 提取的真实
+`secret-tool` 和已校验 Host 包，验证实际签名、collection 锁定拒绝、密码解锁与正常 daemon 重启后重开。
+本机未系统安装该程序；生产会话解锁策略、学校资源登录、安装登记或恢复流程仍需分别验收。
 
 [可选 macOS Keychain 签名适配](macos-keychain-installation-signer.md)共用规范密钥和签名检查；
 其 Darwin 协议夹具不代表真实 macOS 平台验收。
