@@ -100,9 +100,11 @@ func TestConfiguredFileServiceProcessRunsWorkersAndShutsDownCleanly(t *testing.T
 			}
 		}
 	})
+	metricsClient := &http.Client{Timeout: time.Second}
+	t.Cleanup(metricsClient.CloseIdleConnections)
 	deadline := time.Now().Add(8 * time.Second)
 	for {
-		response, err := http.Get(origin + "/readyz")
+		response, err := metricsClient.Get(origin + "/readyz")
 		if err == nil {
 			_ = response.Body.Close()
 			if response.StatusCode == 204 {
@@ -111,6 +113,26 @@ func TestConfiguredFileServiceProcessRunsWorkersAndShutsDownCleanly(t *testing.T
 		}
 		if time.Now().After(deadline) {
 			t.Fatal("configured file service never passed readiness")
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	// /readyz proves database availability, not completion of the scanner's
+	// active self-test. Registration must wait for that independent proof.
+	deadline = time.Now().Add(8 * time.Second)
+	for {
+		response, err := metricsClient.Get("http://" + metricsAddress + "/metrics")
+		if err == nil {
+			body, readErr := io.ReadAll(io.LimitReader(response.Body, 512<<10))
+			_ = response.Body.Close()
+			if readErr == nil && response.StatusCode == 200 &&
+				strings.Contains(string(body), "dsh_remote_file_scanner_enabled 1\n") &&
+				strings.Contains(string(body), "dsh_remote_file_scanner_ready 1\n") &&
+				strings.Contains(string(body), "dsh_remote_file_scanner_probe_duration_seconds_count{result=\"ok\"} 1\n") {
+				break
+			}
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("configured scanner never completed its initial successful self-test")
 		}
 		time.Sleep(20 * time.Millisecond)
 	}
@@ -147,8 +169,6 @@ func TestConfiguredFileServiceProcessRunsWorkersAndShutsDownCleanly(t *testing.T
 		}
 		time.Sleep(20 * time.Millisecond)
 	}
-	metricsClient := &http.Client{Timeout: time.Second}
-	t.Cleanup(metricsClient.CloseIdleConnections)
 	deadline = time.Now().Add(3 * time.Second)
 	for {
 		response, err := metricsClient.Get("http://" + metricsAddress + "/metrics")

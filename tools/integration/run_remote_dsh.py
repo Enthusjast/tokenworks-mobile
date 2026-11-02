@@ -12,6 +12,13 @@ import json
 import sys
 
 
+FILE_LIFECYCLE_CASES = (
+    "TestProtectedFileHandoffToRealNativeDSHAndRevocation",
+    "TestExportRelayUsesRealDSHWorkspaceAndPersistedAttachmentSources",
+    "TestConfiguredFileServiceProcessRunsWorkersAndShutsDownCleanly",
+)
+
+
 def main():
     arguments = argparse.ArgumentParser()
     arguments.add_argument("--kotlin-relay", action="store_true", help="Also run the actual Kotlin Relay client against Go/PostgreSQL over TLS")
@@ -20,6 +27,7 @@ def main():
     arguments.add_argument("--upgrade-receipt", type=Path, help="Verified full-executable version-2 fixture receipt")
     arguments.add_argument("--android-avd", default="dsh-remote-api26", help="Exact owned AVD identity for the Android composition")
     arguments.add_argument("--go-run", metavar="REGEX", help="Run matching Go cases in the isolated cluster, without the separate Node composition")
+    arguments.add_argument("--file-lifecycle", action="store_true", help="Only file handoff/revocation, native export and production scanner-worker composition in ./internal/httpapi")
     arguments.add_argument("--cross-node", action="store_true", help="Run the real npm DSH composition with Host and phone entering separate mutually authenticated relay processes")
     arguments.add_argument("--dsh-only", action="store_true", help="Run the DSH composition without repeating the separate Go test suite")
     arguments.add_argument("--host-renewal", action="store_true", help="Wait for a real five-minute Host credential renewal in the standalone native DSH composition")
@@ -42,6 +50,9 @@ def main():
     arguments.add_argument("--service-bundle-directory", type=Path, help="Use the verified Linux service binary, migrations and contracts instead of compiling Go")
     arguments.add_argument("--service-bundle-manifest-sha256", help="Independently trusted service bundle manifest digest")
     options = arguments.parse_args()
+    if options.file_lifecycle and any(value is not None and value is not False for field, value in vars(options).items()
+                                      if field not in {"file_lifecycle", "android_avd"}):
+        arguments.error("--file-lifecycle requires its own invocation; it selects only the fixed file composition cases")
     if (options.service_bundle_directory is None) != (options.service_bundle_manifest_sha256 is None):
         arguments.error("Service bundle directory and manifest digest must be supplied together")
     if options.service_bundle_directory is not None and (not options.dsh_only or not options.service_bundle_directory.is_absolute() or
@@ -182,13 +193,20 @@ def main():
                 subprocess.run([str(pg_bin / "psql"), "-X", "--dbname", dsn, "-v", "ON_ERROR_STOP=1", "-q", "-f", str(migration)], check=True, stdout=subprocess.DEVNULL)
             if options.service_bundle_directory is None:
                 subprocess.run([go, "build"] + (["-race"] if options.load_race else []) + ["-o", str(binary), "./cmd/remote"], cwd=repo / "services/remote", check=True)
-            if not options.android_upgrade and options.relay_load is None and options.host_bundle_directory is None:
+            if not options.file_lifecycle and not options.android_upgrade and options.relay_load is None and options.host_bundle_directory is None:
                 subprocess.run(["npm", "run", "build"], cwd=repo, check=True)
             env = dict(os.environ, REMOTE_TEST_CLUSTER_ROOT=root, REMOTE_TEST_DATABASE_URL=dsn,
                        REMOTE_TEST_PSQL=str(pg_bin / "psql"), REMOTE_TEST_PG_DUMP=str(pg_bin / "pg_dump"), REMOTE_TEST_SERVICE_BIN=str(binary))
             # Activation is explicit per invocation, never inherited from a prior run.
             for field in ("REMOTE_TEST_CROSS_NODE", "REMOTE_TEST_HOST_RENEWAL", "REMOTE_TEST_INSTALLATION_REVOKE", "REMOTE_TEST_HOST_ACCOUNT_RETIRE", "REMOTE_TEST_DATABASE_OUTAGE", "REMOTE_TEST_RELAY_CRASH", "REMOTE_TEST_RELAY_CERTIFICATE_RENEWAL", "REMOTE_TEST_APPROVAL_KEY_RENEWAL", "REMOTE_TEST_HOST_BUNDLE_DIRECTORY", "REMOTE_TEST_HOST_BUNDLE_MANIFEST_SHA256", "REMOTE_TEST_SERVICE_BUNDLE_MANIFEST_SHA256", "REMOTE_TEST_CONTRACT_ROOT", "REMOTE_TEST_KOTLIN_CLASSPATH", "REMOTE_TEST_ANDROID_SERIAL", "REMOTE_TEST_ANDROID_BIOMETRIC", "REMOTE_TEST_ANDROID_UPGRADE_SERIAL", "REMOTE_TEST_ANDROID_UPGRADE_RECEIPT", "REMOTE_TEST_RELAY_CAPACITY_CONFIG", "REMOTE_TEST_RELAY_CAPACITY_OUTPUT"):
                 env.pop(field, None)
+            if options.file_lifecycle:
+                # Native peers import the source plugin via tsx and real npm
+                # DSH Loader; no Host lib build or general CLI suite is needed.
+                print("File lifecycle: isolated PostgreSQL/TLS + npm DSH Loader + production Go workers", flush=True)
+                return subprocess.run([go, "test", "-race", "-count=1", "-v", "-timeout=5m", "-run",
+                                       "^(" + "|".join(FILE_LIFECYCLE_CASES) + ")$", "./internal/httpapi"],
+                                      cwd=repo / "services/remote", env=env).returncode
             if contracts is not None:
                 env["REMOTE_TEST_CONTRACT_ROOT"] = str(contracts)
                 env["REMOTE_TEST_SERVICE_BUNDLE_MANIFEST_SHA256"] = options.service_bundle_manifest_sha256
