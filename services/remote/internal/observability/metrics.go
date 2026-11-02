@@ -15,6 +15,8 @@ import (
 var durationBuckets = []float64{.001, .005, .01, .025, .05, .1, .25, .3, .5, 1, 2, 5, 10}
 
 type Metrics struct {
+	scanner                   *scannerCollector
+	scannerProbes             *prometheus.HistogramVec
 	flowEvents                *prometheus.CounterVec
 	flowDropped               prometheus.Counter
 	flowReports               *prometheus.CounterVec
@@ -77,6 +79,8 @@ func New() *Metrics {
 		return prometheus.NewHistogramVec(prometheus.HistogramOpts{Namespace: "dsh_remote", Name: name, Help: help, Buckets: durationBuckets}, labels)
 	}
 	m := &Metrics{
+		scanner:                   newScannerCollector(),
+		scannerProbes:             histogram("file_scanner_probe_duration_seconds", "Active scanner self-test attempt duration; not user file scan time or wait for another probe.", "result"),
 		unknown:                   newUnknownCollector(),
 		unknownSnapshots:          histogram("unknown_snapshot_duration_seconds", "Background current-unknown snapshot attempts; scrapes never access the database.", "result"),
 		pushSends:                 histogram("push_provider_send_duration_seconds", "FCM sender attempt duration including OAuth, authority recheck and response handling; result is not database commit or phone display.", "kind", "result"),
@@ -136,7 +140,7 @@ func New() *Metrics {
 		commandStore:       histogram("command_store_duration_seconds", "Monotonic command repository call duration including validation, authorization, lock waits and commit; all attempts, including unchanged retries.", "operation", "result"),
 		commandClock:       counter("command_timestamp_anomalies_total", "Missing or backward database timestamps excluded from command age/dwell histograms.", "interval"),
 	}
-	m.Register(m.fileScans, m.fileHandoffOperations, m.fileHandoffEvents, m.fileHandoffAge, m.fileHandoffStage, m.fileClock)
+	m.Register(m.scanner, m.scannerProbes, m.fileScans, m.fileHandoffOperations, m.fileHandoffEvents, m.fileHandoffAge, m.fileHandoffStage, m.fileClock)
 	m.Register(m.pushSends, m.pushOperations, m.pushDeliveries, m.pushReceipts, m.pushDeliveryAge, m.pushReceiptAge, m.pushClock)
 	m.Register(m.unknown, m.unknownSnapshots, m.flowEvents, m.flowDropped, m.flowReports)
 	m.Register(m.receivedFrames, m.receivedBytes, m.writtenFrames, m.writtenBytes, m.writeDuration, m.queueDuration, m.routeDuration, m.rejectedSends,

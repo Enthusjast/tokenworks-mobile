@@ -1,7 +1,7 @@
 # 私有指标采集与规则包
 
 `deploy/monitoring` 提供现有 Go 私有指标端点的 Prometheus 采集示例、四条 recording rule 和
-六条告警。它们覆盖采集配置、控制任务及未知结果数据质量，不改变业务权限、租约、数据库
+七条告警。它们覆盖采集配置、控制任务、可选 scanner 健康及未知结果数据质量，不改变业务权限、租约、数据库
 或协议。不自动安装／启动 Prometheus、加载配置、发送通知或修改常驻开发服务。
 
 <a id="targets"></a>
@@ -36,7 +36,9 @@ Prometheus external_labels 不会自动参与本机查询；示例把这些标�
 ## 指标合同
 
 up=1 只说明 HTTP scrape 成功。规则还检查当前版本预置的五类 control_available、
-unknown_snapshot_available 和 relay_draining 是否存在。缺失系列会触发 MetricsIncomplete，
+unknown_snapshot_available、relay_draining 和 file_scanner_enabled 是否存在。
+file_scanner_enabled=1 时，还要求存在值为 0／1 的 file_scanner_ready；enabled=0 不要求 ready。
+新增规则需与服务指标合同同步升级，旧版本缺少 enabled 不能被当作停用的健康状态。缺失系列会触发 MetricsIncomplete，
 不会当成健康的零值。升级、换 exporter 或 metric_relabel 删除指标后，需要复核这个合同。
 采样首次成功前 unknown_results 和 age 本来就缺席，不属于合同缺失。
 
@@ -60,6 +62,19 @@ ControlWorkerUnhealthy 同时查看最近尝试失败、最近成功过旧，以
 cleanup 约每 60 次 consumer 续期执行，不能按一秒级任务的窗口判断。其他告警的 for 窗口
 为 1–2 分钟，主要用于避免启动／短暂切换噪声。它们不是 PLAN 的小于 5 秒撤权指标或已测
 可用性 SLO；告警发生前业务仍按原有授权检查和失败关闭逻辑执行。
+
+<a id="scanner"></a>
+
+## 可选 scanner 健康
+
+ScannerUnready 只对 enabled=1、ready=0、up=1 且非 draining 的实例生效，持续一分钟才告警。
+文件服务未配置不会告警；抓取失败交给 ScrapeUnavailable，缺少 enabled／ready 则由 MetricsIncomplete
+报告合同缺失，不把缺样本填成健康值。时序夹具覆盖启动短暂未就绪后恢复、持续故障、停用、缺指标、
+drain 和抓取失败。阈值是部署前需审核的示例，不代表生产 scanner 或文件服务 SLO 已验收。
+
+先查看自检固定错误日志、探测年龄、时钟同步与 clamd 配置／签名库，再核对当前健康证明。
+保留文件准入失败关闭；不要延长证明、标记 clean 或放宽扫描策略来消除告警。
+告警不会自动修改服务、部署监控规则或向接收方发送通知。
 
 <a id="unknown"></a>
 
@@ -95,7 +110,7 @@ owner_route_seconds:p95_5m 从成功 owner 路由的 histogram bucket 汇总后�
 
 ```sh
 /path/to/promtool check config deploy/monitoring/prometheus.example.yml
-/path/to/promtool test rules deploy/monitoring/rules.test.yml
+/path/to/promtool test rules deploy/monitoring/rules.test.yml deploy/monitoring/scanner.rules.test.yml
 ```
 
 规则夹具覆盖同库去重、跨库隔离、加权 bucket 分位数、无流量、真实零值、初始无数据、失败／
@@ -112,3 +127,7 @@ cleanup 周期及 drain。这里只做规则语义验证，不连接真实指标
 promtool 来自配置的 Ubuntu APT 源，只解压到任务 `.local`；包 SHA-256 已与 APT 元数据比对。
 版本、校验输出、规则副本与包来源收据保存在 `.local/monitoring-rules-evidence`。这些结果不等于
 真实生产采集、通知送达、告警响应或 SLO 验收。
+
+本轮 scanner 扩展使用同一现有本地 promtool：十一条规则和采集配置检查通过，原有时序夹具与
+新增七组 scanner 场景均通过；Go 健康指标及相关扫描的定向 race 用例通过。
+没有加载常驻 Prometheus 配置、启动采集或接入通知。

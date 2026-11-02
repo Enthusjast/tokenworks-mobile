@@ -11,7 +11,15 @@ import (
 // preserves the existing disabled-metrics path.
 func (service *Service) ConfigureMetrics(metrics *observability.Metrics) error {
 	configured := false
-	service.metricsOnce.Do(func() { service.metrics = metrics; configured = true })
+	service.metricsOnce.Do(func() {
+		if metrics != nil {
+			if err := metrics.BindFileScanner(func() observability.ScannerSnapshot { _, snapshot := service.scannerSnapshot(); return snapshot }); err != nil {
+				return
+			}
+		}
+		service.metrics = metrics
+		configured = true
+	})
 	if !configured {
 		return ErrInvalid
 	}

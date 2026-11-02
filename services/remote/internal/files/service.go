@@ -74,7 +74,7 @@ func ScannerTestPattern() []byte {
 	return []byte("X5O!P%@AP[4\\PZX54(P^)7CC)7}" + "$EICAR-STANDARD-ANTIVIRUS-TEST-FILE!$H+H*")
 }
 
-func (service *Service) ProbeScanner(ctx context.Context) error {
+func (service *Service) ProbeScanner(ctx context.Context) (result error) {
 	if ctx.Err() != nil {
 		return ErrScanUnavailable
 	}
@@ -87,6 +87,18 @@ func (service *Service) ProbeScanner(ctx context.Context) error {
 	if ctx.Err() != nil {
 		return ErrScanUnavailable
 	}
+	started := time.Now()
+	defer func() {
+		outcome := "ok"
+		if ctx.Err() == context.Canceled {
+			outcome = "cancelled"
+		} else if ctx.Err() == context.DeadlineExceeded {
+			outcome = "timeout"
+		} else if result != nil {
+			outcome = "unavailable"
+		}
+		service.metrics.FileScannerProbe(outcome, time.Since(started))
+	}()
 	for index, data := range [][]byte{[]byte("DSH remote file scanner health check"), ScannerTestPattern()} {
 		scan, err := service.scanner.Begin(ctx)
 		if err == nil {
@@ -119,12 +131,17 @@ func (service *Service) recordProbe(healthy bool) {
 	service.probedAt.Store(service.probeCompleted.UnixMilli())
 	service.healthy.Store(healthy)
 }
-func (service *Service) scannerAdmission() (uint64, bool) {
+func (service *Service) scannerSnapshot() (uint64, observability.ScannerSnapshot) {
 	service.healthMu.RLock()
 	defer service.healthMu.RUnlock()
-	age := time.Since(time.UnixMilli(service.probedAt.Load()))
-	elapsed := time.Since(service.probeCompleted)
-	return service.healthGeneration, service.healthy.Load() && !service.probeCompleted.IsZero() && age >= 0 && age < 2*time.Minute && elapsed >= 0 && elapsed < 2*time.Minute
+	wall, mono := time.Since(time.UnixMilli(service.probedAt.Load())), time.Since(service.probeCompleted)
+	known := !service.probeCompleted.IsZero()
+	ready := service.healthy.Load() && known && wall >= 0 && wall < 2*time.Minute && mono >= 0 && mono < 2*time.Minute
+	return service.healthGeneration, observability.ScannerSnapshot{Ready: ready, Probed: known, Age: max(0, wall, mono)}
+}
+func (service *Service) scannerAdmission() (uint64, bool) {
+	generation, snapshot := service.scannerSnapshot()
+	return generation, snapshot.Ready
 }
 func (service *Service) Ready() bool { _, ready := service.scannerAdmission(); return ready }
 func (service *Service) scannerCurrent(generation uint64) bool {

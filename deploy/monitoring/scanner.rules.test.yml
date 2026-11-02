@@ -1,0 +1,306 @@
+rule_files:
+  - rules.yml
+evaluation_interval: 15s
+group_eval_order:
+  - dsh-remote-recording
+  - dsh-remote-alerts
+tests:
+  - name: configured unready scanner persists long enough to alert
+    interval: 15s
+    input_series:
+      - series: up{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a"}
+        values: 1+0x40
+      - series: dsh_remote_relay_draining{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a"}
+        values: 0+0x40
+      - series: dsh_remote_unknown_snapshot_available{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a"}
+        values: 0+0x40
+      - series: dsh_remote_control_available{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a",worker="outbox"}
+        values: 1+0x40
+      - series: dsh_remote_control_last_success_timestamp_seconds{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a",worker="outbox"}
+        values: 0+15x40
+      - series: dsh_remote_control_available{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a",worker="leases"}
+        values: 1+0x40
+      - series: dsh_remote_control_last_success_timestamp_seconds{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a",worker="leases"}
+        values: 0+15x40
+      - series: dsh_remote_control_available{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a",worker="consumer"}
+        values: 1+0x40
+      - series: dsh_remote_control_last_success_timestamp_seconds{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a",worker="consumer"}
+        values: 0+15x40
+      - series: dsh_remote_control_available{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a",worker="consumer_cleanup"}
+        values: 1+0x40
+      - series: dsh_remote_control_last_success_timestamp_seconds{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a",worker="consumer_cleanup"}
+        values: 0+15x40
+      - series: dsh_remote_control_available{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a",worker="approval_expiry"}
+        values: 1+0x40
+      - series: dsh_remote_control_last_success_timestamp_seconds{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a",worker="approval_expiry"}
+        values: 0+15x40
+      - series: dsh_remote_file_scanner_enabled{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a"}
+        values: 1+0x40
+      - series: dsh_remote_file_scanner_ready{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a"}
+        values: 0+0x40
+    alert_rule_test:
+      - eval_time: 45s
+        alertname: DshRemoteScannerUnready
+        exp_alerts: []
+      - eval_time: 1m
+        alertname: DshRemoteScannerUnready
+        exp_alerts:
+          - exp_labels:
+              cluster: fixture
+              database_scope: db-a
+              job: dsh-remote
+              instance: node-a
+              severity: warning
+            exp_annotations:
+              summary: DSH Remote file scanner readiness cannot be confirmed
+              description: Inspect scanner self-test, clock and proof freshness; preserve
+                fail-closed file admission.
+              runbook: docs/monitoring-rules.md#scanner
+      - eval_time: 3m
+        alertname: DshRemoteMetricsIncomplete
+        exp_alerts: []
+  - name: short scanner recovery does not alert
+    interval: 15s
+    input_series:
+      - series: up{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a"}
+        values: 1+0x40
+      - series: dsh_remote_relay_draining{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a"}
+        values: 0+0x40
+      - series: dsh_remote_unknown_snapshot_available{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a"}
+        values: 0+0x40
+      - series: dsh_remote_control_available{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a",worker="outbox"}
+        values: 1+0x40
+      - series: dsh_remote_control_last_success_timestamp_seconds{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a",worker="outbox"}
+        values: 0+15x40
+      - series: dsh_remote_control_available{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a",worker="leases"}
+        values: 1+0x40
+      - series: dsh_remote_control_last_success_timestamp_seconds{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a",worker="leases"}
+        values: 0+15x40
+      - series: dsh_remote_control_available{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a",worker="consumer"}
+        values: 1+0x40
+      - series: dsh_remote_control_last_success_timestamp_seconds{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a",worker="consumer"}
+        values: 0+15x40
+      - series: dsh_remote_control_available{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a",worker="consumer_cleanup"}
+        values: 1+0x40
+      - series: dsh_remote_control_last_success_timestamp_seconds{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a",worker="consumer_cleanup"}
+        values: 0+15x40
+      - series: dsh_remote_control_available{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a",worker="approval_expiry"}
+        values: 1+0x40
+      - series: dsh_remote_control_last_success_timestamp_seconds{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a",worker="approval_expiry"}
+        values: 0+15x40
+      - series: dsh_remote_file_scanner_enabled{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a"}
+        values: 1+0x40
+      - series: dsh_remote_file_scanner_ready{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a"}
+        values: 0+0x2 1+0x38
+    alert_rule_test:
+      - eval_time: 3m
+        alertname: DshRemoteScannerUnready
+        exp_alerts: []
+  - name: disabled optional service is not an unready scanner
+    interval: 15s
+    input_series:
+      - series: up{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a"}
+        values: 1+0x40
+      - series: dsh_remote_relay_draining{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a"}
+        values: 0+0x40
+      - series: dsh_remote_unknown_snapshot_available{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a"}
+        values: 0+0x40
+      - series: dsh_remote_control_available{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a",worker="outbox"}
+        values: 1+0x40
+      - series: dsh_remote_control_last_success_timestamp_seconds{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a",worker="outbox"}
+        values: 0+15x40
+      - series: dsh_remote_control_available{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a",worker="leases"}
+        values: 1+0x40
+      - series: dsh_remote_control_last_success_timestamp_seconds{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a",worker="leases"}
+        values: 0+15x40
+      - series: dsh_remote_control_available{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a",worker="consumer"}
+        values: 1+0x40
+      - series: dsh_remote_control_last_success_timestamp_seconds{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a",worker="consumer"}
+        values: 0+15x40
+      - series: dsh_remote_control_available{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a",worker="consumer_cleanup"}
+        values: 1+0x40
+      - series: dsh_remote_control_last_success_timestamp_seconds{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a",worker="consumer_cleanup"}
+        values: 0+15x40
+      - series: dsh_remote_control_available{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a",worker="approval_expiry"}
+        values: 1+0x40
+      - series: dsh_remote_control_last_success_timestamp_seconds{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a",worker="approval_expiry"}
+        values: 0+15x40
+      - series: dsh_remote_file_scanner_enabled{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a"}
+        values: 0+0x40
+    alert_rule_test:
+      - eval_time: 3m
+        alertname: DshRemoteScannerUnready
+        exp_alerts: []
+      - eval_time: 3m
+        alertname: DshRemoteMetricsIncomplete
+        exp_alerts: []
+  - name: missing readiness is incomplete rather than a healthy zero
+    interval: 15s
+    input_series:
+      - series: up{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a"}
+        values: 1+0x40
+      - series: dsh_remote_relay_draining{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a"}
+        values: 0+0x40
+      - series: dsh_remote_unknown_snapshot_available{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a"}
+        values: 0+0x40
+      - series: dsh_remote_control_available{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a",worker="outbox"}
+        values: 1+0x40
+      - series: dsh_remote_control_last_success_timestamp_seconds{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a",worker="outbox"}
+        values: 0+15x40
+      - series: dsh_remote_control_available{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a",worker="leases"}
+        values: 1+0x40
+      - series: dsh_remote_control_last_success_timestamp_seconds{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a",worker="leases"}
+        values: 0+15x40
+      - series: dsh_remote_control_available{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a",worker="consumer"}
+        values: 1+0x40
+      - series: dsh_remote_control_last_success_timestamp_seconds{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a",worker="consumer"}
+        values: 0+15x40
+      - series: dsh_remote_control_available{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a",worker="consumer_cleanup"}
+        values: 1+0x40
+      - series: dsh_remote_control_last_success_timestamp_seconds{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a",worker="consumer_cleanup"}
+        values: 0+15x40
+      - series: dsh_remote_control_available{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a",worker="approval_expiry"}
+        values: 1+0x40
+      - series: dsh_remote_control_last_success_timestamp_seconds{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a",worker="approval_expiry"}
+        values: 0+15x40
+      - series: dsh_remote_file_scanner_enabled{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a"}
+        values: 1+0x40
+    alert_rule_test:
+      - eval_time: 3m
+        alertname: DshRemoteScannerUnready
+        exp_alerts: []
+      - eval_time: 3m
+        alertname: DshRemoteMetricsIncomplete
+        exp_alerts:
+          - exp_labels:
+              cluster: fixture
+              database_scope: db-a
+              job: dsh-remote
+              instance: node-a
+              severity: warning
+            exp_annotations:
+              summary: DSH Remote metrics do not match the expected contract
+              description: Check service version and scrape routing; missing metrics must not
+                be interpreted as healthy zero values.
+              runbook: docs/monitoring-rules.md#contract
+  - name: missing enabled contract is not assumed disabled
+    interval: 15s
+    input_series:
+      - series: up{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a"}
+        values: 1+0x40
+      - series: dsh_remote_relay_draining{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a"}
+        values: 0+0x40
+      - series: dsh_remote_unknown_snapshot_available{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a"}
+        values: 0+0x40
+      - series: dsh_remote_control_available{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a",worker="outbox"}
+        values: 1+0x40
+      - series: dsh_remote_control_last_success_timestamp_seconds{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a",worker="outbox"}
+        values: 0+15x40
+      - series: dsh_remote_control_available{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a",worker="leases"}
+        values: 1+0x40
+      - series: dsh_remote_control_last_success_timestamp_seconds{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a",worker="leases"}
+        values: 0+15x40
+      - series: dsh_remote_control_available{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a",worker="consumer"}
+        values: 1+0x40
+      - series: dsh_remote_control_last_success_timestamp_seconds{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a",worker="consumer"}
+        values: 0+15x40
+      - series: dsh_remote_control_available{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a",worker="consumer_cleanup"}
+        values: 1+0x40
+      - series: dsh_remote_control_last_success_timestamp_seconds{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a",worker="consumer_cleanup"}
+        values: 0+15x40
+      - series: dsh_remote_control_available{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a",worker="approval_expiry"}
+        values: 1+0x40
+      - series: dsh_remote_control_last_success_timestamp_seconds{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a",worker="approval_expiry"}
+        values: 0+15x40
+    alert_rule_test:
+      - eval_time: 3m
+        alertname: DshRemoteScannerUnready
+        exp_alerts: []
+      - eval_time: 3m
+        alertname: DshRemoteMetricsIncomplete
+        exp_alerts:
+          - exp_labels:
+              cluster: fixture
+              database_scope: db-a
+              job: dsh-remote
+              instance: node-a
+              severity: warning
+            exp_annotations:
+              summary: DSH Remote metrics do not match the expected contract
+              description: Check service version and scrape routing; missing metrics must not
+                be interpreted as healthy zero values.
+              runbook: docs/monitoring-rules.md#contract
+  - name: planned drain suppresses scanner alert
+    interval: 15s
+    input_series:
+      - series: up{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a"}
+        values: 1+0x40
+      - series: dsh_remote_relay_draining{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a"}
+        values: 1+0x40
+      - series: dsh_remote_unknown_snapshot_available{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a"}
+        values: 0+0x40
+      - series: dsh_remote_control_available{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a",worker="outbox"}
+        values: 1+0x40
+      - series: dsh_remote_control_last_success_timestamp_seconds{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a",worker="outbox"}
+        values: 0+15x40
+      - series: dsh_remote_control_available{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a",worker="leases"}
+        values: 1+0x40
+      - series: dsh_remote_control_last_success_timestamp_seconds{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a",worker="leases"}
+        values: 0+15x40
+      - series: dsh_remote_control_available{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a",worker="consumer"}
+        values: 1+0x40
+      - series: dsh_remote_control_last_success_timestamp_seconds{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a",worker="consumer"}
+        values: 0+15x40
+      - series: dsh_remote_control_available{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a",worker="consumer_cleanup"}
+        values: 1+0x40
+      - series: dsh_remote_control_last_success_timestamp_seconds{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a",worker="consumer_cleanup"}
+        values: 0+15x40
+      - series: dsh_remote_control_available{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a",worker="approval_expiry"}
+        values: 1+0x40
+      - series: dsh_remote_control_last_success_timestamp_seconds{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a",worker="approval_expiry"}
+        values: 0+15x40
+      - series: dsh_remote_file_scanner_enabled{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a"}
+        values: 1+0x40
+      - series: dsh_remote_file_scanner_ready{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a"}
+        values: 0+0x40
+    alert_rule_test:
+      - eval_time: 3m
+        alertname: DshRemoteScannerUnready
+        exp_alerts: []
+  - name: failed scrape does not classify scanner health
+    interval: 15s
+    input_series:
+      - series: up{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a"}
+        values: 0+0x40
+      - series: dsh_remote_relay_draining{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a"}
+        values: 0+0x40
+      - series: dsh_remote_unknown_snapshot_available{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a"}
+        values: 0+0x40
+      - series: dsh_remote_control_available{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a",worker="outbox"}
+        values: 1+0x40
+      - series: dsh_remote_control_last_success_timestamp_seconds{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a",worker="outbox"}
+        values: 0+15x40
+      - series: dsh_remote_control_available{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a",worker="leases"}
+        values: 1+0x40
+      - series: dsh_remote_control_last_success_timestamp_seconds{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a",worker="leases"}
+        values: 0+15x40
+      - series: dsh_remote_control_available{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a",worker="consumer"}
+        values: 1+0x40
+      - series: dsh_remote_control_last_success_timestamp_seconds{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a",worker="consumer"}
+        values: 0+15x40
+      - series: dsh_remote_control_available{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a",worker="consumer_cleanup"}
+        values: 1+0x40
+      - series: dsh_remote_control_last_success_timestamp_seconds{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a",worker="consumer_cleanup"}
+        values: 0+15x40
+      - series: dsh_remote_control_available{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a",worker="approval_expiry"}
+        values: 1+0x40
+      - series: dsh_remote_control_last_success_timestamp_seconds{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a",worker="approval_expiry"}
+        values: 0+15x40
+      - series: dsh_remote_file_scanner_enabled{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a"}
+        values: 1+0x40
+      - series: dsh_remote_file_scanner_ready{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a"}
+        values: 0+0x40
+    alert_rule_test:
+      - eval_time: 3m
+        alertname: DshRemoteScannerUnready
+        exp_alerts: []

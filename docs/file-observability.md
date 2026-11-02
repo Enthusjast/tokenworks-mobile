@@ -5,6 +5,21 @@
 共同前缀为 `dsh_remote_`，标签仅使用固定词表，不含用户、设备、runtime、session、
 file、handoff、attempt ID，文件名、大小、摘要、正文、对象 key、扫描策略摘要或下载凭据。
 
+## Scanner 健康与自检
+
+- `file_scanner_enabled` 始终存在，0 表示本进程未配置可选文件服务；此时 ready 和 age 缺席。
+- 配置后 `file_scanner_ready` 为 0／1，使用与文件准入完全相同的健康代次和两分钟双时钟证明。
+  1 不保证有待处理任务，也不替代实际病毒引擎、policy 和生产验收；0 可表示未探测、失败、过期或时钟异常。
+- `file_scanner_probe_age_seconds` 是最近一次已完成探测的保守年龄，包含失败探测；首次完成前缺席。
+  年龄使用墙钟与单调时间的较大非负值，不能把零年龄当作成功 verdict。
+- `file_scanner_probe_duration_seconds{result}` 只记录实际开始的探测，result 为 ok、unavailable、
+  cancelled、timeout 或固定 other；不计等待另一探测的时间，也不计尚未开始即取消的调用。
+
+这些指标不带文件、用户、设备、路径、策略摘要、daemon 地址或代次标签。ready／age 来自同一内存
+快照，抓取不执行探测、领取任务或访问数据库／对象。自检仍不会增加用户文件扫描 histogram。
+一份 registry 只能绑定一个文件服务健康源，停用指标不改变业务检查。
+[规则包](monitoring-rules.md#scanner)为已启用且持续未就绪的实例提供示例告警。
+
 ## 扫描尝试
 
 `file_scan_attempt_duration_seconds{direction,result}` 从 worker 成功领取 claim 之后开始，

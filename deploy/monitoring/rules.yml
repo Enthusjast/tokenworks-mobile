@@ -77,6 +77,16 @@ groups:
               dsh_remote_unknown_snapshot_available{job="dsh-remote",cluster!="",database_scope!=""}
             and on (cluster, database_scope, job, instance)
               dsh_remote_relay_draining{job="dsh-remote",cluster!="",database_scope!=""}
+            and on (cluster, database_scope, job, instance) (
+              (dsh_remote_file_scanner_enabled{job="dsh-remote",cluster!="",database_scope!=""} == 0)
+              or (
+                (dsh_remote_file_scanner_enabled{job="dsh-remote",cluster!="",database_scope!=""} == 1)
+                and on (cluster, database_scope, job, instance) (
+                  (dsh_remote_file_scanner_ready{job="dsh-remote",cluster!="",database_scope!=""} == 0)
+                  or (dsh_remote_file_scanner_ready{job="dsh-remote",cluster!="",database_scope!=""} == 1)
+                )
+              )
+            )
           )
         for: 2m
         labels:
@@ -121,3 +131,19 @@ groups:
           summary: DSH Remote has no fresh unknown-result snapshot
           description: The backlog is unknown, not zero; restore a fresh sampler before interpreting reconciliation counts.
           runbook: docs/monitoring-rules.md#unknown
+      - alert: DshRemoteScannerUnready
+        expr: |
+          (dsh_remote_file_scanner_enabled{job="dsh-remote",cluster!="",database_scope!=""} == 1)
+          and on (cluster, database_scope, job, instance)
+            (dsh_remote_file_scanner_ready{job="dsh-remote",cluster!="",database_scope!=""} == 0)
+          and on (cluster, database_scope, job, instance)
+            (up{job="dsh-remote",cluster!="",database_scope!=""} == 1)
+          and on (cluster, database_scope, job, instance)
+            (dsh_remote_relay_draining{job="dsh-remote",cluster!="",database_scope!=""} == 0)
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: DSH Remote file scanner readiness cannot be confirmed
+          description: Inspect scanner self-test, clock and proof freshness; preserve fail-closed file admission.
+          runbook: docs/monitoring-rules.md#scanner
