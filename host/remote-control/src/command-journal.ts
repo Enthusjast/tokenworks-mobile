@@ -454,13 +454,13 @@ export class PersistentCommandJournal implements CommandJournal {
   }
 
   complete(requestId: string, owner: CommandOwner, state: 'agent_queued' | 'settled', result: unknown): void {
-    const row = this.select(requestId, owner)
-    if (!transitionAllowed(row.state, state)) {
-      if (row.state === state) return
-      throw new ProbeError('journal.invalid_transition')
-    }
-    const encrypted = encrypt(this.key, this.runtimeId, owner, requestId, 'result', row.digest, result)
     this.transaction(() => {
+      const row = this.select(requestId, owner)
+      if (!transitionAllowed(row.state, state)) {
+        if (row.state === state) return
+        throw new ProbeError('journal.invalid_transition')
+      }
+      const encrypted = encrypt(this.key, this.runtimeId, owner, requestId, 'result', row.digest, result)
       this.database.prepare(`
         UPDATE commands SET state = ?, payload_nonce = NULL, payload_ciphertext = NULL, payload_tag = NULL,
           result_nonce = ?, result_ciphertext = ?, result_tag = ?, error_code = NULL, updated_at = ?
@@ -470,12 +470,12 @@ export class PersistentCommandJournal implements CommandJournal {
   }
 
   fail(requestId: string, owner: CommandOwner, state: 'rejected' | 'outcome_unknown', errorCode: string): void {
-    const row = this.select(requestId, owner)
-    if (!transitionAllowed(row.state, state)) {
-      if (row.state === state && row.errorCode === errorCode) return
-      throw new ProbeError('journal.invalid_transition')
-    }
     this.transaction(() => {
+      const row = this.select(requestId, owner)
+      if (!transitionAllowed(row.state, state)) {
+        if (row.state === state && row.errorCode === errorCode) return
+        throw new ProbeError('journal.invalid_transition')
+      }
       this.database.prepare(`UPDATE commands SET state = ?,
         payload_nonce = CASE WHEN ? = 'rejected' THEN NULL ELSE payload_nonce END,
         payload_ciphertext = CASE WHEN ? = 'rejected' THEN NULL ELSE payload_ciphertext END,
@@ -516,12 +516,14 @@ export class PersistentCommandJournal implements CommandJournal {
   }
 
   private transition(requestId: string, owner: CommandOwner, state: CommandState): void {
-    const row = this.select(requestId, owner)
-    if (!transitionAllowed(row.state, state)) {
-      if (row.state === state) return
-      throw new ProbeError('journal.invalid_transition')
-    }
     this.transaction(() => {
+      // Read under the same write transaction as the update: another process
+      // may have committed a final fact while BEGIN IMMEDIATE was waiting.
+      const row = this.select(requestId, owner)
+      if (!transitionAllowed(row.state, state)) {
+        if (row.state === state) return
+        throw new ProbeError('journal.invalid_transition')
+      }
       this.database.prepare('UPDATE commands SET state = ?, updated_at = ? WHERE runtime_id = ? AND user_id = ? AND device_id = ? AND request_id = ?')
         .run(state, Date.now(), this.runtimeId, owner.userId, owner.deviceId, requestId)
     })

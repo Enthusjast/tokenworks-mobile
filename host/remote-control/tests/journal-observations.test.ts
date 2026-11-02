@@ -65,12 +65,12 @@ test('real SQLite transactions report commit, rollback and BEGIN failure without
   journal.complete(command.request_id, owner, 'agent_queued', { PRIVATE_RESULT: true })
   const beforeRetry = samples.length
   journal.complete(command.request_id, owner, 'agent_queued', {})
-  assert.equal(samples.length, beforeRetry, 'an early return is not another commit')
+  assert.equal(samples.length, beforeRetry + 1, 'a matching completion is rechecked under the write transaction')
   assert.equal(journal.lookup(command, owner)!.state, 'agent_queued')
   assert.throws(() => approvals.get(randomUUID()), /approval.stale/)
   assert.deepEqual(samples.map(({ operation, result }) => [operation, result]), [
     ['journal_command', 'persisted'], ['journal_command', 'persisted'], ['journal_command', 'failed'],
-    ['journal_command', 'failed'], ['journal_command', 'persisted'], ['journal_command', 'persisted'], ['journal_approval', 'failed'],
+    ['journal_command', 'failed'], ['journal_command', 'persisted'], ['journal_command', 'persisted'], ['journal_command', 'persisted'], ['journal_approval', 'failed'],
   ])
   assert.ok(samples.every(item => item.micros === 1000))
   assert.equal(JSON.stringify(samples).includes('PRIVATE'), false)
