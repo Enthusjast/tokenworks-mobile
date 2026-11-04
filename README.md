@@ -10,6 +10,10 @@ TokenWorks / DSH 移动远程控制平台。主机插件与 Go 中继已通过�
 本机 npm dsh 的插件 HMR。`npm run dev:status` 查看状态，`npm run dev:stop` 停止；端口、
 本地身份夹具及验证范围见[持续开发环境](docs/local-development.md)。
 
+中转服务现提供[用户名密码账号与简单网页](docs/relay-accounts.md)：本地开发访问
+`http://127.0.0.1:8080/account/`，支持注册、登录、账号/主机概览、改密和退出。
+SSO 仅预留入口，当前未启用；新账号不自动获得组织或远控权限。
+
 需要 Node.js 24（至少 24.15.0）：
 
 ```sh

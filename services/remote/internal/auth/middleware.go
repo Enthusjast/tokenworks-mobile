@@ -18,6 +18,10 @@ func PrincipalFromContext(ctx context.Context) (Principal, bool) {
 
 func (auth *Authenticator) Middleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
+		if auth == nil {
+			requestlog.Error(response, http.StatusServiceUnavailable, "auth.not_configured")
+			return
+		}
 		if len(request.Header.Values("Authorization")) != 1 {
 			auth.writeError(response, http.StatusUnauthorized, "auth.expired")
 			return

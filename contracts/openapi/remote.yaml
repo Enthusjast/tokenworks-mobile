@@ -8,6 +8,121 @@ servers:
 security:
   - DPoP: []
 paths:
+  /account/:
+    get:
+      security: []
+      responses:
+        '200': { description: Optional same-origin account portal. CSP-protected HTML, no inline script or third-party assets. }
+        '404': { description: Account portal not configured }
+  /account/api/providers:
+    get:
+      security: []
+      responses:
+        '200':
+          description: Login capabilities. Password is enabled; SSO is reserved and disabled. Registration follows explicit deployment configuration.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok: { const: true }
+                  data:
+                    type: object
+                    properties:
+                      registration: { type: boolean }
+                      providers:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            id: { enum: [password, sso] }
+                            enabled: { type: boolean }
+  /account/api/register:
+    post:
+      security: []
+      description: Optional local registration. Requires exact configured Origin and JSON. Creates an isolated local identity with no organizations, devices or runtime grants. Username is normalized to lowercase, never matched to an SSO subject. Durable per-IP/account/global attempt limits apply.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [username, password]
+              properties:
+                username: { type: string, minLength: 3, maxLength: 32 }
+                password: { type: string, minLength: 12, maxLength: 256, format: password }
+      responses:
+        '201': { description: Account created; login required }
+        '400': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+        '429': { $ref: '#/components/responses/Error' }
+        '503': { $ref: '#/components/responses/Error' }
+  /account/api/login:
+    post:
+      security: []
+      description: Username/password login with exact configured Origin and JSON. Sets host-only HttpOnly SameSite=Strict session and CSRF cookies under /account. HTTPS cookies are Secure. Returns a CSRF value for authenticated mutations. The opaque session is valid for at most 12 hours; it is not a DPoP access token.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [username, password]
+              properties:
+                username: { type: string, maxLength: 32 }
+                password: { type: string, maxLength: 256, format: password }
+      responses:
+        '200': { description: Browser session established; data.csrf is the CSRF secret }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '429': { $ref: '#/components/responses/Error' }
+        '503': { $ref: '#/components/responses/Error' }
+  /account/api/session:
+    get:
+      security:
+        - AccountSession: []
+      description: Requires the portal session and CSRF cookies. Returns local username/user_id, expiry, current organization memberships, authorized host metadata and CSRF secret. Does not expose device keys, tokens or session content. Cookie credentials are not accepted by /v1.
+      responses:
+        '200': { description: Current account overview; no-store }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '503': { $ref: '#/components/responses/Error' }
+  /account/api/logout:
+    post:
+      security:
+        - AccountSession: []
+      description: Requires current portal session, exact Origin and X-CSRF-Token returned by login/session. Revokes this browser session and clears its cookies. All account errors use safe codes and the normal request correlation header.
+      responses:
+        '200': { description: Current browser session revoked }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '503': { $ref: '#/components/responses/Error' }
+  /account/api/password:
+    post:
+      security:
+        - AccountSession: []
+      description: Requires current session, exact Origin, JSON and X-CSRF-Token. Verifies current password and atomically changes its hash/version, revokes every browser session and records metadata audit. Does not change external SSO credentials or runtime grants.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [current_password, password]
+              properties:
+                current_password: { type: string, maxLength: 256, format: password }
+                password: { type: string, minLength: 12, maxLength: 256, format: password }
+      responses:
+        '200': { description: Password changed; all browsers must log in again }
+        '400': { $ref: '#/components/responses/Error' }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '429': { $ref: '#/components/responses/Error' }
+        '503': { $ref: '#/components/responses/Error' }
   /healthz:
     parameters:
       - $ref: '#/components/parameters/ResponseEnvelope'
@@ -1568,6 +1683,11 @@ paths:
           $ref: "#/components/responses/Error"
 components:
   securitySchemes:
+    AccountSession:
+      type: apiKey
+      in: cookie
+      name: __Secure-remote_account
+      description: HttpOnly host-only browser session under /account. On loopback HTTP the cookie name is remote_account. Mutations also require the independent X-CSRF-Token and exact configured Origin. This scheme does not authorize /v1 operations.
     HostFileTicket:
       type: http
       scheme: DSH-File

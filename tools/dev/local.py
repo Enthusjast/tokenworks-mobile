@@ -116,6 +116,7 @@ def relay_connected(epoch):
 def snapshot():
     paths = [*list((ROOT / 'services/remote').rglob('*.go')),
              ROOT / 'services/remote/go.mod', ROOT / 'services/remote/go.sum',
+             *list((ROOT / 'services/remote/internal/accounts/web').glob('*')),
              *list((ROOT / 'deploy/sql').glob('*.up.sql'))]
     return {str(path.relative_to(ROOT)): hashlib.sha256(path.read_bytes()).hexdigest()
             for path in paths if not path.name.endswith('_test.go')}
@@ -255,6 +256,8 @@ def serve(profile, attach=None):
                           REMOTE_DATABASE_URL=dsn, REMOTE_DATABASE_EPOCH=query('select epoch::text from remote_recovery_state where slot=1'),
                           REMOTE_RELAY_NODE_ID='da96f9e7-c59e-484d-a826-3fca09eb18bd',
                           REMOTE_APPROVAL_POLICY_FILE=str(STATE / 'fixture-approval-policy.json'))
+        remote_env.update(REMOTE_ACCOUNTS_ORIGIN=remote_env['REMOTE_PUBLIC_ORIGIN'],
+                          REMOTE_ACCOUNTS_REGISTRATION='true')
 
         def rebuild():
             log('building Go relay')

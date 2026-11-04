@@ -14,7 +14,7 @@ import (
 	"syscall"
 	"time"
 
-	"dsh-mobile-ustc/services/remote/internal/auth"
+	"dsh-mobile-ustc/services/remote/internal/accounts"
 	"dsh-mobile-ustc/services/remote/internal/control"
 	"dsh-mobile-ustc/services/remote/internal/httpapi"
 	"dsh-mobile-ustc/services/remote/internal/observability"
@@ -74,10 +74,6 @@ func run() error {
 	if err != nil {
 		return err
 	}
-	scope, err := auth.ProofScope(os.Getenv("REMOTE_ISSUER"), os.Getenv("REMOTE_AUDIENCE"), os.Getenv("REMOTE_PUBLIC_ORIGIN"))
-	if err != nil {
-		return fmt.Errorf("remote service identity configuration is invalid: %w", err)
-	}
 	database, err := store.Open(context.Background(), os.Getenv("REMOTE_DATABASE_URL"))
 	if err != nil {
 		return errors.New("remote service database is unavailable or insecurely configured")
@@ -87,36 +83,9 @@ func run() error {
 	if err != nil {
 		return errors.New("remote service database recovery is unavailable or deployment epoch does not match")
 	}
-	scope, err = auth.ProofScopeInEpoch(scope, recovery.Epoch())
+	verifier, proofs, err := loadIdentity(database, recovery)
 	if err != nil {
-		return errors.New("remote service proof epoch is invalid")
-	}
-	proofLimit := store.DefaultProofEntriesPerBucket
-	if configured := strings.TrimSpace(os.Getenv("REMOTE_DPOP_ENTRIES_PER_BUCKET")); configured != "" {
-		parsed, err := strconv.Atoi(configured)
-		if err != nil {
-			return errors.New("remote proof-state capacity is invalid")
-		}
-		proofLimit = parsed
-	}
-	proofs, err := store.NewPostgresProofStore(context.Background(), database.DB, scope, proofLimit)
-	if err != nil {
-		return errors.New("remote shared proof state is unavailable or inconsistently configured")
-	}
-	verifier, err := auth.New(auth.Config{
-		Issuer:           os.Getenv("REMOTE_ISSUER"),
-		Audience:         os.Getenv("REMOTE_AUDIENCE"),
-		JWKSURL:          os.Getenv("REMOTE_JWKS_URL"),
-		AllowedClients:   csv(os.Getenv("REMOTE_CLIENT_IDS")),
-		RequiredScopes:   csv(os.Getenv("REMOTE_REQUIRED_SCOPES")),
-		PublicOrigin:     os.Getenv("REMOTE_PUBLIC_ORIGIN"),
-		MaxTokenLifetime: 15 * time.Minute,
-		Proofs:           proofs,
-		DatabaseEpoch:    recovery.Epoch(),
-		MinimumIssuedAt:  recovery.TokenNotBefore(),
-	})
-	if err != nil {
-		return fmt.Errorf("remote service identity configuration is invalid: %w", err)
+		return err
 	}
 	admissions := store.DefaultSerializableAdmissions
 	if configured := strings.TrimSpace(os.Getenv("REMOTE_SERIALIZABLE_ADMISSIONS")); configured != "" {
@@ -235,9 +204,21 @@ func run() error {
 		return err
 	}
 	defer metricsEndpoint.close()
+	var publicHandler http.Handler = handler
+	if origin := os.Getenv("REMOTE_ACCOUNTS_ORIGIN"); origin != "" {
+		accountService, accountErr := accounts.New(database, recovery.Epoch())
+		if accountErr != nil {
+			return accountErr
+		}
+		portal, accountErr := accounts.NewPortal(accountService, origin, os.Getenv("REMOTE_ACCOUNTS_REGISTRATION") == "true")
+		if accountErr != nil {
+			return errors.New("remote account origin configuration is invalid")
+		}
+		publicHandler = portal.Handler(handler)
+	}
 	server := &http.Server{
 		Addr:              envOr("REMOTE_LISTEN_ADDR", "127.0.0.1:8080"),
-		Handler:           requestlog.Middleware(recovery.Middleware(handler), "public", accessLog),
+		Handler:           requestlog.Middleware(recovery.Middleware(publicHandler), "public", accessLog),
 		ReadHeaderTimeout: 5 * time.Second,
 		ReadTimeout:       30 * time.Second,
 		WriteTimeout:      30 * time.Second,
@@ -258,7 +239,12 @@ func run() error {
 		}
 	}()
 	proofsDone := make(chan struct{})
-	go func() { defer close(proofsDone); proofs.Run(controlCtx) }()
+	go func() {
+		defer close(proofsDone)
+		if proofs != nil {
+			proofs.Run(controlCtx)
+		}
+	}()
 	unknownDone := make(chan struct{})
 	go func() { defer close(unknownDone); observability.RunUnknownResults(controlCtx, metrics, database) }()
 	go func() {

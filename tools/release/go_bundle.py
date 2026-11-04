@@ -39,6 +39,9 @@ encoded = common.json_bytes
 def runtime_input(name):
     if name in ('services/remote/go.mod', 'services/remote/go.sum', 'contracts/openapi/remote.yaml') or SCHEMA.fullmatch(name):
         return True
+    if name in ('services/remote/internal/accounts/web/index.html', 'services/remote/internal/accounts/web/app.js',
+                'services/remote/internal/accounts/web/style.css'):
+        return True
     return (name.startswith('services/remote/') and name.endswith('.go') and not name.endswith('_test.go')) or (
         name.startswith('deploy/sql/') and MIGRATION.fullmatch(name.removeprefix('deploy/sql/')) is not None)
 
