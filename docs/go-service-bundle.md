@@ -3,6 +3,8 @@
 `tools/release/go_bundle.py` 为真实 Go 入口构建 Linux/amd64 静态二进制、完整迁移脚本及公开
 OpenAPI／WebSocket Schema，并生成可独立固定摘要的清单。它不发布、签名、启动服务或应用迁移。
 
+相关入口：[文档导航](README.md#release)、[当前状态](development-status.md)、[历史包与收据](verification-history.md)。
+
 ## 构建与离线校验
 
 从仓库根目录使用已安装的 Go 1.26.x，输出目录必须是 `.local` 下尚不存在的新目录：
@@ -18,7 +20,7 @@ python3 tools/release/go_bundle.py build \
 下载。缺少缓存会失败并保留私有 build.log，不自动联网安装。现有模块校验与 go.sum 约束保留；
 本工具不替代依赖审计、工具链来源验证或完整供应链证明。
 
-构建器只接受已提交的 Go／模块／迁移／协议内容，拒绝修改过的输入、符号链接以及新增或
+构建器只接受已提交的 Go／模块／迁移／协议内容及白名单中的账号网页 HTML/CSS/JavaScript，拒绝修改过的输入、符号链接以及新增或
 被忽略的发行输入。从固定 Git commit 读取 blob 到私有临时快照，再编译该快照；并行修改
 工作区不能混入二进制。不打包测试源码、PLAN.md、账号／部署配置文件、私钥文件或环境文件。
 构建输出也通过持有的目录句柄创建，输出路径被替换时拒绝给出验证结果。
@@ -54,10 +56,15 @@ verify 不需要 Go，不启动候选二进制。先校验清单摘要，再检�
 - `service/migrations`：从 001 开始连续、每项 up/down 配对的 SQL；不自动执行。
 - `service/contracts`：公开的 REST 与 WebSocket 协议。
 
+账号网页资源纳入源码输入摘要，编译时嵌入 `service/bin/remote`，不会作为独立静态目录输出。
+旧版包不包含之后加入的账号网页功能；选择包时核对源码 commit 和[验证记录](verification-history.md)。
+
 解包后可显式调用 `service/bin/remote version` 核对构建信息，见[离线版本命令](go-service-version.md)。
-真实服务启动仍须提供原有身份、数据库、策略和受保护密钥配置，TLS 入口与数据库恢复 epoch
-校验保持原行为。迁移、生产签名、部署权限、回滚兼容性和平台／网络验收各自独立；一个通过
-摘要校验的包不代表已获准部署，也不代表学校身份、HA、容量或故障恢复目标已验收。
+真实服务启动仍须提供数据库、Relay node ID 和恢复 epoch，并按启用的功能提供策略及受保护配置。
+[本地账号](relay-accounts.md)可不配置 IdP 独立运行；启用原资源 JWT 入口时，仍需完整的
+issuer/audience/JWKS/client/scope/public origin。TLS 与数据库恢复围栏不因账号入口而放宽。
+迁移、生产签名、部署权限、回滚兼容性和平台／网络验收各自独立；通过摘要校验不代表已获准部署，
+也不代表学校身份、HA、容量或故障恢复目标已验收。
 
 ## 本地证据
 

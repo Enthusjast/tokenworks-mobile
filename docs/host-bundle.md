@@ -4,6 +4,8 @@
 它不签名、不上传、不发布，不生成 TokenWorks 发行配置，也不读取用户已安装的 profile、
 模型凭据或学校账号。包仍是 `private: true`、当前版本 `0.0.1`，不能据此认定已通过发行验收。
 
+相关入口：[文档导航](README.md#release)、[当前状态](development-status.md)、[历史包与收据](verification-history.md)。
+
 ## 构建与复现
 
 在仓库根目录完成依赖安装和正常验证，再明确指定本机 npm 安装的 dsh：
@@ -23,7 +25,7 @@ python3 tools/release/host_bundle.py build \
 
 工具要求 Node 24.15+ 且低于 25，以及真实 `dsh --version` 为 `0.2.1-rc.5`。
 它检查正常发行输入的 Git 状态，包括根 package/lock/tsconfig、Host package/build 配置、README、
-全部 Host src 和 contracts；这些输入有修改、删除、未跟踪文件（包括被 gitignore 隐藏的文件）或符号链接时拒绝构建。
+全部 Host src、client 和 contracts；这些输入有修改、删除、未跟踪文件（包括被 gitignore 隐藏的文件）或符号链接时拒绝构建。
 无关工作区改动不被当作 Host 输入，PLAN.md 和 Android 代码不会进入包或输入清单。
 当前工作区若有未提交的 Host README 改动，也会被正确拒绝，不能偷偷使用旧副本替代。
 
@@ -31,8 +33,10 @@ python3 tools/release/host_bundle.py build \
 source map 使用固定的相对 sourceRoot。AST 检查覆盖运行时／类型 import、export、静态
 require 与相对模块边界，直接模块必须在 dependencies 或 peerDependencies 中显式声明；
 不会把注释／普通字符串误当作导入，也不允许通过计算式动态导入绕过该检查。npm pack 禁用脚本并开启 offline；产物只能包含
-`package.json`、README 和 lib 下的 JS、声明及 source map。实际 tar 文件必须与暂存目录逐字节
+`package.json`、README、lib 下的 JS/声明/source map，以及客户端声明匹配的 `client/index.js`。
+旧的无 UI 包仍可按原形状验证；新包必须包含精确的客户端入口和声明。实际 tar 文件必须与暂存目录逐字节
 一致。安装／准备／打包 hook、额外本地文件、测试、PLAN、配置和运行状态均不允许混入。
+链接检出使用的 `development.mjs` 不进入发行包；[桌面设置页](dsh-desktop-plugin.md)通过包内 UI 加载。
 
 成功目录包含：
 

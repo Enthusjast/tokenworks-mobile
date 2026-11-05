@@ -1,120 +1,76 @@
 # 当前开发状态与验证入口
 
-核对日期：2026-11-02。源码核对基线为 `0fd53d7`，后续文档提交不改变这次代码验证范围。
-本页汇总当前入口、已有证据和仍开放的阶段出口；早期文档中的日期、版本及测试数量保留为历史记录。
-代码存在、构建通过、组件用例通过和实际发行验收分别记录，不能相互替代。
+[文档导航](README.md) · [项目首页](../README.md) · [历史验证与收据](verification-history.md)
 
-## 当前基线和工作范围
+文档整理日期：2026-11-05；最近功能提交为 `eaaf00f`（账号网页），之前为 `5a533d4`（dsh 接入与状态 UI）。
+本页汇总当前入口与未完成的出口，不是一份本次重新执行的产品测试报告。
+旧源码基线、运行快照和测试数量集中保留在[历史验证记录](verification-history.md)，不随本页日期更新。
+
+## 基线与运行入口
 
 | 项目 | 当前依据 |
 | --- | --- |
-| npm DSH | `0.2.1-rc.5`；根 `package.json`、lockfile、Host peers、CLI 测试和 Host bundle 工具均锁定此版本 |
-| 实际 CLI | 使用本机 npm 安装的 `dsh`；集成时通过绝对路径 `REMOTE_TEST_DSH_BIN` 选择并在启动前校验版本 |
-| Node / Go / PostgreSQL | 本地已用 Node 24.20.0、Go 1.26.10、PostgreSQL 18；工程 Node 范围为 `>=24.15.0 <25` |
-| Host / 服务 | 当前 DSH 进程内 TypeScript 插件、Go `services/remote`；不另起会话 writer |
-| 身份、模型、对象与 scanner | 本地测试夹具；学校 issuer/client/resource 配置尚未就绪 |
-| 本轮开发约束 | 不尝试 TokenWorks，不修改 Android APP，不运行 Windows/Wine、真机、大负载或厂商通道配置 |
-| 开发节奏 | 完成一批相关改动后做针对性验证；全量验证和较长演练单独按需要运行 |
+| npm DSH | 根 package/lockfile 和 Host peers 锁定 `0.2.1-rc.5`；使用本机已安装的 dsh |
+| Node | 工程要求 `>=24.15.0 <25`；既有记录使用 24.20.0 |
+| Go / PostgreSQL | Go 模块为 1.26.0，既有本机验证使用 Go 1.26.10 / PostgreSQL 18；迁移按编号执行至 054 |
+| 本机持续开发 | [监督进程](local-development.md)启动私有 PostgreSQL、Go、TypeScript watch 和 dsh HMR |
+| 已有 dsh 接入 | [附加模式与状态 UI](dsh-desktop-plugin.md)保留原 dsh 进程，只管理自身后端和 watcher |
+| 账号网页 | [用户名密码账号](relay-accounts.md)，默认开发入口 `/account/`；可单独运行而不配置 IdP |
+| 身份边界 | 网页 SSO 未启用；原远控 API 的资源 JWT、DPoP、设备证明和 runtime grant 保持独立 |
+| 开发节奏 | 完成相关改动后集中运行定向验证；全量与长时间场景按需要另行安排 |
 
-常驻 Go、TypeScript watch 和已安装 dsh HMR 使用[持续开发入口](local-development.md)。
-本次核对时 supervisor、Relay readiness、插件路由连接正常，Go 热重载次数为 19。
-这是一条本地运行观察，不是生产可用性或长期稳定性测量。
-当前启动配置还包含未提交的本地 TLS/登录扩展；本页没有修改、提交或重新启动该配置。
-开发环境尚未启用文件存储/scanner，也没有启用真实推送 provider；定向文件与推送测试使用自己的夹具。
+实时运行状态使用 `npm run dev:status` 查询。PID、热重载次数、端口占用和就绪检查是运行时事实，
+不从历史日志或本页推断。当前工作区还可能包含未提交的 TLS/手机开发扩展，不能视为干净检出的交付内容。
+文件存储、scanner、真实推送与学校身份是否启用，分别检查对应配置，不以进程在线推断业务已验收。
 
-后续已加入[中转本地账号与网页](relay-accounts.md)，可独立于 IdP 启动；密码登录不替代既有
-DPoP 设备入口。支持注册、登录、组织/主机概览、改密和退出，SSO 登录仍未启用。
-这项用户新增要求扩展了早期 PLAN 的身份来源，不表示学校 SSO 接入已经完成。
+## 已有能力与实现边界
 
-## 服务端和插件交付映射
-
-| 计划要求 | 代码入口与已有证据 | 阶段状态及边界 |
+| 范围 | 实现与证据入口 | 边界 |
 | --- | --- | --- |
-| M0：进程内会话、queue/steer、中断、模型、历史和流 | Host `dsh-client.ts`、`runtime.ts`、`session-sync.ts`；[Go/DSH 组合记录](go-dsh-integration.md)、[发行包组合](packaged-service-composition.md) | 有临时 CLI/profile 和真实 Loader 证据；不证明现有企业桌面 profile 的原有会话已接入 |
-| M0：审批、普通与定时提问、终端归属及最终 guard | `signed-approvals.ts`、`interaction-router.ts`、`timed-questions.ts`；[原生审批](approval-native.md)、[timed question](timed-question-adapter.md) | 有真实工具调用与本地身份/模型证据；TokenWorks/微信组合及企业核心出口未验收 |
-| M0：卸载、账号结束、重连和资源所有权 | `index.ts`、`relay-client.ts`；[Host 生命周期](host-relay-lifecycle.md)、[已登记入口](host-enrolled-runtime.md) | 有夹具账号取消、插件清理及原生 Agent 保留证据；真实桌面窗口、应用与学校登出仍需发行集成 |
-| M1：JWT/JWKS、DPoP、设备、安装、绑定、组织及 grant | Go `internal/auth`、`internal/store`；[身份基础](m1-authentication.md)、[身份同步](identity-synchronization.md)、[绑定](host-binding-protocol.md) | 代码和私有 PG/HTTP/DSH 组合已有；真实学校配置、目录来源及客户端注册未验收 |
-| M1：host_accepted/agent_queued、去重、未知结果和故障 | Host `command-journal.ts`、`session-message-actions.ts`，Go `relay_commands.go`；[磁盘故障](host-journal-io-faults.md)、[日志容量](host-journal-capacity.md) | 有持久记录、单次执行和故障夹具证据；不会自动重放未知副作用，生产磁盘与恢复仍需配置 |
-| M1/M4：共享 proof、双节点路由、租约和可靠撤权 | Go `proof_state.go`、`relay_directory.go`、control consumer；[共享 DPoP](shared-dpop-state.md)、[路由](relay-routing.md)、[控制事件](control-fanout.md) | 有多进程/重启及双节点组合证据；不代表目标集群容量和公网 HA 已验收 |
-| M2 的 Host/Go 配套：目录、创建、归档、问题与多 scope | Host/Go 对应协议处理器；[目录](session-directory.md)、[创建](session-create-protocol.md)、[归档](session-archive.md)、[问题](question-protocol.md) | 配套接口已有；本轮不修改或补验 Android，M2 的真机、完整前台与试用出口保持开放 |
-| M3：上传、扫描、receipt、消息引用、导出与撤权 | Go `internal/files`，Host `file-registry.ts`、`export-catalog.ts`；[文件账本](file-transfer-ledger.md)、[交接](file-host-handoffs.md)、[导出](file-export-relay.md) | 有 PG/TLS/Loader/生产进程及安装 CLI 的不同层级证据；真实 S3/KMS、病毒引擎和物理设备未验收 |
-| M3：FCM、交互引用、发送结果与客户端回执 | Go `internal/push`、`store/push*.go`；[推送服务](push-service.md)、[结果指标](push-observability.md)、[OAuth 生命周期](push-oauth-lifecycle.md) | 有本地 TLS OAuth/FCM 和持久队列证据；未连接真实 Google，厂商通道按要求跳过 |
-| M3/M4：APK 目录、不可变身份、共享 publication 策略和恢复确认 | Go `internal/releases`、`store/release*.go`；[发行身份](app-release-registry.md)、[共享策略](app-release-policy.md)、[恢复确认](app-release-recovery.md) | 服务端能力和夹具证据已有；不等于 APK 实际发布、签名分发或目标设备安装验收 |
-| M4：审计、归档、恢复、密钥和发行来源 | [审计归档](audit-archive.md)、[恢复隔离](database-recovery.md)、[Linux 密钥](linux-installation-key.md)、[Host 包](host-bundle.md)、[Go 包](go-service-bundle.md) | 有应用机制、受控工具和本地演练；生产备份/连续日志、OS 密钥服务、证书与独立可信配置仍需部署验收 |
-| M4：监控、故障、容量、SLO 和放量 | [指标](operational-metrics.md)、[规则](monitoring-rules.md)、[故障演练](database-outage-drill.md)、[容量入口](authenticated-capacity.md) | 已有指标、规则和小型故障证据；本轮不运行目标负载、配置通知接收方或执行试点/放量 |
+| 本地账号与网页 | [账号指南](relay-accounts.md)，Go `internal/accounts` | 注册、登录、账号/主机概览、改密、退出；新账号没有默认组织或远控权限，Cookie 不授权 `/v1` |
+| 原生会话与模型 | [会话读取](session-read-protocol.md)、[创建](session-create-protocol.md)、[归档](session-archive.md)、[模型目录](session-model-catalog.md)、[选择](session-model-selection.md) | Host 复用同进程 Agent；不能将 npm CLI/Loader 组合当成企业桌面既有会话验收 |
+| 审批与用户提问 | [原生签名审批](approval-native.md)、[授权租约](approval-leases.md)、[普通问题](question-protocol.md)、[定时提问](timed-question-protocol.md) | 签名决定、原生策略和实际执行边界分别检查；问题回答不授予工具执行权限 |
+| 身份、设备与绑定 | [资源认证](m1-authentication.md)、[目录同步](identity-synchronization.md)、[绑定](host-binding-protocol.md)、[已登记启动](host-enrolled-runtime.md) | 有本地身份/私有数据库组合证据；真实学校客户端、目录来源及发行端账号适配未验收 |
+| 命令持久性与恢复 | [日志事务](host-journal-transitions.md)、[容量](host-journal-capacity.md)、[I/O 故障](host-journal-io-faults.md) | `host_accepted`、`agent_queued` 和执行完成不同；结果未知时不自动重放副作用 |
+| 跨节点与撤权 | [共享 DPoP](shared-dpop-state.md)、[路由](relay-routing.md)、[控制事件](control-fanout.md)、[撤权](revocation-propagation.md) | 多进程及双节点夹具不代表目标集群容量、公网 HA 或撤权 SLO 已验收 |
+| 文件与附件 | [文件服务](file-rest-service.md)、[账本](file-transfer-ledger.md)、[Host 交接](file-host-handoffs.md)、[导出](file-export-relay.md) | 有 PG/TLS/Loader、scanner 进程和 CLI 分层证据；真实 S3/KMS、病毒引擎和物理设备仍需验收 |
+| 通知 | [FCM 服务](push-service.md)、[OAuth 生命周期](push-oauth-lifecycle.md)、[发送与展示指标](push-observability.md) | 本地 TLS/OAuth/FCM 夹具不证明 Google 接受或设备显示；厂商通道未配置 |
+| 应用发行策略 | [发行登记](app-release-registry.md)、[共享策略](app-release-policy.md)、[恢复确认](app-release-recovery.md) | 服务端策略不是 APK 实际签名、分发或目标设备升级验收 |
+| 密钥、审计与恢复 | [平台密钥索引](README.md#keys)、[审计归档](audit-archive.md)、[恢复隔离](database-recovery.md)、[PITR 夹具](postgres-pitr-fixture.md) | 已有本地机制和演练不构成生产密钥托管、备份设施或 RPO/RTO 达标 |
+| 指标与运行保障 | [指标](operational-metrics.md)、[规则](monitoring-rules.md)、[数据库中断](database-outage-drill.md)、[容量入口](authenticated-capacity.md) | 指标存在及小型故障样本不等于可用性、目标负载或分批放量通过 |
 
-源码入口用于定位实现，链接记录用于核对各自测试范围。表中“已有证据”不是当前 HEAD 的全量回归声明。
-`PLAN.md` 中 M0–M4 的复选框没有因为这些代码或夹具结果被自动视为完成。
+Android 工程及历史专题统一从[Android 导航](README.md#android)查阅，本次不修改或重新验证。
+PLAN.md 中 M0–M4 的复选框没有因为已有代码、夹具或本文整理被视为完成。
 
-## 最近批次的可复核范围
-
-以下日志仅保存在本机 `.local`，不会随源码提交；commit 和测试入口用于重现对应范围。
-
-| 源码 commit | 已完成验证 | 本机证据 |
-| --- | --- | --- |
-| `cc78574` | 三个文件组合主用例及五个交接子场景，包含 PG/TLS、真实 npm Loader、跨节点与生产 scanner worker | `.local/file-lifecycle-evidence/composition.log` |
-| `8362f3e` | 12 个 Host 文件用例，包含已安装 dsh 的 receipt/附件/工作区导出、同名类/子类拒绝、provider 替换；类型检查与构建 | `.local/cli-files-evidence/focused-files.log` |
-| `cdaef91` | 18 个 Go 主用例和 27 个子用例；实际 `remote files check` 分派、scanner 失败/超时、配置与健康代次 | `.local/file-check-evidence/focused.log` |
-| `0fd53d7` | 8 个主用例和 2 个子用例；OAuth 取消、共享失败、失效与迟到响应，既有 FCM 发送与受保护配置 | `.local/push-auth-evidence/focused.log` |
-
-`db58f6f` 仅纠正文件进程测试注释：`/readyz` 已包含配置 scanner 的健康检查，额外等待用于核查成功 probe 的指标发布。
-
-较早的[Go/Host 包组合](packaged-service-composition.md)使用 dsh `0.2.1-rc.5`，但 Go 包源为
-`cfd06c0`，Host 包源为 `d4b94c2`。本次按原 receipt 的固定清单摘要重新离线校验，两包仍通过，
-分别为 104/239 个文件。它们未包含最近几批修复，不能当作当前代码的发行产物。
-上述旧包检查仅离线核对，未重建或发布。交付当前代码需要在明确的干净 commit 上重新构建、校验并按相关范围验证。
-
-随后已在干净检出 `9fa43c4` 构建包含近期修复的 Go/Host 包，并集中通过包双节点组合及两个文件专项。
-对应来源、摘要和范围收据见[包验证记录](package-verification-9fa43c4.md)。该后续记录没有补跑 Go 全量或声明生产验收。
-
-Linux [真实 Secret Service 专项](linux-native-secret-service.md)随后使用同一 Host 包，通过安装签名、
-日志保护、collection 锁定拒绝、密码解锁和正常 daemon 重启后的重开；该结果仍属于隔离密钥库，不是用户生产会话验收。
-
-后续源码还修复了[日志状态转换的跨进程事务边界](host-journal-transitions.md)，防止等待写锁前读取的旧状态
-覆盖另一进程已经提交的终态与结果。此修复不在 `9fa43c4` 包内，交付时须选择包含修复的新构建。
-
-[审批日志](approval-journal.md)的准入额度也已修复：超时/关闭的调用仍占用槽，直到未结束的验证或授权任务真正完成，
-防止反复超时绕过 64 项工作上限；调用方仍及时返回。此后续修复同样不在旧包内。
-
-[安装密钥写入](linux-installation-key.md)随后补齐每 writer 实例八个存活子进程的预算，取消后仍待实际退出再释放。
-该源码修复也需通过后续新构建交付，不包含在 `9fa43c4` 包内。
-
-上述三项 Host 修复现已进入源 `1a40092` 的[新 Host 包](host-package-verification-1a40092.md)，
-包内定向回归、安装 CLI 文件与原生密钥库验证通过。该批未重跑 Go 全量或通用双节点组合，旧包记录保持原范围。
-
-[PostgreSQL 加密 WAL/PITR 专项](postgres-pitr-fixture.md)又补齐具名恢复点的本地物理恢复证据，
-核对旧权限行回退后的代次阻断和幂等隔离/释放；它不构成生产备份设施或 RPO/RTO 通过。
-
-审批授权缓存随后加入[单调时钟约束](approval-leases.md)，防止墙钟停滞或未被观察到的回拨拉长签名窗口。
-该修复已进入源 `365b025` 的[Host 新包](host-package-verification-365b025.md)：
-旧包复现墙钟暂停/事件循环阻塞后的过期执行，新包在正文边界拒绝，42 项包内定向结果通过。
-这批没有重跑 CLI、双节点组合或全量测试。
+<a id="verification"></a>
 
 ## 按改动范围选择验证
 
-先完成相关改动，再集中运行适用入口。下面是选择说明，不是要求每轮逐项执行。
+以下用于选择入口，不要求每轮逐项执行。文档整理只检查文档结构和引用，不触发产品全量回归。
 
-| 改动范围 | 对应入口 |
+| 改动范围 | 入口与注意事项 |
 | --- | --- |
 | Host 类型/编译 | `npm run check`、`npm run build` |
-| 契约 | `npm run contracts:check` 及对应 TS/Go 用例 |
-| 文件交接/导出/生产扫描进程 | `python3 tools/integration/run_remote_dsh.py --file-lifecycle`；范围见[专项说明](../tools/integration/FILE_LIFECYCLE.md) |
-| 已安装 CLI 文件适配 | 构建后显式设置 `REMOTE_TEST_DSH_BIN`，只运行 `dsh-cli-files.integration.test.ts`；[命令与边界](../tools/integration/FILE_LIFECYCLE.md) |
-| Go 文件依赖配置或 scanner | `remote files check --config /absolute/path/to/files.json`；[命令边界](file-dependency-check.md) |
-| Go 组件改动 | `go test -race -run '<目标用例>' ./internal/<目标包>`，需要数据库的用例另准备私有 PG 夹具 |
-| 通用 Go/DSH 组合 | `--dsh-only` 可跳过独立 Go 全量测试；可配合 `--cross-node`，但 Node 组合本身仍覆盖多条业务链路 |
-| 指定包组合 | [发行包组合入口](packaged-service-composition.md)，核对独立可信摘要及各包源码 commit |
+| 契约 | `npm run contracts:check`，再选择对应 TS/Go 用例 |
+| Host 单个行为 | `node --import tsx --test host/remote-control/tests/<目标文件>.test.ts` |
+| Go 组件 | 在 `services/remote` 执行 `go test -race -count=1 -run '<目标用例>' ./internal/<目标包>`；数据库场景使用隔离测试库 |
+| 账号与网页 | [账号验证说明](relay-accounts.md#验证入口)，目标包为 `./internal/accounts` 及相关命令入口；网页另做真实交互 |
+| 文件生命周期组合 | `python3 tools/integration/run_remote_dsh.py --file-lifecycle`；[精确范围](../tools/integration/FILE_LIFECYCLE.md) |
+| 已安装 CLI 的文件适配 | 显式设置绝对路径 `REMOTE_TEST_DSH_BIN`，运行 `dsh-cli-files.integration.test.ts`；命令见[专项说明](../tools/integration/FILE_LIFECYCLE.md) |
+| 文件依赖配置/scanner | `remote files check --config /absolute/path/to/files.json`；[入口与范围](file-dependency-check.md) |
+| 通用 Go/DSH 组合 | `--dsh-only` 跳过独立 Go 全量，但 Node 组合仍覆盖多条链路；`--cross-node` 另启双节点范围 |
+| 指定发行包 | [发行包组合入口](packaged-service-composition.md)，核对独立可信摘要及各包源码 commit |
 
-未指定模式的 `run_remote_dsh.py` 会运行 Go 全量及通用 Node 组合；`--go-run` 虽过滤用例，
-仍遍历 `./...`，不是单包入口。较长的换证、故障和容量模式分别按其专用文档选择，不随普通修复自动执行。
-`npm run verify` 是完整 Host/契约回归入口，按实际需要安排。
+`npm run verify` 是完整 Host/契约入口；不带模式的 `run_remote_dsh.py` 会运行 Go 全量和通用 Node 组合。
+`--go-run` 只过滤用例，仍遍历 `./...`，不是单包入口。续期、故障和容量模式按专用指南单独选择。
 
 ## 仍开放的完整验收出口
 
-- 学校 OIDC 的公开 issuer/Discovery、客户端、资源/audience/scope、DPoP、刷新/登出和当前组织目录来源尚未就绪；继续夹具开发，不静默放宽认证。
-- TokenWorks/EduWork 发行装配、现有桌面会话和其他终端应答器共存没有本轮证据；按要求不尝试该组合。
-- Android APP、真实设备、Windows/Wine、厂商推送和大负载按当前指令跳过；已有历史记录不能补足目标平台与版本的验收。
-- 生产对象存储/KMS、扫描器策略与签名库、FCM、OS 密钥服务、加密备份/连续日志及可信配置分发仍需实际环境与运维验证。
-- M2/M3 试用、目标规模/SLO 测量、分批放量和生产回退没有执行；本地指标与小型故障演练不作为这些出口的通过依据。
+- 学校 issuer/Discovery、client/resource/audience/scope、DPoP、刷新/登出及当前组织目录来源仍未就绪；网页账号不补足学校 SSO。
+- TokenWorks/EduWork 发行装配、既有桌面会话和其它终端应答器共存没有相应验收；按当前要求不尝试该组合。
+- Android APP、Windows/Wine、真机、大负载及厂商推送配置按当前要求跳过；旧记录不能代替目标平台与版本的验收。
+- 生产 S3/KMS、扫描器策略与签名库、FCM、OS 密钥服务、备份/连续日志及可信配置分发仍需实际环境和运维验证。
+- 内部试用、目标规模/SLO、分批放量和生产回退未执行；本机演练及指标不能替代。
 
-完整离线历史同步、独立常驻 Host、端到端加密和 iOS/Web 属于计划的后续增强，不因当前预留接口而宣称实现。
+完整离线历史、独立常驻 Host、端到端加密和 iOS/Web 完整远控客户端属于后续增强；
+本地账号网页只提供账号和主机元数据，不表示已经实现 Web 聊天或工具审批客户端。

@@ -3,10 +3,12 @@
 本机 npm dsh 基线为 `0.2.1-rc.5`。插件可链接到当前 Web profile，使用原进程的会话和模型服务。
 接入不会另外启动一个 dsh，也不会改动模型配置或发送模型请求。
 
+相关入口：[文档导航](README.md#start)、[本机监督进程](local-development.md)、[中转账号网页](relay-accounts.md)。
+
 ## 连接当前进程
 
-当前 `~/.dsh/profiles/web/node_modules/@ustc/dsh-remote-control` 已链接本仓库的
-`host/remote-control`。连接其它 profile 前，应先用该 profile 的正常依赖安装方式链接本包。
+附加模式要求目标 profile 的 `node_modules/@ustc/dsh-remote-control` 链接本仓库的
+`host/remote-control`；工具会校验链接目标。尚未链接时，先用该 profile 的正常依赖安装方式链接本包。
 下面的 PID 和端口必须替换为实际运行的 dsh；命令只接受当前用户拥有的 `dsh web` 和本机 HTTP origin。
 
 ```sh
@@ -38,6 +40,9 @@ HMR 监听 Host lib、客户端 UI 和开发 adapter；TypeScript 编译失败�
 此界面只读。工作区白名单和服务端当前授权共同限制远控范围；当前开发配置仅允许本仓库工作区，
 不会自动开放用户整个 HOME 或其它会话。没有配置 preset 时不允许远程新建会话。
 本地 fixture 身份不会显示为学校登录，也没有默认启用文件服务或真实推送。
+
+dsh 的浏览器授权、这个只读状态页和中转 `/account/` 是不同入口。中转的用户名密码登录
+不会登录 dsh、绑定 Host 或自动授予远控权限；账号功能及 SSO 未启用的边界见[账号指南](relay-accounts.md)。
 
 状态接口 `/ustc-remote-control/status` 复用 dsh Connection 的认证、Host/Origin 与 owner 检查，
 只接受 GET、禁止缓存；不返回凭据、密钥、正文、文件系统路径或原始异常。

@@ -1,38 +1,64 @@
 # dsh-mobile-ustc
 
-TokenWorks / DSH 移动远程控制平台。主机插件与 Go 中继已通过本机 DSH CLI、隔离 PostgreSQL 的联合测试；身份与可靠传输仍在开发。
+DSH 移动远程控制平台：进程内 Host 插件、Go 中转服务、用户名密码账号网页，以及 Android 客户端工程。
+Host 复用当前 dsh 的会话与模型服务；中转负责身份、授权、路由和元数据，不保存聊天正文。
 
-[当前开发状态与验证入口](docs/development-status.md)列出锁定基线、各阶段代码/证据、最近定向验证及尚未验收的出口。
+[文档导航](docs/README.md) · [当前能力与验收边界](docs/development-status.md) · [历史验证记录](docs/verification-history.md)
 
-主机插件位于 [host/remote-control](host/remote-control/README.md)，Go 服务位于 [services/remote](services/remote/README.md)。当前可验证登记与绑定、授权、会话创建、目录与读取、消息与中断、普通问题应答、签名审批及结果对账、主动撤权。[Android 工程](android/README.md) 已提供 Compose/Hilt 开发 APK、PKCE/DPoP 登录、加密账号恢复、凭据刷新、Keystore 和设备登记入口，并通过共享协议与 API 26 界面测试；真实学校身份、端到端会话、可靠缓存及完整手机客户端仍有验收缺口。本机 IPC 调试入口默认关闭。
+## 项目结构
 
-本机持续开发可运行 `npm run dev`：启动回环 Go 中转、私有 PostgreSQL、TypeScript watch 和
-本机 npm dsh 的插件 HMR。`npm run dev:status` 查看状态，`npm run dev:stop` 停止；端口、
-本地身份夹具及验证范围见[持续开发环境](docs/local-development.md)。
+| 位置 | 职责 |
+| --- | --- |
+| [host/remote-control](host/remote-control/README.md) | Cordis 插件、会话适配、命令日志、签名审批与文件交接 |
+| [services/remote](services/remote/README.md) | Go 控制面、Relay、账号网页、文件和通知服务 |
+| [android](android/README.md) | Android 客户端；实现和目标设备验收按专题分别记录 |
+| [contracts](contracts/) | REST、WebSocket、文件、推送与安全互操作契约 |
+| [deploy](deploy/) | SQL 迁移、受控配置示例和监控规则 |
+| [tools](tools/) | 本机开发、定向联调、发行构建和校验 |
+| [docs](docs/README.md) | 按主题分类的操作指南、协议说明与验证证据 |
 
-中转服务现提供[用户名密码账号与简单网页](docs/relay-accounts.md)：本地开发访问
-`http://127.0.0.1:8080/account/`，支持注册、登录、账号/主机概览、改密和退出。
-SSO 仅预留入口，当前未启用；新账号不自动获得组织或远控权限。
+## 本机开发
 
-需要 Node.js 24（至少 24.15.0）：
+Linux 开发环境需要 Node.js `>=24.15.0 <25`、npm、已安装的 dsh `0.2.1-rc.5`、
+Go 1.26.x、PostgreSQL 18 工具及 Python 3。依赖与路径说明见[本机持续开发](docs/local-development.md)。
 
 ```sh
 npm ci --ignore-scripts
 npm run build
+npm run dev
+npm run dev:status
 ```
 
-当前依赖锁定 DSH `0.2.1-rc.5`。本任务的 CLI 验证通过 `REMOTE_TEST_DSH_BIN` 显式选择本机已安装的 dsh，并使用临时 profile 和本地确定性模型；早期 `rc.2` 结果按各文档日期保留。
-开发时按改动范围集中验证；`npm run verify` 为完整 Host/契约回归入口，按需安排。
-这些验证不表示学校 SSO、真实模型或手机实机验收通过。
+`dev` 启动私有 PostgreSQL、本地身份夹具、Go 中转、TypeScript watch 和 dsh 插件 HMR。
+已有 dsh 在运行时，按[现有 Web profile 接入指南](docs/dsh-desktop-plugin.md)使用 `--attach-pid`，
+不要为接管同一活动会话另起一个进程。运行状态和实际地址以 `dev:status` 为准。
 
-Android 工程使用 JDK 17 或 21。`npm run test:android` 运行 Kotlin 测试和 Android lint，平台模块需要 SDK 36 / Build Tools 35.0.0；`npm run test:android:core` 验证协议、签名、登录和 HTTPS 共享模块，无需 Android SDK。首次执行需要下载 Gradle 和锁定的 Maven 依赖。
+默认开发入口：
 
-构建 Android 开发 APK：`cd android && ./gradlew :app:assembleDebug`。默认不包含学校配置并禁用登录；[登录与构建说明](docs/android-authentication.md) 说明可信公开配置、测试证据及尚未完成的前台功能。
+| 入口 | 地址或操作 |
+| --- | --- |
+| 中转账号网页 | [http://127.0.0.1:8080/account/](http://127.0.0.1:8080/account/) |
+| 中转就绪检查 | `http://127.0.0.1:8080/readyz`，就绪为 204 |
+| dsh Web | 默认 `http://127.0.0.1:3000`；使用 dsh 自己的浏览器授权 |
+| 插件状态 UI | dsh 账号菜单 → 设置 → 手机远控 |
+| 停止开发服务 | `npm run dev:stop`；只停止监督进程拥有的资源 |
 
-[跨节点路由](docs/relay-routing.md)已接入共享连接目录和私有双向 TLS。
-`python3 tools/integration/run_remote_dsh.py --cross-node` 验证真实 npm DSH Host
-进入 A、手机 HTTP/WSS 进入 B，包括聊天、问题、审批和撤权；文件另有双实例原生链路测试。
-学校身份、物理设备和目标集群容量仍需独立验收。
+账号网页支持注册、登录、账号和已授权主机概览、改密及退出。无默认用户名或密码，
+新账号不自动获得组织或远控权限；Cookie 登录不替代原 `/v1` 的设备证明和授权。
+[账号配置与边界](docs/relay-accounts.md)说明如何单独启用本地账号。网页 SSO 仅预留，尚未启用。
 
-[恢复隔离工具](docs/database-recovery.md)可在真实数据库恢复后吊销旧远控权限、隔离服务，
-导入当前身份清单后按新部署代次重新开放；已有跨 PostgreSQL 集群和生产入口的小型夹具验证。
+## 继续阅读
+
+- 使用或调试：[本机持续开发](docs/local-development.md)、[已有 dsh 接入](docs/dsh-desktop-plugin.md)、[账号网页](docs/relay-accounts.md)。
+- 开发协议：[OpenAPI](contracts/openapi/remote.yaml)、[WebSocket Schema](contracts/ws/v1/)、[专题索引](docs/README.md)。
+- 部署与恢复：[受保护配置](docs/trusted-service-configuration.md)、[Go 发行包](docs/go-service-bundle.md)、[恢复隔离](docs/database-recovery.md)。
+- 查验结果：[当前状态](docs/development-status.md)、[历史证据与包版本](docs/verification-history.md)。
+
+## 验证与范围
+
+完成一批相关改动后集中运行对应检查，选择方法见[验证入口](docs/development-status.md#verification)。
+`npm run verify` 和不带模式的 `run_remote_dsh.py` 包含较广或全量范围，不作为每次开发的默认步骤。
+本机日志位于 `.local/`，可能包含敏感凭据，不随文档提交或公开。
+
+已有源码、夹具和发行包证据不等同于学校身份、真实模型、企业桌面组合、目标设备、
+生产依赖或目标规模验收。早期版本的结果保留其原版本和范围，完整开放出口见[当前状态](docs/development-status.md)。

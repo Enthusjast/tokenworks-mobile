@@ -4,6 +4,8 @@
 当前 npm 基线已为 `0.2.1-rc.5`，请以[当前状态与证据入口](development-status.md)定位最近实现和验证。
 本页保留早期源码/npm Loader 记录，不作为当前依赖版本或完整桌面验收的声明。
 
+[文档导航](README.md#evidence) · [历史记录索引](verification-history.md)
+
 ## 锁定基线
 
 | 组件 | 基线 | 证据 |
@@ -28,10 +30,10 @@ Loader 与 DSH CLI 测试共同覆盖工作区及 preset 白名单、opaque 原�
 ## 与发行版组合相关的发现
 
 - `SessionController` 公开 list、create、prompt、cancel、selectModel、page、follow 和 flush。归档由同一进程的 `workspaceRegistry.archiveSession/unarchiveSession` 提供；Host 本地协议现已接入原生持久归档，详见 [会话归档](session-archive.md)。
-- `fileUploads.uploadStream` 和 prompt receipt 是可用的 DSH 接口。真实 Loader 已验证接收会话隔离、排队 / 消费、同 request ID 去重、显式回收和重建后重新交接；Host 内部适配增加 200 MB 限额和流式摘要校验。移动文件协议、隔离对象存储及扫描交接仍在实现，详见 [原生文件准入](native-file-admission.md)。
+- `fileUploads.uploadStream` 和 prompt receipt 是可用的 DSH 接口。真实 Loader 已验证接收会话隔离、排队 / 消费、同 request ID 去重、显式回收和重建后重新交接；Host 内部适配增加 200 MB 限额和流式摘要校验。当时的移动文件协议、隔离对象存储及扫描交接仍在实现；后续实现分别见[文件服务](file-rest-service.md)、[Host 交接](file-host-handoffs.md)及[原生文件准入](native-file-admission.md)，不倒改本页早期证据。
 - 子 Agent 有原生父子身份。M0 列表隐藏子 Agent；远端不能用根会话接口接管子 Agent。
 - `approval/request` 提供一次决策，但没有完整工具参数。原型将真实 Tool Runtime 执行上下文与 call ID 绑定，并在最终 guard 消费当前执行 token；没有在真实 TokenWorks / 微信组合里验证 listener 顺序或绕过路径。
-- 普通问题与工具批准走各自的 DSH 服务。Timed question 需要前台 claim 及迟到答案路径；本原型拒绝 timed question，不把它降级成普通问题。
+- 普通问题与工具批准走各自的 DSH 服务。早期原型拒绝 timed question，没有降级成普通问题；后续已补齐[原生适配](timed-question-adapter.md)和[Relay 定时提问协议](timed-question-protocol.md)，其验证范围由对应专题记录。
 - M0 在 Unix 平台使用当前用户私有 socket，在 Windows 使用关闭全用户读写的命名管道。Linux Unix socket 已在真实 DSH CLI profile 中验证；Windows 命名管道和 ACL 尚未在 Windows 实机运行。测试覆盖临时 DSH profile，不读取已安装用户 profile，也未连接 oidc-proxy；账号切换撤权和已安装桌面 profile 共存仍未验证。
 
 ## M0 尚未验收的出口

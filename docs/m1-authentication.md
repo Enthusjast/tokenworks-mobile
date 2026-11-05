@@ -6,6 +6,12 @@ This page retains incremental foundation notes, including older statements about
 work that later components implement. Use [current development status](development-status.md)
 to distinguish those historical gaps from the current code and still-open milestone gates.
 
+This page describes the external resource-token and device-proof path. The separate
+[password account portal](relay-accounts.md) can run without an IdP; its cookies do not
+authenticate these `/v1` operations. Web SSO login remains disabled. Use the
+[documentation index](README.md#identity) for identity topics and the
+[verification history](verification-history.md) for version-specific evidence.
+
 ## Implemented
 
 `services/remote/internal/auth` verifies OAuth JWT access tokens against a configured JWKS URL. It pins the issuer, audience, OAuth client allowlist, required scopes and acceptable algorithms; requires `at+jwt`, `iss`, `sub`, `client_id`, `jti`, `iat`, `exp`, and DPoP key binding; rejects duplicate JSON claims and refuses caller-supplied key URLs. Supported access-token signatures are RS256 and ES256; proof keys are P-256.
