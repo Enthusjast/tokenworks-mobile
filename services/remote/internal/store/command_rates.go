@@ -9,7 +9,7 @@ import (
 	"sync"
 	"time"
 
-	"dsh-mobile-ustc/services/remote/internal/canonical"
+	"tokenworks-mobile/services/remote/internal/canonical"
 )
 
 var ErrCommandRateLimited = errors.New("store: shared command admission budget exhausted")

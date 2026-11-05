@@ -51,7 +51,7 @@ func PostgresDatabase(t *testing.T) (context.Context, *sql.DB) {
 	if _, err := rand.Read(randomName); err != nil {
 		t.Fatal(err)
 	}
-	testDatabaseName = "dsh_remote_test_" + hex.EncodeToString(randomName)
+	testDatabaseName = "tokenworks_mobile_test_" + hex.EncodeToString(randomName)
 	if _, err := admin.Exec(ctx, "create database "+testDatabaseName); err != nil {
 		t.Fatalf("create isolated test database: %v", err)
 	}

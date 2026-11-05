@@ -2,9 +2,9 @@ package main
 
 import (
 	"bytes"
-	"dsh-mobile-ustc/services/remote/internal/store"
 	"strings"
 	"testing"
+	"tokenworks-mobile/services/remote/internal/store"
 )
 
 func TestCommandArchiveCLIRejectsInvalidParametersBeforeDatabase(t *testing.T) {

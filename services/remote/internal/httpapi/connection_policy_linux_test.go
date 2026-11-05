@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	"dsh-mobile-ustc/services/remote/internal/store"
+	"tokenworks-mobile/services/remote/internal/store"
 )
 
 func TestProductionConnectionPolicyCLIRequiresDrainAndFencesStaleStartup(t *testing.T) {

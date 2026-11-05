@@ -9,7 +9,7 @@ import (
 	"os"
 	"strings"
 
-	"dsh-mobile-ustc/services/remote/internal/store"
+	"tokenworks-mobile/services/remote/internal/store"
 )
 
 var errCommandRateConfiguration = errors.New("remote shared command admission limits are invalid, unavailable or inconsistent")

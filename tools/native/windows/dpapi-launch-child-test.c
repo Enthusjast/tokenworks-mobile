@@ -8,7 +8,7 @@
 
 /* Deliberately leak an inheritable event into the launcher. Its child must
  * receive only the three explicitly duplicated pipes, never this event. */
-static int dsh_inheritance_driver(wchar_t **argv) {
+static int twm_inheritance_driver(wchar_t **argv) {
     SECURITY_ATTRIBUTES security = {sizeof(security), NULL, TRUE};
     STARTUPINFOW startup;
     PROCESS_INFORMATION process;
@@ -57,9 +57,9 @@ int wmain(int argc, wchar_t **argv) {
     DWORD length, written, stage = 0;
     BOOL in_job = FALSE, current_job_query_unverified = FALSE, active_limit_unverified = FALSE;
     memset(&limits, 0, sizeof(limits));
-    if (argc == 5 && wcscmp(argv[1], L"inheritance-driver") == 0) return dsh_inheritance_driver(argv);
+    if (argc == 5 && wcscmp(argv[1], L"inheritance-driver") == 0) return twm_inheritance_driver(argv);
     if (argc != 2 || (wcscmp(argv[1], L"journal-protect-v1") != 0 && wcscmp(argv[1], L"journal-unprotect-v1") != 0)) return 1;
-    if (GetEnvironmentVariableW(L"DSH_LAUNCHER_LEAK", value, 32768) != 0 || GetLastError() != ERROR_ENVVAR_NOT_FOUND) goto fail;
+    if (GetEnvironmentVariableW(L"TWM_LAUNCHER_LEAK", value, 32768) != 0 || GetLastError() != ERROR_ENVVAR_NOT_FOUND) goto fail;
     stage++;
     length = GetSystemDirectoryW(system, 32768);
     if (length < 3 || length >= 32768 || GetCurrentDirectoryW(32768, current) != length || _wcsicmp(current, system) != 0) goto fail;

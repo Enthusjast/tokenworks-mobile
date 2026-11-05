@@ -13,9 +13,9 @@ import (
 	"testing"
 	"time"
 
-	"dsh-mobile-ustc/services/remote/internal/auth"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/stdlib"
+	"tokenworks-mobile/services/remote/internal/auth"
 )
 
 func proofStateFixture(t *testing.T, limit int) (context.Context, *sql.DB, *PostgresProofStore, string) {

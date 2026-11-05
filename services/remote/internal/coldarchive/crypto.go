@@ -13,7 +13,7 @@ import (
 	"sync"
 )
 
-const magic = "DSHCA001"
+const magic = "TWMCA001"
 const HeaderSize = 8 + 32 + 12 + 8
 const MaxArtifact = HeaderSize + MaxPlaintext + 16
 const MaxExtendedPlaintext = 64 << 20
@@ -67,7 +67,7 @@ func keyed(key *Key, domain string, parts ...[]byte) ([32]byte, error) {
 	return result, nil
 }
 func (key *Key) Fingerprint() (string, error) {
-	value, err := keyed(key, "dsh-control-archive/key-fingerprint/v1", []byte(key.id))
+	value, err := keyed(key, "tokenworks-mobile-control-archive/key-fingerprint/v1", []byte(key.id))
 	if err != nil {
 		return "", err
 	}
@@ -94,7 +94,7 @@ func Material() ([32]byte, [12]byte, error) {
 }
 
 func aead(key *Key, salt []byte) (cipher.AEAD, error) {
-	derived, err := keyed(key, "dsh-control-archive/aes-256-gcm/v1", []byte(key.id), salt)
+	derived, err := keyed(key, "tokenworks-mobile-control-archive/aes-256-gcm/v1", []byte(key.id), salt)
 	if err != nil {
 		return nil, err
 	}

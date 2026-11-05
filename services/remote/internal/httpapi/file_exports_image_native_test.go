@@ -12,7 +12,7 @@ import (
 	"testing"
 	"time"
 
-	"dsh-mobile-ustc/services/remote/internal/files"
+	"tokenworks-mobile/services/remote/internal/files"
 )
 
 // This reader only obtains image references from the ordinary, visibility-filtered
@@ -224,7 +224,7 @@ func exerciseNativeImageExport(t *testing.T, h *fileHTTPFixture, epoch, expected
 		t.Fatal("protected native image download failed")
 	}
 	sha := sha256.Sum256(data)
-	if hex.EncodeToString(sha[:]) != expectedSHA || response.Header.Get("X-DSH-Content-SHA256") != expectedSHA || http.DetectContentType(data) != reference.MediaType {
+	if hex.EncodeToString(sha[:]) != expectedSHA || response.Header.Get("X-TokenWorks-Mobile-Content-SHA256") != expectedSHA || http.DetectContentType(data) != reference.MediaType {
 		t.Fatal("protected image digest or MIME mismatch")
 	}
 	decoded, err := png.Decode(bytes.NewReader(data))

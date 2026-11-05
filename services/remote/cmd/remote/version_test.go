@@ -31,7 +31,7 @@ func TestVersionIsOfflineAndReportsOnlyEmbeddedBuildMetadata(t *testing.T) {
 		if err := json.Unmarshal(output.Bytes(), &value); err != nil {
 			t.Fatal(err)
 		}
-		if value.Format != "dsh-remote-service-version/v1" || value.Go != runtime.Version() ||
+		if value.Format != "tokenworks-mobile-service-version/v1" || value.Go != runtime.Version() ||
 			value.Platform != runtime.GOOS+"/"+runtime.GOARCH || value.Revision != buildRevision || value.SourceSHA256 != buildSourceSHA256 ||
 			bytes.Contains(output.Bytes(), []byte("PRIVATE")) {
 			t.Fatal("version output did not match embedded metadata")

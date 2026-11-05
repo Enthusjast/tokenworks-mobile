@@ -11,13 +11,13 @@ import { PersistentCommandJournal } from '../src/command-journal.js'
 import { parseCommand } from '../src/protocol.js'
 import { LinuxSecretServiceJournalProtector } from '../src/secret-service-journal-protector.js'
 
-const service = 'cn.edu.ustc.dsh.journal'
+const service = 'io.github.enthusjast.tokenworks.journal'
 const account = 'fixture-account'
 const owner = { userId: 'fixture-user', deviceId: 'fixture-device' }
 const context = Buffer.from('fixture-journal-binding')
 
 async function fixture(t: test.TestContext, body?: string) {
-  const root = await mkdtemp(join(tmpdir(), 'dsh-secret-service-'))
+  const root = await mkdtemp(join(tmpdir(), 'tokenworks-mobile-secret-service-'))
   t.after(() => rm(root, { recursive: true, force: true }))
   const master = randomBytes(32), secret = join(root, 'secret'), calls = join(root, 'calls'), executable = join(root, 'secret-tool')
   t.after(() => master.fill(0))
@@ -40,7 +40,7 @@ test('Secret Service protector wraps with the preprovisioned key and authenticat
   const wrapped = Buffer.from(await f.protector.wrap(key, context, AbortSignal.timeout(2_000)))
   assert.equal(wrapped.length, 100)
   assert.equal(wrapped.includes(key), false)
-  const derived = createHmac('sha256', f.master).update('dsh-secret-service-journal-wrap-v1\0').update(wrapped.subarray(8, 40)).digest()
+  const derived = createHmac('sha256', f.master).update('tokenworks-mobile-secret-service-journal-wrap-v1\0').update(wrapped.subarray(8, 40)).digest()
   const decipher = createDecipheriv('aes-256-gcm', derived, wrapped.subarray(40, 52))
   decipher.setAAD(Buffer.concat([context, wrapped.subarray(0, 52)]))
   decipher.setAuthTag(wrapped.subarray(84, 100))

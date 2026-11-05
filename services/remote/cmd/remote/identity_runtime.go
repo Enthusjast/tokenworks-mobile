@@ -9,8 +9,8 @@ import (
 	"strings"
 	"time"
 
-	"dsh-mobile-ustc/services/remote/internal/auth"
-	"dsh-mobile-ustc/services/remote/internal/store"
+	"tokenworks-mobile/services/remote/internal/auth"
+	"tokenworks-mobile/services/remote/internal/store"
 )
 
 // Password accounts run without an IdP. A partially configured external token

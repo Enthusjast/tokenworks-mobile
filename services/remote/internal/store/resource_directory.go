@@ -9,7 +9,7 @@ import (
 	"errors"
 	"time"
 
-	"dsh-mobile-ustc/services/remote/internal/auth"
+	"tokenworks-mobile/services/remote/internal/auth"
 )
 
 var ErrResourceDirectoryInvalid = errors.New("store: invalid resource directory request")

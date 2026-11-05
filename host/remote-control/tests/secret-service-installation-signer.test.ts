@@ -8,7 +8,7 @@ import { inspect } from 'node:util'
 import { LinuxSecretServiceInstallationSigner, type LinuxSecretServiceInstallationSignerOptions } from '../src/secret-service-installation-signer.js'
 
 async function fixture(t: test.TestContext) {
-  const root = await mkdtemp(join(tmpdir(), 'dsh-secret-service-signer-'))
+  const root = await mkdtemp(join(tmpdir(), 'tokenworks-mobile-secret-service-signer-'))
   t.after(() => rm(root, { recursive: true, force: true }))
   const keys = generateKeyPairSync('ec', { namedCurve: 'prime256v1' })
   const der = keys.privateKey.export({ type: 'pkcs8', format: 'der' })

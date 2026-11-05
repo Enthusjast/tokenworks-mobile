@@ -15,14 +15,14 @@ import (
 	"testing"
 	"time"
 
-	"dsh-mobile-ustc/services/remote/internal/approval"
-	"dsh-mobile-ustc/services/remote/internal/auth"
-	"dsh-mobile-ustc/services/remote/internal/files"
-	"dsh-mobile-ustc/services/remote/internal/httpapi"
-	"dsh-mobile-ustc/services/remote/internal/relay"
-	"dsh-mobile-ustc/services/remote/internal/store"
-	"dsh-mobile-ustc/services/remote/internal/testsupport"
 	jose "github.com/go-jose/go-jose/v4"
+	"tokenworks-mobile/services/remote/internal/approval"
+	"tokenworks-mobile/services/remote/internal/auth"
+	"tokenworks-mobile/services/remote/internal/files"
+	"tokenworks-mobile/services/remote/internal/httpapi"
+	"tokenworks-mobile/services/remote/internal/relay"
+	"tokenworks-mobile/services/remote/internal/store"
+	"tokenworks-mobile/services/remote/internal/testsupport"
 )
 
 func TestAndroidAppAgainstPostgresRelayAndNativeDSH(t *testing.T) {
@@ -76,7 +76,7 @@ func TestAndroidAppAgainstPostgresRelayAndNativeDSH(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	identity, err := auth.New(auth.Config{Issuer: oidc.issuer, Audience: "urn:dsh-android-relay", JWKSURL: server.URL + "/jwks", AllowedClients: []string{"mobile"},
+	identity, err := auth.New(auth.Config{Issuer: oidc.issuer, Audience: "urn:tokenworks-mobile-android-relay", JWKSURL: server.URL + "/jwks", AllowedClients: []string{"mobile"},
 		RequiredScopes: []string{"remote.access"}, PublicOrigin: server.URL, MaxTokenLifetime: 15 * time.Minute, HTTPClient: server.Client()})
 	if err != nil {
 		t.Fatal(err)
@@ -90,7 +90,7 @@ func TestAndroidAppAgainstPostgresRelayAndNativeDSH(t *testing.T) {
 		t.Fatal(err)
 	}
 	validFrom, validUntil := time.Now().UTC().Add(-time.Hour).Truncate(time.Millisecond), time.Now().UTC().Add(time.Hour).Truncate(time.Millisecond)
-	authority, err := approval.NewAuthorizationSigner(server.URL, "dsh-approval-authority/android-fixture", authorityKey, validFrom, validUntil)
+	authority, err := approval.NewAuthorizationSigner(server.URL, "tokenworks-mobile-approval-authority/android-fixture", authorityKey, validFrom, validUntil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -129,7 +129,7 @@ func TestAndroidAppAgainstPostgresRelayAndNativeDSH(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	hostProof := approvalSign(t, installationKey, jose.ES256, "", "dsh-host-credential-proof+jwt", map[string]any{"iss": installationID, "aud": challenge.Audience,
+	hostProof := approvalSign(t, installationKey, jose.ES256, "", "tokenworks-mobile-host-credential-proof+jwt", map[string]any{"iss": installationID, "aud": challenge.Audience,
 		"challenge_id": challenge.ChallengeID, "nonce": challenge.Challenge, "iat": time.Now().Unix(), "jti": "android-host-credential-proof-0001"}, nil)
 	credential, err := postgres.ExchangeHostCredential(ctx, store.UserIdentity{Issuer: oidc.issuer, Subject: "android-fixture"}, installationJKT, challenge.ChallengeID, hostProof)
 	if err != nil {
@@ -146,14 +146,14 @@ func TestAndroidAppAgainstPostgresRelayAndNativeDSH(t *testing.T) {
 	}
 	t.Cleanup(func() { _ = os.RemoveAll(directory) })
 	fixture := map[string]any{
-		"deployment": map[string]any{"issuer": oidc.issuer, "client_id": "mobile", "redirect_uri": "cn.edu.ustc.dsh.mobile:/oauth2redirect", "resource": "urn:dsh-android-relay", "audience": "urn:dsh-android-relay",
+		"deployment": map[string]any{"issuer": oidc.issuer, "client_id": "mobile", "redirect_uri": "cn.edu.ustc.tokenworks:/oauth2redirect", "resource": "urn:tokenworks-mobile-android-relay", "audience": "urn:tokenworks-mobile-android-relay",
 			"remote_origin": server.URL, "organization_id": orgID, "scopes": []string{"openid", "remote.access"}, "endpoint_origins": []string{server.URL}, "signing_algorithms": []string{"ES256"}},
 		"runtime_id": runtimeID, "workspace_id": workspaceID, "approval_host_id": hostID, "host_installation_id": installationID, "host_private_jwk": json.RawMessage(hostPrivate),
 		"host_credential": credential.Credential, "android_serial": serial, "android_secret": oidc.secret,
 		"approval_policy": map[string]any{"profile": "fixture/android-step-up", "max_auth_age_seconds": 600},
 		"ca_pem":          string(pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: server.Certificate().Raw})),
 		"object_origin":   objects.URL, "object_ca_pem": string(pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: objects.Certificate().Raw})),
-		"approval_authority": map[string]any{"issuer": server.URL, "key_id": "dsh-approval-authority/android-fixture", "public_jwk": json.RawMessage(authorityPublic), "key_jkt": authorityJKT, "active": true,
+		"approval_authority": map[string]any{"issuer": server.URL, "key_id": "tokenworks-mobile-approval-authority/android-fixture", "public_jwk": json.RawMessage(authorityPublic), "key_jkt": authorityJKT, "active": true,
 			"valid_from": validFrom.Format("2006-01-02T15:04:05.000Z"), "valid_until": validUntil.Format("2006-01-02T15:04:05.000Z")},
 	}
 	path := filepath.Join(directory, "host-fixture.json")

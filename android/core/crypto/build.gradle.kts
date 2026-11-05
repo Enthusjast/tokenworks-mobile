@@ -21,7 +21,7 @@ tasks.register<JavaExec>("generateInteropVectors") {
     description = "Regenerate public-only JCA-signed decisions for Go/Node interoperability."
     dependsOn(tasks.testClasses)
     classpath = sourceSets.test.get().runtimeClasspath
-    mainClass.set("cn.edu.ustc.dsh.crypto.GenerateInteropVectors")
+    mainClass.set("io.github.enthusjast.tokenworks.crypto.GenerateInteropVectors")
     args(rootProject.file("../contracts/security/approval-signatures.json").absolutePath,
         rootProject.file("../contracts/security/approval-kotlin-signatures.json").absolutePath)
 }

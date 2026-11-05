@@ -10,8 +10,8 @@ import (
 	"strconv"
 	"time"
 
-	"dsh-mobile-ustc/services/remote/internal/relay"
-	"dsh-mobile-ustc/services/remote/internal/store"
+	"tokenworks-mobile/services/remote/internal/relay"
+	"tokenworks-mobile/services/remote/internal/store"
 )
 
 var errRelayConfiguration = errors.New("remote private relay configuration is invalid")

@@ -18,7 +18,7 @@ test('Darwin signing protocol fixture verifies registered identity, encoding, ow
   const child = fileURLToPath(new URL('./fixtures/macos-keychain-signer-child.ts', import.meta.url))
   for (const mode of ['sign', 'errors', 'owner']) {
     await t.test(mode, async t => {
-      const root = await mkdtemp(join(tmpdir(), 'dsh-keychain-sign-'))
+      const root = await mkdtemp(join(tmpdir(), 'tokenworks-mobile-keychain-sign-'))
       t.after(() => rm(root, { recursive: true, force: true }))
       const result = spawnSync(process.execPath, ['--import', 'tsx', child, mode], { env: { ...process.env, MACOS_KEYCHAIN_SIGNER_ROOT: root }, encoding: 'utf8', timeout: 10_000, maxBuffer: 128 * 1024 })
       assert.equal(result.status, 0, result.stderr)

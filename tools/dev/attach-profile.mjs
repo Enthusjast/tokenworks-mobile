@@ -10,13 +10,13 @@ const root = resolve(dirname(fileURLToPath(import.meta.url)), '../..')
 const profile = process.argv[2]
 if (!profile || !/^[A-Za-z0-9][A-Za-z0-9._-]{0,80}$/.test(profile)) throw new Error('invalid profile')
 const directory = resolve(process.env.DSH_HOME || resolve(homedir(), '.dsh'), 'profiles', profile)
-const installed = await realpath(resolve(directory, 'node_modules/@ustc/dsh-remote-control'))
+const installed = await realpath(resolve(directory, 'node_modules/tokenworks-mobile'))
 if (installed !== resolve(root, 'host/remote-control')) throw new Error('profile must link this checkout before attaching')
 const path = resolve(directory, 'cordis.patch.yml')
 const original = await readFile(path, 'utf8')
 const document = YAML.parseDocument(original)
 if (document.errors.length || !YAML.isSeq(document.contents)) throw new Error('profile patch must be a valid YAML array')
-const overlay = JSON.parse(await readFile(resolve(root, '.local/dev/dsh.patch.yml'), 'utf8'))
+const overlay = JSON.parse(await readFile(resolve(root, '.local/tokenworks-mobile-dev/dsh.patch.yml'), 'utf8'))
 const hmr = overlay[0]
 const plugin = overlay[1].insert[0]
 plugin.name = resolve(root, 'host/remote-control/development.mjs')
@@ -42,7 +42,7 @@ for (const row of entries) {
   }
 }
 if (!found) document.add({ insert: [plugin] })
-const backup = resolve(root, '.local/dev/profile-backups')
+const backup = resolve(root, '.local/tokenworks-mobile-dev/profile-backups')
 await mkdir(backup, { recursive: true, mode: 0o700 })
 await writeFile(resolve(backup, `${profile}-${randomUUID()}.yml`), original, { flag: 'wx', mode: 0o600 })
 const temporary = path + '.' + randomUUID() + '.tmp'

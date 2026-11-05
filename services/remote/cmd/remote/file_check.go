@@ -9,7 +9,7 @@ import (
 	"path/filepath"
 	"time"
 
-	"dsh-mobile-ustc/services/remote/internal/files"
+	"tokenworks-mobile/services/remote/internal/files"
 )
 
 var errFileCheckArguments = errors.New("remote files check requires --config with an absolute protected configuration path and an optional --timeout between 1s and 30s")
@@ -43,7 +43,7 @@ func runFileCommand(arguments []string, output io.Writer) error {
 		PolicySHA256       string `json:"policy_sha256"`
 		ExportsEnabled     bool   `json:"exports_enabled"`
 		StorageCheck       string `json:"storage_check"`
-	}{"dsh-remote-file-check/v1", true, "passed", dependencies.serviceConfig.PolicySHA256, dependencies.exportsEnabled, "configuration_only"}
+	}{"tokenworks-mobile-remote-file-check/v1", true, "passed", dependencies.serviceConfig.PolicySHA256, dependencies.exportsEnabled, "configuration_only"}
 	if json.NewEncoder(output).Encode(result) != nil {
 		return errors.New("remote file dependency check result output failed")
 	}

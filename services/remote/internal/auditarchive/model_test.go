@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"dsh-mobile-ustc/services/remote/internal/coldarchive"
+	"tokenworks-mobile/services/remote/internal/coldarchive"
 )
 
 const testDomain = "11111111-1111-4111-8111-111111111111"
@@ -26,7 +26,7 @@ func sampleAuditPayload(t *testing.T) Payload {
 	if err != nil {
 		t.Fatal(err)
 	}
-	return Payload{Format: "dsh-audit-archive", Version: 1, DomainID: testDomain, ExportID: testExport, OperationEpoch: testEpoch, KeyID: "fixture-key", PreparedAt: archived.Add(time.Second),
+	return Payload{Format: "tokenworks-mobile-audit-archive", Version: 1, DomainID: testDomain, ExportID: testExport, OperationEpoch: testEpoch, KeyID: "fixture-key", PreparedAt: archived.Add(time.Second),
 		Batch:   Batch{ID: testBatch, DatabaseEpoch: testEpoch, Limit: 4, RetentionYears: 1, Cutoff: archived.Add(-90 * 24 * time.Hour), ArchivedAt: archived, RetainUntil: utcYear(archived, 1), Entries: 1},
 		Entries: []Entry{{SourceID: 7, SourceEpoch: &epoch, SourceTime: sourceTime, Source: source}}, Recoveries: []coldarchive.Recovery{}}
 }

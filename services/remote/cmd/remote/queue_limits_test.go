@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"dsh-mobile-ustc/services/remote/internal/relay"
+	"tokenworks-mobile/services/remote/internal/relay"
 )
 
 func TestNodeQueueLimitsAreProtectedStrictAndOffline(t *testing.T) {

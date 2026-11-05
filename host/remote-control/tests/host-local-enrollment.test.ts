@@ -8,7 +8,7 @@ import { join, resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
 
 test('local enrollment requires an exact fresh response on a controlling terminal', { skip: process.platform !== 'linux', timeout: 30_000 }, async t => {
-  const root = await mkdtemp(join(tmpdir(), 'dsh-host-terminal-'))
+  const root = await mkdtemp(join(tmpdir(), 'tokenworks-mobile-host-terminal-'))
   t.after(() => rm(root, { recursive: true, force: true }))
   const script = join(root, 'client.mts')
   const module = pathToFileURL(resolve('host/remote-control/src/host-local-enrollment.ts')).href

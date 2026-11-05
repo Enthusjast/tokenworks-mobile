@@ -8,8 +8,8 @@ import (
 	"strconv"
 	"unicode/utf8"
 
-	"dsh-mobile-ustc/services/remote/internal/auth"
 	"github.com/cyberphone/json-canonicalization/go/src/webpki.org/jsoncanonicalizer"
+	"tokenworks-mobile/services/remote/internal/auth"
 )
 
 const MaxBytes = 128 * 1024

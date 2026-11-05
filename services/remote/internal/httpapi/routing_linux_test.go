@@ -19,10 +19,10 @@ import (
 	"testing"
 	"time"
 
-	"dsh-mobile-ustc/services/remote/internal/store"
-	"dsh-mobile-ustc/services/remote/internal/testsupport"
 	"github.com/coder/websocket"
 	jose "github.com/go-jose/go-jose/v4"
+	"tokenworks-mobile/services/remote/internal/store"
+	"tokenworks-mobile/services/remote/internal/testsupport"
 )
 
 type routingNodeFixture struct {
@@ -205,7 +205,7 @@ func (f *routingFixture) host(pair *capacityPair, node string, capabilities ...s
 	if err := pair.hostAPI.call(f.ctx, "POST", "/v1/host-credentials/challenges", map[string]any{}, &challenge, 201); err != nil {
 		f.t.Fatal(err)
 	}
-	proof, err := capacitySign(pair.hostKey, "dsh-host-credential-proof+jwt", map[string]any{"iss": pair.installation, "aud": challenge.Audience, "challenge_id": challenge.ChallengeID, "nonce": challenge.Challenge, "iat": time.Now().Unix(), "jti": capacityID()}, nil)
+	proof, err := capacitySign(pair.hostKey, "tokenworks-mobile-host-credential-proof+jwt", map[string]any{"iss": pair.installation, "aud": challenge.Audience, "challenge_id": challenge.ChallengeID, "nonce": challenge.Challenge, "iat": time.Now().Unix(), "jti": capacityID()}, nil)
 	if err != nil {
 		f.t.Fatal(err)
 	}
@@ -213,7 +213,7 @@ func (f *routingFixture) host(pair *capacityPair, node string, capabilities ...s
 	if err := pair.hostAPI.call(f.ctx, "POST", "/v1/host-credentials", map[string]any{"challenge_id": challenge.ChallengeID, "proof": proof}, &credential, 201); err != nil {
 		f.t.Fatal(err)
 	}
-	connection, err := capacityConnect(f.ctx, f.clients[node], f.origin, "installation", "DSH-Host "+credential.Credential, pair.hostKey, pair, capabilities...)
+	connection, err := capacityConnect(f.ctx, f.clients[node], f.origin, "installation", "TokenWorks-Mobile-Host "+credential.Credential, pair.hostKey, pair, capabilities...)
 	if err != nil {
 		f.t.Fatal(err)
 	}
@@ -236,7 +236,7 @@ func (f *routingFixture) ticket(pair *capacityPair, extraActions ...string) stor
 func (f *routingFixture) phone(pair *capacityPair, node string) *websocket.Conn {
 	f.t.Helper()
 	ticket := f.ticket(pair)
-	connection, err := capacityConnect(f.ctx, f.clients[node], f.origin, "device", "DSH-Ticket "+ticket.Token, pair.phoneKey, pair)
+	connection, err := capacityConnect(f.ctx, f.clients[node], f.origin, "device", "TokenWorks-Mobile-Ticket "+ticket.Token, pair.phoneKey, pair)
 	if err != nil {
 		f.t.Fatal(err)
 	}
@@ -319,11 +319,11 @@ func TestProductionRoutingCrossesNodesRevokesAndFencesHostMigration(t *testing.T
 	phone := f.phone(pair, "b")
 	f.snapshot(pair, host, phone)
 	metrics, raw, err := capacityMetrics(http.DefaultClient, f.nodes["b"].metrics)
-	if err != nil || capacityMetric(metrics, "dsh_remote_relay_proxy_tunnels", nil) != 1 || strings.Contains(raw, "PRIVATE_CROSS_NODE_BODY_MARKER") || strings.Contains(raw, pair.runtime) {
+	if err != nil || capacityMetric(metrics, "tokenworks_mobile_relay_proxy_tunnels", nil) != 1 || strings.Contains(raw, "PRIVATE_CROSS_NODE_BODY_MARKER") || strings.Contains(raw, pair.runtime) {
 		t.Fatal("ingress tunnel observation incorrect", err)
 	}
 	owner, _, err := capacityMetrics(http.DefaultClient, f.nodes["a"].metrics)
-	if err != nil || capacityMetric(owner, "dsh_remote_relay_connections", map[string]string{"role": "device", "phase": "active"}) != 1 {
+	if err != nil || capacityMetric(owner, "tokenworks_mobile_relay_connections", map[string]string{"role": "device", "phase": "active"}) != 1 {
 		t.Fatal("device was not routed to owning process", err)
 	}
 	// A resource from another host must not cross the existing private tunnel.
@@ -373,10 +373,10 @@ func TestProductionRoutingPrivateAdmissionAndProxyBudget(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		req.Header.Set("Authorization", "DSH-Ticket "+token)
-		req.Header.Set("X-DSH-Relay-Node", node)
-		req.Header.Set("X-DSH-Relay-Generation", generation)
-		req.Header.Set("X-DSH-Relay-Route", base64.RawURLEncoding.EncodeToString(raw))
+		req.Header.Set("Authorization", "TokenWorks-Mobile-Ticket "+token)
+		req.Header.Set("X-TokenWorks-Mobile-Relay-Node", node)
+		req.Header.Set("X-TokenWorks-Mobile-Relay-Generation", generation)
+		req.Header.Set("X-TokenWorks-Mobile-Relay-Route", base64.RawURLEncoding.EncodeToString(raw))
 		return req
 	}
 	for _, check := range []struct {
@@ -418,7 +418,7 @@ func TestProductionRoutingPrivateAdmissionAndProxyBudget(t *testing.T) {
 	} {
 		req := request(f.nodes["b"].id, check.generation, route, ticket.Token)
 		req.URL.Path = "/internal/relay/v1/http"
-		req.Header.Set("X-DSH-Relay-Original-Path", check.path)
+		req.Header.Set("X-TokenWorks-Mobile-Relay-Original-Path", check.path)
 		response, err := client.Do(req)
 		if err != nil {
 			t.Fatal(err)
@@ -433,20 +433,20 @@ func TestProductionRoutingPrivateAdmissionAndProxyBudget(t *testing.T) {
 	if _, err := f.db.ExecContext(f.ctx, `update control_consumers set relay_origin=$2 where node_id=$1`, f.nodes["a"].id, f.nodes["b"].privateOrigin); err != nil {
 		t.Fatal(err)
 	}
-	if connection, err := capacityConnect(f.ctx, f.clients["b"], f.origin, "device", "DSH-Ticket "+ticket.Token, pair.phoneKey, pair); err == nil {
+	if connection, err := capacityConnect(f.ctx, f.clients["b"], f.origin, "device", "TokenWorks-Mobile-Ticket "+ticket.Token, pair.phoneKey, pair); err == nil {
 		_ = connection.CloseNow()
 		t.Fatal("wrong owner certificate accepted")
 	}
 	if _, err := f.db.ExecContext(f.ctx, `update control_consumers set relay_origin=$2 where node_id=$1`, f.nodes["a"].id, route.Origin); err != nil {
 		t.Fatal(err)
 	}
-	phone, err := capacityConnect(f.ctx, f.clients["b"], f.origin, "device", "DSH-Ticket "+ticket.Token, pair.phoneKey, pair)
+	phone, err := capacityConnect(f.ctx, f.clients["b"], f.origin, "device", "TokenWorks-Mobile-Ticket "+ticket.Token, pair.phoneKey, pair)
 	if err != nil {
 		t.Fatal("rejected attempts consumed ticket", err)
 	}
 	t.Cleanup(func() { _ = phone.CloseNow() })
 	second := f.ticket(pair)
-	if connection, err := capacityConnect(f.ctx, f.clients["b"], f.origin, "device", "DSH-Ticket "+second.Token, pair.phoneKey, pair); err == nil {
+	if connection, err := capacityConnect(f.ctx, f.clients["b"], f.origin, "device", "TokenWorks-Mobile-Ticket "+second.Token, pair.phoneKey, pair); err == nil {
 		_ = connection.CloseNow()
 		t.Fatal("proxy connection budget ignored")
 	}
@@ -454,11 +454,11 @@ func TestProductionRoutingPrivateAdmissionAndProxyBudget(t *testing.T) {
 	_ = phone.CloseNow()
 	if err := capacityWait(f.ctx, 3*time.Second, func() (bool, error) {
 		families, _, err := capacityMetrics(http.DefaultClient, f.nodes["b"].metrics)
-		return capacityMetric(families, "dsh_remote_relay_proxy_tunnels", nil) == 0, err
+		return capacityMetric(families, "tokenworks_mobile_relay_proxy_tunnels", nil) == 0, err
 	}); err != nil {
 		t.Fatal(err)
 	}
-	connection, err := capacityConnect(f.ctx, f.clients["b"], f.origin, "device", "DSH-Ticket "+second.Token, pair.phoneKey, pair)
+	connection, err := capacityConnect(f.ctx, f.clients["b"], f.origin, "device", "TokenWorks-Mobile-Ticket "+second.Token, pair.phoneKey, pair)
 	if err != nil {
 		t.Fatal("budget rejection consumed ticket or leaked slot", err)
 	}

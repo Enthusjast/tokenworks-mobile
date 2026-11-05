@@ -4,7 +4,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"dsh-mobile-ustc/services/remote/internal/observability"
+	"tokenworks-mobile/services/remote/internal/observability"
 )
 
 func TestMetricsAreNotExposedOnThePublicAPI(t *testing.T) {

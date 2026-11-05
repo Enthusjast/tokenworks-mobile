@@ -16,8 +16,8 @@ import (
 	"testing"
 	"time"
 
-	"dsh-mobile-ustc/services/remote/internal/files"
 	jose "github.com/go-jose/go-jose/v4"
+	"tokenworks-mobile/services/remote/internal/files"
 )
 
 func (caller *fileHTTPCaller) content(token, path string, ctx context.Context, headers http.Header) (*http.Response, error) {
@@ -103,7 +103,7 @@ func TestProtectedExportStreamsScannedBytesWithCurrentDeviceAuthority(t *testing
 		t.Fatal("scanned download changed bytes")
 	}
 	_, params, err := mime.ParseMediaType(response.Header.Get("Content-Disposition"))
-	if err != nil || params["filename"] != prepared.File.Name || response.Header.Get("Content-Length") != strconv.Itoa(len(body)) || response.Header.Get("X-DSH-Content-SHA256") != prepared.File.SHA256 || response.Header.Get("X-Content-Type-Options") != "nosniff" {
+	if err != nil || params["filename"] != prepared.File.Name || response.Header.Get("Content-Length") != strconv.Itoa(len(body)) || response.Header.Get("X-TokenWorks-Mobile-Content-SHA256") != prepared.File.SHA256 || response.Header.Get("X-Content-Type-Options") != "nosniff" {
 		t.Fatal("download response lost its exact manifest")
 	}
 	status := h.status(t, prepared.File.ID)

@@ -1,4 +1,4 @@
-module dsh-mobile-ustc/services/remote
+module tokenworks-mobile/services/remote
 
 go 1.26.0
 

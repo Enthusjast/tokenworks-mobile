@@ -4,6 +4,10 @@ import { readFile } from 'node:fs/promises'
 import { Ajv2020 } from 'ajv/dist/2020.js'
 import { approvalBinding } from '../src/approval-contract.js'
 import { verifyApprovalDecision, type RegisteredApprovalKey } from '../src/approval-signature.js'
+import { generateKeyPairSync, sign } from 'node:crypto'
+import { calculateJwkThumbprint } from 'jose'
+import { canonicalObject } from '../src/canonical.js'
+import { approvalKeyID, APPROVAL_JWS_TYPE } from '../src/approval-contract.js'
 
 const fixture = JSON.parse(await readFile(new URL('../../../contracts/security/approval-signatures.json', import.meta.url), 'utf8')) as {
   now: string; context: Record<string, any>; binding_canonical: string; binding_sha256: string; registered: RegisteredApprovalKey;
@@ -60,4 +64,23 @@ test('approval verification rejects changed execution facts, unavailable keys an
   const first = await verifyApprovalDecision(valid.compact, fixture.registered, fixture.context, now)
   const retry = await verifyApprovalDecision(valid.compact, fixture.registered, fixture.context, now)
   assert.equal(first.payload_sha256, retry.payload_sha256, 'pure verification must not pretend to consume pending state')
+})
+
+test('fresh signatures accept only the new decision domain, typ and kid', async () => {
+  const { privateKey, publicKey } = generateKeyPairSync('ec', { namedCurve: 'P-256' })
+  const public_jwk = publicKey.export({ format: 'jwk' })
+  const registered = { ...fixture.registered, public_jwk, approval_key_jkt: await calculateJwkThumbprint(public_jwk) }
+  const valid = fixture.vectors.find(item => !item.invalid)!
+  const decision = JSON.parse(Buffer.from(valid.compact.split('.')[1]!, 'base64url').toString())
+  const header = { alg: 'ES256', typ: APPROVAL_JWS_TYPE, kid: approvalKeyID(registered.device_id, registered.key_version) }
+  const compact = (head: typeof header, body: typeof decision) => {
+    const input = [head, body].map(value => Buffer.from(canonicalObject(value)).toString('base64url')).join('.')
+    return input + '.' + sign('sha256', Buffer.from(input), { key: privateKey, dsaEncoding: 'ieee-p1363' }).toString('base64url')
+  }
+  await verifyApprovalDecision(compact(header, decision), registered, fixture.context, Date.parse(fixture.now))
+  for (const [head, body] of [
+    [{ ...header, typ: 'dsh-approval-decision+jws' }, decision],
+    [{ ...header, kid: `dsh-approval/${registered.device_id}/${registered.key_version}` }, decision],
+    [header, { ...decision, domain: 'dsh-mobile-ustc/approval-decision/v1' }],
+  ] as const) await assert.rejects(verifyApprovalDecision(compact(head, body), registered, fixture.context, Date.parse(fixture.now)), /invalid signed decision/)
 })

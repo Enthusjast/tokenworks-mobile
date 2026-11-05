@@ -11,9 +11,9 @@ import (
 	"testing"
 	"time"
 
-	"dsh-mobile-ustc/services/remote/internal/coldarchive"
-	"dsh-mobile-ustc/services/remote/internal/store"
-	"dsh-mobile-ustc/services/remote/internal/testsupport"
+	"tokenworks-mobile/services/remote/internal/coldarchive"
+	"tokenworks-mobile/services/remote/internal/store"
+	"tokenworks-mobile/services/remote/internal/testsupport"
 )
 
 type coldFixture struct {

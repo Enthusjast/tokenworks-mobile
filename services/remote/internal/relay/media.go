@@ -8,7 +8,7 @@ import (
 	"slices"
 	"time"
 
-	"dsh-mobile-ustc/services/remote/internal/files"
+	"tokenworks-mobile/services/remote/internal/files"
 )
 
 const imageMessageCapability = "message.images.v1"

@@ -15,7 +15,7 @@ import sys
 import tarfile
 import tempfile
 
-FORMAT = "dsh-remote-host-bundle/v1"
+FORMAT = "tokenworks-mobile-host-bundle/v1"
 DSH = "0.2.1-rc.5"
 MAX_FILE = 8 << 20
 MAX_TOTAL = 32 << 20
@@ -108,7 +108,7 @@ def inspect_archive(raw):
         raise BundleError("invalid archive") from cause
     require(all(name in files for name in ["package/package.json", "package/README.md", "package/lib/index.js", "package/lib/index.d.ts"]))
     package = parse_json(files["package/package.json"])
-    require(package.get("name") == "@ustc/dsh-remote-control" and VERSION.fullmatch(package.get("version", ""))
+    require(package.get("name") == "tokenworks-mobile" and VERSION.fullmatch(package.get("version", ""))
             and package.get("type") == "module" and package.get("main") == "lib/index.js"
             and package.get("types") == "lib/index.d.ts" and package.get("private") is True)
     base_exports = {".": {"types": "./lib/index.d.ts", "default": "./lib/index.js"}}
@@ -146,12 +146,12 @@ def validate(manifest_raw, archive_raw, expected):
                 and type(entry["size"]) is int and entry["size"] >= 0)
     artifact = manifest["artifact"]
     require(isinstance(artifact, dict) and set(artifact) == {"file", "sha256", "size", "files"}
-            and re.fullmatch(r"ustc-dsh-remote-control-[0-9A-Za-z.-]+\.tgz", artifact["file"])
+            and re.fullmatch(r"tokenworks-mobile-[0-9A-Za-z.-]+\.tgz", artifact["file"])
             and HEX.fullmatch(artifact["sha256"]) and digest(archive_raw) == artifact["sha256"]
             and type(artifact["size"]) is int and len(archive_raw) == artifact["size"])
     files, package = inspect_archive(archive_raw)
     require(manifest["package"] == {key: package[key] for key in ["name", "version", "dependencies", "peerDependencies", "type"]})
-    require(artifact["file"] == "ustc-dsh-remote-control-" + package["version"] + ".tgz")
+    require(artifact["file"] == "tokenworks-mobile-" + package["version"] + ".tgz")
     require(isinstance(artifact["files"], list) and len(artifact["files"]) <= MAX_FILES)
     for entry in artifact["files"]:
         require(isinstance(entry, dict) and set(entry) == {"path", "sha256", "size", "mode"}
@@ -177,7 +177,7 @@ def verify(directory, expected, unpack=None):
     require(HEX.fullmatch(expected) and digest(manifest_raw) == expected)
     preliminary = parse_json(manifest_raw)
     filename = preliminary.get("artifact", {}).get("file", "")
-    require(isinstance(filename, str) and re.fullmatch(r"ustc-dsh-remote-control-[0-9A-Za-z.-]+\.tgz", filename))
+    require(isinstance(filename, str) and re.fullmatch(r"tokenworks-mobile-[0-9A-Za-z.-]+\.tgz", filename))
     archive_raw = private_read(directory / filename, MAX_ARCHIVE)
     manifest, files = validate(manifest_raw, archive_raw, expected)
     if unpack is not None:
@@ -291,7 +291,7 @@ process.stdout.write(JSON.stringify(result));"""
             packed = [packed[package["name"]]]
         require(isinstance(packed, list) and len(packed) == 1)
         filename = packed[0]["filename"]
-        require(re.fullmatch(r"ustc-dsh-remote-control-[0-9A-Za-z.-]+\.tgz", filename))
+        require(re.fullmatch(r"tokenworks-mobile-[0-9A-Za-z.-]+\.tgz", filename))
         artifact = output / filename
         artifact.chmod(0o600)
         raw = private_read(artifact, MAX_ARCHIVE)

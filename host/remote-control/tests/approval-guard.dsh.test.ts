@@ -25,7 +25,7 @@ test('real DSH final guards require committed one-use approval and preserve ever
     const publicJWK=publicKey.export({format:'jwk'}), jkt=await calculateJwkThumbprint(publicJWK)
     const registered={user_id:randomUUID(),device_id:randomUUID(),key_version:1,approval_key_jkt:jkt,public_jwk:publicJWK,active:true}
     const authorityKeys=generateKeyPairSync('ec',{namedCurve:'prime256v1'}), authorityPublic=authorityKeys.publicKey.export({format:'jwk'})
-    const authority={issuer:'https://remote.example.edu',key_id:'dsh-approval-authority/native-fixture',public_jwk:authorityPublic as {kty:'EC';crv:'P-256';x:string;y:string},
+    const authority={issuer:'https://remote.example.edu',key_id:'tokenworks-mobile-approval-authority/native-fixture',public_jwk:authorityPublic as {kty:'EC';crv:'P-256';x:string;y:string},
       key_jkt:await calculateJwkThumbprint(authorityPublic),active:true,valid_from:new Date(Date.now()-60000).toISOString(),valid_until:new Date(Date.now()+3600000).toISOString()}
     const signedLeaseMode=mode==='signed-lease'||mode.startsWith('lease-'), connectionID=randomUUID()
     let leaseCache:ApprovalLeaseCache|undefined, leaseClock=Date.now()
@@ -56,7 +56,7 @@ test('real DSH final guards require committed one-use approval and preserve ever
         const previous=await next()
         if(previous.kind==='deny'||previous.kind==='cancel')return previous
         const now=Date.now()
-        const context:ApprovalContext={domain:'dsh-mobile-ustc/approval-context/v1',protocol_version:1,host_id:randomUUID(),installation_id:randomUUID(),runtime_id:h.runtimeId,runtime_epoch:epoch,
+        const context:ApprovalContext={domain:'tokenworks-mobile/approval-context/v1',protocol_version:1,host_id:randomUUID(),installation_id:randomUUID(),runtime_id:h.runtimeId,runtime_epoch:epoch,
           session_id:mobileSessionId(h.runtimeId,agent.id),dsh_session_id:String(agent.id),approval_id:randomUUID(),execution_id:randomUUID(),call_id:String(exec.callId),tool:exec.name,
           arguments:exec.arguments as ApprovalContext['arguments'],workspace:{workspace_id:randomUUID(),root_sha256:createHash('sha256').update(h.cwd).digest('hex')},
           resources:[{kind:'file',resource_id:'reviewed.txt',version_sha256:resourceHash()}],nonce:randomBytes(32).toString('base64url'),policy_version:1,
@@ -70,7 +70,7 @@ test('real DSH final guards require committed one-use approval and preserve ever
         if(!context||request.agent!==agent||request.toolName!==context.tool)return 'unavailable'
         signedResponses++
         const now=Date.now()
-        const claims:ApprovalDecision={domain:'dsh-mobile-ustc/approval-decision/v1',protocol_version:1,host_id:context.host_id,installation_id:context.installation_id,runtime_id:h.runtimeId,runtime_epoch:epoch,
+        const claims:ApprovalDecision={domain:'tokenworks-mobile/approval-decision/v1',protocol_version:1,host_id:context.host_id,installation_id:context.installation_id,runtime_id:h.runtimeId,runtime_epoch:epoch,
           session_id:context.session_id,approval_id:context.approval_id,execution_id:context.execution_id,binding_sha256:approvalBinding(context).sha256,decision:mode==='reject'?'reject':'allow_once',
           user_id:registered.user_id,device_id:registered.device_id,key_version:1,policy_version:1,nonce:context.nonce,issued_at:new Date(now).toISOString(),expires_at:new Date(now+25000).toISOString()}
         let compact=await new CompactSign(canonicalObject(claims)).setProtectedHeader({alg:'ES256',kid:approvalKeyID(registered.device_id,1),typ:APPROVAL_JWS_TYPE}).sign(privateKey)

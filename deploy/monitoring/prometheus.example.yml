@@ -7,7 +7,7 @@ global:
 rule_files:
   - rules.yml
 scrape_configs:
-  - job_name: dsh-remote
+  - job_name: tokenworks-mobile
     metrics_path: /metrics
     honor_timestamps: false
     static_configs:

@@ -8,8 +8,8 @@ import (
 	"sync"
 	"testing"
 
-	"dsh-mobile-ustc/services/remote/internal/files"
-	"dsh-mobile-ustc/services/remote/internal/observability"
+	"tokenworks-mobile/services/remote/internal/files"
+	"tokenworks-mobile/services/remote/internal/observability"
 )
 
 func commandMetric(t *testing.T, metrics *observability.Metrics, name string, labels map[string]string) (float64, float64) {
@@ -19,7 +19,7 @@ func commandMetric(t *testing.T, metrics *observability.Metrics, name string, la
 		t.Fatal(err)
 	}
 	for _, family := range families {
-		if family.GetName() != "dsh_remote_"+name {
+		if family.GetName() != "tokenworks_mobile_"+name {
 			continue
 		}
 		for _, metric := range family.Metric {

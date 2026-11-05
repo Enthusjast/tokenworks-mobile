@@ -16,8 +16,8 @@ export class LinuxSecretServiceJournalProtector extends PreprovisionedJournalPro
     try {
       const reference = { executable: options.executable, service: options.service, account: options.account }
       const lookup = new LinuxSecretServiceLookup(reference)
-      const digest = createHash('sha256').update('dsh-secret-service-reference-v1\0').update(reference.service).update('\0').update(reference.account).digest('hex')
-      super({ id: `secret-service-${digest.slice(0, 32)}`, magic: 'DSHSSK01', domain: 'dsh-secret-service-journal-wrap-v1\0',
+      const digest = createHash('sha256').update('tokenworks-mobile-secret-service-reference-v1\0').update(reference.service).update('\0').update(reference.account).digest('hex')
+      super({ id: `secret-service-${digest.slice(0, 32)}`, magic: 'TWMSSK01', domain: 'tokenworks-mobile-secret-service-journal-wrap-v1\0',
         typeName: 'LinuxSecretServiceJournalProtector', reason: 'journal Secret Service protection unavailable', lookup })
     } catch { throw new Error('journal Secret Service protection unavailable') }
   }

@@ -8,8 +8,8 @@ import (
 	"sync/atomic"
 	"testing"
 
-	"dsh-mobile-ustc/services/remote/internal/files"
-	"dsh-mobile-ustc/services/remote/internal/observability"
+	"tokenworks-mobile/services/remote/internal/files"
+	"tokenworks-mobile/services/remote/internal/observability"
 )
 
 func handoffEventCount(t *testing.T, metrics *observability.Metrics, stage string) float64 {

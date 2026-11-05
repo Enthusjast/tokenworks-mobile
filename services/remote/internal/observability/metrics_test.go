@@ -82,7 +82,7 @@ func TestUnknownIdentityAndTextCannotCreateMetricLabels(t *testing.T) {
 	}
 	response := httptest.NewRecorder()
 	m.Handler().ServeHTTP(response, httptest.NewRequest("GET", "/metrics", nil))
-	if response.Code != 200 || !strings.Contains(response.Body.String(), "dsh_remote_relay_received_frames_total{role=\"other\"} 1000") || strings.Contains(response.Body.String(), secret) {
+	if response.Code != 200 || !strings.Contains(response.Body.String(), "tokenworks_mobile_relay_received_frames_total{role=\"other\"} 1000") || strings.Contains(response.Body.String(), secret) {
 		t.Fatal("scrape failed, lost observations, or exposed untrusted metadata")
 	}
 	if response.Header().Get("Cache-Control") != "no-store" {

@@ -20,7 +20,7 @@ class ServiceBundleStartupTests(unittest.TestCase):
             for name in ('initdb', 'pg_ctl', 'psql', 'pg_dump'):
                 (tools / name).touch()
             calls = []
-            expected = {'format': 'dsh-remote-service-version/v1', 'go': 'go1.26.10', 'platform': 'linux/amd64',
+            expected = {'format': 'tokenworks-mobile-service-version/v1', 'go': 'go1.26.10', 'platform': 'linux/amd64',
                         'revision': 'a' * 40, 'source_sha256': 'b' * 64}
             def invoke(arguments, **_kwargs):
                 if 'go_bundle.py' in str(arguments[1]) and arguments[2] == 'verify':

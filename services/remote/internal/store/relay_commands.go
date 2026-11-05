@@ -3,12 +3,12 @@ package store
 import (
 	"context"
 	"database/sql"
-	"dsh-mobile-ustc/services/remote/internal/observability"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"slices"
 	"time"
+	"tokenworks-mobile/services/remote/internal/observability"
 )
 
 var ErrCommandConflict = errors.New("store: command request conflicts")

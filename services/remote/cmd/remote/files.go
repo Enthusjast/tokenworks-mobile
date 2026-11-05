@@ -16,10 +16,10 @@ import (
 	"strings"
 	"time"
 
-	"dsh-mobile-ustc/services/remote/internal/auth"
-	"dsh-mobile-ustc/services/remote/internal/files"
-	"dsh-mobile-ustc/services/remote/internal/store"
 	"github.com/aws/aws-sdk-go-v2/aws"
+	"tokenworks-mobile/services/remote/internal/auth"
+	"tokenworks-mobile/services/remote/internal/files"
+	"tokenworks-mobile/services/remote/internal/store"
 )
 
 var errFileConfiguration = errors.New("remote service protected file storage/scanner configuration is invalid")

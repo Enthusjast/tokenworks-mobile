@@ -51,7 +51,7 @@ func TestProductionApprovalExpiryRunsWithoutNewRequestsOnBothNodes(t *testing.T)
 		}
 		raw, err := io.ReadAll(response.Body)
 		_ = response.Body.Close()
-		if err != nil || !strings.Contains(string(raw), `dsh_remote_control_available{worker="approval_expiry"} 1`) {
+		if err != nil || !strings.Contains(string(raw), `tokenworks_mobile_control_available{worker="approval_expiry"} 1`) {
 			t.Fatal("production expiry worker health missing", err)
 		}
 	}

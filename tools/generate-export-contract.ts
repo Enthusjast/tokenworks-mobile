@@ -8,7 +8,7 @@ async function output(path: string, value: unknown) {
   else await writeFile(url, body)
 }
 const schema = z.toJSONSchema(ExportFrame, { target: 'draft-2020-12' })
-schema.$id = 'urn:dsh-mobile-ustc:ws:file-export:v1'
+schema.$id = 'urn:tokenworks-mobile:ws:file-export:v1'
 schema.description = 'file.export.v1. Phone selectors are opaque connection-local source/directory/cursor UUIDs, never paths or native attachment identities. Host operations use fresh server operation IDs, exact authenticated device/key/grant scope and renewable five-second leases. Source URLs are Host-only and never forwarded to phones. Implementations separately enforce direction, owner, lifetime, manifest, page byte budget, one-shot source integrity and current workspace authority.'
 await output('contracts/ws/v1/file-export.schema.json', schema)
 const route = { v: 1, request_id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', runtime_id: '66666666-6666-4666-8666-666666666666', runtime_epoch: '99999999-9999-4999-8999-999999999999', session_id: '22222222-2222-4222-8222-222222222222' }

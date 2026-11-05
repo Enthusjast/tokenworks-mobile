@@ -20,13 +20,13 @@ import (
 	"testing"
 	"time"
 
-	"dsh-mobile-ustc/services/remote/internal/auth"
-	"dsh-mobile-ustc/services/remote/internal/httpapi"
-	"dsh-mobile-ustc/services/remote/internal/observability"
-	"dsh-mobile-ustc/services/remote/internal/push"
-	"dsh-mobile-ustc/services/remote/internal/store"
-	"dsh-mobile-ustc/services/remote/internal/testsupport"
 	jose "github.com/go-jose/go-jose/v4"
+	"tokenworks-mobile/services/remote/internal/auth"
+	"tokenworks-mobile/services/remote/internal/httpapi"
+	"tokenworks-mobile/services/remote/internal/observability"
+	"tokenworks-mobile/services/remote/internal/push"
+	"tokenworks-mobile/services/remote/internal/store"
+	"tokenworks-mobile/services/remote/internal/testsupport"
 )
 
 type pushGoogleFixtureTransport struct {
@@ -124,7 +124,7 @@ func TestPushHTTPSDPoPOwnershipChallengeThroughRealOAuthAndFCMTransport(t *testi
 	if err != nil {
 		t.Fatal(err)
 	}
-	sender, err := push.NewFCM("fixture-project", "cn.edu.ustc.dsh.mobile", source, client)
+	sender, err := push.NewFCM("fixture-project", "cn.edu.ustc.tokenworks", source, client)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -144,7 +144,7 @@ func TestPushHTTPSDPoPOwnershipChallengeThroughRealOAuthAndFCMTransport(t *testi
 	if err := sender.ConfigureMetrics(metrics); err != nil {
 		t.Fatal(err)
 	}
-	repository, err := store.NewPushStore(ctx, postgres, cipher, "https://id.example.edu", "fixture-project", "cn.edu.ustc.dsh.mobile", hex.EncodeToString(fingerprint[:]), nil)
+	repository, err := store.NewPushStore(ctx, postgres, cipher, "https://id.example.edu", "fixture-project", "cn.edu.ustc.tokenworks", hex.EncodeToString(fingerprint[:]), nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -155,14 +155,14 @@ func TestPushHTTPSDPoPOwnershipChallengeThroughRealOAuthAndFCMTransport(t *testi
 	var handler http.Handler
 	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { handler.ServeHTTP(w, r) }))
 	defer server.Close()
-	identity, err := auth.New(auth.Config{Issuer: "https://id.example.edu", Audience: "urn:dsh-push", JWKSURL: keys.URL, AllowedClients: []string{"mobile", "host"}, RequiredScopes: []string{"remote.access"}, PublicOrigin: server.URL, MaxTokenLifetime: 15 * time.Minute})
+	identity, err := auth.New(auth.Config{Issuer: "https://id.example.edu", Audience: "urn:tokenworks-mobile-push", JWKSURL: keys.URL, AllowedClients: []string{"mobile", "host"}, RequiredScopes: []string{"remote.access"}, PublicOrigin: server.URL, MaxTokenLifetime: 15 * time.Minute})
 	if err != nil {
 		t.Fatal(err)
 	}
 	handler = httpapi.New(postgres, identity, httpapi.Config{HostClientIDs: []string{"host"}, Push: repository})
 	token := func(jkt string) string {
 		now := time.Now()
-		return approvalSign(t, issuer, jose.ES256, "push-issuer", "at+jwt", map[string]any{"iss": "https://id.example.edu", "sub": "push-owner", "aud": "urn:dsh-push", "client_id": "mobile", "jti": "push-access", "iat": now.Unix(), "exp": now.Add(5 * time.Minute).Unix(), "scope": "remote.access", "cnf": map[string]string{"jkt": jkt}}, nil)
+		return approvalSign(t, issuer, jose.ES256, "push-issuer", "at+jwt", map[string]any{"iss": "https://id.example.edu", "sub": "push-owner", "aud": "urn:tokenworks-mobile-push", "client_id": "mobile", "jti": "push-access", "iat": now.Unix(), "exp": now.Add(5 * time.Minute).Unix(), "scope": "remote.access", "cnf": map[string]string{"jkt": jkt}}, nil)
 	}
 	caller := &fileHTTPCaller{t: t, ctx: ctx, client: server.Client(), base: server.URL, key: proof, jwk: proofJSON}
 	otherCaller := &fileHTTPCaller{t: t, ctx: ctx, client: server.Client(), base: server.URL, key: other, jwk: otherJSON}
@@ -213,11 +213,11 @@ func TestPushHTTPSDPoPOwnershipChallengeThroughRealOAuthAndFCMTransport(t *testi
 				t.Fatal("composed push metrics exposed endpoint, challenge or credentials")
 			}
 		}
-		if strings.Contains(body, "dsh_remote_push_client_receipts_total{") {
+		if strings.Contains(body, "tokenworks_mobile_push_client_receipts_total{") {
 			t.Fatal("challenge/provider acceptance invented client display")
 		}
-		if strings.Contains(body, "dsh_remote_push_provider_send_duration_seconds_count{kind=\"challenge\",result=\"provider_accepted\"} 1\n") &&
-			strings.Contains(body, "dsh_remote_push_delivery_results_total{code=\"none\",kind=\"challenge\",state=\"provider_accepted\"} 1\n") {
+		if strings.Contains(body, "tokenworks_mobile_push_provider_send_duration_seconds_count{kind=\"challenge\",result=\"provider_accepted\"} 1\n") &&
+			strings.Contains(body, "tokenworks_mobile_push_delivery_results_total{code=\"none\",kind=\"challenge\",state=\"provider_accepted\"} 1\n") {
 			break
 		}
 		if time.Now().After(deadline) {
@@ -241,7 +241,7 @@ func TestPushHTTPSDPoPOwnershipChallengeThroughRealOAuthAndFCMTransport(t *testi
 		t.Fatal("ownership proof was automatically resent")
 	}
 	request, _ := http.NewRequest("DELETE", server.URL+"/v1/push-bindings/"+id, nil)
-	request.Header.Set("Authorization", "DSH-Push-Revoke "+revoke)
+	request.Header.Set("Authorization", "TokenWorks-Mobile-Push-Revoke "+revoke)
 	response, err := server.Client().Do(request)
 	if err != nil {
 		t.Fatal(err)

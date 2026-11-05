@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"dsh-mobile-ustc/services/remote/internal/testsupport"
+	"tokenworks-mobile/services/remote/internal/testsupport"
 )
 
 func TestRelayDeploymentRequiresProtectedMatchingMutualTLSIdentity(t *testing.T) {

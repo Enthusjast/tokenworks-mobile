@@ -1,11 +1,11 @@
 package relay
 
 import (
-	"dsh-mobile-ustc/services/remote/internal/store"
 	"net/http/httptest"
 	"strings"
 	"testing"
 	"time"
+	"tokenworks-mobile/services/remote/internal/store"
 )
 
 func TestCreationOptionsAreScopedEphemeralMetadataNotCommands(t *testing.T) {

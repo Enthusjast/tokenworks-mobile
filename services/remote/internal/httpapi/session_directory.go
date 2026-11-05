@@ -5,8 +5,8 @@ import (
 	"net/http"
 	"net/url"
 
-	"dsh-mobile-ustc/services/remote/internal/auth"
-	"dsh-mobile-ustc/services/remote/internal/store"
+	"tokenworks-mobile/services/remote/internal/auth"
+	"tokenworks-mobile/services/remote/internal/store"
 )
 
 type sessionNamesRepository interface {
@@ -15,10 +15,14 @@ type sessionNamesRepository interface {
 
 func sessionDirectoryPageQuery(request *http.Request) (int, string, bool, bool) {
 	query, err := url.ParseQuery(request.URL.RawQuery)
-	if err != nil { return 0, "", false, false }
+	if err != nil {
+		return 0, "", false, false
+	}
 	names := false
 	if values, exists := query["projection"]; exists {
-		if len(values) != 1 || values[0] != "names.v1" { return 0, "", false, false }
+		if len(values) != 1 || values[0] != "names.v1" {
+			return 0, "", false, false
+		}
 		names = true
 		query.Del("projection")
 	}
@@ -42,7 +46,10 @@ func (api *API) sessionDirectory(w http.ResponseWriter, r *http.Request) {
 	var err error
 	if names {
 		repository, supported := api.database.(sessionNamesRepository)
-		if !supported { writeError(w, http.StatusServiceUnavailable, "protocol.unsupported"); return }
+		if !supported {
+			writeError(w, http.StatusServiceUnavailable, "protocol.unsupported")
+			return
+		}
 		page, err = repository.SessionDirectoryNames(r.Context(), identity, device, principal.ProofKeyJKT, id, limit, cursor)
 	} else {
 		page, err = api.database.SessionDirectory(r.Context(), identity, device, principal.ProofKeyJKT, id, limit, cursor)

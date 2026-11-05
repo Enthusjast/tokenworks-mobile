@@ -11,9 +11,9 @@ import (
 	"slices"
 	"time"
 
-	"dsh-mobile-ustc/services/remote/internal/approval"
-	"dsh-mobile-ustc/services/remote/internal/auth"
 	"github.com/jackc/pgx/v5/pgconn"
+	"tokenworks-mobile/services/remote/internal/approval"
+	"tokenworks-mobile/services/remote/internal/auth"
 )
 
 var ErrApprovalInvalid = errors.New("store: invalid approval request")

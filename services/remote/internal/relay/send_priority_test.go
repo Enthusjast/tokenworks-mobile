@@ -10,8 +10,8 @@ import (
 	"testing"
 	"time"
 
-	"dsh-mobile-ustc/services/remote/internal/store"
 	"github.com/coder/websocket"
+	"tokenworks-mobile/services/remote/internal/store"
 )
 
 func blockedRelayWriter(t *testing.T) (*liveConnection, *websocket.Conn, func()) {

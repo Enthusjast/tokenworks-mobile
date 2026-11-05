@@ -9,9 +9,9 @@ import (
 	"os"
 	"time"
 
-	"dsh-mobile-ustc/services/remote/internal/auditarchive"
-	"dsh-mobile-ustc/services/remote/internal/coldarchive"
-	"dsh-mobile-ustc/services/remote/internal/store"
+	"tokenworks-mobile/services/remote/internal/auditarchive"
+	"tokenworks-mobile/services/remote/internal/coldarchive"
+	"tokenworks-mobile/services/remote/internal/store"
 )
 
 // The imported document is inert history, never a live authorization or event.

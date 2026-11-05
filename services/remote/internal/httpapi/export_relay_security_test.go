@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"dsh-mobile-ustc/services/remote/internal/files"
+	"tokenworks-mobile/services/remote/internal/files"
 )
 
 func exportFrame(h *fileHTTPFixture, host *fileHost, kind, request string, payload any) map[string]any {

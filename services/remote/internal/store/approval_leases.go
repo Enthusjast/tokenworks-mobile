@@ -8,7 +8,7 @@ import (
 	"slices"
 	"time"
 
-	"dsh-mobile-ustc/services/remote/internal/approval"
+	"tokenworks-mobile/services/remote/internal/approval"
 )
 
 // ApprovalLeaseProvider uses the accepted decision's original token/assurance

@@ -9,10 +9,10 @@ import (
 	"io"
 	"os"
 
-	"dsh-mobile-ustc/services/remote/internal/canonical"
+	"tokenworks-mobile/services/remote/internal/canonical"
 )
 
-const approvalAuthorityFormat = "dsh-approval-authority/v1"
+const approvalAuthorityFormat = "tokenworks-mobile-approval-authority/v1"
 
 type approvalPublicAuthority struct {
 	Issuer     string          `json:"issuer"`

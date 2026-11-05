@@ -9,9 +9,9 @@ import (
 	"os"
 	"time"
 
-	"dsh-mobile-ustc/services/remote/internal/coldarchive"
-	"dsh-mobile-ustc/services/remote/internal/evidencearchive"
-	"dsh-mobile-ustc/services/remote/internal/store"
+	"tokenworks-mobile/services/remote/internal/coldarchive"
+	"tokenworks-mobile/services/remote/internal/evidencearchive"
+	"tokenworks-mobile/services/remote/internal/store"
 )
 
 type evidenceExportSummary struct {

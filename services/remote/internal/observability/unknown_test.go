@@ -24,14 +24,14 @@ func unknownGauges(t *testing.T, metrics *Metrics) map[string]float64 {
 	}
 	values := map[string]float64{}
 	for _, family := range families {
-		if !strings.HasPrefix(family.GetName(), "dsh_remote_unknown_") {
+		if !strings.HasPrefix(family.GetName(), "tokenworks_mobile_unknown_") {
 			continue
 		}
 		for _, metric := range family.Metric {
 			if metric.Gauge == nil {
 				continue
 			}
-			key := strings.TrimPrefix(family.GetName(), "dsh_remote_")
+			key := strings.TrimPrefix(family.GetName(), "tokenworks_mobile_")
 			if len(metric.Label) == 1 {
 				key += ":" + metric.Label[0].GetValue()
 			}

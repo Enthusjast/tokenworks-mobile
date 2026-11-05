@@ -6,7 +6,7 @@ import (
 	"errors"
 	"time"
 
-	"dsh-mobile-ustc/services/remote/internal/releases"
+	"tokenworks-mobile/services/remote/internal/releases"
 )
 
 var ErrAppReleaseConflict = errors.New("store: APK release identity conflicts with registered evidence")

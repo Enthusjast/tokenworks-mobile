@@ -7,8 +7,8 @@ import (
 	"net/http"
 	"time"
 
-	"dsh-mobile-ustc/services/remote/internal/auth"
-	"dsh-mobile-ustc/services/remote/internal/requestlog"
+	"tokenworks-mobile/services/remote/internal/auth"
+	"tokenworks-mobile/services/remote/internal/requestlog"
 )
 
 const OriginalDatabaseEpoch = auth.OriginalDatabaseEpoch

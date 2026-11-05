@@ -10,9 +10,9 @@ import (
 	"testing"
 	"time"
 
-	"dsh-mobile-ustc/services/remote/internal/observability"
-	"dsh-mobile-ustc/services/remote/internal/store"
 	dto "github.com/prometheus/client_model/go"
+	"tokenworks-mobile/services/remote/internal/observability"
+	"tokenworks-mobile/services/remote/internal/store"
 )
 
 func metricsSnapshot(t *testing.T, m *observability.Metrics) map[string]*dto.MetricFamily {
@@ -30,7 +30,7 @@ func metricsSnapshot(t *testing.T, m *observability.Metrics) map[string]*dto.Met
 
 func metricValue(t *testing.T, snapshot map[string]*dto.MetricFamily, name string, labels map[string]string) float64 {
 	t.Helper()
-	for _, metric := range snapshot["dsh_remote_"+name].GetMetric() {
+	for _, metric := range snapshot["tokenworks_mobile_"+name].GetMetric() {
 		if len(metric.Label) != len(labels) {
 			continue
 		}

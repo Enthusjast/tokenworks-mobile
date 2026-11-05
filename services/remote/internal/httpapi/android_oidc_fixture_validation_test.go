@@ -27,13 +27,13 @@ func TestAndroidIssuerFixtureRequiresItsPermitPKCEBoundKeyAndOneUseCode(t *testi
 	public, jkt := approvalPublic(t, proofKey)
 	verifier := androidSecret(t)
 	hash := sha256.Sum256([]byte(verifier))
-	params := url.Values{"client_id": {"mobile"}, "redirect_uri": {"cn.edu.ustc.dsh.mobile:/oauth2redirect"}, "response_type": {"code"}, "resource": {"urn:dsh-android-relay"},
+	params := url.Values{"client_id": {"mobile"}, "redirect_uri": {"cn.edu.ustc.tokenworks:/oauth2redirect"}, "response_type": {"code"}, "resource": {"urn:tokenworks-mobile-android-relay"},
 		"scope": {"openid remote.access"}, "nonce": {androidSecret(t)}, "state": {androidSecret(t)}, "code_challenge_method": {"S256"}, "code_challenge": {base64.RawURLEncoding.EncodeToString(hash[:])}, "dpop_jkt": {jkt}}
 	authorize := func(permit string, want int) string {
 		t.Helper()
 		raw, _ := json.Marshal(map[string]string{"authorization_uri": server.URL + "/authorize?" + params.Encode()})
 		request, _ := http.NewRequest("POST", server.URL+"/fixture/authorize", strings.NewReader(string(raw)))
-		request.Header.Set("X-DSH-Fixture", permit)
+		request.Header.Set("X-TokenWorks-Mobile-Fixture", permit)
 		response, err := server.Client().Do(request)
 		if err != nil {
 			t.Fatal(err)
@@ -53,7 +53,7 @@ func TestAndroidIssuerFixtureRequiresItsPermitPKCEBoundKeyAndOneUseCode(t *testi
 	}
 	exchange := func(code, codeVerifier, dpop string, want int) {
 		t.Helper()
-		form := url.Values{"code": {code}, "code_verifier": {codeVerifier}, "client_id": {"mobile"}, "redirect_uri": {"cn.edu.ustc.dsh.mobile:/oauth2redirect"}, "resource": {"urn:dsh-android-relay"}, "grant_type": {"authorization_code"}}
+		form := url.Values{"code": {code}, "code_verifier": {codeVerifier}, "client_id": {"mobile"}, "redirect_uri": {"cn.edu.ustc.tokenworks:/oauth2redirect"}, "resource": {"urn:tokenworks-mobile-android-relay"}, "grant_type": {"authorization_code"}}
 		request, _ := http.NewRequest("POST", server.URL+"/token", strings.NewReader(form.Encode()))
 		request.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 		request.Header.Set("DPoP", dpop)

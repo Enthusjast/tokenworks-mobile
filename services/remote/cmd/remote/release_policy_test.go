@@ -9,9 +9,9 @@ import (
 	"strings"
 	"testing"
 
-	"dsh-mobile-ustc/services/remote/internal/releases"
-	"dsh-mobile-ustc/services/remote/internal/store"
-	"dsh-mobile-ustc/services/remote/internal/testsupport"
+	"tokenworks-mobile/services/remote/internal/releases"
+	"tokenworks-mobile/services/remote/internal/store"
+	"tokenworks-mobile/services/remote/internal/testsupport"
 )
 
 func TestAppReleasePolicyCLIValidatesBeforeDatabaseAndDescribesOffline(t *testing.T) {
@@ -39,7 +39,7 @@ func TestAppReleasePolicyCLIValidatesBeforeDatabaseAndDescribesOffline(t *testin
 		Format string `json:"format"`
 		releases.PolicyRef
 	}
-	if json.Unmarshal(output.Bytes(), &description) != nil || description.Format != "dsh-app-release-policy/v1" || !description.Valid() || bytes.Contains(output.Bytes(), []byte("download_url")) || bytes.Contains(output.Bytes(), []byte("organization_ids")) {
+	if json.Unmarshal(output.Bytes(), &description) != nil || description.Format != "tokenworks-mobile-app-release-policy/v1" || !description.Valid() || bytes.Contains(output.Bytes(), []byte("download_url")) || bytes.Contains(output.Bytes(), []byte("organization_ids")) {
 		t.Fatal("offline description disclosed policy content")
 	}
 }

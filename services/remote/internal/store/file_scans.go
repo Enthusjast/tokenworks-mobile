@@ -7,7 +7,7 @@ import (
 	"errors"
 	"time"
 
-	"dsh-mobile-ustc/services/remote/internal/files"
+	"tokenworks-mobile/services/remote/internal/files"
 )
 
 const fileScanLease = 30 * time.Second

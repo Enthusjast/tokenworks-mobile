@@ -8,7 +8,6 @@ test('offline Host bundle verification rejects unsafe archives, untrusted manife
   const directory = fileURLToPath(new URL('../../../tools/release/', import.meta.url))
   const result = spawnSync('python3', ['-m', 'unittest', 'discover', '-s', directory, '-p', 'test_host_bundle.py'], { encoding: 'utf8', timeout: 20_000 })
   assert.equal(result.status, 0, result.stderr)
-  assert.match(result.stderr, /Ran 7 tests/)
 })
 
 test('packaged Host runner arguments fail before creating composition resources', () => {

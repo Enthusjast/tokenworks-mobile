@@ -1,4 +1,5 @@
 <resources>
+    <string name="app_name">TokenWorks Mobile</string>
     <string name="nav_sessions">会话</string>
     <string name="nav_computers">电脑</string>
     <string name="nav_settings">设置</string>
@@ -54,7 +55,7 @@
     <string name="settings_updates">应用更新</string>
     <string name="settings_updates_detail">检查版本、下载校验与安装结果</string>
     <string name="settings_about">关于</string>
-    <string name="settings_version">DSH Mobile · %1$s</string>
+    <string name="settings_version">TokenWorks Mobile · %1$s</string>
     <string name="settings_appearance_system">外观与字号跟随系统设置</string>
     <string name="settings_exit_title">退出这部手机上的账号？</string>
     <string name="settings_exit_detail">将清理本机登录并结束当前访问。已提交的原请求不会因此撤销。</string>

@@ -14,7 +14,7 @@ const context = source.context
 const now = Date.parse(source.now), utc = (value: number) => new Date(value).toISOString()
 const pair = await generateKeyPair('ES256', { extractable: true })
 const publicJWK = await exportJWK(pair.publicKey)
-const authority = { issuer: 'https://remote.example.edu', key_id: 'dsh-approval-authority/node-fixture', public_jwk: publicJWK,
+const authority = { issuer: 'https://remote.example.edu', key_id: 'tokenworks-mobile-approval-authority/node-fixture', public_jwk: publicJWK,
   key_jkt: await calculateJwkThumbprint(publicJWK), active: true, valid_from: utc(now - 3600_000), valid_until: utc(now + 3600_000) }
 const lease = {
   domain: APPROVAL_AUTHORIZATION_DOMAIN, protocol_version: 1, issuer: authority.issuer, audience: APPROVAL_AUTHORIZATION_AUDIENCE,
@@ -52,7 +52,7 @@ add('embedded-key-url', value => { value.approval_public_jwk.jku = 'https://atta
 add('embedded-private-material', value => { value.approval_public_jwk.d = 'private' })
 add('embedded-key-case-alias', value => { value.approval_public_jwk.KTY = value.approval_public_jwk.kty; delete value.approval_public_jwk.kty })
 add('embedded-unknown-key', value => { value.approval_public_jwk = publicJWK; value.approval_key_jkt = authority.key_jkt })
-for (const [name, change] of Object.entries({ typ: 'other', kid: 'dsh-approval-authority/untrusted', alg: 'HS256', jku: 'https://attacker.example', jwk: publicJWK, crit: ['exp'] })) {
+for (const [name, change] of Object.entries({ typ: 'other', kid: 'tokenworks-mobile-approval-authority/untrusted', alg: 'HS256', jku: 'https://attacker.example', jwk: publicJWK, crit: ['exp'] })) {
   vectors.push({ name: `header-${name}`, compact: rawSigned(canonicalObject({ ...header, [name]: change }), canonicalObject(lease)), authority: 0, invalid: true })
 }
 const payload = Buffer.from(canonicalObject(lease)).toString()

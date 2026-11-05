@@ -10,10 +10,10 @@ import (
 	"slices"
 	"time"
 
-	"dsh-mobile-ustc/services/remote/internal/approval"
-	"dsh-mobile-ustc/services/remote/internal/auth"
-	"dsh-mobile-ustc/services/remote/internal/relay"
-	"dsh-mobile-ustc/services/remote/internal/store"
+	"tokenworks-mobile/services/remote/internal/approval"
+	"tokenworks-mobile/services/remote/internal/auth"
+	"tokenworks-mobile/services/remote/internal/relay"
+	"tokenworks-mobile/services/remote/internal/store"
 )
 
 var errApprovalConfiguration = errors.New("remote service approval policy, issuer mapping or protected signing key configuration is invalid")

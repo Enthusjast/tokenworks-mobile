@@ -1,17 +1,17 @@
-#ifndef DSH_PRIVATE_HELPER_ACL_H
-#define DSH_PRIVATE_HELPER_ACL_H
+#ifndef TWM_PRIVATE_HELPER_ACL_H
+#define TWM_PRIVATE_HELPER_ACL_H
 #include <aclapi.h>
 #include <stddef.h>
 
-#define DSH_HELPER_PATH_MAX 32768u
-#define DSH_HELPER_DEPTH_MAX 128u
+#define TWM_HELPER_PATH_MAX 32768u
+#define TWM_HELPER_DEPTH_MAX 128u
 
 typedef struct {
-    HANDLE handles[DSH_HELPER_DEPTH_MAX];
+    HANDLE handles[TWM_HELPER_DEPTH_MAX];
     DWORD count;
-} DSH_HELPER_GUARD;
+} TWM_HELPER_GUARD;
 
-static BOOL dsh_trusted_sid(PSID sid, PSID user) {
+static BOOL twm_trusted_sid(PSID sid, PSID user) {
     return sid != NULL && IsValidSid(sid) && (EqualSid(sid, user) ||
         IsWellKnownSid(sid, WinLocalSystemSid) || IsWellKnownSid(sid, WinBuiltinAdministratorsSid));
 }
@@ -19,7 +19,7 @@ static BOOL dsh_trusted_sid(PSID sid, PSID user) {
 /* Read/execute grants are normal for an installed program. Reject any other
  * principal that can replace the image, its path, ACL or file attributes.
  * Denies do not excuse an unsafe allow; uncommon/object/callback ACEs fail closed. */
-static BOOL dsh_safe_helper_descriptor(PSECURITY_DESCRIPTOR descriptor, PSID user) {
+static BOOL twm_safe_helper_descriptor(PSECURITY_DESCRIPTOR descriptor, PSID user) {
     PSID owner = NULL;
     PACL acl = NULL;
     BOOL present = FALSE, defaulted = FALSE;
@@ -28,7 +28,7 @@ static BOOL dsh_safe_helper_descriptor(PSECURITY_DESCRIPTOR descriptor, PSID use
     const DWORD dangerous = FILE_WRITE_DATA | FILE_APPEND_DATA | FILE_WRITE_EA | FILE_WRITE_ATTRIBUTES |
         FILE_DELETE_CHILD | DELETE | WRITE_DAC | WRITE_OWNER;
     if (descriptor == NULL || !IsValidSecurityDescriptor(descriptor) || user == NULL || !IsValidSid(user) ||
-        !GetSecurityDescriptorOwner(descriptor, &owner, &defaulted) || !dsh_trusted_sid(owner, user) ||
+        !GetSecurityDescriptorOwner(descriptor, &owner, &defaulted) || !twm_trusted_sid(owner, user) ||
         !GetSecurityDescriptorDacl(descriptor, &present, &acl, &defaulted) || !present || acl == NULL || !IsValidAcl(acl)) return FALSE;
     for (index = 0; index < acl->AceCount; index++) {
         ACE_HEADER *header = NULL;
@@ -44,17 +44,17 @@ static BOOL dsh_safe_helper_descriptor(PSECURITY_DESCRIPTOR descriptor, PSID use
             !IsValidSid((PSID)&allow->SidStart)) return FALSE;
         rights = allow->Mask;
         MapGenericMask(&rights, &mapping);
-        if (!dsh_trusted_sid((PSID)&allow->SidStart, user) && (rights & dangerous) != 0) return FALSE;
+        if (!twm_trusted_sid((PSID)&allow->SidStart, user) && (rights & dangerous) != 0) return FALSE;
     }
     return TRUE;
 }
 
-static BOOL dsh_safe_helper_attributes(DWORD attributes, DWORD links, BOOL directory) {
+static BOOL twm_safe_helper_attributes(DWORD attributes, DWORD links, BOOL directory) {
     return attributes != INVALID_FILE_ATTRIBUTES && (attributes & FILE_ATTRIBUTE_REPARSE_POINT) == 0 &&
         (((attributes & FILE_ATTRIBUTE_DIRECTORY) != 0) == (directory != FALSE)) && (directory || links == 1);
 }
 
-static HANDLE dsh_open_helper_component(const wchar_t *path, BOOL directory, PSID user) {
+static HANDLE twm_open_helper_component(const wchar_t *path, BOOL directory, PSID user) {
     HANDLE file = INVALID_HANDLE_VALUE;
     PSECURITY_DESCRIPTOR descriptor = NULL;
     BY_HANDLE_FILE_INFORMATION information;
@@ -63,9 +63,9 @@ static HANDLE dsh_open_helper_component(const wchar_t *path, BOOL directory, PSI
                        FILE_FLAG_OPEN_REPARSE_POINT | (directory ? FILE_FLAG_BACKUP_SEMANTICS : FILE_ATTRIBUTE_NORMAL), NULL);
     if (file == INVALID_HANDLE_VALUE) goto done;
     if (!GetFileInformationByHandle(file, &information) ||
-        !dsh_safe_helper_attributes(information.dwFileAttributes, information.nNumberOfLinks, directory)) goto done;
+        !twm_safe_helper_attributes(information.dwFileAttributes, information.nNumberOfLinks, directory)) goto done;
     if (GetSecurityInfo(file, SE_FILE_OBJECT, OWNER_SECURITY_INFORMATION | DACL_SECURITY_INFORMATION,
-                        NULL, NULL, NULL, NULL, &descriptor) != ERROR_SUCCESS || !dsh_safe_helper_descriptor(descriptor, user)) goto done;
+                        NULL, NULL, NULL, NULL, &descriptor) != ERROR_SUCCESS || !twm_safe_helper_descriptor(descriptor, user)) goto done;
     safe = TRUE;
 done:
     if (descriptor != NULL) LocalFree(descriptor);
@@ -73,16 +73,16 @@ done:
     return file;
 }
 
-static void dsh_close_helper_guard(DSH_HELPER_GUARD *guard) {
+static void twm_close_helper_guard(TWM_HELPER_GUARD *guard) {
     while (guard->count != 0) CloseHandle(guard->handles[--guard->count]);
 }
 
 /* Strict canonical DOS paths only: never normalize an untrusted launch path.
  * Lock parents from the root down so every later open has an already checked,
  * non-replaceable parent. The final handle is the image used for hashing. */
-static BOOL dsh_helper_path_syntax(const wchar_t *path, size_t length) {
+static BOOL twm_helper_path_syntax(const wchar_t *path, size_t length) {
     size_t index, component = 3;
-    if (length < 4u || length >= DSH_HELPER_PATH_MAX || path[1] != L':' || path[2] != L'\\' ||
+    if (length < 4u || length >= TWM_HELPER_PATH_MAX || path[1] != L':' || path[2] != L'\\' ||
         !((path[0] >= L'A' && path[0] <= L'Z') || (path[0] >= L'a' && path[0] <= L'z'))) return FALSE;
     for (index = 3; index <= length; index++) {
         wchar_t value = path[index];
@@ -94,7 +94,7 @@ static BOOL dsh_helper_path_syntax(const wchar_t *path, size_t length) {
     return TRUE;
 }
 
-static BOOL dsh_lock_helper_path(DSH_HELPER_GUARD *guard, const wchar_t *source) {
+static BOOL twm_lock_helper_path(TWM_HELPER_GUARD *guard, const wchar_t *source) {
     HANDLE token = NULL;
     TOKEN_USER *user = NULL;
     DWORD needed = 0, allocated = 0;
@@ -102,24 +102,24 @@ static BOOL dsh_lock_helper_path(DSH_HELPER_GUARD *guard, const wchar_t *source)
     wchar_t *path = NULL;
     BOOL safe = FALSE;
     guard->count = 0;
-    length = wcsnlen(source, DSH_HELPER_PATH_MAX);
-    if (!dsh_helper_path_syntax(source, length)) goto done;
+    length = wcsnlen(source, TWM_HELPER_PATH_MAX);
+    if (!twm_helper_path_syntax(source, length)) goto done;
     if (!OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, &token)) goto done;
     if (GetTokenInformation(token, TokenUser, NULL, 0, &needed) || GetLastError() != ERROR_INSUFFICIENT_BUFFER ||
         needed < sizeof(TOKEN_USER) || needed > 65536u) goto done;
     allocated = needed;
     user = (TOKEN_USER *)HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, allocated);
     path = (wchar_t *)HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, (length + 1u) * sizeof(wchar_t));
-    if (user == NULL || path == NULL || !GetTokenInformation(token, TokenUser, user, allocated, &needed) || dsh_service_sid(user->User.Sid)) goto done;
+    if (user == NULL || path == NULL || !GetTokenInformation(token, TokenUser, user, allocated, &needed) || twm_service_sid(user->User.Sid)) goto done;
     memcpy(path, source, (length + 1u) * sizeof(wchar_t));
     end = 3;
     for (;;) {
         HANDLE file;
         wchar_t saved = path[end];
-        if (guard->count >= DSH_HELPER_DEPTH_MAX) goto done;
+        if (guard->count >= TWM_HELPER_DEPTH_MAX) goto done;
         path[end] = L'\0';
         if (guard->count == 0 && GetDriveTypeW(path) != DRIVE_FIXED) goto done;
-        file = dsh_open_helper_component(path, end != length, user->User.Sid);
+        file = twm_open_helper_component(path, end != length, user->User.Sid);
         path[end] = saved;
         if (file == INVALID_HANDLE_VALUE) goto done;
         guard->handles[guard->count++] = file;
@@ -129,21 +129,21 @@ static BOOL dsh_lock_helper_path(DSH_HELPER_GUARD *guard, const wchar_t *source)
     }
     safe = TRUE;
 done:
-    if (!safe) dsh_close_helper_guard(guard);
+    if (!safe) twm_close_helper_guard(guard);
     if (path != NULL) { SecureZeroMemory(path, (length + 1u) * sizeof(wchar_t)); HeapFree(GetProcessHeap(), 0, path); }
     if (user != NULL) { SecureZeroMemory(user, allocated); HeapFree(GetProcessHeap(), 0, user); }
     if (token != NULL) CloseHandle(token);
     return safe;
 }
 
-static BOOL dsh_lock_helper_image(DSH_HELPER_GUARD *guard) {
+static BOOL twm_lock_helper_image(TWM_HELPER_GUARD *guard) {
     DWORD length;
-    wchar_t *path = (wchar_t *)HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, DSH_HELPER_PATH_MAX * sizeof(wchar_t));
+    wchar_t *path = (wchar_t *)HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, TWM_HELPER_PATH_MAX * sizeof(wchar_t));
     BOOL safe = FALSE;
     if (path == NULL) return FALSE;
-    length = GetModuleFileNameW(NULL, path, DSH_HELPER_PATH_MAX);
-    if (length > 0 && length < DSH_HELPER_PATH_MAX) safe = dsh_lock_helper_path(guard, path);
-    SecureZeroMemory(path, DSH_HELPER_PATH_MAX * sizeof(wchar_t));
+    length = GetModuleFileNameW(NULL, path, TWM_HELPER_PATH_MAX);
+    if (length > 0 && length < TWM_HELPER_PATH_MAX) safe = twm_lock_helper_path(guard, path);
+    SecureZeroMemory(path, TWM_HELPER_PATH_MAX * sizeof(wchar_t));
     HeapFree(GetProcessHeap(), 0, path);
     return safe;
 }

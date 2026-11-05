@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"dsh-mobile-ustc/services/remote/internal/testsupport"
+	"tokenworks-mobile/services/remote/internal/testsupport"
 )
 
 type auditFixtureDB interface {
@@ -424,7 +424,7 @@ func TestAuditArchiveExpiredDeletionRequiresAuditAndRetainsBatchIdentity(t *test
 
 func TestAuditArchiveRequiresExplicitHistoryPrivileges(t *testing.T) {
 	ctx, db := newPostgresIntegrationDatabase(t)
-	role := "dsh_audit_history_" + strings.ReplaceAll(approvalTestUUID(t), "-", "")
+	role := "twm_audit_history_" + strings.ReplaceAll(approvalTestUUID(t), "-", "")
 	if _, err := db.DB.ExecContext(ctx, "create role "+role+" nologin"); err != nil {
 		t.Fatal(err)
 	}
@@ -446,7 +446,7 @@ func TestAuditArchiveLimitedRoleCannotMutateSourcesOrRecoveryEpoch(t *testing.T)
 	ctx, db := newPostgresIntegrationDatabase(t)
 	enableAuditFixtureTime(t, ctx, db.DB)
 	id := auditFixtureEntry(t, ctx, db.DB, "2000-01-01T00:00:00Z", "source")
-	role := "dsh_audit_archiver_" + strings.ReplaceAll(approvalTestUUID(t), "-", "")
+	role := "twm_audit_archiver_" + strings.ReplaceAll(approvalTestUUID(t), "-", "")
 	if _, err := db.DB.ExecContext(ctx, "create role "+role+" nologin"); err != nil {
 		t.Fatal(err)
 	}

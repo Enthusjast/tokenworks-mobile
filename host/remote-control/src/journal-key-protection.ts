@@ -16,7 +16,7 @@ export interface JournalKeyOptions {
   signal?: AbortSignal
 }
 
-const MAGIC = Buffer.from('DSHJKEY1')
+const MAGIC = Buffer.from('TWMJKEY1')
 const MAX_WRAPPED = 16 * 1024
 const ID = /^[a-z0-9][a-z0-9._-]{0,63}$/
 const failure = () => new Error('command journal key protection unavailable')
@@ -37,7 +37,7 @@ export function protectorFrom(value: JournalKeyProtector): Protector {
 function binding(runtimeId: string, path: string, id: string): Buffer {
   const absolute = resolve(path)
   if (absolute.includes('\0') || Buffer.byteLength(absolute) > 8192) throw failure()
-  return Buffer.from(`dsh-remote-journal-wrap-v1\0${runtimeId}\0${absolute}\0${id}`, 'utf8')
+  return Buffer.from(`tokenworks-mobile-remote-journal-wrap-v1\0${runtimeId}\0${absolute}\0${id}`, 'utf8')
 }
 
 function clearBytes(value: unknown): void {

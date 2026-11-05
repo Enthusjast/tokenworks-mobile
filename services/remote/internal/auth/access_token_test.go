@@ -68,7 +68,7 @@ func TestJWTAccessTokenRejectsWrongClaimsHeadersAndDuplicateJSONMembers(t *testi
 func TestJWTVerifierRejectsUnexpectedAlgorithmAndInvalidConfiguration(t *testing.T) {
 	keys := newTestKeys(t)
 	config := Config{
-		Issuer: keys.issuer, Audience: "urn:dsh-remote", JWKSURL: keys.server.URL,
+		Issuer: keys.issuer, Audience: "urn:tokenworks-mobile", JWKSURL: keys.server.URL,
 		AllowedClients: []string{"android-public-client"}, RequiredScopes: []string{"remote.access"},
 		PublicOrigin: "https://api.example.edu", MaxTokenLifetime: 15 * time.Minute,
 	}
@@ -77,7 +77,7 @@ func TestJWTVerifierRejectsUnexpectedAlgorithmAndInvalidConfiguration(t *testing
 		t.Fatal("plain HTTP JWKS endpoint was accepted")
 	}
 	if _, err := New(Config{
-		Issuer: keys.issuer, Audience: "urn:dsh-remote", JWKSURL: keys.server.URL,
+		Issuer: keys.issuer, Audience: "urn:tokenworks-mobile", JWKSURL: keys.server.URL,
 		AllowedClients: []string{"android-public-client"}, RequiredScopes: []string{"remote.access"},
 		PublicOrigin: "https://api.example.edu/path", MaxTokenLifetime: 15 * time.Minute,
 	}); err == nil {
@@ -87,7 +87,7 @@ func TestJWTVerifierRejectsUnexpectedAlgorithmAndInvalidConfiguration(t *testing
 
 func validAccessClaims(keys *testKeys) map[string]any {
 	return map[string]any{
-		"iss": keys.issuer, "sub": "user-ustc-123", "aud": []string{"urn:dsh-remote"},
+		"iss": keys.issuer, "sub": "user-ustc-123", "aud": []string{"urn:tokenworks-mobile"},
 		"client_id": "android-public-client", "jti": "access-jti-001", "iat": keys.now.Unix(),
 		"exp": keys.now.Add(5 * time.Minute).Unix(), "scope": "openid remote.access",
 		"cnf": map[string]any{"jkt": keys.proofJKT},

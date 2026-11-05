@@ -24,11 +24,11 @@ import (
 	"testing"
 	"time"
 
-	"dsh-mobile-ustc/services/remote/internal/auth"
-	"dsh-mobile-ustc/services/remote/internal/httpapi"
-	"dsh-mobile-ustc/services/remote/internal/store"
-	"dsh-mobile-ustc/services/remote/internal/testsupport"
 	jose "github.com/go-jose/go-jose/v4"
+	"tokenworks-mobile/services/remote/internal/auth"
+	"tokenworks-mobile/services/remote/internal/httpapi"
+	"tokenworks-mobile/services/remote/internal/store"
+	"tokenworks-mobile/services/remote/internal/testsupport"
 )
 
 // DPoP htu binds the endpoint, never its query; query selectors still travel on
@@ -116,7 +116,7 @@ func TestDirectoryMetadataNativeHostHTTPAuthorizationAndWithdrawal(t *testing.T)
 	var handler http.Handler
 	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { handler.ServeHTTP(w, r) }))
 	t.Cleanup(server.Close)
-	identity, err := auth.New(auth.Config{Issuer: issuer, Audience: "urn:dsh-metadata", JWKSURL: keys.URL,
+	identity, err := auth.New(auth.Config{Issuer: issuer, Audience: "urn:tokenworks-mobile-metadata", JWKSURL: keys.URL,
 		AllowedClients: []string{"mobile", "metadata-host"}, RequiredScopes: []string{"remote.access"}, PublicOrigin: server.URL, MaxTokenLifetime: 15 * time.Minute})
 	if err != nil {
 		t.Fatal(err)
@@ -125,7 +125,7 @@ func TestDirectoryMetadataNativeHostHTTPAuthorizationAndWithdrawal(t *testing.T)
 	token := func(subject, client, jkt string) string {
 		now := time.Now()
 		return approvalSign(t, signing, jose.ES256, "metadata-issuer", "at+jwt", map[string]any{"iss": issuer, "sub": subject,
-			"aud": "urn:dsh-metadata", "client_id": client, "jti": exportTestUUID(t), "iat": now.Unix(), "exp": now.Add(5 * time.Minute).Unix(),
+			"aud": "urn:tokenworks-mobile-metadata", "client_id": client, "jti": exportTestUUID(t), "iat": now.Unix(), "exp": now.Add(5 * time.Minute).Unix(),
 			"scope": "remote.access", "cnf": map[string]any{"jkt": jkt}}, nil)
 	}
 	ownerToken, viewerToken, hostToken := token("metadata-owner", "mobile", ownerJKT), token("metadata-viewer", "mobile", viewerJKT), token("metadata-owner", "metadata-host", hostJKT)
@@ -179,7 +179,7 @@ func TestDirectoryMetadataNativeHostHTTPAuthorizationAndWithdrawal(t *testing.T)
 	workspaceID := enrollment.Workspaces[0].ID
 	var challenge store.HostCredentialChallenge
 	call(hostCaller, hostToken, "POST", "/v1/host-credentials/challenges", map[string]any{}, &challenge, 201)
-	proof := approvalSign(t, hostKey, jose.ES256, "", "dsh-host-credential-proof+jwt", map[string]any{"iss": enrollment.InstallationID,
+	proof := approvalSign(t, hostKey, jose.ES256, "", "tokenworks-mobile-host-credential-proof+jwt", map[string]any{"iss": enrollment.InstallationID,
 		"aud": challenge.Audience, "challenge_id": challenge.ChallengeID, "nonce": challenge.Challenge, "iat": time.Now().Unix(), "jti": exportTestUUID(t)}, nil)
 	var credential store.HostConnectionCredential
 	call(hostCaller, hostToken, "POST", "/v1/host-credentials", map[string]any{"challenge_id": challenge.ChallengeID, "proof": proof}, &credential, 201)

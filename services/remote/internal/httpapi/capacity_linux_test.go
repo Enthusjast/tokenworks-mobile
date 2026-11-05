@@ -32,13 +32,13 @@ import (
 	"testing"
 	"time"
 
-	"dsh-mobile-ustc/services/remote/internal/store"
-	"dsh-mobile-ustc/services/remote/internal/testsupport"
 	jose "github.com/go-jose/go-jose/v4"
 	"github.com/jackc/pgx/v5"
 	dto "github.com/prometheus/client_model/go"
 	"github.com/prometheus/common/expfmt"
 	"github.com/prometheus/common/model"
+	"tokenworks-mobile/services/remote/internal/store"
+	"tokenworks-mobile/services/remote/internal/testsupport"
 )
 
 type capacityConfig struct {
@@ -253,12 +253,12 @@ func capacityMetric(families map[string]*dto.MetricFamily, name string, labels m
 
 func capacityServerResources(families map[string]*dto.MetricFamily) map[string]float64 {
 	result := map[string]float64{}
-	for _, name := range []string{"process_cpu_seconds_total", "process_resident_memory_bytes", "process_open_fds", "go_goroutines", "go_memstats_heap_alloc_bytes", "dsh_remote_relay_subscriptions"} {
+	for _, name := range []string{"process_cpu_seconds_total", "process_resident_memory_bytes", "process_open_fds", "go_goroutines", "go_memstats_heap_alloc_bytes", "tokenworks_mobile_relay_subscriptions"} {
 		result[name] = capacityMetric(families, name, nil)
 	}
 	for _, role := range []string{"installation", "device"} {
-		result[role+"_active"] = capacityMetric(families, "dsh_remote_relay_connections", map[string]string{"role": role, "phase": "active"})
-		result[role+"_queued_bytes"] = capacityMetric(families, "dsh_remote_relay_queued_bytes", map[string]string{"role": role})
+		result[role+"_active"] = capacityMetric(families, "tokenworks_mobile_relay_connections", map[string]string{"role": role, "phase": "active"})
+		result[role+"_queued_bytes"] = capacityMetric(families, "tokenworks_mobile_relay_queued_bytes", map[string]string{"role": role})
 	}
 	return result
 }
@@ -448,7 +448,7 @@ func TestAuthenticatedRelayCapacity(t *testing.T) {
 			target **capacityAPI
 		}{{pair.hostKey, "capacity-host", &pair.hostAPI}, {pair.phoneKey, "capacity-mobile", &pair.phoneAPI}} {
 			now := time.Now()
-			token, err := capacitySign(issuerKey, "at+jwt", map[string]any{"iss": issuer, "sub": pair.user, "aud": "urn:dsh-capacity", "client_id": entry.client, "jti": capacityID(), "iat": now.Unix(), "exp": now.Add(10 * time.Minute).Unix(), "scope": "remote.access", "cnf": map[string]any{"jkt": entry.key.jkt}}, map[jose.HeaderKey]any{"kid": "capacity-issuer"})
+			token, err := capacitySign(issuerKey, "at+jwt", map[string]any{"iss": issuer, "sub": pair.user, "aud": "urn:tokenworks-mobile-capacity", "client_id": entry.client, "jti": capacityID(), "iat": now.Unix(), "exp": now.Add(10 * time.Minute).Unix(), "scope": "remote.access", "cnf": map[string]any{"jkt": entry.key.jkt}}, map[jose.HeaderKey]any{"kid": "capacity-issuer"})
 			if err != nil {
 				fail(err)
 			}
@@ -463,7 +463,7 @@ func TestAuthenticatedRelayCapacity(t *testing.T) {
 	_ = apiReservation.Close()
 	_ = metricsReservation.Close()
 	command := exec.CommandContext(ctx, binary)
-	command.Env = []string{"PATH=" + os.Getenv("PATH"), "SSL_CERT_FILE=" + caFile, "REMOTE_ISSUER=" + issuer, "REMOTE_AUDIENCE=urn:dsh-capacity", "REMOTE_JWKS_URL=" + ingress.URL + "/fixture/jwks", "REMOTE_CLIENT_IDS=capacity-host,capacity-mobile", "REMOTE_HOST_CLIENT_IDS=capacity-host", "REMOTE_REQUIRED_SCOPES=remote.access", "REMOTE_PUBLIC_ORIGIN=" + ingress.URL, "REMOTE_DATABASE_URL=" + dsn, "REMOTE_LISTEN_ADDR=" + apiAddress, "REMOTE_METRICS_LISTEN_ADDR=" + metricsAddress}
+	command.Env = []string{"PATH=" + os.Getenv("PATH"), "SSL_CERT_FILE=" + caFile, "REMOTE_ISSUER=" + issuer, "REMOTE_AUDIENCE=urn:tokenworks-mobile-capacity", "REMOTE_JWKS_URL=" + ingress.URL + "/fixture/jwks", "REMOTE_CLIENT_IDS=capacity-host,capacity-mobile", "REMOTE_HOST_CLIENT_IDS=capacity-host", "REMOTE_REQUIRED_SCOPES=remote.access", "REMOTE_PUBLIC_ORIGIN=" + ingress.URL, "REMOTE_DATABASE_URL=" + dsn, "REMOTE_LISTEN_ADDR=" + apiAddress, "REMOTE_METRICS_LISTEN_ADDR=" + metricsAddress}
 	command.Stdout, command.Stderr = serviceLog, serviceLog
 	if err := command.Start(); err != nil {
 		fail(errors.New("service process failed to start"))
@@ -584,7 +584,7 @@ func TestAuthenticatedRelayCapacity(t *testing.T) {
 			return false, err
 		}
 		for _, role := range []string{"installation", "device"} {
-			if capacityMetric(families, "dsh_remote_relay_connections", map[string]string{"role": role, "phase": "active"}) != float64(len(pairs)) {
+			if capacityMetric(families, "tokenworks_mobile_relay_connections", map[string]string{"role": role, "phase": "active"}) != float64(len(pairs)) {
 				return false, nil
 			}
 		}
@@ -732,7 +732,7 @@ func TestAuthenticatedRelayCapacity(t *testing.T) {
 		fail(err)
 	}
 	for _, role := range []string{"installation", "device"} {
-		if capacityMetric(loaded, "dsh_remote_relay_connections", map[string]string{"role": role, "phase": "active"}) != float64(len(pairs)) {
+		if capacityMetric(loaded, "tokenworks_mobile_relay_connections", map[string]string{"role": role, "phase": "active"}) != float64(len(pairs)) {
 			fail(errors.New("steady-state connection count changed"))
 		}
 	}
@@ -743,7 +743,7 @@ func TestAuthenticatedRelayCapacity(t *testing.T) {
 	}
 	if config.ActivePairs > 0 {
 		var count, within uint64
-		for _, metric := range loaded["dsh_remote_relay_session_route_duration_seconds"].GetMetric() {
+		for _, metric := range loaded["tokenworks_mobile_relay_session_route_duration_seconds"].GetMetric() {
 			histogram := metric.GetHistogram()
 			count += histogram.GetSampleCount()
 			for _, bucket := range histogram.GetBucket() {
@@ -789,7 +789,7 @@ func TestAuthenticatedRelayCapacity(t *testing.T) {
 	if err != nil {
 		fail(err)
 	}
-	if capacityMetric(revokedMetrics, "dsh_remote_relay_connections", map[string]string{"role": "installation", "phase": "active"}) != float64(len(pairs)) || capacityMetric(revokedMetrics, "dsh_remote_relay_connections", map[string]string{"role": "device", "phase": "active"}) != float64(len(pairs)-1) {
+	if capacityMetric(revokedMetrics, "tokenworks_mobile_relay_connections", map[string]string{"role": "installation", "phase": "active"}) != float64(len(pairs)) || capacityMetric(revokedMetrics, "tokenworks_mobile_relay_connections", map[string]string{"role": "device", "phase": "active"}) != float64(len(pairs)-1) {
 		fail(errors.New("revocation affected unrelated connections"))
 	}
 	select {
@@ -813,12 +813,12 @@ func TestAuthenticatedRelayCapacity(t *testing.T) {
 		}
 		for _, role := range []string{"installation", "device"} {
 			for _, state := range []string{"handshaking", "active", "closing"} {
-				if capacityMetric(families, "dsh_remote_relay_connections", map[string]string{"role": role, "phase": state}) != 0 {
+				if capacityMetric(families, "tokenworks_mobile_relay_connections", map[string]string{"role": role, "phase": state}) != 0 {
 					return false, nil
 				}
 			}
 		}
-		if capacityMetric(families, "dsh_remote_relay_subscriptions", nil) != 0 {
+		if capacityMetric(families, "tokenworks_mobile_relay_subscriptions", nil) != 0 {
 			return false, nil
 		}
 		return true, nil

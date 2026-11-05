@@ -180,8 +180,8 @@ export class SignedApprovals {
     const schema = this.ctx.tools.schemas(agent).find(item => item.name === execution.name)
     if (!schema) throw unavailable()
     return { workspace: { workspace_id: workspace.remoteId, root_sha256: hash({ root }) }, resources: [
-      { kind: 'artifact', resource_id: `dsh/execution-directory/v1:${path.split(sep).join('/') || '.'}`, version_sha256: hash({ root, directory }) },
-      { kind: 'artifact', resource_id: `dsh/tool-definition/v1:${execution.name}`, version_sha256: hash({ definition: fence.version, schema }) },
+      { kind: 'artifact', resource_id: `tokenworks-mobile/execution-directory/v1:${path.split(sep).join('/') || '.'}`, version_sha256: hash({ root, directory }) },
+      { kind: 'artifact', resource_id: `tokenworks-mobile/tool-definition/v1:${execution.name}`, version_sha256: hash({ definition: fence.version, schema }) },
       ...(this.integration.resourceFacts ? this.integration.resourceFacts(execution) : []),
     ] }
   }
@@ -194,7 +194,7 @@ export class SignedApprovals {
     const definition = this.ctx.tools.get(execution.name, execution.agent)
     if (!definition) throw unavailable()
     const fence = fenceToolDefinition(definition), facts = this.facts(execution, definition, fence), now = Date.now()
-    const context = approvalBinding({ domain: 'dsh-mobile-ustc/approval-context/v1', protocol_version: 1, host_id: this.options.hostId, installation_id: this.options.installationId,
+    const context = approvalBinding({ domain: 'tokenworks-mobile/approval-context/v1', protocol_version: 1, host_id: this.options.hostId, installation_id: this.options.installationId,
       runtime_id: this.runtimeId, runtime_epoch: this.epoch, session_id: mobileSessionId(this.runtimeId, execution.agent.id), dsh_session_id: String(execution.agent.id),
       approval_id: randomUUID(), execution_id: randomUUID(), call_id: String(execution.callId), tool: execution.name, arguments: structuredClone(execution.arguments), ...facts,
       nonce: randomBytes(32).toString('base64url'), policy_version: this.options.policyVersion, required_assurance: this.options.requiredAssurance,

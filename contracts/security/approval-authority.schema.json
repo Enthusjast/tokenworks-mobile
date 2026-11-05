@@ -4,7 +4,7 @@
   "properties": {
     "format": {
       "type": "string",
-      "const": "dsh-approval-authority/v1"
+      "const": "tokenworks-mobile-approval-authority/v1"
     },
     "authority": {
       "type": "object",
@@ -15,7 +15,7 @@
         },
         "key_id": {
           "type": "string",
-          "pattern": "^dsh-approval-authority\\/[A-Za-z0-9._-]{1,80}$"
+          "pattern": "^tokenworks-mobile-approval-authority\\/[A-Za-z0-9._-]{1,80}$"
         },
         "public_jwk": {
           "type": "object",
@@ -109,6 +109,6 @@
     "sha256"
   ],
   "additionalProperties": false,
-  "$id": "urn:dsh-mobile-ustc:security:approval-authority:v1",
+  "$id": "urn:tokenworks-mobile:security:approval-authority:v1",
   "description": "Public offline authority description, not a lease or live-node assertion. The independently provisioned SHA-256 pin covers JCS of format/authority/policy without sha256. Runtime also verifies canonical coordinates, key thumbprint, P-256 point and validity ordering. Policy metadata does not replace locally trusted policy or pin private deployment mappings. Parsing permits scheduled/historical anchors; actual approval verification enforces active state, current key/lease times and connection/phone binding."
 }

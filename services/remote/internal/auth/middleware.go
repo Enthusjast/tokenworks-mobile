@@ -6,7 +6,7 @@ import (
 	"net/http"
 	"strings"
 
-	"dsh-mobile-ustc/services/remote/internal/requestlog"
+	"tokenworks-mobile/services/remote/internal/requestlog"
 )
 
 type contextKey struct{}

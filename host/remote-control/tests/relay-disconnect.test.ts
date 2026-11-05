@@ -164,7 +164,7 @@ for (const scenario of ['transport-close', 'frame-limit', 'byte-limit', 'lease-e
     await until(() => peer.hellos.length >= 2, 3000)
     assert.equal(peer.hellos.length, 2)
     assert.notEqual(peer.hellos[0], peer.hellos[1])
-    assert.deepEqual(peer.headers, [`DSH-Host ${'A'.repeat(43)}`, `DSH-Host ${'B'.repeat(43)}`])
+    assert.deepEqual(peer.headers, [`TokenWorks-Mobile-Host ${'A'.repeat(43)}`, `TokenWorks-Mobile-Host ${'B'.repeat(43)}`])
     await delay(30)
     assert.deepEqual(routed, [original.request_id], 'reconnect replayed a prior connection queue')
     const fresh = peer.command('explicit operation after fresh handshake')

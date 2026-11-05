@@ -5,8 +5,8 @@ import (
 	"testing"
 	"time"
 
-	"dsh-mobile-ustc/services/remote/internal/store"
 	"github.com/coder/websocket"
+	"tokenworks-mobile/services/remote/internal/store"
 )
 
 func TestProductionRoutingOwnerCrashRequiresFreshSyncAndPreservesCommandStages(t *testing.T) {
@@ -19,7 +19,7 @@ func TestProductionRoutingOwnerCrashRequiresFreshSyncAndPreservesCommandStages(t
 	}
 	host := f.host(pair, "a", "command.relay.v1")
 	ticket := f.ticket(pair, "message.submit")
-	phone, err := capacityConnect(f.ctx, f.clients["b"], f.origin, "device", "DSH-Ticket "+ticket.Token, pair.phoneKey, pair, "command.relay.v1")
+	phone, err := capacityConnect(f.ctx, f.clients["b"], f.origin, "device", "TokenWorks-Mobile-Ticket "+ticket.Token, pair.phoneKey, pair, "command.relay.v1")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -71,13 +71,13 @@ func TestProductionRoutingOwnerCrashRequiresFreshSyncAndPreservesCommandStages(t
 	}
 	pair.hostAPI.http, pair.phoneAPI.http = f.clients["b"], f.clients["b"]
 	retryTicket := f.ticket(pair, "message.submit")
-	if connection, err := capacityConnect(f.ctx, f.clients["b"], f.origin, "device", "DSH-Ticket "+retryTicket.Token, pair.phoneKey, pair, "command.relay.v1"); err == nil {
+	if connection, err := capacityConnect(f.ctx, f.clients["b"], f.origin, "device", "TokenWorks-Mobile-Ticket "+retryTicket.Token, pair.phoneKey, pair, "command.relay.v1"); err == nil {
 		_ = connection.CloseNow()
 		t.Fatal("dead owner was silently replaced by a local content route")
 	}
 	pair.epoch = capacityID()
 	replacement := f.host(pair, "b", "command.relay.v1")
-	reconnected, err := capacityConnect(f.ctx, f.clients["b"], f.origin, "device", "DSH-Ticket "+retryTicket.Token, pair.phoneKey, pair, "command.relay.v1")
+	reconnected, err := capacityConnect(f.ctx, f.clients["b"], f.origin, "device", "TokenWorks-Mobile-Ticket "+retryTicket.Token, pair.phoneKey, pair, "command.relay.v1")
 	if err != nil {
 		t.Fatal("failed transport consumed usable ticket", err)
 	}

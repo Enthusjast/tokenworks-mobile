@@ -7,7 +7,7 @@ import (
 	"slices"
 	"time"
 
-	"dsh-mobile-ustc/services/remote/internal/files"
+	"tokenworks-mobile/services/remote/internal/files"
 )
 
 // A socket's literal ticket scope remains narrower than the user's full grant.

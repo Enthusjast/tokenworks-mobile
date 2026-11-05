@@ -3,7 +3,7 @@ package httpapi
 import (
 	"net/http"
 
-	"dsh-mobile-ustc/services/remote/internal/requestlog"
+	"tokenworks-mobile/services/remote/internal/requestlog"
 )
 
 // Preserve ServeMux method matching, Allow and legacy responses. Only its own

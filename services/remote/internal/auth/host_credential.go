@@ -8,8 +8,8 @@ import (
 	"time"
 )
 
-const HostCredentialProofAudience = "urn:dsh-mobile-ustc:host-credential"
-const hostCredentialProofType = "dsh-host-credential-proof+jwt"
+const HostCredentialProofAudience = "urn:tokenworks-mobile:host-credential"
+const hostCredentialProofType = "tokenworks-mobile-host-credential-proof+jwt"
 const maxHostCredentialProofBytes = 8 << 10
 
 var errInvalidHostCredentialProof = errors.New("auth: invalid host credential proof")

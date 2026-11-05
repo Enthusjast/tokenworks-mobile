@@ -14,8 +14,8 @@ import (
 	"strings"
 	"testing"
 
-	"dsh-mobile-ustc/services/remote/internal/store"
-	"dsh-mobile-ustc/services/remote/internal/testsupport"
+	"tokenworks-mobile/services/remote/internal/store"
+	"tokenworks-mobile/services/remote/internal/testsupport"
 )
 
 func TestPushRuntimeProtectedConfigurationAndDisabledDefault(t *testing.T) {
@@ -65,7 +65,7 @@ func TestPushRuntimeLoadsRealProtectedKeysAgainstIsolatedPostgres(t *testing.T) 
 	lookup, aes := make([]byte, 32), make([]byte, 32)
 	_, _ = rand.Read(lookup)
 	_, _ = rand.Read(aes)
-	config := map[string]any{"enabled": true, "workers": 2, "encryption": map[string]any{"active_key_id": "one", "keys": map[string]string{"one": base64.StdEncoding.EncodeToString(aes)}, "lookup_key": base64.StdEncoding.EncodeToString(lookup)}, "fcm": map[string]string{"project_id": "fixture-project", "package_name": "cn.edu.ustc.dsh.mobile", "service_account_file": "service-account.json"}}
+	config := map[string]any{"enabled": true, "workers": 2, "encryption": map[string]any{"active_key_id": "one", "keys": map[string]string{"one": base64.StdEncoding.EncodeToString(aes)}, "lookup_key": base64.StdEncoding.EncodeToString(lookup)}, "fcm": map[string]string{"project_id": "fixture-project", "package_name": "cn.edu.ustc.tokenworks", "service_account_file": "service-account.json"}}
 	raw, _ := json.Marshal(config)
 	if err = os.WriteFile(path, raw, 0600); err != nil {
 		t.Fatal(err)

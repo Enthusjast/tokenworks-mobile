@@ -13,7 +13,7 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"dsh-mobile-ustc/services/remote/internal/auth"
+	"tokenworks-mobile/services/remote/internal/auth"
 )
 
 const MaxPlaintext = 8 << 20
@@ -138,7 +138,7 @@ func validXID(raw json.RawMessage) bool {
 }
 
 func (payload Payload) Validate() error {
-	if payload.Format != "dsh-control-archive" || payload.Version != 1 || !UUID(payload.DomainID) || !UUID(payload.ExportID) || !UUID(payload.OperationEpoch) || !KeyID(payload.KeyID) || payload.PreparedAt.IsZero() {
+	if payload.Format != "tokenworks-mobile-control-archive" || payload.Version != 1 || !UUID(payload.DomainID) || !UUID(payload.ExportID) || !UUID(payload.OperationEpoch) || !KeyID(payload.KeyID) || payload.PreparedAt.IsZero() {
 		return ErrInvalid
 	}
 	b := payload.Batch

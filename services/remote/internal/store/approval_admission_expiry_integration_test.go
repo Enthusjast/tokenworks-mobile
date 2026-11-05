@@ -7,10 +7,10 @@ import (
 	"testing"
 	"time"
 
-	"dsh-mobile-ustc/services/remote/internal/approval"
-	"dsh-mobile-ustc/services/remote/internal/auth"
-	"dsh-mobile-ustc/services/remote/internal/canonical"
 	jose "github.com/go-jose/go-jose/v4"
+	"tokenworks-mobile/services/remote/internal/approval"
+	"tokenworks-mobile/services/remote/internal/auth"
+	"tokenworks-mobile/services/remote/internal/canonical"
 )
 
 func holdApprovalExpiryWrite(t *testing.T, f *approvalFixture, target, topic string) (*sql.Tx, string) {

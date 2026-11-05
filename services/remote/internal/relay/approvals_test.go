@@ -12,10 +12,10 @@ import (
 	"testing"
 	"time"
 
-	"dsh-mobile-ustc/services/remote/internal/approval"
-	"dsh-mobile-ustc/services/remote/internal/auth"
-	"dsh-mobile-ustc/services/remote/internal/store"
 	"github.com/coder/websocket"
+	"tokenworks-mobile/services/remote/internal/approval"
+	"tokenworks-mobile/services/remote/internal/auth"
+	"tokenworks-mobile/services/remote/internal/store"
 )
 
 // These stubs test routing/fencing only. The real PostgreSQL controller tests

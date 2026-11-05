@@ -11,14 +11,14 @@ import { Config, inject as hostInject, HostEnrollmentClient, HostEnrollmentBindi
 
 export { Config }
 export const inject = [...hostInject, 'workingDirectory']
-export const name = 'ustc-remote-control-local-fixture'
+export const name = 'tokenworks-mobile-local-fixture'
 export const root = resolve(dirname(fileURLToPath(import.meta.url)), '../..')
-export const state = resolve(root, '.local/dev')
+export const state = resolve(root, '.local/tokenworks-mobile-dev')
 export const origin = 'http://127.0.0.1:8080'
 export const issuer = 'http://127.0.0.1:8082'
-export const audience = 'urn:dsh-remote:local-dev'
+export const audience = 'urn:tokenworks-mobile:local-dev'
 export const organizationId = '3ed32392-2684-448d-83e7-d8b5b977035b'
-export const secureState = resolve(homedir(), '.local/state/dsh-remote-development', createHash('sha256').update(root).digest('hex').slice(0, 16))
+export const secureState = resolve(homedir(), '.local/state/tokenworks-mobile-development', createHash('sha256').update(root).digest('hex').slice(0, 16))
 const fixtureFile = resolve(secureState, 'identity.json')
 const runtimeFile = resolve(state, 'enrolled-runtime.json')
 const hostSubject = 'local-dev-host-owner', phoneSubject = 'local-dev-fixture-phone'
@@ -84,7 +84,7 @@ async function fixtures() {
   const info = await lstat(secureState)
   if (!info.isDirectory() || info.isSymbolicLink() || info.uid !== process.getuid() || (info.mode & 0o777) !== 0o700) throw unavailable()
   const values = await privateJSON(fixtureFile)
-  if (values.purpose !== 'dsh-local-development-only/v1') throw unavailable()
+  if (values.purpose !== 'tokenworks-mobile-local-development-only/v1') throw unavailable()
   return values
 }
 
@@ -96,13 +96,13 @@ export async function prepare(profile) {
   try { values = await fixtures() }
   catch (error) {
     if (error.code !== 'ENOENT') throw error
-    values = { purpose: 'dsh-local-development-only/v1', profile,
+    values = { purpose: 'tokenworks-mobile-local-development-only/v1', profile,
       installation: keyPair(), phone: keyPair(), approval: keyPair(), authority: keyPair(), master: randomBytes(32).toString('base64url') }
     await writeFile(fixtureFile, JSON.stringify(values) + '\n', { flag: 'wx', mode: 0o600 })
   }
   if (values.profile !== profile) throw unavailable()
   const authority = decodedKey(values.authority)
-  const authorityId = 'dsh-approval-authority/local-dev'
+  const authorityId = 'tokenworks-mobile-approval-authority/local-dev'
   const validFrom = new Date(Date.now() - 60_000).toISOString(), validUntil = new Date(Date.now() + 7 * 86400_000).toISOString()
   const privateFile = resolve(secureState, 'approval-authority.pem')
   const encoded = Buffer.from(authority.privateKey.export({ format: 'pem', type: 'pkcs8' }))
@@ -115,7 +115,7 @@ export async function prepare(profile) {
       finally { existing.fill(0) }
     }
   } finally { encoded.fill(0) }
-  const trusted = { issuer: 'https://dsh-local-development.invalid', key_id: authorityId, public_jwk: authority.publicJwk,
+  const trusted = { issuer: 'https://tokenworks-mobile-local-development.invalid', key_id: authorityId, public_jwk: authority.publicJwk,
     key_jkt: authority.thumbprint, active: true, valid_from: validFrom, valid_until: validUntil }
   await saveJSON(resolve(state, 'fixture-approval-anchor.json'), trusted)
   await saveJSON(resolve(state, 'fixture-approval-policy.json'), {
@@ -123,7 +123,7 @@ export async function prepare(profile) {
     mappings: [{ profile: 'fixture/local-development', issuer, client_id: 'local-dev-phone', acr: 'urn:local-dev:fixture', required_amr: ['otp'] }],
     signing: { issuer: trusted.issuer, key_id: authorityId, private_key_file: privateFile, valid_from: validFrom, valid_until: validUntil },
   })
-  await saveJSON(resolve(state, 'fixture-public.json'), { purpose: 'dsh-local-development-only/v1', profile, organization_id: organizationId, issuer, audience, host_subject: hostSubject, phone_subject: phoneSubject })
+  await saveJSON(resolve(state, 'fixture-public.json'), { purpose: 'tokenworks-mobile-local-development-only/v1', profile, organization_id: organizationId, issuer, audience, host_subject: hostSubject, phone_subject: phoneSubject })
   for (const name of ['binding', 'recovery', 'relay-journal']) await mkdir(resolve(secureState, name), { mode: 0o700, recursive: true })
 }
 
@@ -232,8 +232,8 @@ export async function bootstrap(profile) {
       if (current.state === 'unregistered') {
         await phone.request('POST', '/v1/devices', proofId => ({ name: 'Local fixture phone',
           proof_public_jwk: phone.proof.publicJwk, approval_public_jwk: phone.approval.publicJwk,
-          approval_proof: jws(phone.approval.privateKey, { alg: 'ES256', typ: 'dsh-device-registration-proof+jwt' }, {
-            iss: issuer, sub: phoneSubject, aud: 'urn:dsh-mobile-ustc:device-registration', iat: now(), jti: randomUUID(),
+          approval_proof: jws(phone.approval.privateKey, { alg: 'ES256', typ: 'tokenworks-mobile-device-registration-proof+jwt' }, {
+            iss: issuer, sub: phoneSubject, aud: 'urn:tokenworks-mobile:device-registration', iat: now(), jti: randomUUID(),
             approval_key_jkt: phone.approval.thumbprint, proof_key_jkt: phone.proof.thumbprint, device_name_sha256: hash('Local fixture phone'), dpop_jti: proofId,
           }) }), 201)
       } else if (current.state !== 'active' || current.device.approval_key_jkt !== phone.approval.thumbprint) throw unavailable()
@@ -248,7 +248,7 @@ export async function bootstrap(profile) {
       }, signal)
     }
     if (active.profileRef !== profile || active.organizationId !== organizationId || active.workspaces.length !== 1 || active.workspaces[0].reference !== 'project') throw unavailable()
-    await saveJSON(runtimeFile, { purpose: 'dsh-local-enrolled-runtime/v1', ...active })
+    await saveJSON(runtimeFile, { purpose: 'tokenworks-mobile-local-enrolled-runtime/v1', ...active })
     await local.recovery.removeApproved(local.binding, signal)
     return active
   } finally { attempt?.destroy(); local.close() }

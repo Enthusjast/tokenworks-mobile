@@ -7,7 +7,7 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	"dsh-mobile-ustc/services/remote/internal/auth"
+	"tokenworks-mobile/services/remote/internal/auth"
 )
 
 const DirectoryMetadataCapability = "session.metadata.v1"

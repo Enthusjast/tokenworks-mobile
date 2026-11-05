@@ -14,10 +14,10 @@ import (
 	"testing"
 	"time"
 
-	"dsh-mobile-ustc/services/remote/internal/auditarchive"
-	"dsh-mobile-ustc/services/remote/internal/coldarchive"
-	"dsh-mobile-ustc/services/remote/internal/testsupport"
 	"github.com/jackc/pgx/v5"
+	"tokenworks-mobile/services/remote/internal/auditarchive"
+	"tokenworks-mobile/services/remote/internal/coldarchive"
+	"tokenworks-mobile/services/remote/internal/testsupport"
 )
 
 func auditColdFixtureDSN(t *testing.T, ctx context.Context, database *sql.DB) string {

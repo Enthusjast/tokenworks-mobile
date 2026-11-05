@@ -13,7 +13,7 @@ val validatedDeployment = layout.buildDirectory.file("generated/validatedDeploym
 tasks.register<JavaExec>("validateDeployment") {
     dependsOn(tasks.testClasses)
     classpath = sourceSets.test.get().runtimeClasspath
-    mainClass.set("cn.edu.ustc.dsh.auth.ValidateDeployment")
+    mainClass.set("io.github.enthusjast.tokenworks.auth.ValidateDeployment")
     val source = providers.gradleProperty("deploymentConfig")
     source.orNull?.let { inputs.file(rootProject.file(it)) }
     outputs.file(validatedDeployment)
@@ -26,7 +26,7 @@ val validatedPush = layout.buildDirectory.file("generated/validatedDeployment/pu
 tasks.register<JavaExec>("validatePushDeployment") {
     dependsOn("validateDeployment")
     classpath = sourceSets.test.get().runtimeClasspath
-    mainClass.set("cn.edu.ustc.dsh.auth.ValidatePushDeployment")
+    mainClass.set("io.github.enthusjast.tokenworks.auth.ValidatePushDeployment")
     val source = providers.gradleProperty("pushConfig")
     source.orNull?.let { inputs.file(rootProject.file(it)) }
     inputs.file(validatedDeployment)
@@ -38,7 +38,7 @@ val validatedUpdates = layout.buildDirectory.file("generated/validatedDeployment
 tasks.register<JavaExec>("validateAppUpdateDeployment") {
     dependsOn("validateDeployment")
     classpath = sourceSets.test.get().runtimeClasspath
-    mainClass.set("cn.edu.ustc.dsh.auth.ValidateAppUpdateDeployment")
+    mainClass.set("io.github.enthusjast.tokenworks.auth.ValidateAppUpdateDeployment")
     val source = providers.gradleProperty("appUpdateConfig")
     source.orNull?.let { inputs.file(rootProject.file(it)) }
     inputs.file(validatedDeployment)

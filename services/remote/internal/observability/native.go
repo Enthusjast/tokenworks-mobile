@@ -1,14 +1,14 @@
 package observability
 
 import (
-	"dsh-mobile-ustc/services/remote/internal/hostmetrics"
 	"github.com/prometheus/client_golang/prometheus"
 	"sync"
+	"tokenworks-mobile/services/remote/internal/hostmetrics"
 )
 
-var nativeDurationDesc = prometheus.NewDesc("dsh_remote_host_native_operation_duration_seconds", "Self-reported Host operation durations from the current authenticated connection; not relay latency, authority or command acceptance.", []string{"operation", "result"}, nil)
-var nativeCountDesc = prometheus.NewDesc("dsh_remote_host_native_operations_total", "Self-reported Host operations aggregated from validated connection counter deltas.", []string{"operation", "result"}, nil)
-var nativeDroppedDesc = prometheus.NewDesc("dsh_remote_host_native_dropped_samples_total", "Host-reported samples discarded by the bounded observation window.", nil, nil)
+var nativeDurationDesc = prometheus.NewDesc("tokenworks_mobile_host_native_operation_duration_seconds", "Self-reported Host operation durations from the current authenticated connection; not relay latency, authority or command acceptance.", []string{"operation", "result"}, nil)
+var nativeCountDesc = prometheus.NewDesc("tokenworks_mobile_host_native_operations_total", "Self-reported Host operations aggregated from validated connection counter deltas.", []string{"operation", "result"}, nil)
+var nativeDroppedDesc = prometheus.NewDesc("tokenworks_mobile_host_native_dropped_samples_total", "Host-reported samples discarded by the bounded observation window.", nil, nil)
 
 type nativeTotal struct {
 	operation, result string

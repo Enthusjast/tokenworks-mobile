@@ -22,7 +22,7 @@ export async function relayNodeFixtures(root: string, nodes: { id: string; addre
   const openssl = (args: string[]) => execFileSync('openssl', args, { stdio: 'pipe' })
   const ca = join(root, 'relay-ca.pem'), caKey = join(root, 'relay-ca.key')
   openssl(['req', '-x509', '-newkey', 'ec', '-pkeyopt', 'ec_paramgen_curve:prime256v1', '-nodes', '-sha256', '-days', '1',
-    '-subj', '/CN=Isolated DSH Relay CA', '-addext', 'basicConstraints=critical,CA:TRUE', '-addext', 'keyUsage=critical,keyCertSign,cRLSign', '-keyout', caKey, '-out', ca])
+    '-subj', '/CN=Isolated TokenWorks Mobile Relay CA', '-addext', 'basicConstraints=critical,CA:TRUE', '-addext', 'keyUsage=critical,keyCertSign,cRLSign', '-keyout', caKey, '-out', ca])
   await chmod(ca, 0o600); await chmod(caKey, 0o600)
   const authorityFingerprint = new X509Certificate(await readFile(ca)).fingerprint256
   const indexOf = (index: number) => {
@@ -37,8 +37,8 @@ export async function relayNodeFixtures(root: string, nodes: { id: string; addre
     const stage = await mkdtemp(join(root, `relay-stage-${index}-`))
     try {
       const key = join(stage, 'key.pem'), csr = join(stage, 'request.pem'), certificate = join(stage, 'certificate.pem'), extensions = join(stage, 'extensions')
-      await writeFile(extensions, `basicConstraints=critical,CA:FALSE\nkeyUsage=critical,digitalSignature\nextendedKeyUsage=serverAuth,clientAuth\nsubjectAltName=IP:127.0.0.1,URI:spiffe://dsh-remote/relay/${node.id}\n`, { mode: 0o600 })
-      openssl(['req', '-new', '-newkey', 'ec', '-pkeyopt', 'ec_paramgen_curve:prime256v1', '-nodes', '-subj', '/CN=Isolated DSH Relay Node', '-keyout', key, '-out', csr])
+      await writeFile(extensions, `basicConstraints=critical,CA:FALSE\nkeyUsage=critical,digitalSignature\nextendedKeyUsage=serverAuth,clientAuth\nsubjectAltName=IP:127.0.0.1,URI:spiffe://tokenworks-mobile/relay/${node.id}\n`, { mode: 0o600 })
+      openssl(['req', '-new', '-newkey', 'ec', '-pkeyopt', 'ec_paramgen_curve:prime256v1', '-nodes', '-subj', '/CN=Isolated TokenWorks Mobile Relay Node', '-keyout', key, '-out', csr])
       openssl(['x509', '-req', '-in', csr, '-CA', ca, '-CAkey', caKey, '-set_serial', `0x${randomBytes(16).toString('hex')}`, '-days', '1', '-sha256', '-extfile', extensions, '-out', certificate])
       await chmod(key, 0o600); await chmod(certificate, 0o600)
       openssl(['verify', '-CAfile', ca, '-purpose', 'sslclient', certificate])

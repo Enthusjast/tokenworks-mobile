@@ -1,5 +1,5 @@
 {
-  "name": "dsh-mobile-ustc",
+  "name": "tokenworks-mobile",
   "private": true,
   "type": "module",
   "engines": { "node": ">=24.15.0 <25" },
@@ -12,6 +12,8 @@
     "build": "npm run build --workspaces",
     "contracts": "tsx tools/generate-m0-contract.ts && tsx tools/generate-approval-contract.ts && tsx tools/generate-file-contract.ts && tsx tools/generate-export-contract.ts && tsx tools/generate-push-contract.ts && tsx tools/generate-native-observation-contract.ts",
     "contracts:check": "tsx tools/generate-m0-contract.ts --check && tsx tools/generate-approval-contract.ts --check && tsx tools/generate-file-contract.ts --check && tsx tools/generate-export-contract.ts --check && tsx tools/generate-push-contract.ts --check && tsx tools/generate-native-observation-contract.ts --check",
+    "contracts:signatures": "tsx tools/generate-approval-signatures.ts",
+    "contracts:identity-vectors": "tsx tools/generate-identity-vectors.ts",
     "check": "tsc --noEmit -p tsconfig.json",
     "test": "tsx --test host/remote-control/tests/*.test.ts",
     "verify": "npm run contracts:check && npm run check && npm run build && npm test",

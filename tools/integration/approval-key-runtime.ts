@@ -49,7 +49,7 @@ export async function runApprovalKeyRuntime(options: Options) {
     const context = (await reader.wait(frame => frame.type === 'approval.details' && frame.request_id === details, from)).payload.context as ApprovalContext
     assert.ok((context.arguments as { command: string }).command.includes(`approval-rotation-${id}.txt`))
     await assert.rejects(readFile(sentinel), { code: 'ENOENT' })
-    const decision: ApprovalDecision = { domain: 'dsh-mobile-ustc/approval-decision/v1', protocol_version: 1,
+    const decision: ApprovalDecision = { domain: 'tokenworks-mobile/approval-decision/v1', protocol_version: 1,
       host_id: context.host_id, installation_id: context.installation_id, runtime_id: context.runtime_id, runtime_epoch: context.runtime_epoch,
       session_id: context.session_id, approval_id: context.approval_id, execution_id: context.execution_id, binding_sha256: approvalBinding(context).sha256,
       decision: 'allow_once', user_id: options.userId, device_id: options.device.device_id, key_version: options.device.key_version,

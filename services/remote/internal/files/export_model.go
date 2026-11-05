@@ -6,7 +6,7 @@ import (
 	"encoding/json"
 	"time"
 
-	"dsh-mobile-ustc/services/remote/internal/canonical"
+	"tokenworks-mobile/services/remote/internal/canonical"
 )
 
 const MaxExportBytes int64 = 2_000_000_000

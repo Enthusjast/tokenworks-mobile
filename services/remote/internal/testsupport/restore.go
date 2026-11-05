@@ -34,7 +34,7 @@ func RestoredPostgresDatabase(t *testing.T, source *sql.DB) (context.Context, *s
 	if err := source.QueryRowContext(ctx, `select current_database()`).Scan(&databaseName); err != nil {
 		t.Fatal(err)
 	}
-	directory, err := os.MkdirTemp("", "dsh-restore-")
+	directory, err := os.MkdirTemp("", "tokenworks-mobile-restore-")
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -14,14 +14,14 @@ import (
 	"unicode"
 	"unicode/utf8"
 
-	"dsh-mobile-ustc/services/remote/internal/approval"
-	"dsh-mobile-ustc/services/remote/internal/auth"
-	"dsh-mobile-ustc/services/remote/internal/files"
-	"dsh-mobile-ustc/services/remote/internal/observability"
-	"dsh-mobile-ustc/services/remote/internal/relay"
-	"dsh-mobile-ustc/services/remote/internal/releases"
-	"dsh-mobile-ustc/services/remote/internal/requestlog"
-	"dsh-mobile-ustc/services/remote/internal/store"
+	"tokenworks-mobile/services/remote/internal/approval"
+	"tokenworks-mobile/services/remote/internal/auth"
+	"tokenworks-mobile/services/remote/internal/files"
+	"tokenworks-mobile/services/remote/internal/observability"
+	"tokenworks-mobile/services/remote/internal/relay"
+	"tokenworks-mobile/services/remote/internal/releases"
+	"tokenworks-mobile/services/remote/internal/requestlog"
+	"tokenworks-mobile/services/remote/internal/store"
 )
 
 const maxJSONRequestBytes = 16 << 10

@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"dsh-mobile-ustc/services/remote/internal/observability"
+	"tokenworks-mobile/services/remote/internal/observability"
 )
 
 type countedHealthScanner struct {
@@ -41,7 +41,7 @@ func TestScannerMetricsScrapeReadsMemoryWithoutProbeOrFileWork(t *testing.T) {
 		}
 		return response.Body.String()
 	}
-	if initial := scrape(); !strings.Contains(initial, "dsh_remote_file_scanner_enabled 1") || !strings.Contains(initial, "dsh_remote_file_scanner_ready 0") {
+	if initial := scrape(); !strings.Contains(initial, "tokenworks_mobile_file_scanner_enabled 1") || !strings.Contains(initial, "tokenworks_mobile_file_scanner_ready 0") {
 		t.Fatal("configured service not visible before probe")
 	}
 	if scanner.begins.Load() != 0 {
@@ -50,7 +50,7 @@ func TestScannerMetricsScrapeReadsMemoryWithoutProbeOrFileWork(t *testing.T) {
 	if err = service.ProbeScanner(t.Context()); err != nil {
 		t.Fatal(err)
 	}
-	if ready := scrape(); !strings.Contains(ready, "dsh_remote_file_scanner_ready 1") || !strings.Contains(ready, `dsh_remote_file_scanner_probe_duration_seconds_count{result="ok"} 1`) || strings.Contains(ready, "dsh_remote_file_scan_attempt_duration_seconds_count") {
+	if ready := scrape(); !strings.Contains(ready, "tokenworks_mobile_file_scanner_ready 1") || !strings.Contains(ready, `tokenworks_mobile_file_scanner_probe_duration_seconds_count{result="ok"} 1`) || strings.Contains(ready, "tokenworks_mobile_file_scan_attempt_duration_seconds_count") {
 		t.Fatal("probe was confused with file task")
 	}
 	base.alwaysClean = true
@@ -59,7 +59,7 @@ func TestScannerMetricsScrapeReadsMemoryWithoutProbeOrFileWork(t *testing.T) {
 	}
 	before := scanner.begins.Load()
 	for range 3 {
-		if failed := scrape(); !strings.Contains(failed, "dsh_remote_file_scanner_ready 0") || !strings.Contains(failed, `dsh_remote_file_scanner_probe_duration_seconds_count{result="unavailable"} 1`) {
+		if failed := scrape(); !strings.Contains(failed, "tokenworks_mobile_file_scanner_ready 0") || !strings.Contains(failed, `tokenworks_mobile_file_scanner_probe_duration_seconds_count{result="unavailable"} 1`) {
 			t.Fatal("failed probe missing")
 		}
 	}

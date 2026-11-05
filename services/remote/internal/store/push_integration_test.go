@@ -12,7 +12,7 @@ import (
 	"testing"
 	"time"
 
-	"dsh-mobile-ustc/services/remote/internal/push"
+	"tokenworks-mobile/services/remote/internal/push"
 )
 
 type pushFixture struct {
@@ -34,7 +34,7 @@ func newPushFixture(t *testing.T) *pushFixture {
 		t.Fatal(err)
 	}
 	fingerprint := sha256.Sum256(lookup)
-	store, err := NewPushStore(h.ctx, h.database, cipher, h.principal.Issuer, "fixture-project", "cn.edu.ustc.dsh.mobile", hex.EncodeToString(fingerprint[:]), h.control)
+	store, err := NewPushStore(h.ctx, h.database, cipher, h.principal.Issuer, "fixture-project", "cn.edu.ustc.tokenworks", hex.EncodeToString(fingerprint[:]), h.control)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -272,10 +272,10 @@ func TestPushLookupKeyCannotSilentlyRotateAndCiphertextCannotMove(t *testing.T) 
 		t.Fatal(err)
 	}
 	fingerprint := sha256.Sum256(h.lookup)
-	if _, err := NewPushStore(h.ctx, h.database, wrongCipher, h.principal.Issuer, "fixture-project", "cn.edu.ustc.dsh.mobile", hex.EncodeToString(fingerprint[:]), h.control); !errors.Is(err, push.ErrInvalid) {
+	if _, err := NewPushStore(h.ctx, h.database, wrongCipher, h.principal.Issuer, "fixture-project", "cn.edu.ustc.tokenworks", hex.EncodeToString(fingerprint[:]), h.control); !errors.Is(err, push.ErrInvalid) {
 		t.Fatal("replaced live encryption key was silently accepted")
 	}
-	_, err = NewPushStore(h.ctx, h.database, h.cipher, h.principal.Issuer, "fixture-project", "cn.edu.ustc.dsh.mobile", strings.Repeat("f", 64), h.control)
+	_, err = NewPushStore(h.ctx, h.database, h.cipher, h.principal.Issuer, "fixture-project", "cn.edu.ustc.tokenworks", strings.Repeat("f", 64), h.control)
 	if !errors.Is(err, push.ErrInvalid) {
 		t.Fatal("lookup key rotation defeated address uniqueness")
 	}

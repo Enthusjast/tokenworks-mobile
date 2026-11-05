@@ -7,8 +7,8 @@ import (
 	"errors"
 	"time"
 
-	"dsh-mobile-ustc/services/remote/internal/auditarchive"
-	"dsh-mobile-ustc/services/remote/internal/coldarchive"
+	"tokenworks-mobile/services/remote/internal/auditarchive"
+	"tokenworks-mobile/services/remote/internal/coldarchive"
 )
 
 var ErrAuditColdExportInvalid = errors.New("store: invalid audit cold export")
@@ -50,7 +50,7 @@ func (AuditColdExportState) String() string   { return "store.AuditColdExportSta
 func (AuditColdExportState) GoString() string { return "store.AuditColdExportState" }
 
 func lockAuditColdExport(ctx context.Context, tx *sql.Tx, id string) error {
-	if _, err := tx.ExecContext(ctx, `select pg_advisory_xact_lock(hashtextextended('dsh-audit-cold-export:'||$1::text,0))`, id); err != nil {
+	if _, err := tx.ExecContext(ctx, `select pg_advisory_xact_lock(hashtextextended('tokenworks-mobile-audit-cold-export:'||$1::text,0))`, id); err != nil {
 		return ErrDatabaseUnavailable
 	}
 	return nil
@@ -116,7 +116,7 @@ func auditColdExportSnapshot(ctx context.Context, tx *sql.Tx, request AuditColdE
 	if err := checkExportRecoveryPath(ctx, tx, batch.DatabaseEpoch, request.DatabaseEpoch); err != nil {
 		return auditarchive.Payload{}, err
 	}
-	result := auditarchive.Payload{Format: "dsh-audit-archive", Version: 1, DomainID: request.DomainID, ExportID: request.ExportID, OperationEpoch: request.DatabaseEpoch,
+	result := auditarchive.Payload{Format: "tokenworks-mobile-audit-archive", Version: 1, DomainID: request.DomainID, ExportID: request.ExportID, OperationEpoch: request.DatabaseEpoch,
 		KeyID: request.Key.ID(), PreparedAt: prepared.UTC(), Batch: auditarchive.Batch{ID: batch.BatchID, DatabaseEpoch: batch.DatabaseEpoch, Limit: batch.Limit,
 			RetentionYears: batch.RetentionYears, Cutoff: batch.Cutoff.UTC(), ArchivedAt: batch.ArchivedAt.UTC(), RetainUntil: batch.RetainUntil.UTC(), Entries: batch.Entries},
 		Entries: []auditarchive.Entry{}, Recoveries: []coldarchive.Recovery{}}

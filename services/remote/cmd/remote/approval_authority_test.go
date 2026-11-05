@@ -17,9 +17,9 @@ import (
 	"testing"
 	"time"
 
-	"dsh-mobile-ustc/services/remote/internal/approval"
-	"dsh-mobile-ustc/services/remote/internal/canonical"
-	"dsh-mobile-ustc/services/remote/internal/store"
+	"tokenworks-mobile/services/remote/internal/approval"
+	"tokenworks-mobile/services/remote/internal/canonical"
+	"tokenworks-mobile/services/remote/internal/store"
 )
 
 func authorityCommandEnvironment(t *testing.T) {
@@ -168,7 +168,7 @@ func TestApprovalAuthorityGoDescriptionAndSignersExerciseHostRotation(t *testing
 		}
 		config.Policy.MaxAge = &contextPolicy.Required.MaxAge
 		config.Mappings[0].Profile = config.Policy.Profile
-		config.Signing.KeyID = "dsh-approval-authority/" + label
+		config.Signing.KeyID = "tokenworks-mobile-approval-authority/" + label
 		config.Signing.ValidFrom = now.Add(-time.Hour).Format("2006-01-02T15:04:05.000Z")
 		config.Signing.ValidUntil = now.Add(time.Hour).Format("2006-01-02T15:04:05.000Z")
 		writeAuthorityDeployment(t, path, config)

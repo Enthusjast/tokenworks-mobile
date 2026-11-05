@@ -11,8 +11,8 @@ import (
 	"testing"
 	"time"
 
-	"dsh-mobile-ustc/services/remote/internal/coldarchive"
-	"dsh-mobile-ustc/services/remote/internal/testsupport"
+	"tokenworks-mobile/services/remote/internal/coldarchive"
+	"tokenworks-mobile/services/remote/internal/testsupport"
 )
 
 func applyColdHistoryImportFixtureMigration(t *testing.T, ctx context.Context, db *Postgres, direction string) {
@@ -493,7 +493,7 @@ func TestColdHistoryImportPreventsOutOfOrderExportMigrationRollback(t *testing.T
 
 func TestColdHistoryImportLimitedRoleCannotMutateHistoryOrRecoveryEpoch(t *testing.T) {
 	ctx, target, request, artifact, _ := coldHistoryFixture(t, "approval", false)
-	role := "dsh_cold_history_" + strings.ReplaceAll(approvalTestUUID(t), "-", "")
+	role := "twm_cold_history_" + strings.ReplaceAll(approvalTestUUID(t), "-", "")
 	if _, err := target.DB.ExecContext(ctx, "create role "+role+" nologin"); err != nil {
 		t.Fatal(err)
 	}

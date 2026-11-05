@@ -676,8 +676,8 @@ test('legacy binding pointers stay usable but cannot authorize digest-based clea
   const { recovery_sha256: _digest, ...fields } = captured
   const legacy = { ...fields, version: 1 as const }
   const plaintext = Buffer.from(canonicalObject(legacy))
-  const context = Buffer.from(`dsh-host-enrollment-binding-store-v1\0${bindingPath}\0${legacy.binding}\0${protector.id}`, 'utf8')
-  const sealed = await seal(plaintext, protectorFrom(protector), context, AbortSignal.timeout(5_000), Buffer.from('DSHENB01'))
+  const context = Buffer.from(`tokenworks-mobile-host-enrollment-binding-store-v1\0${bindingPath}\0${legacy.binding}\0${protector.id}`, 'utf8')
+  const sealed = await seal(plaintext, protectorFrom(protector), context, AbortSignal.timeout(5_000), Buffer.from('TWMENB01'))
   await writeFile(bindingPath, sealed, { mode: 0o600 })
   plaintext.fill(0); context.fill(0); sealed.fill(0)
   const originalBinding = await readFile(bindingPath), originalRecovery = await readFile(pendingPath)
@@ -828,7 +828,7 @@ test('enrolled runtime admits only the verified account, profile and workspace m
   const binding = new HostEnrollmentBindingStore({ path: join(root, 'binding.bin'), client: f.client, protector })
   const credentials = new HostRestCredentialProvider({ ...f.options, installationId: installation })
   t.after(() => { credentials.close(); recovery.close(); binding.close() })
-  assert.equal(enrollmentRecoveryBinding(f.client), createHash('sha256').update(JSON.stringify({ purpose: 'dsh-host-enrollment-intent-v1',
+  assert.equal(enrollmentRecoveryBinding(f.client), createHash('sha256').update(JSON.stringify({ purpose: 'tokenworks-mobile-host-enrollment-intent-v1',
     origin: f.options.origin, identity: expected, thumbprint: f.account.proofKeyThumbprint, requiredScopes: ['remote.access'] })).digest('hex'))
   const attempt = f.prepare(), receipt = await recovery.create(attempt, AbortSignal.timeout(5_000))
   const pendingWorkspace = receipt.details.workspaces.find(item => item.reference === 'a-workspace')!

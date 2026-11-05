@@ -64,7 +64,7 @@ func (directory *Directory) Fingerprint(key *Key) (string, error) {
 	var ids [16]byte
 	binary.BigEndian.PutUint64(ids[:8], directory.device)
 	binary.BigEndian.PutUint64(ids[8:], directory.inode)
-	value, err := keyed(key, "dsh-control-archive/destination/v1", []byte(directory.path), ids[:])
+	value, err := keyed(key, "tokenworks-mobile-control-archive/destination/v1", []byte(directory.path), ids[:])
 	if err != nil {
 		return "", err
 	}

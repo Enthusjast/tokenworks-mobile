@@ -22,9 +22,9 @@ type scannerCollector struct {
 
 func newScannerCollector() *scannerCollector {
 	return &scannerCollector{
-		enabled: prometheus.NewDesc("dsh_remote_file_scanner_enabled", "One when the optional file service is configured in this process.", nil, nil),
-		ready:   prometheus.NewDesc("dsh_remote_file_scanner_ready", "One when the configured scanner has a current successful local self-test proof; not file or engine acceptance.", nil, nil),
-		age:     prometheus.NewDesc("dsh_remote_file_scanner_probe_age_seconds", "Conservative local age of the last completed self-test, including failed tests; absent before first completion.", nil, nil),
+		enabled: prometheus.NewDesc("tokenworks_mobile_file_scanner_enabled", "One when the optional file service is configured in this process.", nil, nil),
+		ready:   prometheus.NewDesc("tokenworks_mobile_file_scanner_ready", "One when the configured scanner has a current successful local self-test proof; not file or engine acceptance.", nil, nil),
+		age:     prometheus.NewDesc("tokenworks_mobile_file_scanner_probe_age_seconds", "Conservative local age of the last completed self-test, including failed tests; absent before first completion.", nil, nil),
 	}
 }
 func (c *scannerCollector) Describe(out chan<- *prometheus.Desc) {

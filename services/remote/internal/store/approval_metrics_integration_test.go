@@ -8,8 +8,8 @@ import (
 	"testing"
 	"time"
 
-	"dsh-mobile-ustc/services/remote/internal/approval"
-	"dsh-mobile-ustc/services/remote/internal/observability"
+	"tokenworks-mobile/services/remote/internal/approval"
+	"tokenworks-mobile/services/remote/internal/observability"
 )
 
 func approvalStateCount(t *testing.T, metrics *observability.Metrics, from, to, cause string) float64 {

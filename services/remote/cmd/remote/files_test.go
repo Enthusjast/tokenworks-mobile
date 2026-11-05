@@ -2,15 +2,15 @@ package main
 
 import (
 	"database/sql"
-	"dsh-mobile-ustc/services/remote/internal/files"
 	"encoding/json"
 	"errors"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+	"tokenworks-mobile/services/remote/internal/files"
 
-	"dsh-mobile-ustc/services/remote/internal/store"
+	"tokenworks-mobile/services/remote/internal/store"
 )
 
 const filePolicyFixture = "LocalSocket /run/clamav/clamd.sock\nStreamMaxLength 200M\nMaxFileSize 200M\nMaxScanSize 400M\nAlertExceedsMax yes\nScanArchive yes\nMaxRecursion 16\nMaxFiles 10000\nMaxScanTime 600000\n"

@@ -11,10 +11,10 @@
 #include "current-user.h"
 #include "private-helper-acl.h"
 
-#define DSH_IMAGE_MAX (16u * 1024u * 1024u)
-#define DSH_CHILD_TIMEOUT 10000u
+#define TWM_IMAGE_MAX (16u * 1024u * 1024u)
+#define TWM_CHILD_TIMEOUT 10000u
 
-static BOOL dsh_parse_pin(const wchar_t *text, BYTE pin[32]) {
+static BOOL twm_parse_pin(const wchar_t *text, BYTE pin[32]) {
     size_t index;
     if (wcslen(text) != 64u) return FALSE;
     for (index = 0; index < 64; index++) {
@@ -29,7 +29,7 @@ static BOOL dsh_parse_pin(const wchar_t *text, BYTE pin[32]) {
     return TRUE;
 }
 
-static BOOL dsh_matches_pin(HANDLE image, const BYTE pin[32]) {
+static BOOL twm_matches_pin(HANDLE image, const BYTE pin[32]) {
     BCRYPT_ALG_HANDLE algorithm = NULL;
     BCRYPT_HASH_HANDLE hash = NULL;
     BYTE *object = NULL, block[8192], digest[32];
@@ -37,7 +37,7 @@ static BOOL dsh_matches_pin(HANDLE image, const BYTE pin[32]) {
     LARGE_INTEGER size;
     BYTE difference = 0;
     BOOL safe = FALSE;
-    if (!GetFileSizeEx(image, &size) || size.QuadPart < 1 || size.QuadPart > DSH_IMAGE_MAX ||
+    if (!GetFileSizeEx(image, &size) || size.QuadPart < 1 || size.QuadPart > TWM_IMAGE_MAX ||
         BCryptOpenAlgorithmProvider(&algorithm, BCRYPT_SHA256_ALGORITHM, NULL, 0) != 0 ||
         BCryptGetProperty(algorithm, BCRYPT_OBJECT_LENGTH, (PUCHAR)&object_size, sizeof(object_size), &received, 0) != 0 ||
         received != sizeof(object_size) || object_size < 1 || object_size > 1024u * 1024u) goto done;
@@ -46,7 +46,7 @@ static BOOL dsh_matches_pin(HANDLE image, const BYTE pin[32]) {
     for (;;) {
         if (!ReadFile(image, block, sizeof(block), &received, NULL)) goto done;
         total += received;
-        if (total > DSH_IMAGE_MAX || (received != 0 && BCryptHashData(hash, block, received, 0) != 0)) goto done;
+        if (total > TWM_IMAGE_MAX || (received != 0 && BCryptHashData(hash, block, received, 0) != 0)) goto done;
         if (received == 0) break;
     }
     if (total != (DWORD)size.QuadPart || BCryptFinishHash(hash, digest, sizeof(digest), 0) != 0) goto done;
@@ -63,7 +63,7 @@ done:
 /* Pass only the requested pipes. Never inherit arbitrary parent handles or its
  * loader/search environment. This is not a sandbox for an untrusted hash pin. */
 int wmain(int argc, wchar_t **argv) {
-    DSH_HELPER_GUARD own = {{0}, 0}, helper = {{0}, 0};
+    TWM_HELPER_GUARD own = {{0}, 0}, helper = {{0}, 0};
     BYTE pin[32] = {0};
     HANDLE pipes[3] = {NULL, NULL, NULL}, job = NULL;
     const DWORD standard[3] = {STD_INPUT_HANDLE, STD_OUTPUT_HANDLE, STD_ERROR_HANDLE};
@@ -76,10 +76,10 @@ int wmain(int argc, wchar_t **argv) {
     BOOL started = FALSE, completed = FALSE, initialized = FALSE;
     int result = 1;
     memset(&startup, 0, sizeof(startup)); memset(&process, 0, sizeof(process)); memset(&limits, 0, sizeof(limits));
-    if (argc != 4 || !dsh_parse_pin(argv[2], pin) ||
+    if (argc != 4 || !twm_parse_pin(argv[2], pin) ||
         (wcscmp(argv[3], L"journal-protect-v1") != 0 && wcscmp(argv[3], L"journal-unprotect-v1") != 0) ||
-        !dsh_current_user_allowed() || !dsh_lock_helper_image(&own) || !dsh_lock_helper_path(&helper, argv[1]) ||
-        !dsh_matches_pin(helper.handles[helper.count - 1], pin)) goto done;
+        !twm_current_user_allowed() || !twm_lock_helper_image(&own) || !twm_lock_helper_path(&helper, argv[1]) ||
+        !twm_matches_pin(helper.handles[helper.count - 1], pin)) goto done;
     length = GetSystemDirectoryW(system, 32768);
     if (length < 3 || length >= 32768) goto done;
     length = GetWindowsDirectoryW(windows, 32768);
@@ -113,7 +113,7 @@ int wmain(int argc, wchar_t **argv) {
                         environment, system, &startup.StartupInfo, &process)) goto done;
     started = TRUE;
     if (!AssignProcessToJobObject(job, process.hProcess) || ResumeThread(process.hThread) == (DWORD)-1 ||
-        WaitForSingleObject(process.hProcess, DSH_CHILD_TIMEOUT) != WAIT_OBJECT_0 || !GetExitCodeProcess(process.hProcess, &exit_code)) goto done;
+        WaitForSingleObject(process.hProcess, TWM_CHILD_TIMEOUT) != WAIT_OBJECT_0 || !GetExitCodeProcess(process.hProcess, &exit_code)) goto done;
     completed = TRUE;
     result = exit_code == 0 ? 0 : 1;
 done:
@@ -128,7 +128,7 @@ done:
     if (initialized) DeleteProcThreadAttributeList(startup.lpAttributeList);
     if (startup.lpAttributeList != NULL) HeapFree(GetProcessHeap(), 0, startup.lpAttributeList);
     for (index = 0; index < 3; index++) if (pipes[index] != NULL) CloseHandle(pipes[index]);
-    dsh_close_helper_guard(&helper); dsh_close_helper_guard(&own);
+    twm_close_helper_guard(&helper); twm_close_helper_guard(&own);
     if (command != NULL) { SecureZeroMemory(command, 32768u * sizeof(wchar_t)); HeapFree(GetProcessHeap(), 0, command); }
     SecureZeroMemory(pin, sizeof(pin)); SecureZeroMemory(environment, sizeof(environment));
     if (!completed) {

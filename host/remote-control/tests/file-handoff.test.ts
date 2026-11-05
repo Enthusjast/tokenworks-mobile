@@ -37,15 +37,15 @@ async function fixture(t: TestContext, clock?: HostConnectionClock) {
   let beforeSign: (() => Promise<void>) | undefined
   const server = createServer((request, response) => {
     reads++
-    const proof = String(request.headers['x-dsh-file-proof']).split('.')
+    const proof = String(request.headers['x-tokenworks-mobile-file-proof']).split('.')
     assert.equal(proof.length, 3)
     const claims = JSON.parse(Buffer.from(proof[1]!, 'base64url').toString())
-    assert.deepEqual(JSON.parse(Buffer.from(proof[0]!, 'base64url').toString()), { typ: 'dsh-file-read-proof+jwt', alg: 'ES256' })
+    assert.deepEqual(JSON.parse(Buffer.from(proof[0]!, 'base64url').toString()), { typ: 'tokenworks-mobile-file-read-proof+jwt', alg: 'ES256' })
     assert.equal(verify('sha256', Buffer.from(`${proof[0]}.${proof[1]}`), { key: key.publicKey, dsaEncoding: 'ieee-p1363' }, Buffer.from(proof[2]!, 'base64url')), true)
     assert.equal(claims.htm, 'GET'); assert.equal(claims.htu, `${origin}${request.url}`)
     assert.equal(claims.iss, installation); assert.equal(claims.connection_id, connection)
     assert.equal(claims.runtime_id, client.runtimeId); assert.equal(claims.runtime_epoch, registry.epoch)
-    assert.equal(claims.ath, createHash('sha256').update(String(request.headers.authorization).slice('DSH-File '.length)).digest('base64url'))
+    assert.equal(claims.ath, createHash('sha256').update(String(request.headers.authorization).slice('TokenWorks-Mobile-File '.length)).digest('base64url'))
     proofs.push(claims)
     if (mode === 'redirect') { response.writeHead(302, { location: '/leaked-ticket' }); response.end(); return }
     response.writeHead(200, { 'content-type': 'application/octet-stream', 'content-length': String(body.length), ...(mode === 'encoded' ? { 'content-encoding': 'gzip' } : {}) })

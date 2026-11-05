@@ -22,10 +22,10 @@ import (
 	"testing"
 	"time"
 
-	"dsh-mobile-ustc/services/remote/internal/auth"
-	"dsh-mobile-ustc/services/remote/internal/files"
 	"github.com/coder/websocket"
 	jose "github.com/go-jose/go-jose/v4"
+	"tokenworks-mobile/services/remote/internal/auth"
+	"tokenworks-mobile/services/remote/internal/files"
 )
 
 func exportTestUUID(t *testing.T) string {
@@ -76,7 +76,7 @@ func connectExportPhoneScope(t *testing.T, h *fileHTTPFixture, caller *fileHTTPC
 	if code != 201 || json.Unmarshal(raw, &reply) != nil {
 		t.Fatalf("export ticket=%d", code)
 	}
-	connection, _, err := websocket.Dial(h.ctx, strings.Replace(h.server.URL, "https://", "wss://", 1)+"/v1/realtime", &websocket.DialOptions{HTTPClient: h.server.Client(), Subprotocols: []string{"dsh.remote.v1"}, HTTPHeader: http.Header{"Authorization": []string{"DSH-Ticket " + reply.Data.Ticket}}})
+	connection, _, err := websocket.Dial(h.ctx, strings.Replace(h.server.URL, "https://", "wss://", 1)+"/v1/realtime", &websocket.DialOptions{HTTPClient: h.server.Client(), Subprotocols: []string{"tokenworks-mobile.remote.v1"}, HTTPHeader: http.Header{"Authorization": []string{"TokenWorks-Mobile-Ticket " + reply.Data.Ticket}}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -94,7 +94,7 @@ func connectExportPhoneScope(t *testing.T, h *fileHTTPFixture, caller *fileHTTPC
 		caps = append(caps, "session.read.v1", "session.media.v1", "message.images.v1")
 	}
 	sort.Strings(caps)
-	proof := approvalSign(t, caller.key, jose.ES256, "", "dsh-relay-handshake-proof+jwt", map[string]any{"iss": device, "aud": auth.RelayHandshakeAudience, "connection_id": data.Connection, "challenge_id": data.Challenge, "nonce": data.Nonce, "runtime_id": fileRuntimeID, "hello_sha256": auth.RelayHelloDigest("device", device, "1", strings.Join(caps, "\n")), "iat": time.Now().Unix(), "jti": "export-phone-" + data.Connection}, nil)
+	proof := approvalSign(t, caller.key, jose.ES256, "", "tokenworks-mobile-relay-handshake-proof+jwt", map[string]any{"iss": device, "aud": auth.RelayHandshakeAudience, "connection_id": data.Connection, "challenge_id": data.Challenge, "nonce": data.Nonce, "runtime_id": fileRuntimeID, "hello_sha256": auth.RelayHelloDigest("device", device, "1", strings.Join(caps, "\n")), "iat": time.Now().Unix(), "jti": "export-phone-" + data.Connection}, nil)
 	phone.send(t, map[string]any{"v": 1, "type": "hello.proof", "payload": map[string]any{"device_id": device, "protocols": []int{1}, "capabilities": caps, "proof": proof}})
 	if hello := phone.read(t); string(hello["type"]) != `"hello.ok"` {
 		t.Fatal("export phone handshake failed")

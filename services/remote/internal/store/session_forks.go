@@ -8,7 +8,7 @@ import (
 	"slices"
 	"time"
 
-	"dsh-mobile-ustc/services/remote/internal/canonical"
+	"tokenworks-mobile/services/remote/internal/canonical"
 )
 
 // SessionForkOutcome describes independently recoverable effects of one native fork.

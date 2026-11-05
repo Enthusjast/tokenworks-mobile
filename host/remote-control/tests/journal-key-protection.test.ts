@@ -128,6 +128,13 @@ test('protected key is bound to the exact journal path and refuses corrupt envel
   await writeFile(`${duplicate}.wrapped-key`, envelope, { mode: 0o600 })
   await assert.rejects(PersistentCommandJournal.open(duplicate, runtime, { protector }), /key protection unavailable/)
   await assert.rejects(PersistentCommandJournal.open(path, runtime, { protector: fixtureProtector(master, 'another-provider') }), /key protection unavailable/)
+  const oldEnvelope = Buffer.from(envelope)
+  Buffer.from('DSHJKEY1').copy(oldEnvelope, 0)
+  await writeFile(`${path}.wrapped-key`, oldEnvelope, { mode: 0o600 })
+  const databaseBefore = await readFile(path)
+  await assert.rejects(PersistentCommandJournal.open(path, runtime, { protector }), /key protection unavailable/)
+  assert.deepEqual(await readFile(`${path}.wrapped-key`), oldEnvelope)
+  assert.deepEqual(await readFile(path), databaseBefore)
   const badID = Buffer.from(envelope)
   badID[9] = badID[9]! ^ 0x80
   await writeFile(`${path}.wrapped-key`, badID, { mode: 0o600 })

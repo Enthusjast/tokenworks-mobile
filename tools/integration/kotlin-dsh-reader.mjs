@@ -110,7 +110,7 @@ try {
   const readerFixture = { ...fixture, session_id: sessionId, mode: 'content', ready_file: ready }
   for (const field of Object.keys(readerFixture)) if (field.startsWith('host_')) delete readerFixture[field]
   await writeFile(readerPath, JSON.stringify(readerFixture), { mode: 0o600 })
-  java = spawn(process.env.REMOTE_TEST_JAVA || 'java', ['-cp', process.env.REMOTE_TEST_KOTLIN_CLASSPATH, 'cn.edu.ustc.dsh.network.RunRelayProbe', readerPath], { env: process.env, stdio: ['ignore', 'pipe', 'pipe'] })
+  java = spawn(process.env.REMOTE_TEST_JAVA || 'java', ['-cp', process.env.REMOTE_TEST_KOTLIN_CLASSPATH, 'io.github.enthusjast.tokenworks.network.RunRelayProbe', readerPath], { env: process.env, stdio: ['ignore', 'pipe', 'pipe'] })
   const javaExit = once(java, 'exit')
   void javaExit.catch(() => {})
   let output = ''

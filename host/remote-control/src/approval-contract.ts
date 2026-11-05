@@ -2,9 +2,9 @@ import { z } from 'zod'
 import { createHash } from 'node:crypto'
 import { canonicalObject } from './canonical.js'
 
-export const APPROVAL_CONTEXT_DOMAIN = 'dsh-mobile-ustc/approval-context/v1'
-export const APPROVAL_DECISION_DOMAIN = 'dsh-mobile-ustc/approval-decision/v1'
-export const APPROVAL_JWS_TYPE = 'dsh-approval-decision+jws'
+export const APPROVAL_CONTEXT_DOMAIN = 'tokenworks-mobile/approval-context/v1'
+export const APPROVAL_DECISION_DOMAIN = 'tokenworks-mobile/approval-decision/v1'
+export const APPROVAL_JWS_TYPE = 'tokenworks-mobile-approval-decision+jws'
 export const MAX_APPROVAL_LIFETIME_MS = 180_000
 export const APPROVAL_CLOCK_SKEW_MS = 5000
 export const MAX_DECISION_AGE_MS = 30_000
@@ -48,7 +48,7 @@ export function approvalBinding(value: unknown): { context: ApprovalContext; can
   return { context, canonical, sha256: createHash('sha256').update(canonical).digest('hex') }
 }
 
-export function approvalKeyID(deviceId: string, keyVersion: number): string { return `dsh-approval/${deviceId}/${keyVersion}` }
+export function approvalKeyID(deviceId: string, keyVersion: number): string { return `tokenworks-mobile-approval/${deviceId}/${keyVersion}` }
 
 export function approvalDecisionCurrent(context: ApprovalContext, decision: ApprovalDecision, now: number): boolean {
   const created = Date.parse(context.created_at), deadline = Date.parse(context.expires_at)

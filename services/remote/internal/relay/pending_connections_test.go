@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"dsh-mobile-ustc/services/remote/internal/store"
+	"tokenworks-mobile/services/remote/internal/store"
 )
 
 func TestPendingHandshakeBudgetIsSeparateFromAuthenticatedConnections(t *testing.T) {
@@ -26,7 +26,7 @@ func TestPendingHandshakeBudgetIsSeparateFromAuthenticatedConnections(t *testing
 	defer server.Close()
 	dial := func() *websocket.Conn {
 		t.Helper()
-		connection, _, err := websocket.Dial(context.Background(), "ws"+strings.TrimPrefix(server.URL, "http")+"/v1/realtime", &websocket.DialOptions{HTTPHeader: http.Header{"Authorization": []string{"DSH-Host " + strings.Repeat("H", 43)}}, Subprotocols: []string{protocolName}})
+		connection, _, err := websocket.Dial(context.Background(), "ws"+strings.TrimPrefix(server.URL, "http")+"/v1/realtime", &websocket.DialOptions{HTTPHeader: http.Header{"Authorization": []string{"TokenWorks-Mobile-Host " + strings.Repeat("H", 43)}}, Subprotocols: []string{protocolName}})
 		if err != nil {
 			t.Fatal(err)
 		}

@@ -57,7 +57,7 @@ test('installed DSH CLI preserves file receipts, native attachments and scoped w
       { id: 'file-test-model', name: model },
       { id: 'file-test-adapters', name: fixture, config: { runtimeId, workspace, socketPath: filesSocket,
         clientEntry: join(dirname(plugin), 'dsh-client.js') } },
-      { id: 'ustc-remote-control', name: plugin, config: { enabled: true, runtimeId, socketPath: socket,
+      { id: 'tokenworks-mobile', name: plugin, config: { enabled: true, runtimeId, socketPath: socket,
         commandJournalPath: join(root, 'commands.sqlite'), workspaces: [workspace], presets: ['standard'] } },
     ] },
     { id: 'agent-default-model', config: { provider: 'dsh-m0-test', model: 'offline' } },

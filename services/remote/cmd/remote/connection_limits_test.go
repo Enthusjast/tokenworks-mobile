@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"dsh-mobile-ustc/services/remote/internal/store"
+	"tokenworks-mobile/services/remote/internal/store"
 )
 
 func TestConnectionLimitsDeploymentDefaultsAndStrictFields(t *testing.T) {

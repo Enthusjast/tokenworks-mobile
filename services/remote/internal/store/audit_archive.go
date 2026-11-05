@@ -58,7 +58,7 @@ func (postgres *Postgres) ArchiveAuditHistory(ctx context.Context, request Audit
 		return AuditArchiveResult{}, ErrDatabaseUnavailable
 	}
 	defer tx.Rollback()
-	if _, err := tx.ExecContext(ctx, `select pg_advisory_xact_lock(hashtextextended('dsh-audit-archive:'||$1::text,0))`, request.BatchID); err != nil {
+	if _, err := tx.ExecContext(ctx, `select pg_advisory_xact_lock(hashtextextended('tokenworks-mobile-audit-archive:'||$1::text,0))`, request.BatchID); err != nil {
 		return AuditArchiveResult{}, ErrDatabaseUnavailable
 	}
 	if _, err := lockRecoveryReady(ctx, tx, request.DatabaseEpoch); err != nil {

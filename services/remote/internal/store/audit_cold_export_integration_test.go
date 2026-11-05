@@ -10,9 +10,9 @@ import (
 	"testing"
 	"time"
 
-	"dsh-mobile-ustc/services/remote/internal/auditarchive"
-	"dsh-mobile-ustc/services/remote/internal/coldarchive"
-	"dsh-mobile-ustc/services/remote/internal/testsupport"
+	"tokenworks-mobile/services/remote/internal/auditarchive"
+	"tokenworks-mobile/services/remote/internal/coldarchive"
+	"tokenworks-mobile/services/remote/internal/testsupport"
 )
 
 func applyAuditColdExportFixtureMigration(t *testing.T, ctx context.Context, db *Postgres, direction string) {
@@ -539,7 +539,7 @@ func TestAuditColdExportIncludesOldEventLineageWhenBatchIsCreatedAfterRestore(t 
 
 func TestAuditColdExportLimitedRoleCannotAlterSourceOrRecoveryEpoch(t *testing.T) {
 	ctx, db, request, _ := auditColdFixture(t)
-	role := "dsh_audit_cold_" + strings.ReplaceAll(approvalTestUUID(t), "-", "")
+	role := "twm_audit_cold_" + strings.ReplaceAll(approvalTestUUID(t), "-", "")
 	if _, err := db.DB.ExecContext(ctx, "create role "+role+" nologin"); err != nil {
 		t.Fatal(err)
 	}

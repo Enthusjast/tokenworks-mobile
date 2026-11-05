@@ -17,8 +17,8 @@ import (
 	"testing"
 	"time"
 
-	"dsh-mobile-ustc/services/remote/internal/observability"
 	"github.com/go-jose/go-jose/v4"
+	"tokenworks-mobile/services/remote/internal/observability"
 )
 
 func TestCipherRotationOwnerBindingAndLogRedaction(t *testing.T) {
@@ -156,7 +156,7 @@ func TestFCMDataOnlyFIDTransportPreservesReferencesAndRechecksAfterAuthenticatio
 		}
 		var android map[string]any
 		_ = json.Unmarshal(root.Message["android"], &android)
-		if len(android) != 3 || android["collapse_key"] != nil || android["restricted_package_name"] != "cn.edu.ustc.dsh.mobile" {
+		if len(android) != 3 || android["collapse_key"] != nil || android["restricted_package_name"] != "cn.edu.ustc.tokenworks" {
 			t.Error("collapsed unrelated requests or lost package binding")
 		}
 		var data map[string]string
@@ -172,7 +172,7 @@ func TestFCMDataOnlyFIDTransportPreservesReferencesAndRechecksAfterAuthenticatio
 	}))
 	defer peer.Close()
 	tokens := &fixedTokens{}
-	sender, err := NewFCM("fixture-project", "cn.edu.ustc.dsh.mobile", tokens, peer.Client())
+	sender, err := NewFCM("fixture-project", "cn.edu.ustc.tokenworks", tokens, peer.Client())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -227,7 +227,7 @@ func TestFCMFailureClassificationIsBoundedAndSecretFree(t *testing.T) {
 		_, _ = w.Write([]byte(body))
 	}))
 	defer peer.Close()
-	sender, _ := NewFCM("fixture-project", "cn.edu.ustc.dsh.mobile", &fixedTokens{}, peer.Client())
+	sender, _ := NewFCM("fixture-project", "cn.edu.ustc.tokenworks", &fixedTokens{}, peer.Client())
 	sender.endpoint = peer.URL
 	metrics := observability.New()
 	if err := sender.ConfigureMetrics(metrics); err != nil {

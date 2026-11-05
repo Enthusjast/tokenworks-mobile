@@ -19,7 +19,7 @@ func TestScannerCollectorDistinguishesDisabledUnprobedAndCurrentSnapshots(t *tes
 		}
 		return response.Body.String()
 	}
-	if initial := scrape(); !strings.Contains(initial, "dsh_remote_file_scanner_enabled 0") || strings.Contains(initial, "dsh_remote_file_scanner_ready ") {
+	if initial := scrape(); !strings.Contains(initial, "tokenworks_mobile_file_scanner_enabled 0") || strings.Contains(initial, "tokenworks_mobile_file_scanner_ready ") {
 		t.Fatal("disabled scanner masqueraded as configured")
 	}
 	var mu sync.Mutex
@@ -30,19 +30,19 @@ func TestScannerCollectorDistinguishesDisabledUnprobedAndCurrentSnapshots(t *tes
 	if err := metrics.BindFileScanner(func() ScannerSnapshot { return ScannerSnapshot{} }); err == nil {
 		t.Fatal("live source replaced")
 	}
-	if initial := scrape(); !strings.Contains(initial, "dsh_remote_file_scanner_ready 0") || strings.Contains(initial, "dsh_remote_file_scanner_probe_age_seconds ") {
+	if initial := scrape(); !strings.Contains(initial, "tokenworks_mobile_file_scanner_ready 0") || strings.Contains(initial, "tokenworks_mobile_file_scanner_probe_age_seconds ") {
 		t.Fatal("unprobed scanner invented an age")
 	}
 	mu.Lock()
 	state = ScannerSnapshot{Ready: true, Probed: true, Age: 1500 * time.Millisecond}
 	mu.Unlock()
-	if ready := scrape(); !strings.Contains(ready, "dsh_remote_file_scanner_ready 1") || !strings.Contains(ready, "dsh_remote_file_scanner_probe_age_seconds 1.5") {
+	if ready := scrape(); !strings.Contains(ready, "tokenworks_mobile_file_scanner_ready 1") || !strings.Contains(ready, "tokenworks_mobile_file_scanner_probe_age_seconds 1.5") {
 		t.Fatal("memory snapshot lost health")
 	}
 	mu.Lock()
 	state = ScannerSnapshot{Probed: true, Age: 3 * time.Minute}
 	mu.Unlock()
-	if expired := scrape(); !strings.Contains(expired, "dsh_remote_file_scanner_ready 0") || !strings.Contains(expired, "dsh_remote_file_scanner_probe_age_seconds 180") {
+	if expired := scrape(); !strings.Contains(expired, "tokenworks_mobile_file_scanner_ready 0") || !strings.Contains(expired, "tokenworks_mobile_file_scanner_probe_age_seconds 180") {
 		t.Fatal("expired proof presented as healthy")
 	}
 }
@@ -51,7 +51,7 @@ func TestScannerProbeMetricsNeverUseCallerTextAsLabels(t *testing.T) {
 	metrics.FileScannerProbe("PRIVATE_SCANNER_PATH", time.Millisecond)
 	response := httptest.NewRecorder()
 	metrics.Handler().ServeHTTP(response, httptest.NewRequest("GET", "/metrics", nil))
-	if strings.Contains(response.Body.String(), "PRIVATE_SCANNER_PATH") || !strings.Contains(response.Body.String(), `dsh_remote_file_scanner_probe_duration_seconds_count{result="other"} 1`) {
+	if strings.Contains(response.Body.String(), "PRIVATE_SCANNER_PATH") || !strings.Contains(response.Body.String(), `tokenworks_mobile_file_scanner_probe_duration_seconds_count{result="other"} 1`) {
 		t.Fatal("unbounded probe result label")
 	}
 }

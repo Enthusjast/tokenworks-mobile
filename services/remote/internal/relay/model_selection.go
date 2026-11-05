@@ -7,7 +7,7 @@ import (
 	"errors"
 	"unicode/utf16"
 
-	"dsh-mobile-ustc/services/remote/internal/canonical"
+	"tokenworks-mobile/services/remote/internal/canonical"
 )
 
 const modelSelectionCapability = "session.model.select.v1"

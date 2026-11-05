@@ -9,7 +9,7 @@ import { ApprovalAuthorityDescription } from '../host/remote-control/src/approva
 
 const output = fileURLToPath(new URL('../contracts/security/approval.schema.json', import.meta.url))
 const schema = z.toJSONSchema(z.union([ApprovalContext, ApprovalDecision, ApprovalLease]), { target: 'draft-2020-12' })
-schema.$id = 'urn:dsh-mobile-ustc:security:approval:v1'
+schema.$id = 'urn:tokenworks-mobile:security:approval:v1'
 schema.description = 'Approval binding, signed decision and authority lease shapes. Implementations additionally enforce RFC 8785 bytes, UTF-8 byte budgets, scalar Unicode, canonical 32-byte nonces, valid UTC millisecond dates, unique resource facts, a maximum 180-second request lifetime, decision freshness, pinned authority keys and a maximum three-second connection-bound lease. This contract alone grants no execution authority.'
 const generated = `${JSON.stringify(schema, null, 2)}\n`
 if (process.argv.includes('--check')) {
@@ -21,7 +21,7 @@ if (process.argv.includes('--check')) {
 
 const authorityOutput = fileURLToPath(new URL('../contracts/security/approval-authority.schema.json', import.meta.url))
 const authoritySchema = z.toJSONSchema(ApprovalAuthorityDescription, { target: 'draft-2020-12' })
-authoritySchema.$id = 'urn:dsh-mobile-ustc:security:approval-authority:v1'
+authoritySchema.$id = 'urn:tokenworks-mobile:security:approval-authority:v1'
 authoritySchema.description = 'Public offline authority description, not a lease or live-node assertion. The independently provisioned SHA-256 pin covers JCS of format/authority/policy without sha256. Runtime also verifies canonical coordinates, key thumbprint, P-256 point and validity ordering. Policy metadata does not replace locally trusted policy or pin private deployment mappings. Parsing permits scheduled/historical anchors; actual approval verification enforces active state, current key/lease times and connection/phone binding.'
 const authorityGenerated = `${JSON.stringify(authoritySchema, null, 2)}\n`
 if (process.argv.includes('--check')) {
@@ -30,7 +30,7 @@ if (process.argv.includes('--check')) {
 
 const wireOutput = fileURLToPath(new URL('../contracts/ws/v1/approval.schema.json', import.meta.url))
 const wireSchema = z.toJSONSchema(ApprovalWireFrame, { target: 'draft-2020-12' })
-wireSchema.$id = 'urn:dsh-mobile-ustc:ws:approval:v1'
+wireSchema.$id = 'urn:tokenworks-mobile:ws:approval:v1'
 wireSchema.description = 'Negotiated approval.signed.v1 extension to the base Relay contract. Host actor invalidations additionally negotiate approval.invalidation.v1 and bind the exact connection. Phone decisions use fresh HTTPS JWT/DPoP admission before the Relay forwards approval.decision to the host. Context fragments contain at most 128 KiB in total, at most four ordered parts, with a three-second assembly deadline. Host result hashes cover JCS type/runtime/epoch/session/payload, excluding request_id, v and payload_sha256. Runtime validators enforce cross-field state/result and fragment bounds beyond JSON Schema.'
 const wireGenerated = `${JSON.stringify(wireSchema, null, 2)}\n`
 if (process.argv.includes('--check')) {

@@ -10,9 +10,9 @@ import (
 	"testing"
 	"time"
 
-	"dsh-mobile-ustc/services/remote/internal/coldarchive"
-	"dsh-mobile-ustc/services/remote/internal/evidencearchive"
-	"dsh-mobile-ustc/services/remote/internal/testsupport"
+	"tokenworks-mobile/services/remote/internal/coldarchive"
+	"tokenworks-mobile/services/remote/internal/evidencearchive"
+	"tokenworks-mobile/services/remote/internal/testsupport"
 )
 
 func applyEvidenceExportFixtureMigration(t *testing.T, ctx context.Context, db *Postgres, direction string) {
@@ -428,7 +428,7 @@ func TestEvidenceExportAfterActualRestoreVerifiesOldAndNewLineage(t *testing.T) 
 
 func TestEvidenceExportLimitedRoleCannotAlterProofOrRecoveryEpoch(t *testing.T) {
 	f, request, _ := evidenceExportFixture(t)
-	role := "dsh_evidence_export_" + strings.ReplaceAll(approvalTestUUID(t), "-", "")
+	role := "twm_evidence_export_" + strings.ReplaceAll(approvalTestUUID(t), "-", "")
 	if _, err := f.database.DB.ExecContext(f.ctx, "create role "+role+" nologin"); err != nil {
 		t.Fatal(err)
 	}

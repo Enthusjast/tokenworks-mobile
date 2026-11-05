@@ -33,10 +33,10 @@ type unknownCollector struct {
 
 func newUnknownCollector() *unknownCollector {
 	return &unknownCollector{
-		counts:      prometheus.NewDesc("dsh_remote_unknown_results", "Current database rows in outcome_unknown at the last successful snapshot; includes retained recovery/history rows, not transition entries.", []string{"kind"}, nil),
-		available:   prometheus.NewDesc("dsh_remote_unknown_snapshot_available", "One if the most recent background snapshot attempt succeeded; check age separately.", nil, nil),
-		lastSuccess: prometheus.NewDesc("dsh_remote_unknown_snapshot_last_success_timestamp_seconds", "Process wall-clock time at last successful background snapshot, zero before any success.", nil, nil),
-		age:         prometheus.NewDesc("dsh_remote_unknown_snapshot_age_seconds", "Monotonic age of the cached successful snapshot; absent before first success.", nil, nil),
+		counts:      prometheus.NewDesc("tokenworks_mobile_unknown_results", "Current database rows in outcome_unknown at the last successful snapshot; includes retained recovery/history rows, not transition entries.", []string{"kind"}, nil),
+		available:   prometheus.NewDesc("tokenworks_mobile_unknown_snapshot_available", "One if the most recent background snapshot attempt succeeded; check age separately.", nil, nil),
+		lastSuccess: prometheus.NewDesc("tokenworks_mobile_unknown_snapshot_last_success_timestamp_seconds", "Process wall-clock time at last successful background snapshot, zero before any success.", nil, nil),
+		age:         prometheus.NewDesc("tokenworks_mobile_unknown_snapshot_age_seconds", "Monotonic age of the cached successful snapshot; absent before first success.", nil, nil),
 	}
 }
 

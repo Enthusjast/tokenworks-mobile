@@ -9,8 +9,8 @@ import (
 	"os"
 	"time"
 
-	"dsh-mobile-ustc/services/remote/internal/releases"
-	"dsh-mobile-ustc/services/remote/internal/store"
+	"tokenworks-mobile/services/remote/internal/releases"
+	"tokenworks-mobile/services/remote/internal/store"
 )
 
 func runAppReleaseCommand(args []string, output io.Writer) error {
@@ -58,7 +58,7 @@ func runAppReleaseCommand(args []string, output io.Writer) error {
 		return writeAppReleaseResult(output, struct {
 			Format string `json:"format"`
 			releases.PolicyRef
-		}{"dsh-app-release-policy/v1", ref})
+		}{"tokenworks-mobile-app-release-policy/v1", ref})
 	}
 	epoch := os.Getenv("REMOTE_DATABASE_EPOCH")
 	if !commandRateEpochPattern.MatchString(epoch) || command == "replace" && !store.ValidAppReleasePolicyChange(epoch, *id, *expected, catalog) || command == "confirm" && !store.ValidAppReleasePolicyConfirmation(epoch, *id, *expected, catalog) {

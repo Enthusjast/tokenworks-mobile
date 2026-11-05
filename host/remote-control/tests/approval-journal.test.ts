@@ -25,7 +25,7 @@ async function actor() {
 }
 
 async function fixture(t: TestContext, Journal = PersistentCommandJournal) {
-  const root = await mkdtemp(join(tmpdir(), 'dsh-approval-journal-'))
+  const root = await mkdtemp(join(tmpdir(), 'tokenworks-mobile-approval-journal-'))
   const path = join(root, 'state', 'commands.sqlite'), runtime = randomUUID(), epoch = randomUUID()
   let now = Date.now()
   const signer = await actor()
@@ -33,14 +33,14 @@ async function fixture(t: TestContext, Journal = PersistentCommandJournal) {
   let ledger = parent.approvals(epoch, () => now)
   t.after(async () => { try { parent.close() } finally { await rm(root, { recursive:true, force:true }) } })
   const context = (): ApprovalContext => ({
-    domain:'dsh-mobile-ustc/approval-context/v1', protocol_version:1, host_id:randomUUID(), installation_id:randomUUID(), runtime_id:runtime, runtime_epoch:epoch,
+    domain:'tokenworks-mobile/approval-context/v1', protocol_version:1, host_id:randomUUID(), installation_id:randomUUID(), runtime_id:runtime, runtime_epoch:epoch,
     session_id:randomUUID(), dsh_session_id:'native:private/session', approval_id:randomUUID(), execution_id:randomUUID(), call_id:randomUUID(), tool:'protected',
     arguments:{ text:`PRIVATE_APPROVAL_${randomUUID()}`, nested:{ value:'中文🙂' } }, workspace:{workspace_id:randomUUID(),root_sha256:'a'.repeat(64)}, resources:[],
     nonce:randomBytes(32).toString('base64url'), policy_version:1, required_assurance:{profile:'owner-user-verification/v1',max_auth_age_seconds:300},
     created_at:new Date(now).toISOString(), expires_at:new Date(now+120_000).toISOString(),
   })
   const sign = async (request: ApprovalContext, decision: 'allow_once' | 'reject' = 'allow_once', who = signer) => {
-    const claims: ApprovalDecision = { domain:'dsh-mobile-ustc/approval-decision/v1', protocol_version:1,
+    const claims: ApprovalDecision = { domain:'tokenworks-mobile/approval-decision/v1', protocol_version:1,
       host_id:request.host_id, installation_id:request.installation_id, runtime_id:request.runtime_id, runtime_epoch:request.runtime_epoch,
       session_id:request.session_id, approval_id:request.approval_id, execution_id:request.execution_id, binding_sha256:approvalBinding(request).sha256,
       decision, user_id:who.registered.user_id, device_id:who.registered.device_id, key_version:who.registered.key_version,
@@ -321,7 +321,7 @@ test('actual process exit after committed guard consumption recovers as unknown 
     for(let index=0;index<input.contexts.length;index++){
       const c=input.contexts[index];ledger.register(c);if(index===0)continue;
       const identity=Object.fromEntries(['host_id','installation_id','runtime_id','runtime_epoch','session_id','approval_id','execution_id'].map(k=>[k,c[k]]));
-      const d={domain:'dsh-mobile-ustc/approval-decision/v1',protocol_version:1,...identity,binding_sha256:approvalBinding(c).sha256,decision:'allow_once',user_id:input.registered.user_id,device_id:input.registered.device_id,key_version:1,policy_version:1,nonce:c.nonce,issued_at:new Date(input.now).toISOString(),expires_at:new Date(input.now+25000).toISOString()};
+      const d={domain:'tokenworks-mobile/approval-decision/v1',protocol_version:1,...identity,binding_sha256:approvalBinding(c).sha256,decision:'allow_once',user_id:input.registered.user_id,device_id:input.registered.device_id,key_version:1,policy_version:1,nonce:c.nonce,issued_at:new Date(input.now).toISOString(),expires_at:new Date(input.now+25000).toISOString()};
       const compact=await new CompactSign(canonicalObject(d)).setProtectedHeader({alg:'ES256',kid:approvalKeyID(d.device_id,1),typ:APPROVAL_JWS_TYPE}).sign(key);
       await ledger.decide(c.approval_id,compact,input.registered,authority);if(index===2)ledger.consume(c.approval_id,c,authority);
     }

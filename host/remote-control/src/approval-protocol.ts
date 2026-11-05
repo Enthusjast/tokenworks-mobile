@@ -47,7 +47,7 @@ export function approvalResultDigest(value: ApprovalResultFacts): string {
 /** Content-derived correlation ID; the complete SHA-256 remains the receipt identity. */
 export function makeApprovalResultFrame(value: ApprovalResultFacts): ApprovalResultFrame {
   const facts = resultFacts.parse(value), digest = approvalResultDigest(facts)
-  const bytes = createHash('sha256').update('dsh-mobile-ustc/approval-report-id/v1\0').update(digest).digest().subarray(0, 16)
+  const bytes = createHash('sha256').update('tokenworks-mobile/approval-report-id/v1\0').update(digest).digest().subarray(0, 16)
   bytes[6] = (bytes[6]! & 0x0f) | 0x80
   bytes[8] = (bytes[8]! & 0x3f) | 0x80
   const hex = bytes.toString('hex')

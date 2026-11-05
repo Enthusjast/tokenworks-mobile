@@ -1,24 +1,24 @@
 # Explicit opt-in examples. Review windows against scrape cadence and pilot data.
 # Do not substitute these thresholds for revocation or end-to-end routing SLOs.
 groups:
-  - name: dsh-remote-recording
+  - name: tokenworks-mobile-recording
     interval: 15s
     rules:
       - record: dsh_remote:unknown_snapshot_fresh:per_instance
         expr: |
-          (dsh_remote_unknown_snapshot_available{job="dsh-remote",cluster!="",database_scope!=""} == 1)
+          (tokenworks_mobile_unknown_snapshot_available{job="tokenworks-mobile",cluster!="",database_scope!=""} == 1)
           and on (cluster, database_scope, job, instance)
-            (dsh_remote_unknown_snapshot_age_seconds{job="dsh-remote",cluster!="",database_scope!=""} >= 0)
+            (tokenworks_mobile_unknown_snapshot_age_seconds{job="tokenworks-mobile",cluster!="",database_scope!=""} >= 0)
           and on (cluster, database_scope, job, instance)
             (
-              dsh_remote_unknown_snapshot_age_seconds{job="dsh-remote",cluster!="",database_scope!=""}
-              + (time() - timestamp(dsh_remote_unknown_snapshot_age_seconds{job="dsh-remote",cluster!="",database_scope!=""})) < 30
+              tokenworks_mobile_unknown_snapshot_age_seconds{job="tokenworks-mobile",cluster!="",database_scope!=""}
+              + (time() - timestamp(tokenworks_mobile_unknown_snapshot_age_seconds{job="tokenworks-mobile",cluster!="",database_scope!=""})) < 30
             )
           and on (cluster, database_scope, job, instance)
-            (up{job="dsh-remote",cluster!="",database_scope!=""} == 1)
+            (up{job="tokenworks-mobile",cluster!="",database_scope!=""} == 1)
           and on (cluster, database_scope, job, instance)
             (count by (cluster, database_scope, job, instance) (
-              dsh_remote_unknown_results{job="dsh-remote",cluster!="",database_scope!="",kind=~"command|approval"} >= 0
+              tokenworks_mobile_unknown_results{job="tokenworks-mobile",cluster!="",database_scope!="",kind=~"command|approval"} >= 0
             ) == 2)
       - record: dsh_remote:unknown_snapshot_sources:database
         expr: |
@@ -26,19 +26,19 @@ groups:
       - record: dsh_remote:unknown_results:database
         expr: |
           max by (cluster, database_scope, kind) (
-            dsh_remote_unknown_results{job="dsh-remote",cluster!="",database_scope!="",kind=~"command|approval"}
+            tokenworks_mobile_unknown_results{job="tokenworks-mobile",cluster!="",database_scope!="",kind=~"command|approval"}
             and on (cluster, database_scope, job, instance) dsh_remote:unknown_snapshot_fresh:per_instance
           )
       - record: dsh_remote:owner_route_seconds:p95_5m
         expr: |
           histogram_quantile(0.95, sum by (cluster, database_scope, le) (
-            rate(dsh_remote_relay_session_route_duration_seconds_bucket{job="dsh-remote",cluster!="",database_scope!=""}[5m])
+            rate(tokenworks_mobile_relay_session_route_duration_seconds_bucket{job="tokenworks-mobile",cluster!="",database_scope!=""}[5m])
           ))
-  - name: dsh-remote-alerts
+  - name: tokenworks-mobile-alerts
     interval: 15s
     rules:
       - alert: DshRemoteTargetsMissing
-        expr: absent(up{job="dsh-remote"})
+        expr: absent(up{job="tokenworks-mobile"})
         for: 2m
         labels:
           severity: warning
@@ -47,7 +47,7 @@ groups:
           description: Review target discovery and monitoring configuration; no service health can be inferred.
           runbook: docs/monitoring-rules.md#targets
       - alert: DshRemoteScrapeUnavailable
-        expr: up{job="dsh-remote"} == 0
+        expr: up{job="tokenworks-mobile"} == 0
         for: 1m
         labels:
           severity: warning
@@ -57,8 +57,8 @@ groups:
           runbook: docs/monitoring-rules.md#targets
       - alert: DshRemoteScopeLabelsMissing
         expr: |
-          (up{job="dsh-remote",cluster=""} == 1)
-          or (up{job="dsh-remote",database_scope=""} == 1)
+          (up{job="tokenworks-mobile",cluster=""} == 1)
+          or (up{job="tokenworks-mobile",database_scope=""} == 1)
         for: 1m
         labels:
           severity: warning
@@ -68,22 +68,22 @@ groups:
           runbook: docs/monitoring-rules.md#scope
       - alert: DshRemoteMetricsIncomplete
         expr: |
-          (up{job="dsh-remote",cluster!="",database_scope!=""} == 1)
+          (up{job="tokenworks-mobile",cluster!="",database_scope!=""} == 1)
           unless on (cluster, database_scope, job, instance) (
             (count by (cluster, database_scope, job, instance) (
-              dsh_remote_control_available{job="dsh-remote",cluster!="",database_scope!="",worker=~"outbox|leases|consumer|consumer_cleanup|approval_expiry"}
+              tokenworks_mobile_control_available{job="tokenworks-mobile",cluster!="",database_scope!="",worker=~"outbox|leases|consumer|consumer_cleanup|approval_expiry"}
             ) == 5)
             and on (cluster, database_scope, job, instance)
-              dsh_remote_unknown_snapshot_available{job="dsh-remote",cluster!="",database_scope!=""}
+              tokenworks_mobile_unknown_snapshot_available{job="tokenworks-mobile",cluster!="",database_scope!=""}
             and on (cluster, database_scope, job, instance)
-              dsh_remote_relay_draining{job="dsh-remote",cluster!="",database_scope!=""}
+              tokenworks_mobile_relay_draining{job="tokenworks-mobile",cluster!="",database_scope!=""}
             and on (cluster, database_scope, job, instance) (
-              (dsh_remote_file_scanner_enabled{job="dsh-remote",cluster!="",database_scope!=""} == 0)
+              (tokenworks_mobile_file_scanner_enabled{job="tokenworks-mobile",cluster!="",database_scope!=""} == 0)
               or (
-                (dsh_remote_file_scanner_enabled{job="dsh-remote",cluster!="",database_scope!=""} == 1)
+                (tokenworks_mobile_file_scanner_enabled{job="tokenworks-mobile",cluster!="",database_scope!=""} == 1)
                 and on (cluster, database_scope, job, instance) (
-                  (dsh_remote_file_scanner_ready{job="dsh-remote",cluster!="",database_scope!=""} == 0)
-                  or (dsh_remote_file_scanner_ready{job="dsh-remote",cluster!="",database_scope!=""} == 1)
+                  (tokenworks_mobile_file_scanner_ready{job="tokenworks-mobile",cluster!="",database_scope!=""} == 0)
+                  or (tokenworks_mobile_file_scanner_ready{job="tokenworks-mobile",cluster!="",database_scope!=""} == 1)
                 )
               )
             )
@@ -98,21 +98,21 @@ groups:
       - alert: DshRemoteControlWorkerUnhealthy
         expr: |
           (
-            (dsh_remote_control_available{job="dsh-remote",cluster!="",database_scope!="",worker=~"outbox|leases|consumer|approval_expiry|consumer_cleanup"} == 0)
+            (tokenworks_mobile_control_available{job="tokenworks-mobile",cluster!="",database_scope!="",worker=~"outbox|leases|consumer|approval_expiry|consumer_cleanup"} == 0)
             or (
-              time() - dsh_remote_control_last_success_timestamp_seconds{job="dsh-remote",cluster!="",database_scope!="",worker=~"outbox|leases|consumer|approval_expiry"} > 30
+              time() - tokenworks_mobile_control_last_success_timestamp_seconds{job="tokenworks-mobile",cluster!="",database_scope!="",worker=~"outbox|leases|consumer|approval_expiry"} > 30
             )
             or (
-              time() - dsh_remote_control_last_success_timestamp_seconds{job="dsh-remote",cluster!="",database_scope!="",worker="consumer_cleanup"} > 180
+              time() - tokenworks_mobile_control_last_success_timestamp_seconds{job="tokenworks-mobile",cluster!="",database_scope!="",worker="consumer_cleanup"} > 180
             )
             or (
-              dsh_remote_control_last_success_timestamp_seconds{job="dsh-remote",cluster!="",database_scope!="",worker=~"outbox|leases|consumer|approval_expiry|consumer_cleanup"} - time() > 30
+              tokenworks_mobile_control_last_success_timestamp_seconds{job="tokenworks-mobile",cluster!="",database_scope!="",worker=~"outbox|leases|consumer|approval_expiry|consumer_cleanup"} - time() > 30
             )
           )
           and on (cluster, database_scope, job, instance)
-            (up{job="dsh-remote",cluster!="",database_scope!=""} == 1)
+            (up{job="tokenworks-mobile",cluster!="",database_scope!=""} == 1)
           and on (cluster, database_scope, job, instance)
-            (dsh_remote_relay_draining{job="dsh-remote",cluster!="",database_scope!=""} == 0)
+            (tokenworks_mobile_relay_draining{job="tokenworks-mobile",cluster!="",database_scope!=""} == 0)
         for: 1m
         labels:
           severity: critical
@@ -122,7 +122,7 @@ groups:
           runbook: docs/monitoring-rules.md#control
       - alert: DshRemoteUnknownSnapshotUnavailable
         expr: |
-          count by (cluster, database_scope) (up{job="dsh-remote",cluster!="",database_scope!=""})
+          count by (cluster, database_scope) (up{job="tokenworks-mobile",cluster!="",database_scope!=""})
           unless on (cluster, database_scope) dsh_remote:unknown_snapshot_sources:database
         for: 2m
         labels:
@@ -133,13 +133,13 @@ groups:
           runbook: docs/monitoring-rules.md#unknown
       - alert: DshRemoteScannerUnready
         expr: |
-          (dsh_remote_file_scanner_enabled{job="dsh-remote",cluster!="",database_scope!=""} == 1)
+          (tokenworks_mobile_file_scanner_enabled{job="tokenworks-mobile",cluster!="",database_scope!=""} == 1)
           and on (cluster, database_scope, job, instance)
-            (dsh_remote_file_scanner_ready{job="dsh-remote",cluster!="",database_scope!=""} == 0)
+            (tokenworks_mobile_file_scanner_ready{job="tokenworks-mobile",cluster!="",database_scope!=""} == 0)
           and on (cluster, database_scope, job, instance)
-            (up{job="dsh-remote",cluster!="",database_scope!=""} == 1)
+            (up{job="tokenworks-mobile",cluster!="",database_scope!=""} == 1)
           and on (cluster, database_scope, job, instance)
-            (dsh_remote_relay_draining{job="dsh-remote",cluster!="",database_scope!=""} == 0)
+            (tokenworks_mobile_relay_draining{job="tokenworks-mobile",cluster!="",database_scope!=""} == 0)
         for: 1m
         labels:
           severity: warning

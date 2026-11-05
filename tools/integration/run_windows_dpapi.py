@@ -25,10 +25,10 @@ def require(condition):
         raise ProbeError("DPAPI fixture did not prove the requested boundary")
 
 def request(data, context):
-    return b"DSHDPQ01" + struct.pack("<II", len(context), len(data)) + context + data
+    return b"TWMDPQ01" + struct.pack("<II", len(context), len(data)) + context + data
 
 def response(raw, expected_size=None):
-    require(12 <= len(raw) <= 12 + MAX_WRAPPED and raw[:8] == b"DSHDPR01")
+    require(12 <= len(raw) <= 12 + MAX_WRAPPED and raw[:8] == b"TWMDPR01")
     length, = struct.unpack("<I", raw[8:12])
     require(length == len(raw) - 12 and (expected_size is None or length == expected_size))
     return raw[12:]
@@ -207,13 +207,13 @@ def probe(repo, output, compiler, sdk, wine, wineserver):
         require(hmac.compare_digest(response(call("journal-unprotect-v1", request(maximum_blob, maximum), True), 32), key)); cases.append("maximum-binary-context")
         bad_requests = {
             "bad-magic": b"BADMAGIC" + request(key, context)[8:],
-            "short-header": b"DSHDPQ01",
+            "short-header": b"TWMDPQ01",
             "empty-context": request(key, b""),
             "context-over-limit": request(key, b"x" * (MAX_CONTEXT + 1)),
             "short-key": request(key[:-1], context),
             "long-key": request(key + b"x", context),
             "trailing-input": request(key, context) + b"x",
-            "lying-length": b"DSHDPQ01" + struct.pack("<II", 0xffffffff, 32) + key,
+            "lying-length": b"TWMDPQ01" + struct.pack("<II", 0xffffffff, 32) + key,
             "over-budget-input": b"x" * (MAX_REQUEST + 1),
         }
         for name, raw in bad_requests.items():

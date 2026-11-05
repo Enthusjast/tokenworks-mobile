@@ -5,7 +5,7 @@ import (
 	"strings"
 	"time"
 
-	"dsh-mobile-ustc/services/remote/internal/auth"
+	"tokenworks-mobile/services/remote/internal/auth"
 )
 
 // ValidateRecoveryLineage checks bounded released recovery facts and a path

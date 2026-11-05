@@ -7,6 +7,6 @@ dependencyResolutionManagement {
     repositories { google(); mavenCentral() }
 }
 
-rootProject.name = "dsh-mobile"
+rootProject.name = "tokenworks-mobile"
 include(":core:protocol", ":core:crypto", ":core:auth", ":core:session", ":core:command", ":core:network")
 if (providers.gradleProperty("jvmOnly").orNull != "true") include(":core:keystore", ":core:data", ":core:ui", ":app")

@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"dsh-mobile-ustc/services/remote/internal/auth"
+	"tokenworks-mobile/services/remote/internal/auth"
 )
 
 func TestDirectoryPublishesOnlyTheCurrentUsersGrantAndOpaqueWorkspaceMapping(t *testing.T) {
@@ -59,7 +59,7 @@ func TestDirectoryPublishesOnlyTheCurrentUsersGrantAndOpaqueWorkspaceMapping(t *
 		t.Fatalf("opaque workspace mapping missing: %#v, %v", sessions, err)
 	}
 	encoded, err := json.Marshal(sessions)
-	if err != nil || !strings.Contains(string(encoded), `"workspace_id":"`+workspace+`"`) || strings.Contains(string(encoded), "workspace-test") || strings.Contains(string(encoded), "opaque-dsh-session") {
+	if err != nil || !strings.Contains(string(encoded), `"workspace_id":"`+workspace+`"`) || strings.Contains(string(encoded), "workspace-test") || strings.Contains(string(encoded), "opaque-tokenworks-mobile-session") {
 		t.Fatalf("directory exposed a native identity or lost opaque mapping: %s, %v", encoded, err)
 	}
 	readScope := GrantScope{Actions: []string{"session.read"}, Workspaces: []string{*sessions[0].WorkspaceID}, Sessions: []string{}}

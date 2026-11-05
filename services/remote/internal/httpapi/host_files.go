@@ -8,24 +8,24 @@ import (
 	"strings"
 	"time"
 
-	"dsh-mobile-ustc/services/remote/internal/auth"
-	"dsh-mobile-ustc/services/remote/internal/files"
+	"tokenworks-mobile/services/remote/internal/auth"
+	"tokenworks-mobile/services/remote/internal/files"
 )
 
 func (api *API) hostFileContent(response http.ResponseWriter, request *http.Request) {
 	id := request.PathValue("id")
-	if !uuidPattern.MatchString(id) || request.URL.RawQuery != "" || request.URL.ForceQuery || len(request.Header.Values("Authorization")) != 1 || len(request.Header.Values("X-DSH-File-Proof")) != 1 {
+	if !uuidPattern.MatchString(id) || request.URL.RawQuery != "" || request.URL.ForceQuery || len(request.Header.Values("Authorization")) != 1 || len(request.Header.Values("X-TokenWorks-Mobile-File-Proof")) != 1 {
 		writeError(response, http.StatusUnauthorized, "file.read_invalid")
 		return
 	}
 	scheme, token, ok := strings.Cut(request.Header.Get("Authorization"), " ")
-	if !ok || scheme != "DSH-File" || len(token) != 43 {
+	if !ok || scheme != "TokenWorks-Mobile-File" || len(token) != 43 {
 		writeError(response, http.StatusUnauthorized, "file.read_invalid")
 		return
 	}
 	stream, err := api.fileHandoffs.Open(request.Context(), id, token, func(permit files.ReadPermit) error {
 		identity := permit.Handoff.Host
-		return api.identity.VerifyFileReadProof(request, request.Header.Get("X-DSH-File-Proof"), permit.PublicJWK, auth.FileReadExpectation{
+		return api.identity.VerifyFileReadProof(request, request.Header.Get("X-TokenWorks-Mobile-File-Proof"), permit.PublicJWK, auth.FileReadExpectation{
 			InstallationID: identity.InstallationID, KeyThumbprint: permit.KeyThumbprint, RuntimeID: identity.RuntimeID, RuntimeEpoch: identity.RuntimeEpoch, ConnectionID: identity.ConnectionID, HandoffID: id, FileID: permit.Handoff.File.ID, Token: token})
 	}, api.realtime.FileHostLifetime)
 	if err != nil {

@@ -7,8 +7,8 @@ import (
 	"strings"
 	"time"
 
-	"dsh-mobile-ustc/services/remote/internal/auth"
-	"dsh-mobile-ustc/services/remote/internal/push"
+	"tokenworks-mobile/services/remote/internal/auth"
+	"tokenworks-mobile/services/remote/internal/push"
 )
 
 func pushOperation(request *http.Request) (context.Context, context.CancelFunc, push.Actor) {
@@ -98,8 +98,8 @@ func (api *API) pushRevoke(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	credential := ""
-	if len(r.Header.Values("Authorization")) == 1 && strings.HasPrefix(r.Header.Get("Authorization"), "DSH-Push-Revoke ") {
-		credential = strings.TrimPrefix(r.Header.Get("Authorization"), "DSH-Push-Revoke ")
+	if len(r.Header.Values("Authorization")) == 1 && strings.HasPrefix(r.Header.Get("Authorization"), "TokenWorks-Mobile-Push-Revoke ") {
+		credential = strings.TrimPrefix(r.Header.Get("Authorization"), "TokenWorks-Mobile-Push-Revoke ")
 	}
 	ctx, cancel := context.WithTimeout(r.Context(), 3*time.Second)
 	defer cancel()

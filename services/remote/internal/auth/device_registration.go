@@ -7,7 +7,7 @@ import (
 )
 
 const maxDeviceRegistrationProofBytes = 8 << 10
-const deviceRegistrationProofType = "dsh-device-registration-proof+jwt"
+const deviceRegistrationProofType = "tokenworks-mobile-device-registration-proof+jwt"
 
 // VerifyDeviceRegistrationProof checks approval-key possession and binds it to the
 // user, both device keys, display name, and the DPoP proof for this HTTP request.
@@ -54,7 +54,7 @@ func (auth *Authenticator) VerifyDeviceRegistrationProof(compact string, approva
 	nameHash := sha256.Sum256([]byte(deviceName))
 	if stringClaim(claims, "iss") != principal.Issuer ||
 		stringClaim(claims, "sub") != principal.Subject ||
-		stringClaim(claims, "aud") != "urn:dsh-mobile-ustc:device-registration" ||
+		stringClaim(claims, "aud") != "urn:tokenworks-mobile:device-registration" ||
 		!ok || issuedAt.Before(now.Add(-auth.clockSkew)) || issuedAt.After(now.Add(auth.clockSkew)) ||
 		len(proofID) < 16 || len(proofID) > 256 ||
 		stringClaim(claims, "approval_key_jkt") != approvalKeyJKT ||

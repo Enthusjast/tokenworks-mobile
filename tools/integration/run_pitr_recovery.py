@@ -194,7 +194,7 @@ def main():
                 raise RuntimeError('fixture did not restore old authority rows')
             epoch, operation = str(uuid.uuid4()), str(uuid.uuid4())
             environment = {**env, 'REMOTE_DATABASE_URL': dsn('sock-restored'), 'REMOTE_DATABASE_EPOCH': epoch, 'REMOTE_ISSUER': ISSUER,
-                           'REMOTE_AUDIENCE': 'urn:dsh-pitr-fixture', 'REMOTE_PUBLIC_ORIGIN': 'https://relay.example.edu', 'REMOTE_LISTEN_ADDR': 'invalid'}
+                           'REMOTE_AUDIENCE': 'urn:tokenworks-mobile-pitr-fixture', 'REMOTE_PUBLIC_ORIGIN': 'https://relay.example.edu', 'REMOTE_LISTEN_ADDR': 'invalid'}
 
             def reject_start(value):
                 result = run([binary], success=False, timeout=5, environment={**environment, 'REMOTE_DATABASE_EPOCH': value})

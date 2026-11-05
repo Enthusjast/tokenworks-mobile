@@ -17,11 +17,11 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"dsh-mobile-ustc/services/remote/internal/store"
 	"github.com/jackc/pgx/v5/pgconn"
+	"tokenworks-mobile/services/remote/internal/store"
 )
 
-const LocalIssuer = "urn:dsh-remote:local-account:v1"
+const LocalIssuer = "urn:tokenworks-mobile:local-account:v1"
 const iterations = 600000
 const sessionAge = 12 * time.Hour
 

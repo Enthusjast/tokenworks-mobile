@@ -112,6 +112,6 @@
       "additionalProperties": false
     }
   ],
-  "$id": "urn:dsh-mobile-ustc:push:question-reference-item:v1",
+  "$id": "urn:tokenworks-mobile:push:question-reference-item:v1",
   "description": "Minimal notification references, not execution authority. FCM delivery is data only and never carries tool arguments, question text, signed decisions or file contents. Confirmation requires the original authenticated device and a fresh provider-delivered challenge. Interaction details and all actions require current authorization and native state."
 }

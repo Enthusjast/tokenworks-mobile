@@ -13,9 +13,9 @@ import (
 	"strings"
 	"testing"
 
-	"dsh-mobile-ustc/services/remote/internal/store"
-	"dsh-mobile-ustc/services/remote/internal/testsupport"
 	"github.com/jackc/pgx/v5"
+	"tokenworks-mobile/services/remote/internal/store"
+	"tokenworks-mobile/services/remote/internal/testsupport"
 )
 
 type archiveFailedOutput struct{}

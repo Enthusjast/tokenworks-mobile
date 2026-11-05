@@ -9,12 +9,12 @@ import (
 	"testing"
 	"time"
 
-	"dsh-mobile-ustc/services/remote/internal/auth"
-	"dsh-mobile-ustc/services/remote/internal/control"
-	"dsh-mobile-ustc/services/remote/internal/httpapi"
-	"dsh-mobile-ustc/services/remote/internal/relay"
-	"dsh-mobile-ustc/services/remote/internal/store"
-	"dsh-mobile-ustc/services/remote/internal/testsupport"
+	"tokenworks-mobile/services/remote/internal/auth"
+	"tokenworks-mobile/services/remote/internal/control"
+	"tokenworks-mobile/services/remote/internal/httpapi"
+	"tokenworks-mobile/services/remote/internal/relay"
+	"tokenworks-mobile/services/remote/internal/store"
+	"tokenworks-mobile/services/remote/internal/testsupport"
 )
 
 // Two independent production API/relay instances with an isolated mutual-TLS
@@ -66,7 +66,7 @@ func fileOwnerRoutingHandler(t *testing.T, ctx context.Context, postgres *store.
 		})
 	}
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if strings.HasPrefix(r.Header.Get("Authorization"), "DSH-Host ") {
+		if strings.HasPrefix(r.Header.Get("Authorization"), "TokenWorks-Mobile-Host ") {
 			handlers[0].ServeHTTP(w, r)
 			return
 		}

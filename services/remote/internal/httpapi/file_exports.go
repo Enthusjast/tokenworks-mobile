@@ -9,8 +9,8 @@ import (
 	"strconv"
 	"time"
 
-	"dsh-mobile-ustc/services/remote/internal/auth"
-	"dsh-mobile-ustc/services/remote/internal/files"
+	"tokenworks-mobile/services/remote/internal/auth"
+	"tokenworks-mobile/services/remote/internal/files"
 )
 
 func (api *API) exportStatus(response http.ResponseWriter, request *http.Request) {
@@ -66,7 +66,7 @@ func (api *API) exportContent(response http.ResponseWriter, request *http.Reques
 	response.Header().Set("X-Content-Type-Options", "nosniff")
 	response.Header().Set("Content-Disposition", mime.FormatMediaType("attachment", map[string]string{"filename": stream.File.Name}))
 	response.Header().Set("Content-Length", strconv.FormatInt(stream.File.SizeBytes, 10))
-	response.Header().Set("X-DSH-Content-SHA256", stream.File.SHA256)
+	response.Header().Set("X-TokenWorks-Mobile-Content-SHA256", stream.File.SHA256)
 	writer := http.NewResponseController(response)
 	stop := context.AfterFunc(stream.Context(), func() { _ = writer.SetWriteDeadline(time.Now()) })
 	defer stop()

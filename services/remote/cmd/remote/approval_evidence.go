@@ -9,8 +9,8 @@ import (
 	"os"
 	"time"
 
-	"dsh-mobile-ustc/services/remote/internal/coldarchive"
-	"dsh-mobile-ustc/services/remote/internal/store"
+	"tokenworks-mobile/services/remote/internal/coldarchive"
+	"tokenworks-mobile/services/remote/internal/store"
 )
 
 func runApprovalEvidenceCommand(arguments []string, output io.Writer) error {

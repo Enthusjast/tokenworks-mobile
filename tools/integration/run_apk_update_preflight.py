@@ -25,7 +25,7 @@ def main():
     options = parser.parse_args()
     if options.update_flow_fixture and not options.installer_fixture:
         parser.error("--update-flow-fixture requires --installer-fixture")
-    if not re.fullmatch(r"emulator-[0-9]+", options.serial) or not re.fullmatch(r"dsh-remote-api[0-9]+", options.avd):
+    if not re.fullmatch(r"emulator-[0-9]+", options.serial) or not re.fullmatch(r"tokenworks-mobile-remote-api[0-9]+", options.avd):
         parser.error("an exact task-owned test emulator is required; preview/physical devices are excluded")
     repo = Path(__file__).resolve().parents[2]
     executable = options.adb or repo / ".local/android-sdk/platform-tools/adb"
@@ -40,7 +40,7 @@ def main():
 
     owned()
     api = int(call("shell", "getprop", "ro.build.version.sdk").stdout.strip())
-    if api < 26 or api != int(options.avd.removeprefix("dsh-remote-api")) or call("shell", "getprop", "sys.boot_completed").stdout.strip() != "1":
+    if api < 26 or api != int(options.avd.removeprefix("tokenworks-mobile-remote-api")) or call("shell", "getprop", "sys.boot_completed").stdout.strip() != "1":
         raise RuntimeError("the test AVD must be booted on API 26 or newer")
     log = (options.log or repo / f".local/apk-preflight-api{api}-device.log").resolve()
     if not log.is_relative_to((repo / ".local").resolve()):
@@ -60,45 +60,45 @@ def main():
     for apk in [app, tests]:
         owned(); print(call("install", "-r", "-t", str(apk), timeout=240).stdout.strip(), flush=True)
     if options.prepare_dex:
-        for package in ["cn.edu.ustc.dsh.mobile", "cn.edu.ustc.dsh.mobile.test"]:
+        for package in ["cn.edu.ustc.tokenworks", "cn.edu.ustc.tokenworks.test"]:
             owned(); print("Prepare installed dex for " + package, flush=True)
             result = call("shell", "cmd", "package", "compile", "-m", "speed", "-f", package, timeout=600)
             if "Success" not in result.stdout:
                 raise RuntimeError("installed-package dex preparation did not succeed")
             print(result.stdout.strip(), flush=True)
-    source = repo / "android/app/src/androidTest/kotlin/cn/edu/ustc/dsh/mobile/AndroidApkVerifierTest.kt"
+    source = repo / "android/app/src/androidTest/kotlin/cn/edu/ustc/tokenworks/AndroidApkVerifierTest.kt"
     count = len(re.findall(r"@Test\s+fun\b", source.read_text())) + 1  # actual Hilt startup case
     log.parent.mkdir(exist_ok=True)
-    classes = "cn.edu.ustc.dsh.mobile.AndroidApkVerifierTest,cn.edu.ustc.dsh.mobile.MainStartupTest"
+    classes = "cn.edu.ustc.tokenworks.AndroidApkVerifierTest,cn.edu.ustc.tokenworks.MainStartupTest"
     if options.installer_fixture:
         for name in ["AppInstallationStorageTest", "AppInstallationsTest"]:
-            source = repo / f"android/app/src/androidTest/kotlin/cn/edu/ustc/dsh/mobile/{name}.kt"
+            source = repo / f"android/app/src/androidTest/kotlin/cn/edu/ustc/tokenworks/{name}.kt"
             count += len(re.findall(r"@Test\s+fun\b", source.read_text()))
-            classes += ",cn.edu.ustc.dsh.mobile." + name
+            classes += ",cn.edu.ustc.tokenworks." + name
     if options.update_flow_fixture:
         for name in ["AppUpdatesScreenTest", "AccountAppUpdateTest"]:
-            source = repo / f"android/app/src/androidTest/kotlin/cn/edu/ustc/dsh/mobile/{name}.kt"
+            source = repo / f"android/app/src/androidTest/kotlin/cn/edu/ustc/tokenworks/{name}.kt"
             count += len(re.findall(r"@Test\s+fun\b", source.read_text()))
-            classes += ",cn.edu.ustc.dsh.mobile." + name
+            classes += ",cn.edu.ustc.tokenworks." + name
     owned()
     original_mode = None
     restoration_error = None
     try:
         if options.installer_fixture:
-            text = call("shell", "appops", "get", "cn.edu.ustc.dsh.mobile", "REQUEST_INSTALL_PACKAGES").stdout
+            text = call("shell", "appops", "get", "cn.edu.ustc.tokenworks", "REQUEST_INSTALL_PACKAGES").stdout
             match = re.search(r"REQUEST_INSTALL_PACKAGES:\s*(allow|ignore|deny|default|foreground)\b", text)
             if not match and "No operations" not in text:
                 raise RuntimeError("cannot preserve original unknown-source app-op: " + text)
             original_mode = match.group(1) if match else "default"
-            call("shell", "appops", "set", "cn.edu.ustc.dsh.mobile", "REQUEST_INSTALL_PACKAGES", "allow")
+            call("shell", "appops", "set", "cn.edu.ustc.tokenworks", "REQUEST_INSTALL_PACKAGES", "allow")
         with log.open("w") as stream:
             result = subprocess.run(adb + ["shell", "am", "instrument", "-w", "-e", "networkFixture", "true", "-e", "accountFixture", str(options.update_flow_fixture).lower(), "-e", "installerFixture", str(options.installer_fixture).lower(), "-e", "class", classes,
-                                          "cn.edu.ustc.dsh.mobile.test/androidx.test.runner.AndroidJUnitRunner"],
+                                          "cn.edu.ustc.tokenworks.test/androidx.test.runner.AndroidJUnitRunner"],
                                     stdout=stream, stderr=subprocess.STDOUT, timeout=1200 if options.update_flow_fixture else 600)
     finally:
         if original_mode is not None:
             try:
-                owned(); call("shell", "appops", "set", "cn.edu.ustc.dsh.mobile", "REQUEST_INSTALL_PACKAGES", original_mode)
+                owned(); call("shell", "appops", "set", "cn.edu.ustc.tokenworks", "REQUEST_INSTALL_PACKAGES", original_mode)
             except (subprocess.SubprocessError, RuntimeError) as error:
                 restoration_error = f"restore REQUEST_INSTALL_PACKAGES to {original_mode}: {type(error).__name__}"
     text = log.read_text()

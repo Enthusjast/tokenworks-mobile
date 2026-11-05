@@ -7,8 +7,8 @@ import (
 	"net/http"
 	"time"
 
-	"dsh-mobile-ustc/services/remote/internal/auth"
-	"dsh-mobile-ustc/services/remote/internal/store"
+	"tokenworks-mobile/services/remote/internal/auth"
+	"tokenworks-mobile/services/remote/internal/store"
 )
 
 func (api *API) approvalStatus(response http.ResponseWriter, request *http.Request) {

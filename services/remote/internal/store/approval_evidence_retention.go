@@ -54,7 +54,7 @@ func (postgres *Postgres) ExtendApprovalEvidenceRetention(ctx context.Context, r
 		return ApprovalEvidenceRetentionResult{}, ErrDatabaseUnavailable
 	}
 	defer tx.Rollback()
-	if _, err := tx.ExecContext(ctx, `select pg_advisory_xact_lock(hashtextextended('dsh-evidence-retention:'||$1::text,0))`, request.OperationID); err != nil {
+	if _, err := tx.ExecContext(ctx, `select pg_advisory_xact_lock(hashtextextended('tokenworks-mobile-evidence-retention:'||$1::text,0))`, request.OperationID); err != nil {
 		return ApprovalEvidenceRetentionResult{}, ErrDatabaseUnavailable
 	}
 	if _, err := lockRecoveryReady(ctx, tx, request.DatabaseEpoch); err != nil {

@@ -19,9 +19,9 @@ import tempfile
 import zlib
 import host_bundle as common
 
-FORMAT = 'dsh-remote-service-bundle/v1'
-ARCHIVE = 'remote-service-linux-amd64.tgz'
-MODULE = 'dsh-mobile-ustc/services/remote'
+FORMAT = 'tokenworks-mobile-service-bundle/v1'
+ARCHIVE = 'tokenworks-mobile-service-linux-amd64.tgz'
+MODULE = 'tokenworks-mobile/services/remote'
 MAX_BINARY = 64 << 20
 MAX_ARCHIVE = 32 << 20
 MAX_TOTAL = 80 << 20
@@ -202,7 +202,7 @@ def validate(manifest_raw, archive_raw, expected):
     require(set(toolchain) == {'go', 'go_executable_sha256', 'platform', 'cgo', 'goamd64', 'python', 'zlib'} and re.fullmatch(r'go1\.26\.[0-9]+', toolchain['go'])
             and common.HEX.fullmatch(toolchain['go_executable_sha256']) and toolchain['platform'] == 'linux/amd64' and type(toolchain['cgo']) is int and toolchain['cgo'] == 0 and toolchain['goamd64'] == 'v1' and re.fullmatch(r'[0-9]+\.[0-9]+\.[0-9]+', toolchain['python'])
             and re.fullmatch(r'[0-9]+\.[0-9]+(?:\.[0-9]+)?', toolchain['zlib']))
-    require(value['version'] == {'format': 'dsh-remote-service-version/v1', 'go': toolchain['go'], 'platform': 'linux/amd64',
+    require(value['version'] == {'format': 'tokenworks-mobile-service-version/v1', 'go': toolchain['go'], 'platform': 'linux/amd64',
                                 'revision': source['commit'], 'source_sha256': source['sha256']})
     modules = value['modules']
     require(isinstance(modules, list) and len(modules) <= 512)
@@ -232,7 +232,7 @@ def validate(manifest_raw, archive_raw, expected):
     for name, target in packaged_sources.items():
         require(inputs[name]['size'] == len(files[target]) and inputs[name]['sha256'] == digest(files[target]))
     migrations(name.removeprefix('service/migrations/') for name in files if name.startswith('service/migrations/'))
-    require(re.search(rb'(?m)^module dsh-mobile-ustc/services/remote$', files['service/module/go.mod']) and
+    require(re.search(rb'(?m)^module tokenworks-mobile/services/remote$', files['service/module/go.mod']) and
             re.search(rb'(?m)^go 1\.26\.[0-9]+$', files['service/module/go.mod']))
     sums = checksums(files['service/module/go.sum'])
     for item in modules:
@@ -384,7 +384,7 @@ def build(root, output, go):
             content = binary.read_bytes()
             elf(content)
             version = common.parse_json(run([str(binary), 'version'], module, env, log))
-            require(version == {'format': 'dsh-remote-service-version/v1', 'go': compiler.split()[2], 'platform': 'linux/amd64', 'revision': commit, 'source_sha256': source_hash})
+            require(version == {'format': 'tokenworks-mobile-service-version/v1', 'go': compiler.split()[2], 'platform': 'linux/amd64', 'revision': commit, 'source_sha256': source_hash})
             files = {'service/bin/remote': content, 'service/module/go.mod': sources['services/remote/go.mod'], 'service/module/go.sum': sources['services/remote/go.sum']}
             files.update({'service/migrations/' + name.removeprefix('deploy/sql/'): raw for name, raw in sources.items() if name.startswith('deploy/sql/')})
             files.update({'service/' + name: raw for name, raw in sources.items() if name.startswith('contracts/')})

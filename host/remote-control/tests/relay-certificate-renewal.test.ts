@@ -49,7 +49,7 @@ test('owned leaf renewal replaces certificate and key while keeping CA, identity
   assert.equal(renewed.authorityFingerprint, originalAuthority)
   const leaf = new X509Certificate(await readFile(join(root, 'relay-0.pem')))
   assert.equal(leaf.fingerprint256, renewed.fingerprint)
-  assert.ok(leaf.subjectAltName?.includes(`URI:spiffe://dsh-remote/relay/${id}`))
+  assert.ok(leaf.subjectAltName?.includes(`URI:spiffe://tokenworks-mobile/relay/${id}`))
   assert.equal(await readFile(fixture.configs[0]!, 'utf8'), configuration)
   for (const name of ['relay-ca.key', 'relay-ca.pem', 'relay-0.key', 'relay-0.pem', 'relay-0.json']) {
     assert.equal((await lstat(join(root, name))).mode & 0o777, 0o600)

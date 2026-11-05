@@ -25,7 +25,7 @@ def binary():
 
 
 def fixture():
-    files = {'service/bin/remote': binary(), 'service/module/go.mod': b'module dsh-mobile-ustc/services/remote\n\ngo 1.26.0\n', 'service/module/go.sum': b'',
+    files = {'service/bin/remote': binary(), 'service/module/go.mod': b'module tokenworks-mobile/services/remote\n\ngo 1.26.0\n', 'service/module/go.sum': b'',
              'service/migrations/001_init.up.sql': b'create table example(id int);', 'service/migrations/001_init.down.sql': b'drop table example;'}
     files.update({'service/contracts/openapi/remote.yaml': b'openapi: 3.1.0\n', 'service/contracts/ws/v1/relay.schema.json': b'{}'})
     names = {'services/remote/go.mod': 'service/module/go.mod', 'services/remote/go.sum': 'service/module/go.sum',
@@ -35,7 +35,7 @@ def fixture():
     entries += [{'path': 'services/remote/cmd/remote/main.go', 'size': 1, 'sha256': 'e'*64}, {'path': 'services/remote/cmd/remote/version.go', 'size': 1, 'sha256': 'f'*64}]
     entries.sort(key=lambda item: item['path'])
     source = {'commit': 'a' * 40, 'sha256': bundle.digest(bundle.encoded(entries)), 'inputs': entries}
-    version = {'format': 'dsh-remote-service-version/v1', 'go': 'go1.26.10', 'platform': 'linux/amd64', 'revision': source['commit'], 'source_sha256': source['sha256']}
+    version = {'format': 'tokenworks-mobile-service-version/v1', 'go': 'go1.26.10', 'platform': 'linux/amd64', 'revision': source['commit'], 'source_sha256': source['sha256']}
     raw = bundle.pack(files)
     value = {'format': bundle.FORMAT, 'source': source, 'builder': {'go_bundle.py': 'b' * 64, 'host_bundle.py': 'c' * 64},
              'toolchain': {'go': 'go1.26.10', 'go_executable_sha256': 'd' * 64, 'platform': 'linux/amd64', 'cgo': 0, 'goamd64': 'v1', 'python': '3.14.0', 'zlib': '1.3.1'},
@@ -107,7 +107,7 @@ class GoBundleTests(unittest.TestCase):
             with self.assertRaises(bundle.common.BundleError): validate(value, raw)
         encoded = bundle.encoded(original)
         with self.assertRaises(bundle.common.BundleError): bundle.validate(encoded, raw + b'changed', bundle.digest(encoded))
-        duplicate = encoded.replace(b'"format": "dsh-remote-service-bundle/v1"', b'"format": "bad", "format": "dsh-remote-service-bundle/v1"')
+        duplicate = encoded.replace(b'"format": "tokenworks-mobile-service-bundle/v1"', b'"format": "bad", "format": "tokenworks-mobile-service-bundle/v1"')
         with self.assertRaises(bundle.common.BundleError): bundle.validate(duplicate, raw, bundle.digest(duplicate))
 
     def test_archives_reject_links_modes_traversal_private_files_and_trailing_data(self):

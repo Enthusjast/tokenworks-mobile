@@ -165,7 +165,7 @@ func enrollmentAdminReview(ctx context.Context, tx *sql.Tx, row enrollmentRow) (
 	if err != nil {
 		return value, ErrDatabaseUnavailable
 	}
-	digest := sha256.Sum256(append([]byte("dsh-enrollment-admin-review-v1\x00"), raw...))
+	digest := sha256.Sum256(append([]byte("tokenworks-mobile-enrollment-admin-review-v1\x00"), raw...))
 	value.ReviewSHA256 = hex.EncodeToString(digest[:])
 	return value, nil
 }

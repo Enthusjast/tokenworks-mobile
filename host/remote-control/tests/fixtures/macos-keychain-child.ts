@@ -8,7 +8,7 @@ import { PersistentCommandJournal } from '../../src/command-journal.js'
 import { parseCommand } from '../../src/protocol.js'
 
 const root = process.env.MACOS_KEYCHAIN_FIXTURE_ROOT, mode = process.argv[2]
-assert.ok(root && /^dsh-keychain-[A-Za-z0-9_-]+$/.test(basename(root)))
+assert.ok(root && /^tokenworks-mobile-keychain-[A-Za-z0-9_-]+$/.test(basename(root)))
 assert.equal(await realpath(root), root)
 const metadata = await lstat(root)
 assert.equal(metadata.uid, process.getuid!()); assert.equal(metadata.mode & 0o777, 0o700)
@@ -17,7 +17,7 @@ const originalPlatform = process.platform
 // Only this owned protocol fixture changes platform. No production bypass flag
 // or system security executable is used; this is not macOS acceptance evidence.
 Object.defineProperty(process, 'platform', { value: 'darwin' })
-const service = 'cn.edu.ustc.dsh.journal', account = 'fixture-master'
+const service = 'io.github.enthusjast.tokenworks.journal', account = 'fixture-master'
 const executable = join(root, 'security-fixture'), keychainPath = join(root, 'login.keychain-db')
 const secret = join(root, 'secret'), calls = join(root, 'calls'), started = join(root, 'started')
 const master = randomBytes(32), key = randomBytes(32), context = Buffer.from('fixture-keychain-context')
@@ -44,13 +44,13 @@ try {
     process.env.LD_PRELOAD = 'PRIVATE_INJECTION'; process.env.DYLD_INSERT_LIBRARIES = 'PRIVATE_INJECTION'
     process.env.NODE_OPTIONS = '--require PRIVATE_INJECTION'; process.env.PYTHONPATH = 'PRIVATE_INJECTION'; process.env.PYTHONHOME = 'PRIVATE_INJECTION'
     const wrapped = await protector.wrap(key, context, AbortSignal.timeout(2000))
-    assert.equal(wrapped.length, 100); assert.equal(Buffer.from(wrapped).subarray(0, 8).toString(), 'DSHKCK01')
+    assert.equal(wrapped.length, 100); assert.equal(Buffer.from(wrapped).subarray(0, 8).toString(), 'TWMKCK01')
     const restored = Buffer.from(await protector.unwrap(wrapped, context, AbortSignal.timeout(2000)))
     assert.ok(restored.equals(key)); restored.fill(0)
     await assert.rejects(protector.unwrap(wrapped, Buffer.from('wrong-context'), AbortSignal.timeout(2000)), /Keychain protection unavailable/)
     const damaged = Buffer.from(wrapped); damaged[99] = damaged[99]! ^ 1
     await assert.rejects(protector.unwrap(damaged, context, AbortSignal.timeout(2000)), /Keychain protection unavailable/)
-    const linux = Buffer.from(wrapped); linux.write('DSHSSK01')
+    const linux = Buffer.from(wrapped); linux.write('TWMSSK01')
     await assert.rejects(protector.unwrap(linux, context, AbortSignal.timeout(2000)), /Keychain protection unavailable/)
     const runtime = randomUUID(), path = join(root, 'journal', 'commands.sqlite')
     const command = parseCommand({ v: 0, type: 'message.submit', request_id: randomUUID(), runtime_epoch: randomUUID(), session_id: randomUUID(), payload: { mode: 'queue', text: 'PRIVATE_KEYCHAIN_COMMAND' } })

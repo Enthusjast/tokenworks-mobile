@@ -14,17 +14,17 @@ import (
 	"time"
 	"unicode"
 
-	"dsh-mobile-ustc/services/remote/internal/auth"
-	"dsh-mobile-ustc/services/remote/internal/canonical"
 	jose "github.com/go-jose/go-jose/v4"
+	"tokenworks-mobile/services/remote/internal/auth"
+	"tokenworks-mobile/services/remote/internal/canonical"
 )
 
-const AuthorizationDomain = "dsh-mobile-ustc/approval-authorization/v1"
-const AuthorizationAudience = "dsh-approval-host/v1"
-const AuthorizationJWSType = "dsh-approval-authorization+jws"
+const AuthorizationDomain = "tokenworks-mobile/approval-authorization/v1"
+const AuthorizationAudience = "tokenworks-mobile-approval-host/v1"
+const AuthorizationJWSType = "tokenworks-mobile-approval-authorization+jws"
 
 var ErrAuthorization = errors.New("approval: invalid signed authorization")
-var authorityKeyID = regexp.MustCompile(`^dsh-approval-authority/[A-Za-z0-9._-]{1,80}$`)
+var authorityKeyID = regexp.MustCompile(`^tokenworks-mobile-approval-authority/[A-Za-z0-9._-]{1,80}$`)
 
 // AuthorizationLease attests a current, already accepted decision and device key.
 // It grants only the exact binding on one host connection for at most 3 seconds.

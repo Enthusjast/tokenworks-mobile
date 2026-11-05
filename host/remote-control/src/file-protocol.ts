@@ -7,8 +7,8 @@ export const FILE_HANDOFF_CAPABILITY = 'file.handoff.v1'
 export const FILE_MESSAGE_CAPABILITY = 'message.files.v1'
 export const FILE_RECONCILE_CAPABILITY = 'message.files.reconcile.v1'
 export const fileReference = z.strictObject({ type: z.literal('file'), file_id: z.uuid() })
-export const FILE_READ_PROOF_TYPE = 'dsh-file-read-proof+jwt'
-export const FILE_READ_AUDIENCE = 'urn:dsh-mobile-ustc:file-read'
+export const FILE_READ_PROOF_TYPE = 'tokenworks-mobile-file-read-proof+jwt'
+export const FILE_READ_AUDIENCE = 'urn:tokenworks-mobile:file-read'
 const uuid = z.uuid(), date = z.string().datetime({ offset: true })
 const base = { v: z.literal(1), request_id: uuid, runtime_id: uuid, runtime_epoch: uuid }
 const session = { ...base, session_id: uuid }

@@ -31,7 +31,7 @@ func runVersionCommand(arguments []string, output io.Writer) error {
 		return errors.New("remote build metadata is invalid")
 	}
 	return json.NewEncoder(output).Encode(serviceVersion{
-		Format: "dsh-remote-service-version/v1", Go: runtime.Version(), Platform: runtime.GOOS + "/" + runtime.GOARCH,
+		Format: "tokenworks-mobile-service-version/v1", Go: runtime.Version(), Platform: runtime.GOOS + "/" + runtime.GOARCH,
 		Revision: buildRevision, SourceSHA256: buildSourceSHA256,
 	})
 }

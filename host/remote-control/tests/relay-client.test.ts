@@ -31,7 +31,7 @@ test('host hello digest matches the Go length-prefixed protocol golden', () => {
   assert.equal(hostHelloDigest([
     'host', runtimeId, runtimeEpoch, '0.2.1-rc.2', '1.2.3', '0.0.1', '1',
     ['command.relay.v1', 'connection.heartbeat.v1', 'question.blocking.v1', 'question.timed.v1', 'session.cancel.v1', 'session.catalog.v1', 'session.create.v1', 'session.read.v1'].join('\n'),
-  ]), 'AD-ziN2o1S2R_pQVRbx77zT0m7nbTasOj9q3evX07NY')
+  ]), 'qNlkjvw--61nelJeVPc3_UxhGN5vzRCL8jFsX1JeavM')
 })
 
 test('device hello digest matches the shared Kotlin and Go fixture', () => {
@@ -88,7 +88,7 @@ test('Relay host client proves the installation key and routes only digest-match
   const ready = new Promise<void>((resolve, reject) => {
     webSocketServer.on('connection', (socket: any, request: any) => {
       relaySocket = socket
-      if (request.headers.authorization !== `DSH-Host ${credential}`) reject(new Error('missing host Authorization header'))
+      if (request.headers.authorization !== `TokenWorks-Mobile-Host ${credential}`) reject(new Error('missing host Authorization header'))
       socket.send(JSON.stringify({ v: 1, type: 'challenge', payload: {
         connection_id: connectionId, challenge_id: challengeId, nonce, role: 'installation',
         expires_at: new Date(Date.now() + 10_000).toISOString(),
@@ -100,8 +100,8 @@ test('Relay host client proves the installation key and routes only digest-match
           const [headerPart, payloadPart, signaturePart] = frame.payload.proof.split('.')
           const signingInput = `${headerPart}.${payloadPart}`
           const claims = decodePart(payloadPart)
-          const valid = decodePart(headerPart).typ === 'dsh-relay-handshake-proof+jwt'
-            && claims.iss === installationId && claims.aud === 'urn:dsh-mobile-ustc:realtime'
+          const valid = decodePart(headerPart).typ === 'tokenworks-mobile-relay-handshake-proof+jwt'
+            && claims.iss === installationId && claims.aud === 'urn:tokenworks-mobile:realtime'
             && claims.challenge_id === challengeId && claims.connection_id === connectionId
             && claims.nonce === nonce && claims.runtime_id === runtimeId && claims.runtime_epoch === runtimeEpoch
             && frame.payload.capabilities.includes('session.archive.v1')

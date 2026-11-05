@@ -16,10 +16,10 @@ import (
 	"testing"
 	"time"
 
-	"dsh-mobile-ustc/services/remote/internal/store"
-	"dsh-mobile-ustc/services/remote/internal/testsupport"
 	"github.com/coder/websocket"
 	jose "github.com/go-jose/go-jose/v4"
+	"tokenworks-mobile/services/remote/internal/store"
+	"tokenworks-mobile/services/remote/internal/testsupport"
 )
 
 type controlNodeTransport struct {
@@ -145,7 +145,7 @@ func TestProductionControlFanoutReachesBothProcessesAndReplaysOfflineNode(t *tes
 		if err := pair.phoneAPI.call(ctx, "POST", "/v1/realtime/tickets", map[string]any{"runtime_id": pair.runtime, "scope": scope}, &ticket, 201); err != nil {
 			t.Fatal(err)
 		}
-		connection, err := capacityConnect(ctx, clients[node], ingress.URL, "device", "DSH-Ticket "+ticket.Token, pair.phoneKey, pair)
+		connection, err := capacityConnect(ctx, clients[node], ingress.URL, "device", "TokenWorks-Mobile-Ticket "+ticket.Token, pair.phoneKey, pair)
 		if err != nil {
 			t.Fatal(err)
 		}

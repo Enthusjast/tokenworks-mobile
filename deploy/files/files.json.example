@@ -3,7 +3,7 @@
   "storage": {
     "endpoint": "https://objects.example.edu",
     "region": "us-east-1",
-    "bucket": "dsh-remote-files",
+    "bucket": "tokenworks-mobile-files",
     "kms_key_id": "REPLACE_WITH_EXACT_OBJECT_SERVICE_KMS_KEY_ID",
     "credentials_file": "s3-credentials.json",
     "ca_file": ""

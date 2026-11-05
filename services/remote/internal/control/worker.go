@@ -6,8 +6,8 @@ import (
 	"sync"
 	"time"
 
-	"dsh-mobile-ustc/services/remote/internal/observability"
-	"dsh-mobile-ustc/services/remote/internal/store"
+	"tokenworks-mobile/services/remote/internal/observability"
+	"tokenworks-mobile/services/remote/internal/store"
 )
 
 type Repository interface {

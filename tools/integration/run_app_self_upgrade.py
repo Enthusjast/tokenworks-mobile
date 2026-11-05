@@ -26,7 +26,7 @@ def main():
     options = parser.parse_args()
     repo = Path(__file__).resolve().parents[2]
     cluster = Path(os.environ["REMOTE_TEST_CLUSTER_ROOT"]).resolve()
-    if not re.fullmatch(r"emulator-[0-9]+", options.serial) or not re.fullmatch(r"dsh-remote-api(?:26|36)", options.avd):
+    if not re.fullmatch(r"emulator-[0-9]+", options.serial) or not re.fullmatch(r"tokenworks-mobile-remote-api(?:26|36)", options.avd):
         parser.error("exact dedicated test AVD required; preview/physical devices excluded")
     source, result = options.input.resolve(), options.result.resolve()
     if not source.is_relative_to(cluster) or not result.is_relative_to(cluster) or source.stat().st_mode & 0o077:
@@ -48,7 +48,7 @@ def main():
     origin = urlparse(data["deployment"]["remote_origin"])
     if origin.scheme != "https" or origin.hostname not in {"127.0.0.1", "localhost", "::1"} or not origin.port or origin.username or origin.password or origin.query or origin.fragment:
         raise RuntimeError("explicit host loopback HTTPS fixture required")
-    package = "cn.edu.ustc.dsh.mobile"
+    package = "cn.edu.ustc.tokenworks"
     if data["candidate_sha256"] != receipt["candidate"]["sha256"] or data["signing_cert_sha256"] != receipt["candidate"]["signing_cert_sha256"]:
         raise RuntimeError("host publication differs from verified full executable fixture")
     adb = [os.environ["REMOTE_TEST_ADB"], "-s", options.serial]

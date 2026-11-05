@@ -4,7 +4,7 @@ interface HostProcessGuards {
   readonly recoveryPaths: Map<string, symbol>
 }
 
-const key = Symbol.for('ustc.dsh.host-process-guards.v1')
+const key = Symbol.for('tokenworks-mobile.host-process-guards.v1')
 const globalState = globalThis as unknown as Record<symbol, unknown>
 const existing = globalState[key]
 let guards: HostProcessGuards

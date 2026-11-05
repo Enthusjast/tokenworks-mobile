@@ -8,7 +8,7 @@ import (
 	"io"
 	"os"
 
-	"dsh-mobile-ustc/services/remote/internal/store"
+	"tokenworks-mobile/services/remote/internal/store"
 )
 
 var errConnectionLimitConfiguration = errors.New("remote shared connection limits are invalid, unavailable or inconsistent")

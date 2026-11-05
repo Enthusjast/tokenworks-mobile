@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"dsh-mobile-ustc/services/remote/internal/testsupport"
+	"tokenworks-mobile/services/remote/internal/testsupport"
 )
 
 func archiveFixtureEvent(t *testing.T, ctx context.Context, db interface {
@@ -525,7 +525,7 @@ func TestControlArchiveHistoryRequiresExplicitDatabasePrivileges(t *testing.T) {
 	}
 	// This role exists only in the disposable test cluster and is removed before
 	// its database closes. Its identifier contains generated hexadecimal only.
-	role := "dsh_archive_test_" + strings.ReplaceAll(approvalTestUUID(t), "-", "")
+	role := "twm_archive_test_" + strings.ReplaceAll(approvalTestUUID(t), "-", "")
 	if _, err := db.DB.ExecContext(ctx, "create role "+role+" nologin"); err != nil {
 		t.Fatal(err)
 	}

@@ -19,12 +19,12 @@ export class LinuxInstallationKeyError extends Error {
 const failure = (code: Code = 'unavailable') => new LinuxInstallationKeyError(`host.installation_key.${code}`)
 const coordinate = z.string().regex(/^[A-Za-z0-9_-]{43}$/).refine(value => Buffer.from(value, 'base64url').toString('base64url') === value)
 const jwk = z.strictObject({ kty: z.literal('EC'), crv: z.literal('P-256'), x: coordinate, y: coordinate })
-const payloadSchema = z.strictObject({ version: z.literal(1), purpose: z.literal('dsh-host-installation-reference-v1'), path_hash: z.string().regex(/^[0-9a-f]{64}$/),
+const payloadSchema = z.strictObject({ version: z.literal(1), purpose: z.literal('tokenworks-mobile-host-installation-reference-v1'), path_hash: z.string().regex(/^[0-9a-f]{64}$/),
   service: z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/), account: z.string().regex(/^installation-[0-9a-f]{48}$/), public_jwk: jwk })
 const metadataSchema = payloadSchema.extend({ signature: z.string().regex(/^[A-Za-z0-9_-]{86}$/).refine(value => Buffer.from(value, 'base64url').toString('base64url') === value) }).strict()
 type Payload = z.infer<typeof payloadSchema>
 const MAX_METADATA = 4096
-const guardKey = Symbol.for('ustc.dsh.installation-key-paths.v1')
+const guardKey = Symbol.for('tokenworks-mobile.installation-key-paths.v1')
 const globalState = globalThis as unknown as Record<symbol, unknown>
 const existingGuards = globalState[guardKey]
 if (existingGuards !== undefined && !(existingGuards instanceof Map)) throw new Error('installation key process guard unavailable')
@@ -66,7 +66,7 @@ class InstallationIdentity implements LinuxInstallationIdentity {
 }
 
 function pathHash(path: string): string {
-  return createHash('sha256').update('dsh-host-installation-reference-v1\0').update(path).digest('hex')
+  return createHash('sha256').update('tokenworks-mobile-host-installation-reference-v1\0').update(path).digest('hex')
 }
 
 function verifyMetadata(raw: Buffer, path: string, service: string): Payload {
@@ -186,7 +186,7 @@ export class LinuxInstallationKeyStore {
         if (lifetime.aborted) throw failure('cancelled')
         const pair = generateKeyPairSync('ec', { namedCurve: 'prime256v1' })
         const publicJwk = jwk.parse(pair.publicKey.export({ format: 'jwk' }))
-        const payload: Payload = { version: 1, purpose: 'dsh-host-installation-reference-v1', path_hash: pathHash(this.#path), service: this.#service,
+        const payload: Payload = { version: 1, purpose: 'tokenworks-mobile-host-installation-reference-v1', path_hash: pathHash(this.#path), service: this.#service,
           account: `installation-${randomBytes(24).toString('hex')}`, public_jwk: publicJwk }
         const signature = sign('sha256', canonicalObject(payload), { key: pair.privateKey, dsaEncoding: 'ieee-p1363' }).toString('base64url')
         metadata = Buffer.from(JSON.stringify({ ...payload, signature }), 'utf8')

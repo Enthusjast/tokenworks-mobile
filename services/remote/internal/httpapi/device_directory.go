@@ -5,8 +5,8 @@ import (
 	"net/url"
 	"strconv"
 
-	"dsh-mobile-ustc/services/remote/internal/auth"
-	"dsh-mobile-ustc/services/remote/internal/store"
+	"tokenworks-mobile/services/remote/internal/auth"
+	"tokenworks-mobile/services/remote/internal/store"
 )
 
 func directoryPageQuery(request *http.Request) (int, string, bool) {

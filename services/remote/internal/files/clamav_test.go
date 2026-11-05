@@ -23,7 +23,7 @@ import (
 // none of these fixtures are registered as a default clean scanner.
 func clamdPeer(t *testing.T, respond func(net.Conn, []byte) error) (*ClamAV, <-chan error) {
 	t.Helper()
-	directory, err := os.MkdirTemp("", "dsh-clamd-")
+	directory, err := os.MkdirTemp("", "tokenworks-mobile-clamd-")
 	if err != nil {
 		t.Fatal(err)
 	}

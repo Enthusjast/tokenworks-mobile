@@ -10,7 +10,7 @@ async function output(path: string, value: unknown) {
   } else await writeFile(url, encoded)
 }
 const schema = z.toJSONSchema(FileFrame, { target: 'draft-2020-12' })
-schema.$id = 'urn:dsh-mobile-ustc:ws:file-handoff:v1'
+schema.$id = 'urn:tokenworks-mobile:ws:file-handoff:v1'
 schema.description = 'Host-only file.handoff.v1 extension, negotiated with session.catalog.v1. Five-second renewable authority is fenced to the exact installation key/runtime epoch/connection. File reads additionally require a one-use ticket and registered-key ES256 proof. Runtime validators enforce name byte budgets, cross-field lifetime/route/ack correlation, current uploader grant/device/scope and content SHA-256. Staged acknowledges temporary receipt availability, not agent queue admission. Native receipts and paths never cross this protocol.'
 await output('contracts/ws/v1/file-handoff.schema.json', schema)
 const runtime_id = '66666666-6666-4666-8666-666666666666', runtime_epoch = '99999999-9999-4999-8999-999999999999'

@@ -6,7 +6,7 @@ import { normalizeRestEnvelope, restEnvelopeHeader, restEnvelopeVersion } from '
 import type { HostConnectionCredential, HostCredentialProvider, HostHandshakeSigner } from './relay-client.js'
 
 const inspect = Symbol.for('nodejs.util.inspect.custom')
-const audience = 'urn:dsh-mobile-ustc:host-credential'
+const audience = 'urn:tokenworks-mobile:host-credential'
 const maxBody = 16 * 1024
 const secret = z.string().regex(/^[A-Za-z0-9_-]{43}$/).refine(value => Buffer.from(value, 'base64url').toString('base64url') === value)
 const uuid = z.string().regex(/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/)
@@ -17,7 +17,7 @@ const access = identity.extend({ token: z.string().min(1).max(16 * 1024).regex(/
   tokenType: z.literal('DPoP'), proofKeyThumbprint: secret, expiresAt: z.number().safe(), scopes: z.array(text).min(1).max(64) }).strict()
 const challenge = z.strictObject({ ok: z.literal(true), data: z.strictObject({ challenge_id: uuid, challenge: secret,
   installation_id: uuid, audience: z.literal(audience), expires_at: z.string().datetime({ offset: true }) }) })
-const issued = z.strictObject({ ok: z.literal(true), data: z.strictObject({ credential: secret, token_type: z.literal('DSH-Host'),
+const issued = z.strictObject({ ok: z.literal(true), data: z.strictObject({ credential: secret, token_type: z.literal('TokenWorks-Mobile-Host'),
   installation_id: uuid, key_thumbprint: secret, expires_at: z.string().datetime({ offset: true }) }) })
 const failure = z.strictObject({ ok: z.literal(false), error: z.strictObject({ code: text }) })
 
@@ -57,7 +57,7 @@ const restCredentialOwners = new WeakMap<HostRestCredentialProvider, RestCredent
 
 /** @internal Stable owner binding shared with the protected enrollment stores. */
 export function hostEnrollmentOwnerBinding(origin: string, identity: HostResourceIdentity, thumbprint: string, scopes: readonly string[]): string {
-  return createHash('sha256').update(JSON.stringify({ purpose: 'dsh-host-enrollment-intent-v1', origin, identity,
+  return createHash('sha256').update(JSON.stringify({ purpose: 'tokenworks-mobile-host-enrollment-intent-v1', origin, identity,
     thumbprint, requiredScopes: scopes })).digest('hex')
 }
 
@@ -221,7 +221,7 @@ export class HostRestCredentialProvider implements HostCredentialProvider {
     if (response.installation_id !== this.#options.installationId) throw error('identity_changed')
     const remaining = deadline(response.expires_at, 90_000)
     if (remaining() <= 0) throw error('expired')
-    const proof = await this.#jws({ alg: 'ES256', typ: 'dsh-host-credential-proof+jwt' }, {
+    const proof = await this.#jws({ alg: 'ES256', typ: 'tokenworks-mobile-host-credential-proof+jwt' }, {
       iss: response.installation_id, aud: audience, challenge_id: response.challenge_id, nonce: response.challenge, iat: Math.floor(Date.now() / 1000), jti: randomUUID(),
     }, authorized)
     if (remaining() <= 0) throw error('expired')

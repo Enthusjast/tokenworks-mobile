@@ -84,12 +84,12 @@ def main():
                 records[name]["actual_signer_sha256"] = signer
 
         for name, package, version, minimum, store in [
-            ("upgrade", "cn.edu.ustc.dsh.mobile", 2, 26, options.debug_keystore),
-            ("same-version", "cn.edu.ustc.dsh.mobile", 1, 26, options.debug_keystore),
-            ("downgrade", "cn.edu.ustc.dsh.mobile", 0, 26, options.debug_keystore),
-            ("wrong-package", "cn.edu.ustc.dsh.notmobile", 2, 26, options.debug_keystore),
-            ("wrong-signer", "cn.edu.ustc.dsh.mobile", 2, 26, wrong_key),
-            ("higher-sdk", "cn.edu.ustc.dsh.mobile", 2, 28, options.debug_keystore),
+            ("upgrade", "cn.edu.ustc.tokenworks", 2, 26, options.debug_keystore),
+            ("same-version", "cn.edu.ustc.tokenworks", 1, 26, options.debug_keystore),
+            ("downgrade", "cn.edu.ustc.tokenworks", 0, 26, options.debug_keystore),
+            ("wrong-package", "io.github.enthusjast.tokenworks.notmobile", 2, 26, options.debug_keystore),
+            ("wrong-signer", "cn.edu.ustc.tokenworks", 2, 26, wrong_key),
+            ("higher-sdk", "cn.edu.ustc.tokenworks", 2, 28, options.debug_keystore),
         ]:
             manifest = work / "AndroidManifest.xml"
             manifest.write_text(f'''<manifest xmlns:android="http://schemas.android.com/apk/res/android" package="{package}"

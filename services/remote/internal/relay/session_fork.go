@@ -7,7 +7,7 @@ import (
 	"encoding/json"
 	"time"
 
-	"dsh-mobile-ustc/services/remote/internal/canonical"
+	"tokenworks-mobile/services/remote/internal/canonical"
 )
 
 const sessionForkCapability = "session.fork.v1"

@@ -5,8 +5,8 @@ import (
 	"encoding/json"
 	"sync"
 
-	"dsh-mobile-ustc/services/remote/internal/canonical"
-	"dsh-mobile-ustc/services/remote/internal/store"
+	"tokenworks-mobile/services/remote/internal/canonical"
+	"tokenworks-mobile/services/remote/internal/store"
 )
 
 // These process-local payload limits include waiting frames and the writer.

@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"dsh-mobile-ustc/services/remote/internal/store"
+	"tokenworks-mobile/services/remote/internal/store"
 )
 
 func (fake *relayTestStore) AuthorizeRealtimeSessionFork(ctx context.Context, ticket store.TicketRedemption, sourceID, workspaceID string) error {

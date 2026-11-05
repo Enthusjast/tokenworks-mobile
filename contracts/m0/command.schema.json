@@ -1005,5 +1005,5 @@
       "additionalProperties": false
     }
   ],
-  "$id": "urn:dsh-mobile-ustc:m0:command:v0"
+  "$id": "urn:tokenworks-mobile:m0:command:v0"
 }

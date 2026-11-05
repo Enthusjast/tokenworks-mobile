@@ -11,12 +11,12 @@ import (
 	"strings"
 	"time"
 
-	"dsh-mobile-ustc/services/remote/internal/requestlog"
-	"dsh-mobile-ustc/services/remote/internal/store"
+	"tokenworks-mobile/services/remote/internal/requestlog"
+	"tokenworks-mobile/services/remote/internal/store"
 )
 
 const privateOwnerHTTPPath = "/internal/relay/v1/http"
-const relayOriginalPathHeader = "X-DSH-Relay-Original-Path"
+const relayOriginalPathHeader = "X-TokenWorks-Mobile-Relay-Original-Path"
 
 type ownerHTTPForward struct{ cancel context.CancelFunc }
 
@@ -148,7 +148,7 @@ func (server *Server) ForwardOwnerHTTP(response http.ResponseWriter, request *ht
 	copy.RequestURI = ""
 	copy.Header = make(http.Header)
 	requestlog.ForwardHeaders(request.Context(), copy.Header)
-	for _, name := range []string{"Authorization", "DPoP", "Content-Type", "X-DSH-File-Proof"} {
+	for _, name := range []string{"Authorization", "DPoP", "Content-Type", "X-TokenWorks-Mobile-File-Proof"} {
 		if values := request.Header.Values(name); len(values) == 1 {
 			copy.Header.Set(name, values[0])
 		}
@@ -178,7 +178,7 @@ func (server *Server) ForwardOwnerHTTP(response http.ResponseWriter, request *ht
 	if server.forwardJSONEnvelope(response, request, reply) {
 		return true
 	}
-	for _, name := range []string{"Content-Type", "Content-Length", "Content-Disposition", "Content-Encoding", "X-Content-Type-Options", "X-DSH-Content-SHA256", "Cache-Control", "DPoP-Nonce", "WWW-Authenticate"} {
+	for _, name := range []string{"Content-Type", "Content-Length", "Content-Disposition", "Content-Encoding", "X-Content-Type-Options", "X-TokenWorks-Mobile-Content-SHA256", "Cache-Control", "DPoP-Nonce", "WWW-Authenticate"} {
 		if values := reply.Header.Values(name); len(values) == 1 {
 			response.Header().Set(name, values[0])
 		}

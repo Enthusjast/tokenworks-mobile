@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"dsh-mobile-ustc/services/remote/internal/observability"
+	"tokenworks-mobile/services/remote/internal/observability"
 )
 
 func TestMetricsListenerIsExplicitAndRejectsPublicOrAmbiguousBindings(t *testing.T) {
@@ -51,7 +51,7 @@ func TestMetricsListenerHasOnlyItsOwnRouteAndClosesItsPort(t *testing.T) {
 		if readErr != nil || response.StatusCode != check.status {
 			t.Fatalf("route %s %s: status=%d err=%v", check.method, check.path, response.StatusCode, readErr)
 		}
-		if check.status == 200 && (!strings.Contains(string(body), "dsh_remote_control_available") || response.Header.Get("Cache-Control") != "no-store") {
+		if check.status == 200 && (!strings.Contains(string(body), "tokenworks_mobile_control_available") || response.Header.Get("Cache-Control") != "no-store") {
 			t.Fatal("missing private-registry metrics")
 		}
 	}

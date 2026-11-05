@@ -4,7 +4,7 @@ import { z } from 'zod'
 import { canonicalObject, parseSigningObject } from './canonical.js'
 import { TrustedApprovalAuthority } from './approval-lease.js'
 
-export const APPROVAL_AUTHORITY_DESCRIPTION_FORMAT = 'dsh-approval-authority/v1'
+export const APPROVAL_AUTHORITY_DESCRIPTION_FORMAT = 'tokenworks-mobile-approval-authority/v1'
 const sha256 = z.string().regex(/^[0-9a-f]{64}$/)
 export const ApprovalAuthorityDescription = z.strictObject({ format: z.literal(APPROVAL_AUTHORITY_DESCRIPTION_FORMAT), authority: TrustedApprovalAuthority,
   policy: z.strictObject({ version: z.number().int().safe().min(1), assurance_profile: z.string().regex(/^[a-z0-9][a-z0-9./_-]{0,127}$/),

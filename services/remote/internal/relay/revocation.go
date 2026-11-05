@@ -6,7 +6,7 @@ import (
 	"sync"
 	"time"
 
-	"dsh-mobile-ustc/services/remote/internal/store"
+	"tokenworks-mobile/services/remote/internal/store"
 )
 
 func (server *Server) ApplyControlEvent(ctx context.Context, event store.ControlEvent) error {

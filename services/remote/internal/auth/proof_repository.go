@@ -27,7 +27,7 @@ func ProofScopeInEpoch(scope [32]byte, epoch string) ([32]byte, error) {
 	if !databaseEpochPattern.MatchString(epoch) {
 		return [32]byte{}, ErrProofStateUnavailable
 	}
-	value := append([]byte("dsh-mobile-ustc/dpop-database-epoch/v1\x00"), scope[:]...)
+	value := append([]byte("tokenworks-mobile/dpop-database-epoch/v1\x00"), scope[:]...)
 	value = append(value, []byte(epoch)...)
 	return sha256.Sum256(value), nil
 }
@@ -59,7 +59,7 @@ func ProofScope(issuer, audience, publicOrigin string) ([32]byte, error) {
 	}
 	origin.Scheme, origin.Host = strings.ToLower(origin.Scheme), strings.ToLower(origin.Host)
 	hash := sha256.New()
-	_, _ = hash.Write([]byte("dsh-mobile-ustc/dpop-state/v1\x00"))
+	_, _ = hash.Write([]byte("tokenworks-mobile/dpop-state/v1\x00"))
 	for _, part := range []string{iss.String(), audience, origin.String()} {
 		var length [8]byte
 		binary.BigEndian.PutUint64(length[:], uint64(len(part)))

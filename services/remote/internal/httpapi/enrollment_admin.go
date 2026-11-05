@@ -8,8 +8,8 @@ import (
 	"net/http"
 	"net/url"
 
-	"dsh-mobile-ustc/services/remote/internal/auth"
-	"dsh-mobile-ustc/services/remote/internal/store"
+	"tokenworks-mobile/services/remote/internal/auth"
+	"tokenworks-mobile/services/remote/internal/store"
 )
 
 type enrollmentAdminRepository interface {

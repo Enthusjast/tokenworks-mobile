@@ -17,7 +17,7 @@ gradle.beforeProject { project ->
     project.layout.buildDirectory.set(new File(fixtureOutput, name))
     project.plugins.withId('com.android.application') {
         project.extensions.getByName('androidComponents').finalizeDsl { android ->
-            if (project.path != ':app' || android.defaultConfig.applicationId != 'cn.edu.ustc.dsh.mobile' ||
+            if (project.path != ':app' || android.defaultConfig.applicationId != 'cn.edu.ustc.tokenworks' ||
                 android.defaultConfig.versionCode != 1 || android.defaultConfig.versionName != '0.1.0-dev') {
                 throw new GradleException('Expected the ordinary version 1 application as fixture baseline')
             }

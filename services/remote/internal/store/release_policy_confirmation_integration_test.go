@@ -11,9 +11,9 @@ import (
 	"testing"
 	"time"
 
-	"dsh-mobile-ustc/services/remote/internal/auth"
-	"dsh-mobile-ustc/services/remote/internal/releases"
-	"dsh-mobile-ustc/services/remote/internal/testsupport"
+	"tokenworks-mobile/services/remote/internal/auth"
+	"tokenworks-mobile/services/remote/internal/releases"
+	"tokenworks-mobile/services/remote/internal/testsupport"
 )
 
 const releaseRecoveryEpoch = "88888888-8888-4888-8888-888888888888"

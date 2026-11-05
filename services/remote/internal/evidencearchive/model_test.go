@@ -9,8 +9,8 @@ import (
 	"testing"
 	"time"
 
-	"dsh-mobile-ustc/services/remote/internal/approval"
-	"dsh-mobile-ustc/services/remote/internal/coldarchive"
+	"tokenworks-mobile/services/remote/internal/approval"
+	"tokenworks-mobile/services/remote/internal/coldarchive"
 )
 
 const fixtureDomain = "11111111-1111-4111-8111-111111111111"
@@ -50,7 +50,7 @@ func samplePayload(t *testing.T) Payload {
 		t.Fatal(err)
 	}
 	c := verified.Claims
-	return Payload{Format: "dsh-approval-evidence", Version: 1, DomainID: fixtureDomain, ExportID: fixtureExport, OperationEpoch: fixtureEpoch, KeyID: "fixture-key", PreparedAt: now.Add(time.Second),
+	return Payload{Format: "tokenworks-mobile-approval-evidence", Version: 1, DomainID: fixtureDomain, ExportID: fixtureExport, OperationEpoch: fixtureEpoch, KeyID: "fixture-key", PreparedAt: now.Add(time.Second),
 		Proof: Proof{ApprovalID: c.ApprovalID, SourceEpoch: fixtureEpoch, RuntimeID: c.RuntimeID, RuntimeEpoch: c.RuntimeEpoch, SessionID: c.SessionID, ExecutionID: c.ExecutionID,
 			UserID: c.UserID, DeviceID: c.DeviceID, KeyVersion: c.KeyVersion, ApprovalKeyJKT: key.ApprovalKeyJKT, Decision: c.Decision, BindingSHA256: c.BindingSHA256,
 			PayloadSHA256: verified.PayloadSHA256, JWSSHA256: coldarchive.Digest([]byte(fixture.Vectors[0].Compact)), FingerprintSource: "captured", DecidedAt: now, RetainUntil: utcYear(now),

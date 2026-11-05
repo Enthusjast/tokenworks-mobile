@@ -1,7 +1,7 @@
 {
   "v": 1,
-  "deployment_sha256": "715c9534192f753addea33537ee2ecd7d2495d785ebcd994b8d4279aec95cd59",
-  "package_name": "cn.edu.ustc.dsh.mobile",
+  "deployment_sha256": "de38e67e64ef7fe7973eb39aeacf914d737c53df1fca645ace5c704e2ab1e78e",
+  "package_name": "cn.edu.ustc.tokenworks",
   "download_origins": [
     "https://updates.example.invalid"
   ]

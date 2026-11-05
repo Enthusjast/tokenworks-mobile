@@ -66,8 +66,8 @@ async function readBody(request: IncomingMessage): Promise<unknown> {
 /** Validate the local IPC namespace and keep each Windows pipe bound to one runtime identity. */
 export function validateSocketPath(socketPath: string, platform = process.platform): void {
   if (platform === 'win32') {
-    if (!/^\\\\\.\\pipe\\dsh-mobile-ustc-[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(socketPath)) {
-      throw new Error('Windows M0 debug requires a per-runtime named pipe under \\\\.\\pipe\\dsh-mobile-ustc-<runtimeId>')
+    if (!/^\\\\\.\\pipe\\tokenworks-mobile-[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(socketPath)) {
+      throw new Error('Windows M0 debug requires a per-runtime named pipe under \\\\.\\pipe\\tokenworks-mobile-<runtimeId>')
     }
     return
   }

@@ -7,7 +7,7 @@ import (
 	"errors"
 	"time"
 
-	"dsh-mobile-ustc/services/remote/internal/push"
+	"tokenworks-mobile/services/remote/internal/push"
 )
 
 func (store *PushStore) Renew(ctx context.Context, actor push.Actor, id string) (push.Binding, error) {

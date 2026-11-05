@@ -49,7 +49,7 @@ func newTestKeys(t *testing.T) *testKeys {
 	t.Cleanup(server.Close)
 	now := time.Now().UTC().Truncate(time.Second)
 	verifier, err := New(Config{
-		Issuer: issuer, Audience: "urn:dsh-remote", JWKSURL: server.URL,
+		Issuer: issuer, Audience: "urn:tokenworks-mobile", JWKSURL: server.URL,
 		AllowedClients: []string{"android-public-client"}, RequiredScopes: []string{"remote.access"},
 		PublicOrigin: "https://api.example.edu", MaxTokenLifetime: 15 * time.Minute, Clock: func() time.Time { return now },
 	})
@@ -62,7 +62,7 @@ func newTestKeys(t *testing.T) *testKeys {
 func (keys *testKeys) token(t *testing.T, mutate func(map[string]any)) string {
 	t.Helper()
 	claims := map[string]any{
-		"iss": keys.issuer, "sub": "user-ustc-123", "aud": []string{"urn:dsh-remote", "urn:another-resource"},
+		"iss": keys.issuer, "sub": "user-ustc-123", "aud": []string{"urn:tokenworks-mobile", "urn:another-resource"},
 		"client_id": "android-public-client", "jti": "access-jti-001", "iat": keys.now.Unix(),
 		"exp": keys.now.Add(5 * time.Minute).Unix(), "scope": "openid remote.access",
 		"cnf": map[string]any{"jkt": keys.proofJKT},

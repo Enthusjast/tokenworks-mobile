@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"dsh-mobile-ustc/services/remote/internal/observability"
+	"tokenworks-mobile/services/remote/internal/observability"
 )
 
 func assertScanMetrics(t *testing.T, metrics *observability.Metrics, direction, result string) {
@@ -18,7 +18,7 @@ func assertScanMetrics(t *testing.T, metrics *observability.Metrics, direction, 
 	}
 	found := false
 	for _, family := range families {
-		if family.GetName() != "dsh_remote_file_scan_attempt_duration_seconds" {
+		if family.GetName() != "tokenworks_mobile_file_scan_attempt_duration_seconds" {
 			continue
 		}
 		if len(family.Metric) != 1 {

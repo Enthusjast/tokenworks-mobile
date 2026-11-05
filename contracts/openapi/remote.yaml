@@ -1,8 +1,8 @@
 openapi: 3.1.0
 info:
-  title: DSH Mobile Remote Control API
+  title: TokenWorks Mobile Remote Control API
   version: 0.1.0
-  description: Standard JSON responses support explicit X-DSH-Response-Envelope=request-id.v1 negotiation. Top-level request_id is mandatory only for that acknowledged representation; business request_id fields retain their existing identities. Authenticated control plane and optional quarantined file uploads implemented by the Go service. File routes require explicit protected storage/scanner configuration and an operational scanner probe. Push routes and workers require a separate protected configuration; provider acceptance never grants interaction authority.
+  description: Standard JSON responses support explicit X-TokenWorks-Mobile-Response-Envelope=request-id.v1 negotiation. Top-level request_id is mandatory only for that acknowledged representation; business request_id fields retain their existing identities. Authenticated control plane and optional quarantined file uploads implemented by the Go service. File routes require explicit protected storage/scanner configuration and an operational scanner probe. Push routes and workers require a separate protected configuration; provider acceptance never grants interaction authority.
 servers:
   - url: https://remote.example.edu
 security:
@@ -147,7 +147,7 @@ paths:
           description: Verified token identity, resource scopes and the authoritative active service user with current organization memberships. Requires a provisioned active user; available before device enrollment. Memberships do not grant runtime access.
           headers:
             X-Request-ID: { $ref: '#/components/headers/X-Request-ID' }
-            X-DSH-Response-Envelope: { $ref: '#/components/headers/X-DSH-Response-Envelope' }
+            X-TokenWorks-Mobile-Response-Envelope: { $ref: '#/components/headers/X-TokenWorks-Mobile-Response-Envelope' }
             DPoP-Nonce: { $ref: '#/components/headers/DPoP-Nonce' }
           content:
             application/json:
@@ -173,7 +173,7 @@ paths:
           description: Bounded own-device metadata in descending creation time and UUID order. Pages recheck current authority and may observe later status changes; they are not a historical snapshot. Responses contain no keys, credential material or push addresses.
           headers:
             X-Request-ID: { $ref: '#/components/headers/X-Request-ID' }
-            X-DSH-Response-Envelope: { $ref: '#/components/headers/X-DSH-Response-Envelope' }
+            X-TokenWorks-Mobile-Response-Envelope: { $ref: '#/components/headers/X-TokenWorks-Mobile-Response-Envelope' }
             DPoP-Nonce: { $ref: '#/components/headers/DPoP-Nonce' }
           content:
             application/json:
@@ -196,7 +196,7 @@ paths:
           description: Device keys are registered for the verified user. The proof key must match the DPoP-bound access token; an ES256 approval-key possession proof binds the identity, keys, name digest and current DPoP request. The keys must be distinct. A fresh authenticated proof with the same account, key pair, normalized name and version 1 returns the original device without another audit row. Changed data conflicts; revoked devices are never revived.
           headers:
             X-Request-ID: { $ref: '#/components/headers/X-Request-ID' }
-            X-DSH-Response-Envelope: { $ref: '#/components/headers/X-DSH-Response-Envelope' }
+            X-TokenWorks-Mobile-Response-Envelope: { $ref: '#/components/headers/X-TokenWorks-Mobile-Response-Envelope' }
             DPoP-Nonce: { $ref: '#/components/headers/DPoP-Nonce' }
           content:
             application/json:
@@ -217,7 +217,7 @@ paths:
           description: Current enrollment state for the authenticated key.
           headers:
             X-Request-ID: { $ref: '#/components/headers/X-Request-ID' }
-            X-DSH-Response-Envelope: { $ref: '#/components/headers/X-DSH-Response-Envelope' }
+            X-TokenWorks-Mobile-Response-Envelope: { $ref: '#/components/headers/X-TokenWorks-Mobile-Response-Envelope' }
             DPoP-Nonce: { $ref: '#/components/headers/DPoP-Nonce' }
           content:
             application/json:
@@ -237,7 +237,7 @@ paths:
           description: Device revocation is stored transactionally with an audit row and control-outbox event. Repeating a successful revocation is idempotent.
           headers:
             X-Request-ID: { $ref: '#/components/headers/X-Request-ID' }
-            X-DSH-Response-Envelope: { $ref: '#/components/headers/X-DSH-Response-Envelope' }
+            X-TokenWorks-Mobile-Response-Envelope: { $ref: '#/components/headers/X-TokenWorks-Mobile-Response-Envelope' }
             DPoP-Nonce: { $ref: '#/components/headers/DPoP-Nonce' }
           content:
             application/json:
@@ -264,7 +264,7 @@ paths:
           description: Current manageable installations in descending creation time and UUID order. Cursors locate metadata and do not grant access or freeze a historical snapshot.
           headers:
             X-Request-ID: { $ref: '#/components/headers/X-Request-ID' }
-            X-DSH-Response-Envelope: { $ref: '#/components/headers/X-DSH-Response-Envelope' }
+            X-TokenWorks-Mobile-Response-Envelope: { $ref: '#/components/headers/X-TokenWorks-Mobile-Response-Envelope' }
             DPoP-Nonce: { $ref: '#/components/headers/DPoP-Nonce' }
           content:
             application/json:
@@ -285,7 +285,7 @@ paths:
           description: Revoked transactionally with grant/runtime control events and resource audit. Missing or unauthorized identifiers are denied without disclosing existence.
           headers:
             X-Request-ID: { $ref: '#/components/headers/X-Request-ID' }
-            X-DSH-Response-Envelope: { $ref: '#/components/headers/X-DSH-Response-Envelope' }
+            X-TokenWorks-Mobile-Response-Envelope: { $ref: '#/components/headers/X-TokenWorks-Mobile-Response-Envelope' }
             DPoP-Nonce: { $ref: '#/components/headers/DPoP-Nonce' }
           content:
             application/json:
@@ -312,7 +312,7 @@ paths:
           description: Profile records in ascending runtime UUID order, including revoked profiles. Active describes registration, not online status. The cursor binds account, proof key and installation but carries no authority or historical snapshot.
           headers:
             X-Request-ID: { $ref: '#/components/headers/X-Request-ID' }
-            X-DSH-Response-Envelope: { $ref: '#/components/headers/X-DSH-Response-Envelope' }
+            X-TokenWorks-Mobile-Response-Envelope: { $ref: '#/components/headers/X-TokenWorks-Mobile-Response-Envelope' }
             DPoP-Nonce: { $ref: '#/components/headers/DPoP-Nonce' }
           content:
             application/json:
@@ -337,7 +337,7 @@ paths:
           description: Runtime, its grants, tickets and active metadata retired atomically with audit and durable runtime invalidation. Missing, mismatched or unauthorized identifiers are generically denied. Existing installation credentials remain subject to current runtime checks at attach and every operation.
           headers:
             X-Request-ID: { $ref: '#/components/headers/X-Request-ID' }
-            X-DSH-Response-Envelope: { $ref: '#/components/headers/X-DSH-Response-Envelope' }
+            X-TokenWorks-Mobile-Response-Envelope: { $ref: '#/components/headers/X-TokenWorks-Mobile-Response-Envelope' }
             DPoP-Nonce: { $ref: '#/components/headers/DPoP-Nonce' }
           content:
             application/json:
@@ -377,8 +377,8 @@ paths:
           headers:
             X-Request-ID:
               $ref: "#/components/headers/X-Request-ID"
-            X-DSH-Response-Envelope:
-              $ref: "#/components/headers/X-DSH-Response-Envelope"
+            X-TokenWorks-Mobile-Response-Envelope:
+              $ref: "#/components/headers/X-TokenWorks-Mobile-Response-Envelope"
             DPoP-Nonce:
               $ref: "#/components/headers/DPoP-Nonce"
           content:
@@ -405,7 +405,7 @@ paths:
           description: Creates a five-minute pending enrollment and a runtime with the requested opaque workspace references.
           headers:
             X-Request-ID: { $ref: '#/components/headers/X-Request-ID' }
-            X-DSH-Response-Envelope: { $ref: '#/components/headers/X-DSH-Response-Envelope' }
+            X-TokenWorks-Mobile-Response-Envelope: { $ref: '#/components/headers/X-TokenWorks-Mobile-Response-Envelope' }
             DPoP-Nonce: { $ref: '#/components/headers/DPoP-Nonce' }
           content:
             application/json:
@@ -427,7 +427,7 @@ paths:
           description: Status for the initiating installation owner or the user who confirmed. Phone access requires a registered device; an allowlisted host client must also prove the matching installation key. The code is never returned.
           headers:
             X-Request-ID: { $ref: '#/components/headers/X-Request-ID' }
-            X-DSH-Response-Envelope: { $ref: '#/components/headers/X-DSH-Response-Envelope' }
+            X-TokenWorks-Mobile-Response-Envelope: { $ref: '#/components/headers/X-TokenWorks-Mobile-Response-Envelope' }
             DPoP-Nonce: { $ref: '#/components/headers/DPoP-Nonce' }
           content:
             application/json:
@@ -448,7 +448,7 @@ paths:
           description: Key-bound enrollment and confirming-user review.
           headers:
             X-Request-ID: { $ref: '#/components/headers/X-Request-ID' }
-            X-DSH-Response-Envelope: { $ref: '#/components/headers/X-DSH-Response-Envelope' }
+            X-TokenWorks-Mobile-Response-Envelope: { $ref: '#/components/headers/X-TokenWorks-Mobile-Response-Envelope' }
             DPoP-Nonce: { $ref: '#/components/headers/DPoP-Nonce' }
           content:
             application/json:
@@ -474,7 +474,7 @@ paths:
           description: Verified display metadata, installation key thumbprint and current-account confirmation attribution, without the code.
           headers:
             X-Request-ID: { $ref: '#/components/headers/X-Request-ID' }
-            X-DSH-Response-Envelope: { $ref: '#/components/headers/X-DSH-Response-Envelope' }
+            X-TokenWorks-Mobile-Response-Envelope: { $ref: '#/components/headers/X-TokenWorks-Mobile-Response-Envelope' }
             DPoP-Nonce: { $ref: '#/components/headers/DPoP-Nonce' }
           content:
             application/json:
@@ -499,7 +499,7 @@ paths:
           description: Phone user confirmation; the enrollment stays pending until the host owner confirms with the installation key. Pending confirmations recheck pairing expiry after authority locks and before commit; late attempts cannot retain confirmation or success evidence. Approved historical retries do not renew or reuse the pairing deadline.
           headers:
             X-Request-ID: { $ref: '#/components/headers/X-Request-ID' }
-            X-DSH-Response-Envelope: { $ref: '#/components/headers/X-DSH-Response-Envelope' }
+            X-TokenWorks-Mobile-Response-Envelope: { $ref: '#/components/headers/X-TokenWorks-Mobile-Response-Envelope' }
             DPoP-Nonce: { $ref: '#/components/headers/DPoP-Nonce' }
           content:
             application/json:
@@ -525,7 +525,7 @@ paths:
           description: Host confirmation; both confirmations activate the host and create initial owner grants.
           headers:
             X-Request-ID: { $ref: '#/components/headers/X-Request-ID' }
-            X-DSH-Response-Envelope: { $ref: '#/components/headers/X-DSH-Response-Envelope' }
+            X-TokenWorks-Mobile-Response-Envelope: { $ref: '#/components/headers/X-TokenWorks-Mobile-Response-Envelope' }
             DPoP-Nonce: { $ref: '#/components/headers/DPoP-Nonce' }
           content:
             application/json:
@@ -544,7 +544,7 @@ paths:
           description: Returns a 256-bit one-use challenge. Only its SHA-256 digest is stored.
           headers:
             X-Request-ID: { $ref: '#/components/headers/X-Request-ID' }
-            X-DSH-Response-Envelope: { $ref: '#/components/headers/X-DSH-Response-Envelope' }
+            X-TokenWorks-Mobile-Response-Envelope: { $ref: '#/components/headers/X-TokenWorks-Mobile-Response-Envelope' }
             DPoP-Nonce: { $ref: '#/components/headers/DPoP-Nonce' }
           content:
             application/json:
@@ -568,7 +568,7 @@ paths:
           description: Returns an opaque five-minute connection credential. Only its SHA-256 digest is stored, and at most eight unexpired credentials may be active per installation. A Relay must still require a fresh signed installation-key challenge when the host connects.
           headers:
             X-Request-ID: { $ref: '#/components/headers/X-Request-ID' }
-            X-DSH-Response-Envelope: { $ref: '#/components/headers/X-DSH-Response-Envelope' }
+            X-TokenWorks-Mobile-Response-Envelope: { $ref: '#/components/headers/X-TokenWorks-Mobile-Response-Envelope' }
             DPoP-Nonce: { $ref: '#/components/headers/DPoP-Nonce' }
           content:
             application/json:
@@ -635,7 +635,7 @@ paths:
           description: Current authorized metadata in stable ascending UUID order. Cursors bind account, proof key and directory purpose but carry no authority or historical snapshot. An eligible account with no visible resources receives an empty page. Metadata is not a credential or proof of online status.
           headers:
             X-Request-ID: { $ref: '#/components/headers/X-Request-ID' }
-            X-DSH-Response-Envelope: { $ref: '#/components/headers/X-DSH-Response-Envelope' }
+            X-TokenWorks-Mobile-Response-Envelope: { $ref: '#/components/headers/X-TokenWorks-Mobile-Response-Envelope' }
             DPoP-Nonce: { $ref: '#/components/headers/DPoP-Nonce' }
           content:
             application/json:
@@ -661,7 +661,7 @@ paths:
           description: Current authorized metadata in stable ascending UUID order. Cursors bind account, proof key and directory purpose but carry no authority or historical snapshot. An eligible account with no visible resources receives an empty page. Metadata is not a credential or proof of online status.
           headers:
             X-Request-ID: { $ref: '#/components/headers/X-Request-ID' }
-            X-DSH-Response-Envelope: { $ref: '#/components/headers/X-DSH-Response-Envelope' }
+            X-TokenWorks-Mobile-Response-Envelope: { $ref: '#/components/headers/X-TokenWorks-Mobile-Response-Envelope' }
             DPoP-Nonce: { $ref: '#/components/headers/DPoP-Nonce' }
           content:
             application/json:
@@ -679,7 +679,7 @@ paths:
           description: Hosts visible through active organization membership and runtime grants.
           headers:
             X-Request-ID: { $ref: '#/components/headers/X-Request-ID' }
-            X-DSH-Response-Envelope: { $ref: '#/components/headers/X-DSH-Response-Envelope' }
+            X-TokenWorks-Mobile-Response-Envelope: { $ref: '#/components/headers/X-TokenWorks-Mobile-Response-Envelope' }
             DPoP-Nonce: { $ref: '#/components/headers/DPoP-Nonce' }
           content:
             application/json:
@@ -708,7 +708,7 @@ paths:
           description: Runtimes visible through active grants, including the current user's organization, role and exact grant scope/version. This directory snapshot is not a credential; ticket issuance and operations recheck authority.
           headers:
             X-Request-ID: { $ref: '#/components/headers/X-Request-ID' }
-            X-DSH-Response-Envelope: { $ref: '#/components/headers/X-DSH-Response-Envelope' }
+            X-TokenWorks-Mobile-Response-Envelope: { $ref: '#/components/headers/X-TokenWorks-Mobile-Response-Envelope' }
             DPoP-Nonce: { $ref: '#/components/headers/DPoP-Nonce' }
           content:
             application/json:
@@ -749,7 +749,7 @@ paths:
           description: Metadata in ascending session UUID order, including scoped archived/unavailable rows. Stable ordering is independent of activity updates. Cursors bind account, proof key and runtime but grant no authority or historical snapshot. This directory neither reads content nor grants a realtime ticket.
           headers:
             X-Request-ID: { $ref: '#/components/headers/X-Request-ID' }
-            X-DSH-Response-Envelope: { $ref: '#/components/headers/X-DSH-Response-Envelope' }
+            X-TokenWorks-Mobile-Response-Envelope: { $ref: '#/components/headers/X-TokenWorks-Mobile-Response-Envelope' }
             DPoP-Nonce: { $ref: '#/components/headers/DPoP-Nonce' }
           content:
             application/json:
@@ -769,7 +769,7 @@ paths:
           description: Session metadata visible through an active session.list grant.
           headers:
             X-Request-ID: { $ref: '#/components/headers/X-Request-ID' }
-            X-DSH-Response-Envelope: { $ref: '#/components/headers/X-DSH-Response-Envelope' }
+            X-TokenWorks-Mobile-Response-Envelope: { $ref: '#/components/headers/X-TokenWorks-Mobile-Response-Envelope' }
             DPoP-Nonce: { $ref: '#/components/headers/DPoP-Nonce' }
           content:
             application/json:
@@ -866,7 +866,7 @@ paths:
           description: Current per-session read authority, bounded by five minutes, the access token and the grant expiry.
           headers:
             X-Request-ID: { $ref: '#/components/headers/X-Request-ID' }
-            X-DSH-Response-Envelope: { $ref: '#/components/headers/X-DSH-Response-Envelope' }
+            X-TokenWorks-Mobile-Response-Envelope: { $ref: '#/components/headers/X-TokenWorks-Mobile-Response-Envelope' }
             DPoP-Nonce: { $ref: '#/components/headers/DPoP-Nonce' }
           content:
             application/json:
@@ -900,7 +900,7 @@ paths:
           description: Grants ordered by user UUID, including expired, revoked or currently inactive recipients. Cursors bind caller, proof key and runtime but do not grant authority or freeze a historical snapshot. State precedence is revoked, expired, inactive (recipient account or membership), then active.
           headers:
             X-Request-ID: { $ref: '#/components/headers/X-Request-ID' }
-            X-DSH-Response-Envelope: { $ref: '#/components/headers/X-DSH-Response-Envelope' }
+            X-TokenWorks-Mobile-Response-Envelope: { $ref: '#/components/headers/X-TokenWorks-Mobile-Response-Envelope' }
             DPoP-Nonce: { $ref: '#/components/headers/DPoP-Nonce' }
           content:
             application/json:
@@ -930,7 +930,7 @@ paths:
           description: Grant is created or updated. Runtime owners can delegate only within their own scope; owner scopes include grant.manage. Organization admins may assign owner grants.
           headers:
             X-Request-ID: { $ref: '#/components/headers/X-Request-ID' }
-            X-DSH-Response-Envelope: { $ref: '#/components/headers/X-DSH-Response-Envelope' }
+            X-TokenWorks-Mobile-Response-Envelope: { $ref: '#/components/headers/X-TokenWorks-Mobile-Response-Envelope' }
             DPoP-Nonce: { $ref: '#/components/headers/DPoP-Nonce' }
           content:
             application/json:
@@ -951,7 +951,7 @@ paths:
           description: Grant revocation is idempotent and transactionally records audit and outbox events. Every attempt revalidates and locks the current registered phone and proof key and rechecks original manager expiry against the database wall clock after target locking and before the commit decision. No query selectors or body are accepted. Device revocation completed before authorization prevents this write; an earlier valid grant commit remains independent of later device revocation.
           headers:
             X-Request-ID: { $ref: '#/components/headers/X-Request-ID' }
-            X-DSH-Response-Envelope: { $ref: '#/components/headers/X-DSH-Response-Envelope' }
+            X-TokenWorks-Mobile-Response-Envelope: { $ref: '#/components/headers/X-TokenWorks-Mobile-Response-Envelope' }
             DPoP-Nonce: { $ref: '#/components/headers/DPoP-Nonce' }
           content:
             application/json:
@@ -974,7 +974,7 @@ paths:
           description: Issues a 30-second one-use ticket bound to the active device key version, runtime grant version, and requested scope. Only the ticket hash is stored. Database wall-clock checks after authority/resource waits and before the commit decision reject expired grants or newly expired tickets, rolling back the ticket and success audit. Handshake preparation/consumption recheck grant and ticket deadlines; established sockets retain their separate negotiated lifetime and current-grant checks.
           headers:
             X-Request-ID: { $ref: '#/components/headers/X-Request-ID' }
-            X-DSH-Response-Envelope: { $ref: '#/components/headers/X-DSH-Response-Envelope' }
+            X-TokenWorks-Mobile-Response-Envelope: { $ref: '#/components/headers/X-TokenWorks-Mobile-Response-Envelope' }
             DPoP-Nonce: { $ref: '#/components/headers/DPoP-Nonce' }
           content:
             application/json:
@@ -989,19 +989,19 @@ paths:
     get:
       security: []
       description: >-
-        WebSocket upgrade endpoint. Send `Authorization: DSH-Ticket <ticket>` for a mobile device or
-        `Authorization: DSH-Host <credential>` for an installation. After upgrade the server issues a
+        WebSocket upgrade endpoint. Send `Authorization: TokenWorks-Mobile-Ticket <ticket>` for a mobile device or
+        `Authorization: TokenWorks-Mobile-Host <credential>` for an installation. After upgrade the server issues a
         15-second one-use challenge. A mobile ticket is consumed atomically only after the registered
         device proves its key, so possession of the ticket alone cannot burn it. `hello.ok` is sent only after a signature by the registered P-256
         key. Device `hello.proof` binds device_id, protocols, and capabilities; host `hello.proof` binds
         runtime_id, runtime_epoch, DSH/application/plugin versions, protocol_version, and capabilities.
         Both ES256 proofs bind the challenge_id, nonce, connection_id, audience, and normalized hello
         digest. `hello_sha256` is base64url(SHA-256(domain || length-prefixed UTF-8 fields)); the domain
-        is `dsh-mobile-ustc/relay-hello/v1` followed by NUL. Device fields are role, device_id, sorted
+        is `tokenworks-mobile/relay-hello/v1` followed by NUL. Device fields are role, device_id, sorted
         comma-separated protocol numbers, and sorted newline-separated capabilities. Host fields are
         role, runtime_id, runtime_epoch, dsh_version, application_version, plugin_version,
         protocol_version, and newline-separated sorted capabilities. Prefix each field with its
-        four-byte big-endian byte length. Proofs use typ dsh-relay-handshake-proof+jwt, alg ES256,
+        four-byte big-endian byte length. Proofs use typ tokenworks-mobile-relay-handshake-proof+jwt, alg ES256,
         and exact claims iss, aud, challenge_id, connection_id, nonce, runtime_id, iat, and jti; host
         proofs also include runtime_epoch and hello_sha256. Heartbeats are text frames shaped as
         `{"v":1,"type":"ping","payload":{}}` and receive a pong with connection_id and server_time.
@@ -1067,7 +1067,7 @@ paths:
         Frame JSON Schemas and golden messages are in `contracts/ws/v1`. Never log Authorization
         headers on this route.
       responses:
-        '101': { description: WebSocket upgraded; client must answer the challenge before hello.ok is sent. Subprotocol dsh.remote.v1 is required. }
+        '101': { description: WebSocket upgraded; client must answer the challenge before hello.ok is sent. Subprotocol tokenworks-mobile.remote.v1 is required. }
         '400': { $ref: '#/components/responses/Error' }
         '401': { $ref: '#/components/responses/Error' }
         '503': { $ref: '#/components/responses/Error' }
@@ -1083,7 +1083,7 @@ paths:
           description: Persisted approval metadata, including disconnected or terminal outcomes. A known allow or consumed state is not native execution success. Metadata can be read independently of the optional signing configuration; every decision or execution still requires its own current authorization.
           headers:
             X-Request-ID: { $ref: '#/components/headers/X-Request-ID' }
-            X-DSH-Response-Envelope: { $ref: '#/components/headers/X-DSH-Response-Envelope' }
+            X-TokenWorks-Mobile-Response-Envelope: { $ref: '#/components/headers/X-TokenWorks-Mobile-Response-Envelope' }
             DPoP-Nonce: { $ref: '#/components/headers/DPoP-Nonce' }
           content:
             application/json:
@@ -1115,7 +1115,7 @@ paths:
           description: The decision is durably recorded. delivery pending requires reconciliation; forwarded confirms a transport write, and recorded returns an existing execution/status fact. None alone proves tool success.
           headers:
             X-Request-ID: { $ref: '#/components/headers/X-Request-ID' }
-            X-DSH-Response-Envelope: { $ref: '#/components/headers/X-DSH-Response-Envelope' }
+            X-TokenWorks-Mobile-Response-Envelope: { $ref: '#/components/headers/X-TokenWorks-Mobile-Response-Envelope' }
             DPoP-Nonce: { $ref: '#/components/headers/DPoP-Nonce' }
           content:
             application/json:
@@ -1159,7 +1159,7 @@ paths:
           description: Command metadata only; request body and chat content are not returned.
           headers:
             X-Request-ID: { $ref: '#/components/headers/X-Request-ID' }
-            X-DSH-Response-Envelope: { $ref: '#/components/headers/X-DSH-Response-Envelope' }
+            X-TokenWorks-Mobile-Response-Envelope: { $ref: '#/components/headers/X-TokenWorks-Mobile-Response-Envelope' }
             DPoP-Nonce: { $ref: '#/components/headers/DPoP-Nonce' }
           content:
             application/json:
@@ -1190,7 +1190,7 @@ paths:
           description: Original file metadata and, only while currently authorized and uploading, a short-lived quarantine PUT capability. No capability is included for an already committed/terminal intent.
           headers:
             X-Request-ID: { $ref: '#/components/headers/X-Request-ID' }
-            X-DSH-Response-Envelope: { $ref: '#/components/headers/X-DSH-Response-Envelope' }
+            X-TokenWorks-Mobile-Response-Envelope: { $ref: '#/components/headers/X-TokenWorks-Mobile-Response-Envelope' }
             DPoP-Nonce: { $ref: '#/components/headers/DPoP-Nonce' }
           content:
             application/json:
@@ -1214,7 +1214,7 @@ paths:
           description: Current durable transfer metadata; clean means bytes/scan/storage evidence passed, not that a host received or queued a message.
           headers:
             X-Request-ID: { $ref: '#/components/headers/X-Request-ID' }
-            X-DSH-Response-Envelope: { $ref: '#/components/headers/X-DSH-Response-Envelope' }
+            X-TokenWorks-Mobile-Response-Envelope: { $ref: '#/components/headers/X-TokenWorks-Mobile-Response-Envelope' }
             DPoP-Nonce: { $ref: '#/components/headers/DPoP-Nonce' }
           content:
             application/json:
@@ -1241,7 +1241,7 @@ paths:
           description: Original metadata and a refreshed short-lived capability within the original expiry.
           headers:
             X-Request-ID: { $ref: '#/components/headers/X-Request-ID' }
-            X-DSH-Response-Envelope: { $ref: '#/components/headers/X-DSH-Response-Envelope' }
+            X-TokenWorks-Mobile-Response-Envelope: { $ref: '#/components/headers/X-TokenWorks-Mobile-Response-Envelope' }
             DPoP-Nonce: { $ref: '#/components/headers/DPoP-Nonce' }
           content:
             application/json:
@@ -1264,7 +1264,7 @@ paths:
           description: Original from_host file metadata without private Host provenance or capabilities.
           headers:
             X-Request-ID: { $ref: '#/components/headers/X-Request-ID' }
-            X-DSH-Response-Envelope: { $ref: '#/components/headers/X-DSH-Response-Envelope' }
+            X-TokenWorks-Mobile-Response-Envelope: { $ref: '#/components/headers/X-TokenWorks-Mobile-Response-Envelope' }
             DPoP-Nonce: { $ref: '#/components/headers/DPoP-Nonce' }
           content:
             application/json:
@@ -1286,11 +1286,11 @@ paths:
           description: Exact verified committed bytes; served is a server-side fact, and the phone independently verifies its saved document.
           headers:
             X-Request-ID: { $ref: '#/components/headers/X-Request-ID' }
-            X-DSH-Response-Envelope: { $ref: '#/components/headers/X-DSH-Response-Envelope' }
+            X-TokenWorks-Mobile-Response-Envelope: { $ref: '#/components/headers/X-TokenWorks-Mobile-Response-Envelope' }
             DPoP-Nonce: { $ref: '#/components/headers/DPoP-Nonce' }
             Content-Length: { schema: { type: integer, minimum: 0, maximum: 2000000000 } }
             Content-Disposition: { schema: { type: string }, description: Attachment with a safely encoded display filename. }
-            X-DSH-Content-SHA256: { schema: { type: string, pattern: '^[0-9a-f]{64}$' } }
+            X-TokenWorks-Mobile-Content-SHA256: { schema: { type: string, pattern: '^[0-9a-f]{64}$' } }
             Cache-Control: { schema: { const: 'no-store, no-transform' } }
           content:
             application/octet-stream:
@@ -1318,7 +1318,7 @@ paths:
           description: Scanning is pending/in progress; query original status.
           headers:
             X-Request-ID: { $ref: '#/components/headers/X-Request-ID' }
-            X-DSH-Response-Envelope: { $ref: '#/components/headers/X-DSH-Response-Envelope' }
+            X-TokenWorks-Mobile-Response-Envelope: { $ref: '#/components/headers/X-TokenWorks-Mobile-Response-Envelope' }
             DPoP-Nonce: { $ref: '#/components/headers/DPoP-Nonce' }
           content:
             application/json:
@@ -1413,7 +1413,7 @@ paths:
         - in: header
           name: Authorization
           required: true
-          schema: { type: string, pattern: '^DSH-Push-Revoke [A-Za-z0-9_-]{43}$' }
+          schema: { type: string, pattern: '^TokenWorks-Mobile-Push-Revoke [A-Za-z0-9_-]{43}$' }
       responses:
         '204': { description: Cleanup request processed without disclosing registration existence. }
         '400': { $ref: '#/components/responses/Error' }
@@ -1558,8 +1558,8 @@ paths:
           headers:
             X-Request-ID:
               $ref: "#/components/headers/X-Request-ID"
-            X-DSH-Response-Envelope:
-              $ref: "#/components/headers/X-DSH-Response-Envelope"
+            X-TokenWorks-Mobile-Response-Envelope:
+              $ref: "#/components/headers/X-TokenWorks-Mobile-Response-Envelope"
             DPoP-Nonce:
               $ref: "#/components/headers/DPoP-Nonce"
           content:
@@ -1592,8 +1592,8 @@ paths:
           headers:
             X-Request-ID:
               $ref: "#/components/headers/X-Request-ID"
-            X-DSH-Response-Envelope:
-              $ref: "#/components/headers/X-DSH-Response-Envelope"
+            X-TokenWorks-Mobile-Response-Envelope:
+              $ref: "#/components/headers/X-TokenWorks-Mobile-Response-Envelope"
             DPoP-Nonce:
               $ref: "#/components/headers/DPoP-Nonce"
           content:
@@ -1628,8 +1628,8 @@ paths:
           headers:
             X-Request-ID:
               $ref: "#/components/headers/X-Request-ID"
-            X-DSH-Response-Envelope:
-              $ref: "#/components/headers/X-DSH-Response-Envelope"
+            X-TokenWorks-Mobile-Response-Envelope:
+              $ref: "#/components/headers/X-TokenWorks-Mobile-Response-Envelope"
             DPoP-Nonce:
               $ref: "#/components/headers/DPoP-Nonce"
           content:
@@ -1663,8 +1663,8 @@ paths:
           headers:
             X-Request-ID:
               $ref: "#/components/headers/X-Request-ID"
-            X-DSH-Response-Envelope:
-              $ref: "#/components/headers/X-DSH-Response-Envelope"
+            X-TokenWorks-Mobile-Response-Envelope:
+              $ref: "#/components/headers/X-TokenWorks-Mobile-Response-Envelope"
             DPoP-Nonce:
               $ref: "#/components/headers/DPoP-Nonce"
           content:
@@ -1686,17 +1686,17 @@ components:
     AccountSession:
       type: apiKey
       in: cookie
-      name: __Secure-remote_account
-      description: HttpOnly host-only browser session under /account. On loopback HTTP the cookie name is remote_account. Mutations also require the independent X-CSRF-Token and exact configured Origin. This scheme does not authorize /v1 operations.
+      name: __Secure-tokenworks_mobile_account
+      description: HttpOnly host-only browser session under /account. On loopback HTTP the cookie name is tokenworks_mobile_account. Mutations also require the independent X-CSRF-Token and exact configured Origin. This scheme does not authorize /v1 operations.
     HostFileTicket:
       type: http
-      scheme: DSH-File
+      scheme: TokenWorks-Mobile-File
       description: Opaque 32-byte base64url one-use ticket received over the current authenticated Host WSS connection. Stored only as SHA-256; never sent to object storage.
     HostFileProof:
       type: apiKey
       in: header
-      name: X-DSH-File-Proof
-      description: Registered installation-key ES256 JWS with typ dsh-file-read-proof+jwt, audience urn:dsh-mobile-ustc:file-read and exact iss/htm/htu/runtime_id/runtime_epoch/connection_id/handoff_id/file_id/ath/iat/jti claims. ath is base64url SHA-256 of the ticket. iat accepts at most 30 seconds skew. Embedded keys and extra claims/header fields are refused.
+      name: X-TokenWorks-Mobile-File-Proof
+      description: Registered installation-key ES256 JWS with typ tokenworks-mobile-file-read-proof+jwt, audience urn:tokenworks-mobile:file-read and exact iss/htm/htu/runtime_id/runtime_epoch/connection_id/handoff_id/file_id/ath/iat/jti claims. ath is base64url SHA-256 of the ticket. iat accepts at most 30 seconds skew. Embedded keys and extra claims/header fields are refused.
     DPoP:
       type: http
       scheme: DPoP
@@ -1704,7 +1704,7 @@ components:
   parameters:
     ResponseEnvelope:
       in: header
-      name: X-DSH-Response-Envelope
+      name: X-TokenWorks-Mobile-Response-Envelope
       required: false
       description: Set request-id.v1 to add a top-level per-attempt request_id to standard JSON responses. Omission preserves the legacy envelope. Unknown formats return 406 before business dispatch; empty or repeated headers return 400. Binary/204/WebSocket responses are not JSON envelopes.
       schema: { const: request-id.v1 }
@@ -1715,10 +1715,10 @@ components:
       schema: { type: string, format: uuid }
   responses:
     Error:
-      description: Stable non-sensitive service error. The optional request_id is mandatory when X-DSH-Response-Envelope acknowledges request-id.v1; validate that representation with NegotiatedResponseEnvelope and compare its ID with the response header.
+      description: Stable non-sensitive service error. The optional request_id is mandatory when X-TokenWorks-Mobile-Response-Envelope acknowledges request-id.v1; validate that representation with NegotiatedResponseEnvelope and compare its ID with the response header.
       headers:
         X-Request-ID: { $ref: '#/components/headers/X-Request-ID' }
-        X-DSH-Response-Envelope: { $ref: '#/components/headers/X-DSH-Response-Envelope' }
+        X-TokenWorks-Mobile-Response-Envelope: { $ref: '#/components/headers/X-TokenWorks-Mobile-Response-Envelope' }
       content:
         application/json:
           schema:
@@ -1727,7 +1727,7 @@ components:
     X-Request-ID:
       description: Service-generated per-HTTP-attempt correlation UUID; not the enrollment or command request identity. Public caller values are replaced.
       schema: { $ref: '#/components/schemas/HTTPResponseRequestID' }
-    X-DSH-Response-Envelope:
+    X-TokenWorks-Mobile-Response-Envelope:
       description: Present only when a standard JSON response uses the requested envelope. Its request_id must equal X-Request-ID. Legacy and successful binary/204/WebSocket responses omit this acknowledgement.
       schema: { const: request-id.v1 }
     DPoP-Nonce:
@@ -2326,7 +2326,7 @@ components:
           type: string
           minLength: 1
           maxLength: 8192
-          description: ES256 compact JWS with typ dsh-host-credential-proof+jwt, signed by the enrolled installation key. Claims are iss installation_id, aud urn:dsh-mobile-ustc:host-credential, challenge_id, nonce, iat and unique jti.
+          description: ES256 compact JWS with typ tokenworks-mobile-host-credential-proof+jwt, signed by the enrolled installation key. Claims are iss installation_id, aud urn:tokenworks-mobile:host-credential, challenge_id, nonce, iat and unique jti.
     HostCredentialChallengeCreated:
       type: object
       additionalProperties: false
@@ -2342,7 +2342,7 @@ components:
             challenge_id: { type: string, format: uuid }
             challenge: { type: string, minLength: 43, maxLength: 43, pattern: '^[A-Za-z0-9_-]{43}$' }
             installation_id: { type: string, format: uuid }
-            audience: { const: urn:dsh-mobile-ustc:host-credential }
+            audience: { const: urn:tokenworks-mobile:host-credential }
             expires_at: { type: string, format: date-time }
     HostConnectionCredentialCreated:
       type: object
@@ -2357,7 +2357,7 @@ components:
           required: [credential, token_type, installation_id, key_thumbprint, expires_at]
           properties:
             credential: { type: string, minLength: 43, maxLength: 43, pattern: '^[A-Za-z0-9_-]{43}$' }
-            token_type: { const: DSH-Host }
+            token_type: { const: TokenWorks-Mobile-Host }
             installation_id: { type: string, format: uuid }
             key_thumbprint: { type: string, minLength: 43, maxLength: 43, pattern: '^[A-Za-z0-9_-]{43}$' }
             expires_at: { type: string, format: date-time }

@@ -30,9 +30,9 @@ import { WorkspaceChanges } from './workspace-changes.js'
 
 const MAX_FRAME_BYTES = 64 * 1024
 const MAX_BUFFERED_BYTES = 512 * 1024
-const PROTOCOL = 'dsh.remote.v1'
-const PROOF_TYPE = 'dsh-relay-handshake-proof+jwt'
-const AUDIENCE = 'urn:dsh-mobile-ustc:realtime'
+const PROTOCOL = 'tokenworks-mobile.remote.v1'
+const PROOF_TYPE = 'tokenworks-mobile-relay-handshake-proof+jwt'
+const AUDIENCE = 'urn:tokenworks-mobile:realtime'
 const capabilities = ['command.relay.v1', 'connection.heartbeat.v1', 'question.blocking.v1', 'question.timed.v1', 'session.archive.v1', 'session.cancel.v1', 'session.catalog.v1', 'session.create.v1', 'session.model.select.v1', 'session.read.v1'] as const
 const requiredCapabilities = ['command.relay.v1', 'connection.heartbeat.v1'] as const
 const uuid = z.uuid()
@@ -347,7 +347,7 @@ function forwardedDigest(sessionId: string, payload: z.infer<typeof submitSchema
 /** Build and validate the Relay host hello; exported so golden tests can pin the Go/Node digest. */
 export function hostHelloDigest(parts: readonly string[]): string {
   const hash = createHash('sha256')
-  hash.update(Buffer.from('dsh-mobile-ustc/relay-hello/v1\0'))
+  hash.update(Buffer.from('tokenworks-mobile/relay-hello/v1\0'))
   for (const part of parts) {
     const bytes = Buffer.from(part, 'utf8')
     const size = Buffer.alloc(4)
@@ -457,7 +457,7 @@ async function receiveFrame(queue: IncomingFrames, timeoutMs: number): Promise<u
 async function connectOnce(options: HostRelayOptions, url: string, credential: HostConnectionCredential, signal: AbortSignal, connected: () => void): Promise<void> {
   validateCredential(credential)
   const socket = new WebSocketClient(url, [PROTOCOL], {
-    headers: { Authorization: `DSH-Host ${credential.credential}` },
+    headers: { Authorization: `TokenWorks-Mobile-Host ${credential.credential}` },
     handshakeTimeout: 15_000,
     maxPayload: MAX_FRAME_BYTES,
     perMessageDeflate: false,

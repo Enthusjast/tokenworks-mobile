@@ -1,9 +1,9 @@
 /* DSH lazy client factory. React and slots come from the running Web client. */
 window.__ModuleLoader__.load({
-  id: '@ustc/dsh-remote-control',
+  id: 'tokenworks-mobile',
   factory(require) {
     const { createElement: h, useState, useEffect, useRef } = require('react')
-    const css = `.ustc-remote{color:var(--dsw-alias-label-primary);font-size:14px;line-height:1.6;max-width:100%;padding:8px 0}.ustc-remote h2{font-size:20px;margin:0 0 8px}.ustc-remote p{color:var(--dsw-alias-label-secondary);margin:8px 0 16px}.ustc-remote article{border:1px solid var(--dsw-alias-border-default, #8885);border-radius:12px;padding:16px;margin:16px 0}.ustc-remote h3{font-size:15px;margin:0 0 12px}.ustc-remote dl{display:grid;grid-template-columns:100px minmax(0,1fr);gap:10px;margin:0}.ustc-remote dt{color:var(--dsw-alias-label-secondary)}.ustc-remote dd{margin:0;overflow-wrap:anywhere}.ustc-remote button{font:inherit;color:inherit;background:var(--dsw-alias-interactive-bg-hover);border:1px solid var(--dsw-alias-border-default, #8885);border-radius:8px;min-height:40px;padding:6px 14px;cursor:pointer}.ustc-remote button:disabled{opacity:.6;cursor:wait}.ustc-remote button:focus-visible{outline:2px solid var(--dsw-alias-brand-primary-new-colorprimary-new-color, #4c79ff);outline-offset:3px}.ustc-remote .actions{display:flex;gap:10px;flex-wrap:wrap}.ustc-remote .state{font-weight:600}.ustc-remote code{font:12px ui-monospace,monospace;overflow-wrap:anywhere}.ustc-remote ul{padding-left:20px}.ustc-remote li{margin:6px 0}.ustc-remote .notice{border-left:3px solid var(--dsw-alias-brand-primary-new-colorprimary-new-color, #4c79ff);padding-left:12px}`
+    const css = `.tokenworks-mobile{color:var(--dsw-alias-label-primary);font-size:14px;line-height:1.6;max-width:100%;padding:8px 0}.tokenworks-mobile h2{font-size:20px;margin:0 0 8px}.tokenworks-mobile p{color:var(--dsw-alias-label-secondary);margin:8px 0 16px}.tokenworks-mobile article{border:1px solid var(--dsw-alias-border-default, #8885);border-radius:12px;padding:16px;margin:16px 0}.tokenworks-mobile h3{font-size:15px;margin:0 0 12px}.tokenworks-mobile dl{display:grid;grid-template-columns:100px minmax(0,1fr);gap:10px;margin:0}.tokenworks-mobile dt{color:var(--dsw-alias-label-secondary)}.tokenworks-mobile dd{margin:0;overflow-wrap:anywhere}.tokenworks-mobile button{font:inherit;color:inherit;background:var(--dsw-alias-interactive-bg-hover);border:1px solid var(--dsw-alias-border-default, #8885);border-radius:8px;min-height:40px;padding:6px 14px;cursor:pointer}.tokenworks-mobile button:disabled{opacity:.6;cursor:wait}.tokenworks-mobile button:focus-visible{outline:2px solid var(--dsw-alias-brand-primary-new-colorprimary-new-color, #4c79ff);outline-offset:3px}.tokenworks-mobile .actions{display:flex;gap:10px;flex-wrap:wrap}.tokenworks-mobile .state{font-weight:600}.tokenworks-mobile code{font:12px ui-monospace,monospace;overflow-wrap:anywhere}.tokenworks-mobile ul{padding-left:20px}.tokenworks-mobile li{margin:6px 0}.tokenworks-mobile .notice{border-left:3px solid var(--dsw-alias-brand-primary-new-colorprimary-new-color, #4c79ff);padding-left:12px}`
     function Panel() {
       const [view, setView] = useState({ busy: true, data: null, error: '', updated: '' })
       const [reload, setReload] = useState(0)
@@ -16,7 +16,7 @@ window.__ModuleLoader__.load({
           request = new AbortController()
           const timeout = setTimeout(() => request.abort(), 4000)
           try {
-            const response = await fetch(new URL('ustc-remote-control/status', document.baseURI), {
+            const response = await fetch(new URL('tokenworks-mobile/status', document.baseURI), {
               credentials: 'same-origin', cache: 'no-store', redirect: 'error', signal: request.signal,
             })
             if (!response.ok) {
@@ -47,8 +47,8 @@ window.__ModuleLoader__.load({
       const data = view.data
       const phases = { connecting: '正在连接', connected: '已连接', reconnecting: '正在重连', stopped: '已停止' }
       const row = (label, value) => h('div', { key: label, style: { display: 'contents' } }, h('dt', null, label), h('dd', null, value))
-      return h('section', { className: 'ustc-remote', 'aria-label': '手机远控' },
-        h('h2', null, '手机远控'),
+      return h('section', { className: 'tokenworks-mobile', 'aria-label': 'TokenWorks Mobile' },
+        h('h2', null, 'TokenWorks Mobile'),
         h('p', null, '查看当前 dsh 的远控连接和允许访问的范围。'),
         h('div', { className: 'actions' }, h('button', { type: 'button', disabled: view.busy, onClick: () => { setCopied(''); setReload(n => n + 1) } }, view.busy ? '正在读取…' : '刷新状态'),
           data && h('button', { type: 'button', onClick: copyId }, '复制运行实例 ID')),
@@ -73,13 +73,13 @@ window.__ModuleLoader__.load({
       apply(ctx) {
         ctx.effect(() => {
           const style = document.createElement('style')
-          style.dataset.plugin = '@ustc/dsh-remote-control'
+          style.dataset.plugin = 'tokenworks-mobile'
           style.textContent = css
           document.head.appendChild(style)
           return () => style.remove()
         })
         ctx.slots.inject('settings.section', () => ctx.slots.register({
-          name: 'settings.section', id: 'ustc-remote-control', order: 25, label: () => '手机远控',
+          name: 'settings.section', id: 'tokenworks-mobile', order: 25, label: () => 'TokenWorks Mobile',
         }, Panel))
       },
     }

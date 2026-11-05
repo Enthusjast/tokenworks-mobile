@@ -12,12 +12,12 @@ import (
 	"strings"
 	"time"
 
-	"dsh-mobile-ustc/services/remote/internal/canonical"
+	"tokenworks-mobile/services/remote/internal/canonical"
 )
 
-const ContextDomain = "dsh-mobile-ustc/approval-context/v1"
-const DecisionDomain = "dsh-mobile-ustc/approval-decision/v1"
-const JWSType = "dsh-approval-decision+jws"
+const ContextDomain = "tokenworks-mobile/approval-context/v1"
+const DecisionDomain = "tokenworks-mobile/approval-decision/v1"
+const JWSType = "tokenworks-mobile-approval-decision+jws"
 const utcFormat = "2006-01-02T15:04:05.000Z"
 const maxSafeInteger = 9_007_199_254_740_991
 

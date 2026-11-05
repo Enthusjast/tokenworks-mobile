@@ -1,7 +1,7 @@
 package observability
 
 import (
-	"dsh-mobile-ustc/services/remote/internal/hostmetrics"
+	"tokenworks-mobile/services/remote/internal/hostmetrics"
 )
 
 func (m *Metrics) HostFlow(delta hostmetrics.FlowDelta) {

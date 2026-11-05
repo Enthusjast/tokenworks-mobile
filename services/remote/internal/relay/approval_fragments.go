@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"time"
 
-	"dsh-mobile-ustc/services/remote/internal/store"
+	"tokenworks-mobile/services/remote/internal/store"
 )
 
 const maxApprovalContextBytes = 128 * 1024

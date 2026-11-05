@@ -7,7 +7,7 @@ import (
 	"io"
 	"os"
 
-	"dsh-mobile-ustc/services/remote/internal/relay"
+	"tokenworks-mobile/services/remote/internal/relay"
 )
 
 var errSendQueueConfiguration = errors.New("remote relay send queue limits are invalid")

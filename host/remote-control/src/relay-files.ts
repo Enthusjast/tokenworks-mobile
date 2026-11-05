@@ -130,7 +130,7 @@ export class RelayFiles {
       epoch: this.registry.epoch, connectionId: this.binding.connectionId, handoffId: transfer.offer.handoff_id, fileId: transfer.offer.file_id, token: transfer.offer.download_token, uri })
     signal.throwIfAborted()
     if (!this.valid(transfer)) throw new Error('file authority expired')
-    const response = await fetch(uri, { method: 'GET', headers: { authorization: `DSH-File ${transfer.offer.download_token}`, 'x-dsh-file-proof': proof, 'accept-encoding': 'identity' },
+    const response = await fetch(uri, { method: 'GET', headers: { authorization: `TokenWorks-Mobile-File ${transfer.offer.download_token}`, 'x-tokenworks-mobile-file-proof': proof, 'accept-encoding': 'identity' },
       signal, redirect: 'error', credentials: 'omit', cache: 'no-store' })
     transfer.offer = { ...transfer.offer, download_token: '' }
     if (!this.valid(transfer) || response.status !== 200 || !response.body || response.headers.get('content-type')?.split(';')[0] !== 'application/octet-stream'

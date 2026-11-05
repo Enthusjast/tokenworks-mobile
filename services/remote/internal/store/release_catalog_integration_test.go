@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"dsh-mobile-ustc/services/remote/internal/releases"
+	"tokenworks-mobile/services/remote/internal/releases"
 )
 
 func releaseRegistryFixture(t *testing.T, change func(map[string]any)) *releases.Catalog {

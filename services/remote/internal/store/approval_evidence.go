@@ -9,8 +9,8 @@ import (
 	"errors"
 	"time"
 
-	"dsh-mobile-ustc/services/remote/internal/approval"
-	"dsh-mobile-ustc/services/remote/internal/coldarchive"
+	"tokenworks-mobile/services/remote/internal/approval"
+	"tokenworks-mobile/services/remote/internal/coldarchive"
 )
 
 var ErrApprovalEvidenceInvalid = errors.New("store: retained approval evidence failed verification")

@@ -101,7 +101,7 @@ test('answered native late questions remain human input without exporting source
 test('local IPC paths are bound to private Unix sockets or one runtime-scoped Windows pipe', () => {
   assert.doesNotThrow(() => validateSocketPath('/run/user/1000/dsh/probe.sock', 'linux'))
   assert.doesNotThrow(() => validateSocketPath('/tmp/dsh-mobile.sock', 'darwin'))
-  assert.doesNotThrow(() => validateSocketPath('\\\\.\\pipe\\dsh-mobile-ustc-44444444-4444-4444-8444-444444444444', 'win32'))
+  assert.doesNotThrow(() => validateSocketPath('\\\\.\\pipe\\tokenworks-mobile-44444444-4444-4444-8444-444444444444', 'win32'))
   for (const path of ['/tmp/dsh.sock', '127.0.0.1:3030', '\\\\.\\pipe\\other-service']) {
     assert.throws(() => validateSocketPath(path, 'win32'))
   }

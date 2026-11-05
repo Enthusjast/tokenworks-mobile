@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"dsh-mobile-ustc/services/remote/internal/observability"
+	"tokenworks-mobile/services/remote/internal/observability"
 )
 
 type serviceRepository struct {

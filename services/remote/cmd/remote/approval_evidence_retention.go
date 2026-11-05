@@ -2,13 +2,13 @@ package main
 
 import (
 	"context"
-	"dsh-mobile-ustc/services/remote/internal/store"
 	"encoding/json"
 	"errors"
 	"flag"
 	"io"
 	"os"
 	"time"
+	"tokenworks-mobile/services/remote/internal/store"
 )
 
 func runApprovalEvidenceRetentionCommand(arguments []string, output io.Writer) error {

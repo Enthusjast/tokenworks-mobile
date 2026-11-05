@@ -3,7 +3,7 @@ package store
 import (
 	"testing"
 
-	"dsh-mobile-ustc/services/remote/internal/coldarchive"
+	"tokenworks-mobile/services/remote/internal/coldarchive"
 )
 
 func TestRuntimeRevocationRetainsDurableAcknowledgementAndInertExport(t *testing.T) {

@@ -4,8 +4,8 @@ import (
 	"context"
 	"errors"
 
-	"dsh-mobile-ustc/services/remote/internal/releases"
-	"dsh-mobile-ustc/services/remote/internal/store"
+	"tokenworks-mobile/services/remote/internal/releases"
+	"tokenworks-mobile/services/remote/internal/store"
 )
 
 var errReleaseConfiguration = errors.New("remote service protected APK release configuration is invalid")

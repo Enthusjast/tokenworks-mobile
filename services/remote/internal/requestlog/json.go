@@ -6,7 +6,7 @@ import (
 	"net/http"
 )
 
-const EnvelopeHeader = "X-DSH-Response-Envelope"
+const EnvelopeHeader = "X-TokenWorks-Mobile-Response-Envelope"
 const RequestIDEnvelope = "request-id.v1"
 
 func JSONEnabled(ctx context.Context) bool {

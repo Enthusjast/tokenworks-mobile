@@ -4,7 +4,7 @@ import (
 	"crypto/sha256"
 	"encoding/json"
 
-	"dsh-mobile-ustc/services/remote/internal/canonical"
+	"tokenworks-mobile/services/remote/internal/canonical"
 )
 
 // Artifact fixes the identity and compatibility metadata of one APK. Distribution
@@ -43,7 +43,7 @@ func (artifact Artifact) Digest() ([32]byte, error) {
 	raw, err := json.Marshal(struct {
 		Format   string   `json:"format"`
 		Artifact Artifact `json:"artifact"`
-	}{"dsh-app-release-artifact/v1", artifact})
+	}{"tokenworks-mobile-app-release-artifact/v1", artifact})
 	if err != nil {
 		return [32]byte{}, ErrInvalid
 	}

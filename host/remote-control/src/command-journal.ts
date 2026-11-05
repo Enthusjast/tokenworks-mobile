@@ -101,7 +101,7 @@ function validateOwner(owner: CommandOwner): void {
   }
 }
 function aad(runtimeId: string, owner: CommandOwner, requestId: string, kind: 'command' | 'result', digest: string): Buffer {
-  return Buffer.from(`dsh-remote-command-v1\0${runtimeId}\0${owner.userId}\0${owner.deviceId}\0${requestId}\0${kind}\0${digest}`)
+  return Buffer.from(`tokenworks-mobile-remote-command-v1\0${runtimeId}\0${owner.userId}\0${owner.deviceId}\0${requestId}\0${kind}\0${digest}`)
 }
 
 export function defaultCommandJournalPath(runtimeId: string): string {
@@ -109,12 +109,12 @@ export function defaultCommandJournalPath(runtimeId: string): string {
   if (process.platform === 'win32') {
     const root = process.env.LOCALAPPDATA
     if (!root || !isAbsolute(root)) throw new Error('LOCALAPPDATA is required for the command journal')
-    return join(root, 'dsh-mobile-ustc', runtimeId, 'commands.sqlite')
+    return join(root, 'tokenworks-mobile', runtimeId, 'commands.sqlite')
   }
-  if (process.platform === 'darwin') return join(homedir(), 'Library', 'Application Support', 'dsh-mobile-ustc', runtimeId, 'commands.sqlite')
+  if (process.platform === 'darwin') return join(homedir(), 'Library', 'Application Support', 'tokenworks-mobile', runtimeId, 'commands.sqlite')
   const state = process.env.XDG_STATE_HOME
   const root = state && isAbsolute(state) ? state : join(homedir(), '.local', 'state')
-  return join(root, 'dsh-mobile-ustc', runtimeId, 'commands.sqlite')
+  return join(root, 'tokenworks-mobile', runtimeId, 'commands.sqlite')
 }
 
 function encrypt(key: Buffer, runtimeId: string, owner: CommandOwner, requestId: string, kind: 'command' | 'result', digest: string, value: unknown): Ciphertext {
@@ -134,7 +134,7 @@ function decrypt<T>(key: Buffer, runtimeId: string, owner: CommandOwner, request
 }
 
 function keyCheckAAD(runtimeId: string): Buffer {
-  return Buffer.from(`dsh-remote-command-key-v1\0${runtimeId}`)
+  return Buffer.from(`tokenworks-mobile-remote-command-key-v1\0${runtimeId}`)
 }
 
 function encryptKeyCheck(key: Buffer, runtimeId: string): Ciphertext {

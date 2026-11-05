@@ -9,8 +9,8 @@ import (
 	"time"
 )
 
-const FileReadAudience = "urn:dsh-mobile-ustc:file-read"
-const FileReadProofType = "dsh-file-read-proof+jwt"
+const FileReadAudience = "urn:tokenworks-mobile:file-read"
+const FileReadProofType = "tokenworks-mobile-file-read-proof+jwt"
 
 var ErrFileReadProof = errors.New("auth: invalid file read proof")
 

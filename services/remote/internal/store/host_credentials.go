@@ -11,7 +11,7 @@ import (
 	"errors"
 	"time"
 
-	"dsh-mobile-ustc/services/remote/internal/auth"
+	"tokenworks-mobile/services/remote/internal/auth"
 )
 
 var ErrHostCredentialInvalid = errors.New("store: host credential is invalid")
@@ -244,7 +244,7 @@ func (postgres *Postgres) exchangeHostCredentialOnce(ctx context.Context, identi
 		return HostConnectionCredential{}, transactionFailure(err)
 	}
 	result := HostConnectionCredential{
-		Credential: credential, TokenType: "DSH-Host", InstallationID: installationID,
+		Credential: credential, TokenType: "TokenWorks-Mobile-Host", InstallationID: installationID,
 		KeyThumbprint: publicKeyThumbprint,
 	}
 	err = transaction.QueryRowContext(ctx, `

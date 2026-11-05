@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"dsh-mobile-ustc/services/remote/internal/store"
+	"tokenworks-mobile/services/remote/internal/store"
 )
 
 func TestProductionSharedConnectionLimitSurvivesIngressAndOwnerMigration(t *testing.T) {
@@ -15,7 +15,7 @@ func TestProductionSharedConnectionLimitSurvivesIngressAndOwnerMigration(t *test
 	hostA := f.host(pair, "a")
 	phoneA := f.phone(pair, "b")
 	second := f.ticket(pair)
-	blocked, err := capacityConnect(f.ctx, f.clients["a"], f.origin, "device", "DSH-Ticket "+second.Token, pair.phoneKey, pair)
+	blocked, err := capacityConnect(f.ctx, f.clients["a"], f.origin, "device", "TokenWorks-Mobile-Ticket "+second.Token, pair.phoneKey, pair)
 	if err == nil {
 		_ = blocked.CloseNow()
 		t.Fatal("second ingress bypassed per-device connection cap")

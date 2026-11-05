@@ -16,8 +16,8 @@ import (
 	"testing"
 	"time"
 
-	"dsh-mobile-ustc/services/remote/internal/auth"
-	"dsh-mobile-ustc/services/remote/internal/testsupport"
+	"tokenworks-mobile/services/remote/internal/auth"
+	"tokenworks-mobile/services/remote/internal/testsupport"
 )
 
 func TestPostgresMigrationGrantLifecycleAndTransactionalOutbox(t *testing.T) {
@@ -773,7 +773,7 @@ func assertConnectionLeases(t *testing.T, ctx context.Context, postgres *Postgre
 
 func integrationHostCredentialProof(t *testing.T, key *ecdsa.PrivateKey, challenge HostCredentialChallenge) string {
 	t.Helper()
-	header, err := json.Marshal(map[string]string{"typ": "dsh-host-credential-proof+jwt", "alg": "ES256"})
+	header, err := json.Marshal(map[string]string{"typ": "tokenworks-mobile-host-credential-proof+jwt", "alg": "ES256"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -835,7 +835,7 @@ func seedGrantFixture(t *testing.T, ctx context.Context, database *sql.DB) strin
 		{`insert into installations (id, host_id, owner_user_id, public_jwk, public_key_thumbprint) values ($1, $2, $3, '{}'::jsonb, 'installation-jkt')`, []any{installationID, hostID, actorID}},
 		{`insert into runtimes (id, installation_id, profile_ref, protocol_version) values ($1, $2, 'test-profile', 1)`, []any{runtimeID, installationID}},
 		{`insert into workspaces (id, runtime_id, workspace_ref) values ($1, $2, 'workspace-test')`, []any{workspaceID, runtimeID}},
-		{`insert into sessions (id, runtime_id, workspace_id, dsh_session_id) values ($1, $2, $3, 'opaque-dsh-session')`, []any{sessionID, runtimeID, workspaceID}},
+		{`insert into sessions (id, runtime_id, workspace_id, dsh_session_id) values ($1, $2, $3, 'opaque-tokenworks-mobile-session')`, []any{sessionID, runtimeID, workspaceID}},
 		{`insert into runtime_grants (runtime_id, user_id, role, scope, granted_by) values ($1, $2, 'owner', $3::jsonb, $2)`, []any{
 			runtimeID, actorID, `{"actions":["grant.manage","host.list","session.list","command.status"],"workspaces":["` + workspaceID + `"],"sessions":["` + sessionID + `"]}`,
 		}},

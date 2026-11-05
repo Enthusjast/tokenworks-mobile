@@ -9,8 +9,8 @@ import (
 	"time"
 )
 
-const RelayHandshakeAudience = "urn:dsh-mobile-ustc:realtime"
-const relayHandshakeProofType = "dsh-relay-handshake-proof+jwt"
+const RelayHandshakeAudience = "urn:tokenworks-mobile:realtime"
+const relayHandshakeProofType = "tokenworks-mobile-relay-handshake-proof+jwt"
 const maxRelayHandshakeProofBytes = 8 << 10
 
 var errInvalidRelayHandshakeProof = errors.New("auth: invalid Relay handshake proof")
@@ -96,7 +96,7 @@ func VerifyRelayHandshakeProof(compact string, publicJWKBytes []byte, expected R
 // language-neutral length-prefixed encoding.
 func RelayHelloDigest(parts ...string) string {
 	hasher := sha256.New()
-	_, _ = hasher.Write([]byte("dsh-mobile-ustc/relay-hello/v1\x00"))
+	_, _ = hasher.Write([]byte("tokenworks-mobile/relay-hello/v1\x00"))
 	var size [4]byte
 	for _, part := range parts {
 		binary.BigEndian.PutUint32(size[:], uint32(len(part)))

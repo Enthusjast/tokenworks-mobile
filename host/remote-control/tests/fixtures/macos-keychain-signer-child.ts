@@ -6,7 +6,7 @@ import { inspect } from 'node:util'
 import { MacOSKeychainInstallationSigner, type MacOSKeychainInstallationSignerOptions } from '../../src/macos-keychain-installation-signer.js'
 
 const root = process.env.MACOS_KEYCHAIN_SIGNER_ROOT, mode = process.argv[2]
-assert.ok(root && /^dsh-keychain-sign-[A-Za-z0-9_-]+$/.test(basename(root)))
+assert.ok(root && /^tokenworks-mobile-keychain-sign-[A-Za-z0-9_-]+$/.test(basename(root)))
 assert.equal(await realpath(root), root)
 const metadata = await lstat(root)
 assert.equal(metadata.uid, process.getuid!()); assert.equal(metadata.mode & 0o777, 0o700)
@@ -19,7 +19,7 @@ const der = keys.privateKey.export({ format: 'der', type: 'pkcs8' })
 const publicJwk = keys.publicKey.export({ format: 'jwk' }) as MacOSKeychainInstallationSignerOptions['publicJwk']
 const keychainPath = join(root, 'login.keychain-db'), executable = join(root, 'security-fixture')
 const secret = join(root, 'secret'), calls = join(root, 'calls'), started = join(root, 'started')
-const service = 'cn.edu.ustc.dsh.installation', account = 'fixture-installation'
+const service = 'io.github.enthusjast.tokenworks.installation', account = 'fixture-installation'
 const owner = new AbortController()
 const options: MacOSKeychainInstallationSignerOptions = { executable, keychainPath, service, account, publicJwk, ownerSignal: owner.signal }
 await writeFile(keychainPath, 'opaque-signer-keychain', { mode: 0o600 })

@@ -18,7 +18,7 @@ export class HostEnrollmentRecoveryError extends Error {
   }
 }
 const failure = (code: Code = 'unavailable') => new HostEnrollmentRecoveryError(`host.enrollment_recovery.${code}`)
-const MAGIC = Buffer.from('DSHENR01')
+const MAGIC = Buffer.from('TWMENR01')
 const MAX_WRAPPED = 16 * 1024
 export const MAX_PLAINTEXT = 16 * 1024
 export const MAX_FILE = 8 + 1 + 64 + 4 + MAX_WRAPPED + 12 + 4 + MAX_PLAINTEXT + 16
@@ -107,7 +107,7 @@ export class HostEnrollmentRecoveryStore {
       this.#client = options.client
       this.#protector = protectorFrom(options.protector)
       const binding = enrollmentRecoveryBinding(options.client)
-      this.#context = Buffer.from(`dsh-host-enrollment-recovery-v1\0${this.#path}\0${binding}\0${this.#protector.id}`, 'utf8')
+      this.#context = Buffer.from(`tokenworks-mobile-host-enrollment-recovery-v1\0${this.#path}\0${binding}\0${this.#protector.id}`, 'utf8')
       this.signal = AbortSignal.any([this.#closed.signal, options.client.signal])
       Object.freeze(this)
     } catch { throw failure() }

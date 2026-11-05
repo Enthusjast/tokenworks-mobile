@@ -9,10 +9,10 @@ import (
 	"sync"
 	"time"
 
-	"dsh-mobile-ustc/services/remote/internal/approval"
-	"dsh-mobile-ustc/services/remote/internal/auth"
-	"dsh-mobile-ustc/services/remote/internal/canonical"
-	"dsh-mobile-ustc/services/remote/internal/store"
+	"tokenworks-mobile/services/remote/internal/approval"
+	"tokenworks-mobile/services/remote/internal/auth"
+	"tokenworks-mobile/services/remote/internal/canonical"
+	"tokenworks-mobile/services/remote/internal/store"
 )
 
 const approvalCapability = "approval.signed.v1"

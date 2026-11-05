@@ -7,7 +7,7 @@ import (
 	"runtime"
 	"testing"
 
-	"dsh-mobile-ustc/services/remote/internal/files"
+	"tokenworks-mobile/services/remote/internal/files"
 )
 
 func TestPostgresFileMigrationRollbackCannotReviveUnboundCleanRows(t *testing.T) {

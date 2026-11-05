@@ -26,7 +26,7 @@ def archive(files, extra=()):
 
 
 def fixture():
-    package = {"name": "@ustc/dsh-remote-control", "version": "0.0.1", "type": "module", "main": "lib/index.js", "types": "lib/index.d.ts",
+    package = {"name": "tokenworks-mobile", "version": "0.0.1", "type": "module", "main": "lib/index.js", "types": "lib/index.d.ts",
                "files": ["lib", "README.md"], "private": True, "exports": {".": {"types": "./lib/index.d.ts", "default": "./lib/index.js"}}, "dependencies": {"ws": "8.22.0"}, "peerDependencies": {"@deepseek-ai/dsh-session": bundle.DSH}}
     files = {"package/package.json": bundle.json_bytes(package), "package/README.md": b"fixture", "package/lib/index.js": b"export const name = 'fixture'\n", "package/lib/index.d.ts": b"export declare const name: string\n"}
     raw = archive(files)
@@ -34,7 +34,7 @@ def fixture():
                 "builder_sha256": "c" * 64, "package": {key: package[key] for key in ["name", "version", "type", "dependencies", "peerDependencies"]},
                 "toolchain": {"node": "v24.20.0", "npm": "11.0.0", "typescript": "5.9.3", "dsh": {"version": bundle.DSH, "entry_sha256": "d" * 64},
                               "installed_dependencies": {**package["dependencies"], **package["peerDependencies"]}, "platform": "linux", "architecture": "x86_64"},
-                "artifact": {"file": "ustc-dsh-remote-control-0.0.1.tgz", "sha256": bundle.digest(raw), "size": len(raw),
+                "artifact": {"file": "tokenworks-mobile-0.0.1.tgz", "sha256": bundle.digest(raw), "size": len(raw),
                              "files": [bundle.file_record(name, files[name]) for name in sorted(files)]}}
     return files, raw, manifest
 
@@ -106,7 +106,7 @@ class HostBundleTests(unittest.TestCase):
 
     def test_hashes_inventory_versions_and_hooks_are_enforced(self):
         files, raw, manifest = fixture()
-        for change in [lambda m: m["artifact"].update(sha256="0" * 64), lambda m: m["artifact"].update(file="ustc-dsh-remote-control-1.0.0.tgz"),
+        for change in [lambda m: m["artifact"].update(sha256="0" * 64), lambda m: m["artifact"].update(file="tokenworks-mobile-1.0.0.tgz"),
                        lambda m: m["artifact"]["files"][0].update(size=1.0), lambda m: m["artifact"]["files"][0].update(sha256="0" * 64),
                        lambda m: m["toolchain"]["dsh"].update(version="0.2.0"), lambda m: m["toolchain"].update(node="v24.0.0"),
                        lambda m: m["toolchain"]["installed_dependencies"].update(ws="8.0.0")]:

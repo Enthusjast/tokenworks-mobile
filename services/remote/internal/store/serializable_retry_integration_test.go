@@ -10,7 +10,7 @@ import (
 	"fmt"
 	"testing"
 
-	"dsh-mobile-ustc/services/remote/internal/auth"
+	"tokenworks-mobile/services/remote/internal/auth"
 )
 
 func serializableCredentialFixture(t *testing.T) (context.Context, *Postgres, *ecdsa.PrivateKey, string) {

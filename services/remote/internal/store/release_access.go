@@ -6,7 +6,7 @@ import (
 	"errors"
 	"time"
 
-	"dsh-mobile-ustc/services/remote/internal/releases"
+	"tokenworks-mobile/services/remote/internal/releases"
 )
 
 // AppReleaseAccess rechecks the current school user, organization and registered

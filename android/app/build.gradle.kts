@@ -37,16 +37,16 @@ val prepareDeployment by tasks.registering {
 }
 
 android {
-    namespace = "cn.edu.ustc.dsh.mobile"
+    namespace = "cn.edu.ustc.tokenworks"
     compileSdk = 36
     buildToolsVersion = "35.0.0"
     defaultConfig {
-        applicationId = "cn.edu.ustc.dsh.mobile"
+        applicationId = "cn.edu.ustc.tokenworks"
         minSdk = 26
         targetSdk = 36
         versionCode = 1
         versionName = "0.1.0-dev"
-        manifestPlaceholders["appAuthRedirectScheme"] = "cn.edu.ustc.dsh.mobile"
+        manifestPlaceholders["appAuthRedirectScheme"] = "cn.edu.ustc.tokenworks"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         testInstrumentationRunnerArguments["accountFixture"] = providers.gradleProperty("accountFixture").orElse("false").get()
         testInstrumentationRunnerArguments["networkFixture"] = providers.gradleProperty("networkFixture").orElse("false").get()

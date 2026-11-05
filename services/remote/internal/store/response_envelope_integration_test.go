@@ -6,7 +6,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"dsh-mobile-ustc/services/remote/internal/requestlog"
+	"tokenworks-mobile/services/remote/internal/requestlog"
 )
 
 func TestRESTEnvelopeRecoveryRejectionPrecedesBusiness(t *testing.T) {

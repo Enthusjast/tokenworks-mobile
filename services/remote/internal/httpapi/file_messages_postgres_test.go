@@ -10,10 +10,10 @@ import (
 	"testing"
 	"time"
 
-	"dsh-mobile-ustc/services/remote/internal/auth"
-	"dsh-mobile-ustc/services/remote/internal/files"
 	"github.com/coder/websocket"
 	jose "github.com/go-jose/go-jose/v4"
+	"tokenworks-mobile/services/remote/internal/auth"
+	"tokenworks-mobile/services/remote/internal/files"
 )
 
 func stageFileMessageHost(t *testing.T, h *fileHTTPFixture, host *fileHost, offer files.FileOffer) {
@@ -55,7 +55,7 @@ func connectFilePhone(t *testing.T, h *fileHTTPFixture, caller *fileHTTPCaller, 
 	if json.Unmarshal(raw, &response) != nil {
 		t.Fatal("bad phone ticket")
 	}
-	connection, _, err := websocket.Dial(h.ctx, strings.Replace(h.server.URL, "https://", "wss://", 1)+"/v1/realtime", &websocket.DialOptions{HTTPClient: h.server.Client(), Subprotocols: []string{"dsh.remote.v1"}, HTTPHeader: http.Header{"Authorization": []string{"DSH-Ticket " + response.Data.Ticket}}})
+	connection, _, err := websocket.Dial(h.ctx, strings.Replace(h.server.URL, "https://", "wss://", 1)+"/v1/realtime", &websocket.DialOptions{HTTPClient: h.server.Client(), Subprotocols: []string{"tokenworks-mobile.remote.v1"}, HTTPHeader: http.Header{"Authorization": []string{"TokenWorks-Mobile-Ticket " + response.Data.Ticket}}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -75,7 +75,7 @@ func connectFilePhone(t *testing.T, h *fileHTTPFixture, caller *fileHTTPCaller, 
 		caps = append(caps, files.MessageCapability)
 	}
 	sort.Strings(caps)
-	proof := approvalSign(t, caller.key, jose.ES256, "", "dsh-relay-handshake-proof+jwt", map[string]any{"iss": device, "aud": auth.RelayHandshakeAudience, "challenge_id": proofChallenge.ChallengeID, "connection_id": proofChallenge.ConnectionID, "nonce": proofChallenge.Nonce, "runtime_id": fileRuntimeID, "hello_sha256": auth.RelayHelloDigest("device", device, "1", strings.Join(caps, "\n")), "iat": time.Now().Unix(), "jti": "file-message-phone-" + proofChallenge.ConnectionID}, nil)
+	proof := approvalSign(t, caller.key, jose.ES256, "", "tokenworks-mobile-relay-handshake-proof+jwt", map[string]any{"iss": device, "aud": auth.RelayHandshakeAudience, "challenge_id": proofChallenge.ChallengeID, "connection_id": proofChallenge.ConnectionID, "nonce": proofChallenge.Nonce, "runtime_id": fileRuntimeID, "hello_sha256": auth.RelayHelloDigest("device", device, "1", strings.Join(caps, "\n")), "iat": time.Now().Unix(), "jti": "file-message-phone-" + proofChallenge.ConnectionID}, nil)
 	phone.send(t, map[string]any{"v": 1, "type": "hello.proof", "payload": map[string]any{"device_id": device, "protocols": []int{1}, "capabilities": caps, "proof": proof}})
 	if ack := phone.read(t); string(ack["type"]) != `"hello.ok"` {
 		t.Fatal("file phone hello failed")

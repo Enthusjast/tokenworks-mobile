@@ -3,7 +3,7 @@ package relay
 import (
 	"testing"
 
-	"dsh-mobile-ustc/services/remote/internal/store"
+	"tokenworks-mobile/services/remote/internal/store"
 )
 
 func TestCatalogMetadataRequiresNegotiatedVersionAndCompleteItems(t *testing.T) {

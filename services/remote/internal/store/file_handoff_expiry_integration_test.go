@@ -5,8 +5,8 @@ import (
 	"testing"
 	"time"
 
-	"dsh-mobile-ustc/services/remote/internal/files"
-	"dsh-mobile-ustc/services/remote/internal/observability"
+	"tokenworks-mobile/services/remote/internal/files"
+	"tokenworks-mobile/services/remote/internal/observability"
 )
 
 func TestFileHandoffDeadlinesCannotSurviveMutationOrAuditWaits(t *testing.T) {

@@ -15,10 +15,10 @@ import (
 	"testing"
 	"time"
 
-	"dsh-mobile-ustc/services/remote/internal/auth"
-	"dsh-mobile-ustc/services/remote/internal/files"
 	"github.com/coder/websocket"
 	jose "github.com/go-jose/go-jose/v4"
+	"tokenworks-mobile/services/remote/internal/auth"
+	"tokenworks-mobile/services/remote/internal/files"
 )
 
 type fileHost struct {
@@ -67,7 +67,7 @@ func connectFileHost(t *testing.T, h *fileHTTPFixture, extra ...string) *fileHos
 	if _, err := h.database.ExecContext(h.ctx, `insert into host_connection_credentials(token_sha256,installation_id,key_version,expires_at) values($1,'55555555-5555-4555-8555-555555555555',1,clock_timestamp()+interval '5 minutes')`, digest[:]); err != nil {
 		t.Fatal(err)
 	}
-	connection, _, err := websocket.Dial(h.ctx, strings.Replace(h.server.URL, "https://", "wss://", 1)+"/v1/realtime", &websocket.DialOptions{HTTPClient: h.server.Client(), Subprotocols: []string{"dsh.remote.v1"}, HTTPHeader: http.Header{"Authorization": []string{"DSH-Host " + credential}}})
+	connection, _, err := websocket.Dial(h.ctx, strings.Replace(h.server.URL, "https://", "wss://", 1)+"/v1/realtime", &websocket.DialOptions{HTTPClient: h.server.Client(), Subprotocols: []string{"tokenworks-mobile.remote.v1"}, HTTPHeader: http.Header{"Authorization": []string{"TokenWorks-Mobile-Host " + credential}}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -84,7 +84,7 @@ func connectFileHost(t *testing.T, h *fileHTTPFixture, extra ...string) *fileHos
 	caps := []string{"connection.heartbeat.v1", "session.catalog.v1", files.HandoffCapability}
 	caps = append(caps, extra...)
 	sort.Strings(caps)
-	proof := approvalSign(t, key, jose.ES256, "", "dsh-relay-handshake-proof+jwt", map[string]any{"iss": host.installation, "aud": auth.RelayHandshakeAudience, "challenge_id": payload.ChallengeID, "connection_id": payload.ConnectionID, "nonce": payload.Nonce, "runtime_id": fileRuntimeID, "runtime_epoch": host.epoch,
+	proof := approvalSign(t, key, jose.ES256, "", "tokenworks-mobile-relay-handshake-proof+jwt", map[string]any{"iss": host.installation, "aud": auth.RelayHandshakeAudience, "challenge_id": payload.ChallengeID, "connection_id": payload.ConnectionID, "nonce": payload.Nonce, "runtime_id": fileRuntimeID, "runtime_epoch": host.epoch,
 		"hello_sha256": auth.RelayHelloDigest("host", fileRuntimeID, host.epoch, "0.2.1-rc.2", "file-host-fixture", "test", "1", strings.Join(caps, "\n")), "iat": time.Now().Unix(), "jti": "file-host-handshake-proof-0001"}, nil)
 	host.send(t, map[string]any{"v": 1, "type": "hello.proof", "payload": map[string]any{"proof": proof, "runtime_id": fileRuntimeID, "runtime_epoch": host.epoch, "dsh_version": "0.2.1-rc.2", "application_version": "file-host-fixture", "plugin_version": "test", "protocol_version": 1, "capabilities": caps}})
 	if hello := host.read(t); string(hello["type"]) != `"hello.ok"` {
@@ -118,8 +118,8 @@ func (host *fileHost) download(t *testing.T, offer files.FileOffer, signer *ecds
 	if err != nil {
 		t.Fatal(err)
 	}
-	request.Header.Set("Authorization", "DSH-File "+offer.DownloadToken)
-	request.Header.Set("X-DSH-File-Proof", proof)
+	request.Header.Set("Authorization", "TokenWorks-Mobile-File "+offer.DownloadToken)
+	request.Header.Set("X-TokenWorks-Mobile-File-Proof", proof)
 	return host.fixture.server.Client().Do(request)
 }
 func (h *fileHTTPFixture) cleanForHandoff(t *testing.T, data []byte) files.UploadPrepared {

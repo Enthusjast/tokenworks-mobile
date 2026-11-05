@@ -1,11 +1,11 @@
 /* Actual file-object policy fixture; no test command enters the production helper. */
-#define wmain dsh_dpapi_main
+#define wmain twm_dpapi_main
 #include "dpapi-helper.c"
 #undef wmain
 #include <sddl.h>
 #include <stdio.h>
 
-static BOOL dsh_fixture_set_acl(wchar_t *path, PSID user, const wchar_t *extra, PSECURITY_DESCRIPTOR *saved) {
+static BOOL twm_fixture_set_acl(wchar_t *path, PSID user, const wchar_t *extra, PSECURITY_DESCRIPTOR *saved) {
     wchar_t *sid = NULL;
     wchar_t text[1024];
     PSECURITY_DESCRIPTOR descriptor = NULL;
@@ -26,7 +26,7 @@ done:
 }
 
 /* Distinguish an emulator that drops a fine-grained ACE from a validator bug. */
-static int dsh_fixture_write_dac_readback(PSECURITY_DESCRIPTOR descriptor) {
+static int twm_fixture_write_dac_readback(PSECURITY_DESCRIPTOR descriptor) {
     PACL acl = NULL;
     BOOL present = FALSE, defaulted = FALSE;
     DWORD index;
@@ -61,9 +61,9 @@ int wmain(int argc, wchar_t **argv) {
     if (GetTokenInformation(token, TokenUser, NULL, 0, &needed) || GetLastError() != ERROR_INSUFFICIENT_BUFFER || needed < sizeof(TOKEN_USER) || needed > 65536u) goto done;
     allocated = needed;
     user = (TOKEN_USER *)HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, allocated);
-    if (user == NULL || !GetTokenInformation(token, TokenUser, user, allocated, &needed) || dsh_service_sid(user->User.Sid)) goto done;
+    if (user == NULL || !GetTokenInformation(token, TokenUser, user, allocated, &needed) || twm_service_sid(user->User.Sid)) goto done;
     stage++;
-    checked = dsh_open_helper_component(argv[1], FALSE, user->User.Sid);
+    checked = twm_open_helper_component(argv[1], FALSE, user->User.Sid);
     if (checked == INVALID_HANDLE_VALUE) goto done;
     stage++;
     writer = CreateFileW(argv[1], GENERIC_WRITE | DELETE, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, NULL, OPEN_EXISTING, 0, NULL);
@@ -74,35 +74,35 @@ int wmain(int argc, wchar_t **argv) {
     if (writer == INVALID_HANDLE_VALUE) goto done;
     CloseHandle(writer); writer = INVALID_HANDLE_VALUE;
     stage++;
-    if (!dsh_fixture_set_acl(argv[1], user->User.Sid, L"(A;;GW;;;WD)", &saved)) goto done;
+    if (!twm_fixture_set_acl(argv[1], user->User.Sid, L"(A;;GW;;;WD)", &saved)) goto done;
     stage++;
-    checked = dsh_open_helper_component(argv[1], FALSE, user->User.Sid);
+    checked = twm_open_helper_component(argv[1], FALSE, user->User.Sid);
     if (checked != INVALID_HANDLE_VALUE) goto done;
     stage++;
-    if (!dsh_fixture_set_acl(argv[1], user->User.Sid, L"(A;;WD;;;BU)", &saved)) goto done;
+    if (!twm_fixture_set_acl(argv[1], user->User.Sid, L"(A;;WD;;;BU)", &saved)) goto done;
     stage++;
-    checked = dsh_open_helper_component(argv[1], FALSE, user->User.Sid);
+    checked = twm_open_helper_component(argv[1], FALSE, user->User.Sid);
     if (checked != INVALID_HANDLE_VALUE) {
         PSECURITY_DESCRIPTOR actual = NULL;
         int retained = -1;
         if (GetNamedSecurityInfoW(argv[1], SE_FILE_OBJECT, OWNER_SECURITY_INFORMATION | DACL_SECURITY_INFORMATION, NULL, NULL, NULL, NULL, &actual) == ERROR_SUCCESS)
-            retained = dsh_fixture_write_dac_readback(actual);
+            retained = twm_fixture_write_dac_readback(actual);
         if (actual != NULL) LocalFree(actual);
         if (retained != 0) goto done;
         write_dac_unverified = TRUE;
         CloseHandle(checked); checked = INVALID_HANDLE_VALUE;
     }
     stage++;
-    if (!dsh_fixture_set_acl(argv[1], user->User.Sid, L"(A;;GRGX;;;WD)", &saved)) goto done;
+    if (!twm_fixture_set_acl(argv[1], user->User.Sid, L"(A;;GRGX;;;WD)", &saved)) goto done;
     stage++;
-    checked = dsh_open_helper_component(argv[1], FALSE, user->User.Sid);
+    checked = twm_open_helper_component(argv[1], FALSE, user->User.Sid);
     if (checked == INVALID_HANDLE_VALUE) goto done;
     CloseHandle(checked); checked = INVALID_HANDLE_VALUE;
     stage++;
     if (_snwprintf(hardlink, 32768, L"%ls.extra-link", argv[1]) < 0 || !CreateHardLinkW(hardlink, argv[1], NULL)) goto done;
     link_created = TRUE;
     stage++;
-    checked = dsh_open_helper_component(argv[1], FALSE, user->User.Sid);
+    checked = twm_open_helper_component(argv[1], FALSE, user->User.Sid);
     if (checked != INVALID_HANDLE_VALUE) goto done;
     if (!DeleteFileW(hardlink)) goto done;
     link_created = FALSE;
@@ -124,7 +124,7 @@ done:
     if (token != NULL) CloseHandle(token);
     if (result == 0 && write_dac_unverified) {
         static const BYTE marker[] = "ACL_FIXTURE_WRITE_DAC_NOT_RETAINED\n";
-        if (!dsh_write_all(GetStdHandle(STD_OUTPUT_HANDLE), marker, (DWORD)sizeof(marker) - 1u)) result = 1;
+        if (!twm_write_all(GetStdHandle(STD_OUTPUT_HANDLE), marker, (DWORD)sizeof(marker) - 1u)) result = 1;
     }
     SecureZeroMemory(hardlink, sizeof(hardlink));
     return result;

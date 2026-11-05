@@ -24,8 +24,8 @@ import (
 	"testing"
 	"time"
 
-	"dsh-mobile-ustc/services/remote/internal/files"
 	"github.com/aws/aws-sdk-go-v2/aws"
+	"tokenworks-mobile/services/remote/internal/files"
 )
 
 // These are explicitly configured protocol peers. SigV4 cryptography and TLS
@@ -194,7 +194,7 @@ func (peer *fileObjectPeer) serve(response http.ResponseWriter, request *http.Re
 
 func newFileScannerPeer(t *testing.T) (*files.ClamAV, string) {
 	t.Helper()
-	directory, err := os.MkdirTemp("", "dsh-file-av-")
+	directory, err := os.MkdirTemp("", "tokenworks-mobile-file-av-")
 	if err != nil {
 		t.Fatal(err)
 	}

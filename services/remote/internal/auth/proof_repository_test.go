@@ -45,7 +45,7 @@ func TestProofRepositoryCannotBindAnotherResourceAndQuotaFailureIsAtomic(t *test
 	keys := newTestKeys(t)
 	scope := keys.verifier.proofs.Scope()
 	wrong := &failingProofRepository{}
-	if _, err := New(Config{Issuer: keys.issuer, Audience: "urn:dsh-remote", JWKSURL: keys.server.URL, AllowedClients: []string{"android-public-client"}, RequiredScopes: []string{"remote.access"}, PublicOrigin: "https://api.example.edu", MaxTokenLifetime: 15 * time.Minute, Proofs: wrong}); err == nil {
+	if _, err := New(Config{Issuer: keys.issuer, Audience: "urn:tokenworks-mobile", JWKSURL: keys.server.URL, AllowedClients: []string{"android-public-client"}, RequiredScopes: []string{"remote.access"}, PublicOrigin: "https://api.example.edu", MaxTokenLifetime: 15 * time.Minute, Proofs: wrong}); err == nil {
 		t.Fatal("foreign resource repository accepted")
 	}
 	store := NewProofStore(scope)

@@ -327,7 +327,7 @@ export class PersistentApprovalJournal {
   private required(id: string): Row { const row = this.find(id); if (!row) throw failure('approval.stale'); return row }
   private nonceHash(nonce: string): string { return createHash('sha256').update(Buffer.from(nonce, 'base64url')).digest('hex') }
   private aad(row: Pick<Row,'runtime_id'|'runtime_epoch'|'boot_id'|'approval_id'|'execution_id'|'binding_sha256'>, kind: string): Uint8Array {
-    return Buffer.from(`dsh-approval-journal/v1\0${row.runtime_id}\0${row.runtime_epoch}\0${row.boot_id}\0${row.approval_id}\0${row.execution_id}\0${row.binding_sha256}\0${kind}`)
+    return Buffer.from(`tokenworks-mobile-approval-journal/v1\0${row.runtime_id}\0${row.runtime_epoch}\0${row.boot_id}\0${row.approval_id}\0${row.execution_id}\0${row.binding_sha256}\0${kind}`)
   }
   private ciphertext(row: Row, kind: 'context' | 'decision'): Ciphertext {
     const nonce = row[`${kind}_nonce`], ciphertext = row[`${kind}_ciphertext`], tag = row[`${kind}_tag`]

@@ -6,8 +6,8 @@ import (
 	"strings"
 	"testing"
 
-	"dsh-mobile-ustc/services/remote/internal/requestlog"
-	"dsh-mobile-ustc/services/remote/internal/store"
+	"tokenworks-mobile/services/remote/internal/requestlog"
+	"tokenworks-mobile/services/remote/internal/store"
 )
 
 func TestRESTEnvelopeAPIErrorsAndLegacyRouteSemantics(t *testing.T) {

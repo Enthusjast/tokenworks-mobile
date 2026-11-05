@@ -81,20 +81,20 @@ async function fixture(t: test.TestContext, hooks: Hooks = {}) {
         challengeWrites++
         const id = randomUUID(), value = nonce(); challenges.set(id, value)
         respond(response, 201, { ok: true, data: { challenge_id: id, challenge: value, installation_id: installationId,
-          audience: 'urn:dsh-mobile-ustc:host-credential', expires_at: new Date(Date.now() + 90_000).toISOString(), ...hooks.challengePatch } }, next)
+          audience: 'urn:tokenworks-mobile:host-credential', expires_at: new Date(Date.now() + 90_000).toISOString(), ...hooks.challengePatch } }, next)
       } else {
         assert.equal(request.url, '/v1/host-credentials')
         const [head, data, signature] = body.proof.split('.')
-        assert.deepEqual(part(head), { alg: 'ES256', typ: 'dsh-host-credential-proof+jwt' })
+        assert.deepEqual(part(head), { alg: 'ES256', typ: 'tokenworks-mobile-host-credential-proof+jwt' })
         const proof = part(data)
         assert.deepEqual(Object.keys(proof).sort(), ['aud', 'challenge_id', 'iat', 'iss', 'jti', 'nonce'])
-        assert.equal(proof.iss, installationId); assert.equal(proof.aud, 'urn:dsh-mobile-ustc:host-credential')
+        assert.equal(proof.iss, installationId); assert.equal(proof.aud, 'urn:tokenworks-mobile:host-credential')
         assert.equal(proof.challenge_id, body.challenge_id); assert.equal(proof.nonce, challenges.get(body.challenge_id))
         assert.equal(verify('sha256', Buffer.from(`${head}.${data}`), { key: keys.publicKey, dsaEncoding: 'ieee-p1363' }, Buffer.from(signature, 'base64url')), true)
         challenges.delete(body.challenge_id)
         exchangeWrites++
         const credential = nonce(); credentials.push(credential)
-        respond(response, 201, { ok: true, data: { credential, token_type: 'DSH-Host', installation_id: installationId,
+        respond(response, 201, { ok: true, data: { credential, token_type: 'TokenWorks-Mobile-Host', installation_id: installationId,
           key_thumbprint: thumbprint, expires_at: new Date(Date.now() + (hooks.lifetime ?? 300_000)).toISOString(), ...hooks.issuedPatch } }, next)
       }
     } catch (cause) { t.assert.fail(cause instanceof Error ? cause.message : 'fixture protocol failure'); response.destroy() }
@@ -329,7 +329,7 @@ test('provider origin and account lifetime fence the actual authenticated Host s
   let ready!: () => void, ended!: () => void
   const connected = new Promise<void>(resolve => { ready = resolve }), closed = new Promise<void>(resolve => { ended = resolve })
   server.on('connection', (socket: any, request: any) => {
-    assert.equal(request.headers.authorization, `DSH-Host ${f.credentials[0]}`)
+    assert.equal(request.headers.authorization, `TokenWorks-Mobile-Host ${f.credentials[0]}`)
     const connectionId = randomUUID(), challengeId = randomUUID(), challengeNonce = nonce()
     socket.once('close', () => ended())
     socket.on('message', (raw: Buffer) => {
@@ -339,7 +339,7 @@ test('provider origin and account lifetime fence the actual authenticated Host s
       const proof = part(payload)
       assert.equal(verify('sha256', Buffer.from(`${header}.${payload}`), { key: f.publicKey, dsaEncoding: 'ieee-p1363' }, Buffer.from(signature, 'base64url')), true)
       assert.equal(proof.iss, installationId); assert.equal(proof.challenge_id, challengeId); assert.equal(proof.nonce, challengeNonce)
-      assert.equal(part(header).typ, 'dsh-relay-handshake-proof+jwt')
+      assert.equal(part(header).typ, 'tokenworks-mobile-relay-handshake-proof+jwt')
       const now = Date.now()
       socket.send(JSON.stringify({ v: 1, type: 'hello.ok', payload: { role: 'host', connection_id: connectionId, installation_id: installationId,
         runtime_id: runtimeId, runtime_epoch: epoch, protocol_version: 1, protocols: [1], capabilities: ['command.relay.v1', 'connection.heartbeat.v1'],

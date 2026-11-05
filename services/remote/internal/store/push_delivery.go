@@ -7,7 +7,7 @@ import (
 	"errors"
 	"time"
 
-	"dsh-mobile-ustc/services/remote/internal/push"
+	"tokenworks-mobile/services/remote/internal/push"
 )
 
 func (store *PushStore) Plan(ctx context.Context) error {

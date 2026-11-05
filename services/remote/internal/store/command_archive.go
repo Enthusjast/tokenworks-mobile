@@ -59,7 +59,7 @@ func (postgres *Postgres) ArchiveCommandHistory(ctx context.Context, request Com
 		return CommandArchiveResult{}, ErrDatabaseUnavailable
 	}
 	defer tx.Rollback()
-	if _, err := tx.ExecContext(ctx, `select pg_advisory_xact_lock(hashtextextended('dsh-command-archive:'||$1::text,0))`, request.BatchID); err != nil {
+	if _, err := tx.ExecContext(ctx, `select pg_advisory_xact_lock(hashtextextended('tokenworks-mobile-command-archive:'||$1::text,0))`, request.BatchID); err != nil {
 		return CommandArchiveResult{}, ErrDatabaseUnavailable
 	}
 	if _, err := lockRecoveryReady(ctx, tx, request.DatabaseEpoch); err != nil {

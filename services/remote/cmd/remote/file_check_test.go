@@ -19,13 +19,13 @@ import (
 	"testing"
 	"time"
 
-	"dsh-mobile-ustc/services/remote/internal/files"
+	"tokenworks-mobile/services/remote/internal/files"
 )
 
 func fileCheckScanner(t *testing.T, mode string) (string, *atomic.Int32) {
 	t.Helper()
 	// Keep the Unix socket short even when the checkout or test name is long.
-	directory, err := os.MkdirTemp("", "dsh-check-av-")
+	directory, err := os.MkdirTemp("", "tokenworks-mobile-check-av-")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -92,7 +92,7 @@ func assertFileCheckReport(t *testing.T, raw []byte, policy string) {
 	if json.Unmarshal(raw, &report) != nil {
 		t.Fatal("check did not produce a single JSON result")
 	}
-	expected := map[string]any{"format": "dsh-remote-file-check/v1", "configuration_valid": true,
+	expected := map[string]any{"format": "tokenworks-mobile-remote-file-check/v1", "configuration_valid": true,
 		"scanner_self_test": "passed", "policy_sha256": policy, "exports_enabled": false, "storage_check": "configuration_only"}
 	if len(report) != len(expected) {
 		t.Fatal("check published unexpected fields")

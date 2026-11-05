@@ -22,17 +22,17 @@ import (
 	"unicode"
 	"unicode/utf8"
 
-	"dsh-mobile-ustc/services/remote/internal/auth"
-	"dsh-mobile-ustc/services/remote/internal/files"
-	"dsh-mobile-ustc/services/remote/internal/hostmetrics"
-	"dsh-mobile-ustc/services/remote/internal/observability"
-	"dsh-mobile-ustc/services/remote/internal/requestlog"
-	"dsh-mobile-ustc/services/remote/internal/store"
 	"github.com/coder/websocket"
+	"tokenworks-mobile/services/remote/internal/auth"
+	"tokenworks-mobile/services/remote/internal/files"
+	"tokenworks-mobile/services/remote/internal/hostmetrics"
+	"tokenworks-mobile/services/remote/internal/observability"
+	"tokenworks-mobile/services/remote/internal/requestlog"
+	"tokenworks-mobile/services/remote/internal/store"
 )
 
 const (
-	protocolName                = "dsh.remote.v1"
+	protocolName                = "tokenworks-mobile.remote.v1"
 	maxFrameBytes               = 64 << 10
 	maxMobileCommandFrame       = maxFrameBytes - 1024
 	handshakeTimeout            = 15 * time.Second
@@ -731,7 +731,7 @@ func (server *Server) authenticateCredential(request *http.Request) (peer, error
 		return peer{}, store.ErrTicketInvalid
 	}
 	switch scheme {
-	case "DSH-Ticket":
+	case "TokenWorks-Mobile-Ticket":
 		redemption, err := server.database.PrepareRealtimeTicket(request.Context(), token)
 		if err != nil {
 			return peer{}, err
@@ -740,7 +740,7 @@ func (server *Server) authenticateCredential(request *http.Request) (peer, error
 			return peer{}, store.ErrTicketInvalid
 		}
 		return peer{role: "device", deviceID: redemption.DeviceID, ticket: token, redemption: redemption}, nil
-	case "DSH-Host":
+	case "TokenWorks-Mobile-Host":
 		installation, err := server.database.LookupHostConnectionCredential(request.Context(), token)
 		if err != nil {
 			return peer{}, err

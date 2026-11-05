@@ -32,7 +32,7 @@ const review = z.strictObject({ ok: z.literal(true), data: z.strictObject({ enro
   confirmed_user: z.strictObject({ user_id: uuid, issuer: z.string().min(1).max(2048), subject: z.string().min(1).max(2048), eligible: z.boolean() }).nullable() }) })
 const confirmation = z.strictObject({ ok: z.literal(true), data: z.strictObject({ enrollment_id: uuid, host_id: uuid, runtime_id: uuid,
   state: z.enum(['pending', 'user_confirmed', 'approved']), expires_at: z.string().datetime({ offset: true }), host_confirmed: z.boolean(), user_confirmed: z.boolean() }) })
-const bindingRecordFields = { purpose: z.literal('dsh-host-enrollment-binding-v1'),
+const bindingRecordFields = { purpose: z.literal('tokenworks-mobile-host-enrollment-binding-v1'),
   binding: z.string().regex(/^[0-9a-f]{64}$/), request_id: uuid, enrollment_id: uuid, organization_id: uuid,
   host_id: uuid, installation_id: uuid, installation_key_jkt: secret, runtime_id: uuid,
   profile_ref: ref, expires_at: z.string().datetime({ offset: true }), workspaces: z.array(workspace).max(64) }
@@ -121,7 +121,7 @@ export function captureEnrollmentBinding(client: HostEnrollmentClient, attempt: 
   let recoverySha256: string
   try { recoverySha256 = createHash('sha256').update(recovery).digest('hex') }
   finally { recovery.fill(0) }
-  return hostEnrollmentBindingRecord.parse({ version: 2, purpose: 'dsh-host-enrollment-binding-v1', binding,
+  return hostEnrollmentBindingRecord.parse({ version: 2, purpose: 'tokenworks-mobile-host-enrollment-binding-v1', binding,
     request_id: value.requestId, enrollment_id: saved.data.enrollment_id, organization_id: value.input.organizationId,
     host_id: saved.data.host_id, installation_id: saved.data.installation_id, installation_key_jkt: transport.thumbprint,
     runtime_id: saved.data.runtime_id, profile_ref: value.input.profileRef, expires_at: saved.data.expires_at,

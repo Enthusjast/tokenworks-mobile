@@ -52,7 +52,7 @@ func kotlinFileTransfer(t *testing.T, ctx context.Context, h *fileHTTPFixture, b
 	config := map[string]any{"mode": "files", "runtime_id": fileRuntimeID, "session_id": h.session, "workspace_id": fileWorkspaceID, "device_id": "33333333-3333-4333-8333-333333333333",
 		"proof_jwk": json.RawMessage(private), "subject": "file-owner", "access_token": h.token, "access_expires_at": time.Now().Add(4 * time.Minute).UnixMilli(), "issuer_jwks": json.RawMessage(keys),
 		"ca_pem": ca(h.server.Certificate().Raw), "object_ca_pem": ca(h.objects.Certificate().Raw), "source_file": source,
-		"deployment": map[string]any{"issuer": "https://id.example.edu", "client_id": "mobile", "redirect_uri": "cn.edu.ustc.dsh.mobile:/oauth2redirect", "resource": "urn:dsh-files", "audience": "urn:dsh-files", "remote_origin": h.server.URL,
+		"deployment": map[string]any{"issuer": "https://id.example.edu", "client_id": "mobile", "redirect_uri": "cn.edu.ustc.tokenworks:/oauth2redirect", "resource": "urn:tokenworks-mobile-files", "audience": "urn:tokenworks-mobile-files", "remote_origin": h.server.URL,
 			"organization_id": "11111111-1111-4111-8111-111111111111", "scopes": []string{"openid", "remote.access"}, "endpoint_origins": []string{"https://id.example.edu", h.server.URL}, "signing_algorithms": []string{"ES256"}}}
 	raw, err := json.Marshal(config)
 	if err != nil {
@@ -77,7 +77,7 @@ func kotlinFileTransfer(t *testing.T, ctx context.Context, h *fileHTTPFixture, b
 	if java == "" {
 		java = "java"
 	}
-	command := exec.CommandContext(ctx, java, "-cp", os.Getenv("REMOTE_TEST_KOTLIN_CLASSPATH"), "cn.edu.ustc.dsh.network.RunRelayProbe", path)
+	command := exec.CommandContext(ctx, java, "-cp", os.Getenv("REMOTE_TEST_KOTLIN_CLASSPATH"), "io.github.enthusjast.tokenworks.network.RunRelayProbe", path)
 	command.WaitDelay = 2 * time.Second
 	output, err := command.CombinedOutput()
 	if err != nil {

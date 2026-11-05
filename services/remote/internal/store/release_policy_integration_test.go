@@ -1,13 +1,13 @@
 package store
 
 import (
-	"dsh-mobile-ustc/services/remote/internal/releases"
 	"encoding/json"
 	"errors"
 	"os"
 	"sync"
 	"testing"
 	"time"
+	"tokenworks-mobile/services/remote/internal/releases"
 )
 
 func TestAppReleasePolicyCASReceiptsAndStaleNodes(t *testing.T) {

@@ -16,7 +16,7 @@ test('the signed plugin starts with Relay only and unload aborts an uncooperativ
     started(); signal.addEventListener('abort', () => { aborted = true }, { once: true })
     return await new Promise<HostConnectionCredential>(() => {})
   } }, { hostId: randomUUID(), installationId: randomUUID(), policyVersion: 7, requiredAssurance: { profile: 'fixture/verified', max_auth_age_seconds: 60 },
-    authorities: [{ issuer: 'https://remote.example.edu', key_id: 'dsh-approval-authority/plugin-test', public_jwk: publicJWK, key_jkt: await calculateJwkThumbprint(publicJWK), active: true,
+    authorities: [{ issuer: 'https://remote.example.edu', key_id: 'tokenworks-mobile-approval-authority/plugin-test', public_jwk: publicJWK, key_jkt: await calculateJwkThumbprint(publicJWK), active: true,
       valid_from: new Date(Date.now() - 60_000).toISOString(), valid_until: new Date(Date.now() + 3600_000).toISOString() }] })
   try {
     await h.ctx.plugin(plugin, { enabled: true, runtimeId: h.runtimeId, relayUrl: 'http://127.0.0.1:1', applicationVersion: 'fixture',

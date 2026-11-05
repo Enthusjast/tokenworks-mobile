@@ -19,7 +19,7 @@ import (
 	"sync"
 	"time"
 
-	"dsh-mobile-ustc/services/remote/internal/auth"
+	"tokenworks-mobile/services/remote/internal/auth"
 )
 
 const googleTokenURL = "https://oauth2.googleapis.com/token"

@@ -1601,6 +1601,6 @@
       ]
     }
   ],
-  "$id": "urn:dsh-mobile-ustc:ws:file-export:v1",
+  "$id": "urn:tokenworks-mobile:ws:file-export:v1",
   "description": "file.export.v1. Phone selectors are opaque connection-local source/directory/cursor UUIDs, never paths or native attachment identities. Host operations use fresh server operation IDs, exact authenticated device/key/grant scope and renewable five-second leases. Source URLs are Host-only and never forwarded to phones. Implementations separately enforce direction, owner, lifetime, manifest, page byte budget, one-shot source integrity and current workspace authority."
 }

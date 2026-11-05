@@ -11,9 +11,9 @@ import (
 	"testing"
 	"time"
 
-	"dsh-mobile-ustc/services/remote/internal/hostmetrics"
-	"dsh-mobile-ustc/services/remote/internal/observability"
-	"dsh-mobile-ustc/services/remote/internal/store"
+	"tokenworks-mobile/services/remote/internal/hostmetrics"
+	"tokenworks-mobile/services/remote/internal/observability"
+	"tokenworks-mobile/services/remote/internal/store"
 )
 
 func nativeGolden(t *testing.T, name string) hostmetrics.Report {
@@ -33,7 +33,7 @@ func nativeGolden(t *testing.T, name string) hostmetrics.Report {
 func nativeOperationCount(t *testing.T, metrics *observability.Metrics, operation, result string) float64 {
 	t.Helper()
 	snapshot := metricsSnapshot(t, metrics)
-	for _, metric := range snapshot["dsh_remote_host_native_operations_total"].GetMetric() {
+	for _, metric := range snapshot["tokenworks_mobile_host_native_operations_total"].GetMetric() {
 		labels := map[string]string{}
 		for _, label := range metric.Label {
 			labels[label.GetName()] = label.GetValue()

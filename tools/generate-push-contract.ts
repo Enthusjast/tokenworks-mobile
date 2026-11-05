@@ -26,7 +26,7 @@ async function output(path: string, value: unknown) {
 }
 for (const [name, schema] of Object.entries({ 'provider-data': data, registration, reference,
   'question-reference-item': questionReference, 'question-references': questionReferencesFrame, 'question-references-ack': questionReferencesAck })) {
-  await output(`${name}.schema.json`, { ...z.toJSONSchema(schema, { target: 'draft-2020-12' }), $id: `urn:dsh-mobile-ustc:push:${name}:v1`,
+  await output(`${name}.schema.json`, { ...z.toJSONSchema(schema, { target: 'draft-2020-12' }), $id: `urn:tokenworks-mobile:push:${name}:v1`,
     description: 'Minimal notification references, not execution authority. FCM delivery is data only and never carries tool arguments, question text, signed decisions or file contents. Confirmation requires the original authenticated device and a fresh provider-delivered challenge. Interaction details and all actions require current authorization and native state.' })
 }
 const binding = '11111111-1111-4111-8111-111111111111', id = '22222222-2222-4222-8222-222222222222', expires = '2026-10-26T12:03:00.000Z'

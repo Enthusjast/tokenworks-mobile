@@ -4,7 +4,7 @@ plugins {
 }
 
 android {
-    namespace = "cn.edu.ustc.dsh.keystore"
+    namespace = "io.github.enthusjast.tokenworks.keystore"
     compileSdk = 36
     buildToolsVersion = "35.0.0"
     defaultConfig {

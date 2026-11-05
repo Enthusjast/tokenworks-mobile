@@ -8,7 +8,7 @@ import (
 	"runtime"
 	"testing"
 
-	"dsh-mobile-ustc/services/remote/internal/releases"
+	"tokenworks-mobile/services/remote/internal/releases"
 )
 
 func releaseCatalog(t *testing.T) *releases.Catalog {

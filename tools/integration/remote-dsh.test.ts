@@ -6,7 +6,7 @@ import { createHash, createPrivateKey, createPublicKey, generateKeyPairSync, ran
 import { once } from 'node:events'
 import { DatabaseSync } from 'node:sqlite'
 import { lstat, mkdir, mkdtemp, readFile, writeFile, unlink, rename } from 'node:fs/promises'
-import { createServer, request } from 'node:http'
+import { createServer, request, type ClientRequest, type IncomingMessage } from 'node:http'
 import { createServer as createTCPServer } from 'node:net'
 import { createRequire } from 'node:module'
 import { dirname, isAbsolute, join, resolve } from 'node:path'
@@ -231,7 +231,7 @@ test('real Go service and npm DSH share authorized sessions through PostgreSQL a
   assert.ok(metricsAddress && typeof metricsAddress === 'object')
   await new Promise<void>(accept => metricsReserved.close(() => accept()))
   const metricsOrigin = `http://127.0.0.1:${metricsAddress.port}`
-  const authority = { issuer: 'https://remote.example.edu', key_id: 'dsh-approval-authority/cli-integration', public_jwk: approvalAuthority.jwk, key_jkt: approvalAuthority.jkt, active: true,
+  const authority = { issuer: 'https://remote.example.edu', key_id: 'tokenworks-mobile-approval-authority/cli-integration', public_jwk: approvalAuthority.jwk, key_jkt: approvalAuthority.jkt, active: true,
     valid_from: new Date(Date.now() - 60_000).toISOString(), valid_until: new Date(Date.now() + 3600_000).toISOString() }
   const approvalSigningFile = join(root, 'approval-authority.pem'), approvalPolicyFile = join(root, 'approval-policy.json')
   await writeFile(approvalSigningFile, approvalAuthority.privateKey.export({ type: 'pkcs8', format: 'pem' }), { mode: 0o600 })
@@ -245,7 +245,7 @@ test('real Go service and npm DSH share authorized sessions through PostgreSQL a
   releases.publications[0].organization_ids = [orgId]
   await writeFile(releasesFile, JSON.stringify(releases), { mode: 0o600 })
   const serviceEnv = {
-    PATH: process.env.PATH ?? '', REMOTE_ISSUER: issuer, REMOTE_JWKS_URL: `${issuer}/jwks`, REMOTE_AUDIENCE: 'urn:dsh-e2e',
+    PATH: process.env.PATH ?? '', REMOTE_ISSUER: issuer, REMOTE_JWKS_URL: `${issuer}/jwks`, REMOTE_AUDIENCE: 'urn:tokenworks-mobile-e2e',
     REMOTE_CLIENT_IDS: 'fixture-host,fixture-phone', REMOTE_HOST_CLIENT_IDS: 'fixture-host', REMOTE_REQUIRED_SCOPES: 'remote.access',
     REMOTE_PUBLIC_ORIGIN: origin, REMOTE_DATABASE_URL: database, REMOTE_LISTEN_ADDR: `127.0.0.1:${address.port}`,
     REMOTE_APPROVAL_POLICY_FILE: approvalPolicyFile,
@@ -286,7 +286,7 @@ test('real Go service and npm DSH share authorized sessions through PostgreSQL a
     let total = 0
     for (const line of body.split('\n')) {
       const [identity, value] = line.split(' ')
-      if (!identity || identity.split('{', 1)[0] !== `dsh_remote_${name}`) continue
+      if (!identity || identity.split('{', 1)[0] !== `tokenworks_mobile_${name}`) continue
       const found = new Map([...identity.matchAll(/([a-z_][a-z0-9_]*)="([^"]*)"/g)].map(match => [match[1]!, match[2]!]))
       if ((subset || found.size === Object.keys(labels).length) && Object.entries(labels).every(([key, expected]) => found.get(key) === expected)) total += Number(value)
     }
@@ -299,7 +299,7 @@ test('real Go service and npm DSH share authorized sessions through PostgreSQL a
       // This local issuer supplies a current fixture identity per operation.
       // Production acquisition and refresh remain owned by the login adapter.
       const token = jws(signingKey.privateKey, { alg: 'ES256', typ: 'at+jwt', kid: 'integration-key' }, {
-        iss: issuer, sub: subject, aud: 'urn:dsh-e2e', client_id: clientId, jti: randomUUID(), iat: now(), exp: now() + 300,
+        iss: issuer, sub: subject, aud: 'urn:tokenworks-mobile-e2e', client_id: clientId, jti: randomUUID(), iat: now(), exp: now() + 300,
         scope: 'remote.access', cnf: { jkt: proofKey.jkt }, auth_time: now() - 2, acr: 'urn:fixture:verified', amr: ['otp'],
       })
       for (let attempt = 0; attempt < 2; attempt++) {
@@ -341,8 +341,8 @@ test('real Go service and npm DSH share authorized sessions through PostgreSQL a
   query(`update users set status='active' where id='${phoneUserId}';`)
   const register = (api: typeof phone, proofKey: ReturnType<typeof key>, approval: ReturnType<typeof key>, subject: string) => api('POST', '/v1/devices', proofJTI => ({
     name: subject, proof_public_jwk: proofKey.jwk, approval_public_jwk: approval.jwk,
-    approval_proof: jws(approval.privateKey, { alg: 'ES256', typ: 'dsh-device-registration-proof+jwt' }, {
-      iss: issuer, sub: subject, aud: 'urn:dsh-mobile-ustc:device-registration', iat: now(), jti: randomUUID(),
+    approval_proof: jws(approval.privateKey, { alg: 'ES256', typ: 'tokenworks-mobile-device-registration-proof+jwt' }, {
+      iss: issuer, sub: subject, aud: 'urn:tokenworks-mobile:device-registration', iat: now(), jti: randomUUID(),
       approval_key_jkt: approval.jkt, proof_key_jkt: proofKey.jkt, device_name_sha256: hash(subject), dpop_jti: proofJTI,
     }),
   }), 201)
@@ -413,16 +413,16 @@ test('real Go service and npm DSH share authorized sessions through PostgreSQL a
   const issueHostAccess = (): HostResourceAccess => {
     const hostAccessIssued = now()
     return {
-      issuer, subject: 'owner', audience: 'urn:dsh-e2e', clientId: 'fixture-host', tokenType: 'DPoP',
+      issuer, subject: 'owner', audience: 'urn:tokenworks-mobile-e2e', clientId: 'fixture-host', tokenType: 'DPoP',
       proofKeyThumbprint: installationKey.jkt, expiresAt: (hostAccessIssued + 300) * 1000, scopes: ['remote.access'],
       token: jws(signingKey.privateKey, { alg: 'ES256', typ: 'at+jwt', kid: 'integration-key' }, {
-        iss: issuer, sub: 'owner', aud: 'urn:dsh-e2e', client_id: 'fixture-host', jti: randomUUID(), iat: hostAccessIssued, exp: hostAccessIssued + 300,
+        iss: issuer, sub: 'owner', aud: 'urn:tokenworks-mobile-e2e', client_id: 'fixture-host', jti: randomUUID(), iat: hostAccessIssued, exp: hostAccessIssued + 300,
         scope: 'remote.access', cnf: { jkt: installationKey.jkt },
       }),
     }
   }
   const hostAccess = issueHostAccess(), hostResourceSecrets = [hostAccess.token]
-  const hostIdentity = { issuer, subject: 'owner', audience: 'urn:dsh-e2e', clientId: 'fixture-host' }
+  const hostIdentity = { issuer, subject: 'owner', audience: 'urn:tokenworks-mobile-e2e', clientId: 'fixture-host' }
   const resourceLifetime = new AbortController()
   const resourceAccount = new hostPackage.HostResourceJwtProvider({ origin, identity: hostIdentity,
     publicJwk: installationKey.jwk as { kty: 'EC'; crv: 'P-256'; x: string; y: string }, requiredScopes: ['remote.access'],
@@ -800,20 +800,37 @@ test('real Go service and npm DSH share authorized sessions through PostgreSQL a
   const scope = { actions: ['approval.decide', 'message.submit', 'question.answer', 'session.archive', 'session.cancel', 'session.create', 'session.model.select', 'session.read'], workspaces: [primaryWorkspace], sessions: [] }
   await outsider('POST', '/v1/realtime/tickets', { runtime_id: enrollment.runtime_id, scope }, 403)
   const ticket = await phone('POST', '/v1/realtime/tickets', { runtime_id: enrollment.runtime_id, scope }, 201)
+  const oldProtocolTicket = await phone('POST', '/v1/realtime/tickets', { runtime_id: enrollment.runtime_id, scope }, 201)
+  await new Promise<void>((accept, reject) => {
+    const legacy = new WebSocket(phoneOrigin.replace('http:', 'ws:') + '/v1/realtime', 'dsh.remote.v1', {
+      headers: { authorization: `TokenWorks-Mobile-Ticket ${oldProtocolTicket.ticket}` }, handshakeTimeout: 4000,
+    })
+    legacy.on('error', (error: Error) => {
+      if (error.message === 'Server sent no subprotocol') accept()
+      else reject(error)
+    })
+    legacy.once('open', () => { legacy.terminate(); reject(new Error('legacy realtime protocol was accepted')) })
+    legacy.once('unexpected-response', (_request: ClientRequest, response: IncomingMessage) => {
+      response.resume()
+      if (response.statusCode === 400) accept()
+      else reject(new Error(`legacy realtime protocol rejection status ${response.statusCode}`))
+      legacy.terminate()
+    })
+  })
   const schema = JSON.parse(await readFile(contract('ws/v1/relay.schema.json'), 'utf8'))
   const ajv = new Ajv2020({ strict: true }); ajv.addFormat('date-time', value => Number.isFinite(Date.parse(value)))
   const validate = ajv.compile(schema)
   const validateApproval = ajv.compile(JSON.parse(await readFile(contract('ws/v1/approval.schema.json'), 'utf8')))
   const connectPhone = async (api: typeof phone, deviceId: string, proofKey: ReturnType<typeof key>, issued?: typeof ticket) => {
     const connectionTicket = issued ?? await api('POST', '/v1/realtime/tickets', { runtime_id: enrollment.runtime_id, scope }, 201)
-    const socket = new WebSocket(phoneOrigin.replace('http:', 'ws:') + '/v1/realtime', 'dsh.remote.v1', { headers: { authorization: `DSH-Ticket ${connectionTicket.ticket}` }, perMessageDeflate: false, maxPayload: 65_536 })
+    const socket = new WebSocket(phoneOrigin.replace('http:', 'ws:') + '/v1/realtime', 'tokenworks-mobile.remote.v1', { headers: { authorization: `TokenWorks-Mobile-Ticket ${connectionTicket.ticket}` }, perMessageDeflate: false, maxPayload: 65_536 })
     const collector = new FrameCollector(socket, value => validate(value) || validateApproval(value))
     t.after(() => { socket.terminate() })
     const challenge = await collector.wait(frame => frame.type === 'challenge')
     const caps = ['approval.signed.v1', 'command.relay.v1', 'connection.heartbeat.v1', 'question.blocking.v1', 'question.timed.v1', 'session.archive.v1', 'session.cancel.v1', 'session.create.v1', 'session.model.select.v1', 'session.models.v1', 'session.read.v1']
     collector.send({ v: 1, type: 'hello.proof', payload: { device_id: deviceId, protocols: [1], capabilities: caps,
-      proof: jws(proofKey.privateKey, { alg: 'ES256', typ: 'dsh-relay-handshake-proof+jwt' }, {
-        iss: deviceId, aud: 'urn:dsh-mobile-ustc:realtime', challenge_id: challenge.payload.challenge_id,
+      proof: jws(proofKey.privateKey, { alg: 'ES256', typ: 'tokenworks-mobile-relay-handshake-proof+jwt' }, {
+        iss: deviceId, aud: 'urn:tokenworks-mobile:realtime', challenge_id: challenge.payload.challenge_id,
         connection_id: challenge.payload.connection_id, nonce: challenge.payload.nonce, runtime_id: enrollment.runtime_id,
         hello_sha256: hostHelloDigest(['device', deviceId, '1', caps.join('\n')]), iat: now(), jti: randomUUID(),
       }),
@@ -1256,7 +1273,7 @@ test('real Go service and npm DSH share authorized sessions through PostgreSQL a
       await mobile.wait(frame => frame.type === 'approval.reference' && frame.payload.status.approval_id === approvalID && frame.payload.status.host_state === 'cancelled', from)
       await assert.rejects(readFile(sentinel), { code: 'ENOENT' })
     } else {
-      const decision: ApprovalDecision = { domain: 'dsh-mobile-ustc/approval-decision/v1', protocol_version: 1,
+      const decision: ApprovalDecision = { domain: 'tokenworks-mobile/approval-decision/v1', protocol_version: 1,
         host_id: context.host_id, installation_id: context.installation_id, runtime_id: context.runtime_id, runtime_epoch: context.runtime_epoch,
         session_id: context.session_id, approval_id: context.approval_id, execution_id: context.execution_id, binding_sha256: binding.sha256,
         decision: choice === 'ALLOW' ? 'allow_once' : 'reject', user_id: phoneUserId, device_id: device.device_id, key_version: device.key_version,
@@ -1324,7 +1341,7 @@ test('real Go service and npm DSH share authorized sessions through PostgreSQL a
   const revokeApprovalId=revokePending.payload.status.approval_id,revokeDetailsId=randomUUID()
   mobile.send({v:1,type:'approval.details.get',request_id:revokeDetailsId,runtime_id:enrollment.runtime_id,runtime_epoch:probe.runtime_epoch,session_id:sessionId,payload:{approval_id:revokeApprovalId}})
   const revokeContext=(await mobile.wait(frame=>frame.type==='approval.details'&&frame.request_id===revokeDetailsId,revokePreparationFrom)).payload.context as ApprovalContext
-  const revokeDecision:ApprovalDecision={domain:'dsh-mobile-ustc/approval-decision/v1',protocol_version:1,host_id:revokeContext.host_id,installation_id:revokeContext.installation_id,runtime_id:revokeContext.runtime_id,
+  const revokeDecision:ApprovalDecision={domain:'tokenworks-mobile/approval-decision/v1',protocol_version:1,host_id:revokeContext.host_id,installation_id:revokeContext.installation_id,runtime_id:revokeContext.runtime_id,
     runtime_epoch:revokeContext.runtime_epoch,session_id:revokeContext.session_id,approval_id:revokeContext.approval_id,execution_id:revokeContext.execution_id,binding_sha256:approvalBinding(revokeContext).sha256,
     decision:'allow_once',user_id:phoneUserId,device_id:device.device_id,key_version:device.key_version,policy_version:revokeContext.policy_version,nonce:revokeContext.nonce,issued_at:new Date().toISOString(),expires_at:revokeContext.expires_at}
   const revokeProof=await new CompactSign(canonicalObject(revokeDecision)).setProtectedHeader({alg:'ES256',kid:approvalKeyID(device.device_id,device.key_version),typ:APPROVAL_JWS_TYPE}).sign(approvalKey.privateKey)
@@ -1634,8 +1651,8 @@ test('real Go service and npm DSH share authorized sessions through PostgreSQL a
       'crash fixture cleared stale ownership instead of exercising recovery')
     assert.equal((await local('GET', '/m0/probe')).runtime_epoch, probe.runtime_epoch)
     await survivor()
-    const refused = new WebSocket(phoneOrigin.replace('http:', 'ws:') + '/v1/realtime', 'dsh.remote.v1', {
-      headers: { authorization: `DSH-Ticket ${unusedTicket.ticket}` }, handshakeTimeout: 4000,
+    const refused = new WebSocket(phoneOrigin.replace('http:', 'ws:') + '/v1/realtime', 'tokenworks-mobile.remote.v1', {
+      headers: { authorization: `TokenWorks-Mobile-Ticket ${unusedTicket.ticket}` }, handshakeTimeout: 4000,
     })
     refused.on('error', () => {})
     try {
@@ -1729,7 +1746,7 @@ test('real Go service and npm DSH share authorized sessions through PostgreSQL a
         ownerReader.send({ v: 1, type: 'approval.details.get', request_id: detailsId, runtime_id: enrollment.runtime_id, runtime_epoch: probe.runtime_epoch,
           session_id: targetSession, payload: { approval_id: approvalId } })
         const context = (await ownerReader.wait(frame => frame.type === 'approval.details' && frame.request_id === detailsId, from)).payload.context as ApprovalContext
-        const decision: ApprovalDecision = { domain: 'dsh-mobile-ustc/approval-decision/v1', protocol_version: 1, host_id: context.host_id, installation_id: context.installation_id,
+        const decision: ApprovalDecision = { domain: 'tokenworks-mobile/approval-decision/v1', protocol_version: 1, host_id: context.host_id, installation_id: context.installation_id,
           runtime_id: context.runtime_id, runtime_epoch: context.runtime_epoch, session_id: context.session_id, approval_id: context.approval_id, execution_id: context.execution_id,
           binding_sha256: approvalBinding(context).sha256, decision: 'allow_once', user_id: ownerId, device_id: ownerDevice.device_id, key_version: ownerDevice.key_version,
           policy_version: context.policy_version, nonce: context.nonce, issued_at: new Date().toISOString(), expires_at: context.expires_at }
@@ -1760,7 +1777,7 @@ test('real Go service and npm DSH share authorized sessions through PostgreSQL a
       // Prepare a real, valid identity/proof nonce before removing database authority.
       const accessIssued = now()
       const outageAccess = jws(signingKey.privateKey, { alg: 'ES256', typ: 'at+jwt', kid: 'integration-key' }, {
-        iss: issuer, sub: 'owner', aud: 'urn:dsh-e2e', client_id: 'fixture-phone', jti: randomUUID(), iat: accessIssued, exp: accessIssued + 300,
+        iss: issuer, sub: 'owner', aud: 'urn:tokenworks-mobile-e2e', client_id: 'fixture-phone', jti: randomUUID(), iat: accessIssued, exp: accessIssued + 300,
         scope: 'remote.access', cnf: { jkt: ownerPhoneKey.jkt }, auth_time: accessIssued - 2, acr: 'urn:fixture:verified', amr: ['otp'],
       })
       const requestTicket = (nonce: string) => fetch(phoneOrigin + '/v1/realtime/tickets', { method: 'POST', redirect: 'error', signal: AbortSignal.timeout(1500),
@@ -1959,8 +1976,8 @@ test('real Go service and npm DSH share authorized sessions through PostgreSQL a
   const freshProvider = new HostRestCredentialProvider(credentialOptions)
   t.after(() => freshProvider.close())
   await assert.rejects(freshProvider.acquire(AbortSignal.timeout(5000)), cause => cause instanceof HostCredentialError && cause.code === 'host.credentials.denied')
-  const rejected = new WebSocket(origin.replace('http:', 'ws:') + '/v1/realtime', 'dsh.remote.v1', {
-    headers: { Authorization: `DSH-Host ${replayCredentialSecret}` }, handshakeTimeout: 3000,
+  const rejected = new WebSocket(origin.replace('http:', 'ws:') + '/v1/realtime', 'tokenworks-mobile.remote.v1', {
+    headers: { Authorization: `TokenWorks-Mobile-Host ${replayCredentialSecret}` }, handshakeTimeout: 3000,
   })
   rejected.on('error', () => {})
   await new Promise<void>((accept, reject) => {

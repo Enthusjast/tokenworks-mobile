@@ -10,8 +10,8 @@ export class MacOSKeychainJournalProtector extends PreprovisionedJournalProtecto
   constructor(options: MacOSKeychainJournalOptions) {
     try {
       const reference = keychainReference(options), lookup = new MacOSKeychainLookup(reference)
-      const digest = createHash('sha256').update('dsh-keychain-reference-v1\0').update(reference.keychainPath).update('\0').update(reference.service).update('\0').update(reference.account).digest('hex')
-      super({ id: `keychain-${digest.slice(0, 32)}`, magic: 'DSHKCK01', domain: 'dsh-keychain-journal-wrap-v1\0',
+      const digest = createHash('sha256').update('tokenworks-mobile-keychain-reference-v1\0').update(reference.keychainPath).update('\0').update(reference.service).update('\0').update(reference.account).digest('hex')
+      super({ id: `keychain-${digest.slice(0, 32)}`, magic: 'TWMKCK01', domain: 'tokenworks-mobile-keychain-journal-wrap-v1\0',
         typeName: 'MacOSKeychainJournalProtector', reason: 'journal Keychain protection unavailable', lookup })
     } catch { throw new Error('journal Keychain protection unavailable') }
   }

@@ -6,7 +6,7 @@ import (
 	"errors"
 	"time"
 
-	"dsh-mobile-ustc/services/remote/internal/releases"
+	"tokenworks-mobile/services/remote/internal/releases"
 )
 
 var errAppReleaseConfirmationMissing = errors.New("store: APK publication confirmation is not recorded")

@@ -99,7 +99,7 @@ test('DSH CLI 0.2.1-rc.5 loads the plugin and completes a local session round tr
   const home = join(root, 'dsh-home')
   const workspace = join(root, 'workspace')
   const socketPath = process.platform === 'win32'
-    ? `\\\\.\\pipe\\dsh-mobile-ustc-${randomUUID()}`
+    ? `\\\\.\\pipe\\tokenworks-mobile-${randomUUID()}`
     : join(root, 'ipc', 'remote.sock')
   await mkdir(workspace)
   const runtimeId = randomUUID()
@@ -139,7 +139,7 @@ test('DSH CLI 0.2.1-rc.5 loads the plugin and completes a local session round tr
     const relayChallengeId = randomUUID()
     const relayNonce = randomBytes(32).toString('base64url')
     relaySocket = socket
-    if (incoming.headers.authorization !== `DSH-Host ${hostCredential}`) {
+    if (incoming.headers.authorization !== `TokenWorks-Mobile-Host ${hostCredential}`) {
       relayFailure = new Error('DSH plugin did not use the host Authorization scheme')
       rejectRelayConnected(relayFailure)
       socket.close()
@@ -164,8 +164,8 @@ test('DSH CLI 0.2.1-rc.5 loads the plugin and completes a local session round tr
             'host', runtimeId, relayRuntimeEpoch, '0.2.1-rc.5', 'dsh-cli-integration', '0.0.1', '1',
             [...offered].sort().join('\n'),
           ])
-          const valid = JSON.parse(Buffer.from(headerPart, 'base64url').toString('utf8')).typ === 'dsh-relay-handshake-proof+jwt'
-            && proof.iss === installationId && proof.aud === 'urn:dsh-mobile-ustc:realtime'
+          const valid = JSON.parse(Buffer.from(headerPart, 'base64url').toString('utf8')).typ === 'tokenworks-mobile-relay-handshake-proof+jwt'
+            && proof.iss === installationId && proof.aud === 'urn:tokenworks-mobile:realtime'
             && proof.challenge_id === relayChallengeId && proof.connection_id === relayConnectionId
             && proof.nonce === relayNonce && proof.runtime_id === runtimeId && /^[0-9a-f-]{36}$/i.test(relayRuntimeEpoch)
             && proof.hello_sha256 === helloDigest
@@ -239,7 +239,7 @@ test('DSH CLI 0.2.1-rc.5 loads the plugin and completes a local session round tr
     '- insert:',
     '    - id: dsh-m0-model-fixture',
     `      name: ${quote(modelFixture)}`,
-    '    - id: ustc-remote-control',
+    '    - id: tokenworks-mobile',
     `      name: ${quote(pluginWrapperPath)}`,
     '      config:',
     '        enabled: true',

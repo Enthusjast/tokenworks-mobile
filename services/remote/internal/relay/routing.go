@@ -13,15 +13,15 @@ import (
 	"sync/atomic"
 	"time"
 
-	"dsh-mobile-ustc/services/remote/internal/requestlog"
-	"dsh-mobile-ustc/services/remote/internal/store"
 	"github.com/coder/websocket"
+	"tokenworks-mobile/services/remote/internal/requestlog"
+	"tokenworks-mobile/services/remote/internal/store"
 )
 
 const privateRelayPath = "/internal/relay/v1/device"
-const relayNodeHeader = "X-DSH-Relay-Node"
-const relayGenerationHeader = "X-DSH-Relay-Generation"
-const relayRouteHeader = "X-DSH-Relay-Route"
+const relayNodeHeader = "X-TokenWorks-Mobile-Relay-Node"
+const relayGenerationHeader = "X-TokenWorks-Mobile-Relay-Generation"
+const relayRouteHeader = "X-TokenWorks-Mobile-Relay-Route"
 
 type RoutingDirectory interface {
 	RelayIdentity() store.RelayNode
@@ -58,7 +58,7 @@ func RelayCertificateNode(certificate *x509.Certificate) (string, error) {
 		return "", errors.New("relay: node URI is required")
 	}
 	uri := certificate.URIs[0]
-	prefix := "spiffe://dsh-remote/relay/"
+	prefix := "spiffe://tokenworks-mobile/relay/"
 	value := uri.String()
 	if len(value) != len(prefix)+36 || value[:len(prefix)] != prefix || !uuidPattern.MatchString(value[len(prefix):]) {
 		return "", errors.New("relay: node URI is invalid")
@@ -220,7 +220,7 @@ func (server *Server) proxyDevice(response http.ResponseWriter, request *http.Re
 	defer transport.CloseIdleConnections()
 	client := &http.Client{Transport: transport, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
 	raw, _ := json.Marshal(route)
-	headers := http.Header{"Authorization": []string{"DSH-Ticket " + identity.ticket}}
+	headers := http.Header{"Authorization": []string{"TokenWorks-Mobile-Ticket " + identity.ticket}}
 	requestlog.ForwardHeaders(request.Context(), headers)
 	headers.Set(relayNodeHeader, routing.identity.NodeID)
 	headers.Set(relayGenerationHeader, routing.identity.Generation)

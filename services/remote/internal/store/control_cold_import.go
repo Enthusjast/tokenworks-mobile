@@ -7,7 +7,7 @@ import (
 	"errors"
 	"time"
 
-	"dsh-mobile-ustc/services/remote/internal/coldarchive"
+	"tokenworks-mobile/services/remote/internal/coldarchive"
 )
 
 var ErrControlImportInvalid = errors.New("store: invalid control history import")
@@ -107,10 +107,10 @@ func (postgres *Postgres) ImportControlHistory(ctx context.Context, request Cont
 	defer tx.Rollback()
 	// Lock the artifact before the operation identity; all callers use this
 	// order so two IDs cannot concurrently claim the same authenticated export.
-	if _, err := tx.ExecContext(ctx, `select pg_advisory_xact_lock(hashtextextended('dsh-control-import-export:'||$1::text||':'||$2::text,0))`, request.DomainID, request.ExportID); err != nil {
+	if _, err := tx.ExecContext(ctx, `select pg_advisory_xact_lock(hashtextextended('tokenworks-mobile-control-import-export:'||$1::text||':'||$2::text,0))`, request.DomainID, request.ExportID); err != nil {
 		return ControlImportResult{}, ErrDatabaseUnavailable
 	}
-	if _, err := tx.ExecContext(ctx, `select pg_advisory_xact_lock(hashtextextended('dsh-control-import-operation:'||$1::text,0))`, request.ImportID); err != nil {
+	if _, err := tx.ExecContext(ctx, `select pg_advisory_xact_lock(hashtextextended('tokenworks-mobile-control-import-operation:'||$1::text,0))`, request.ImportID); err != nil {
 		return ControlImportResult{}, ErrDatabaseUnavailable
 	}
 	if _, err := lockRecoveryReady(ctx, tx, request.DatabaseEpoch); err != nil {

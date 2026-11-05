@@ -8,7 +8,7 @@ import (
 	"log"
 	"time"
 
-	"dsh-mobile-ustc/services/remote/internal/auth"
+	"tokenworks-mobile/services/remote/internal/auth"
 )
 
 const DefaultProofEntriesPerBucket = 8192
@@ -53,7 +53,7 @@ func proofBucket(jkt string) int { digest := sha256.Sum256([]byte(jkt)); return 
 
 func proofEntryDigest(kind byte, jkt, value string) [32]byte {
 	hash := sha256.New()
-	_, _ = hash.Write([]byte("dsh-mobile-ustc/dpop-entry/v1\x00"))
+	_, _ = hash.Write([]byte("tokenworks-mobile/dpop-entry/v1\x00"))
 	_, _ = hash.Write([]byte{kind})
 	for _, part := range []string{jkt, value} {
 		var size [8]byte

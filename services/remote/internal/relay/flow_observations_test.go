@@ -9,9 +9,9 @@ import (
 	"testing"
 	"time"
 
-	"dsh-mobile-ustc/services/remote/internal/hostmetrics"
-	"dsh-mobile-ustc/services/remote/internal/observability"
-	"dsh-mobile-ustc/services/remote/internal/store"
+	"tokenworks-mobile/services/remote/internal/hostmetrics"
+	"tokenworks-mobile/services/remote/internal/observability"
+	"tokenworks-mobile/services/remote/internal/store"
 )
 
 func relayFlowGolden(t *testing.T, name string) hostmetrics.FlowReport {
@@ -30,7 +30,7 @@ func relayFlowGolden(t *testing.T, name string) hostmetrics.FlowReport {
 }
 func flowCount(t *testing.T, metrics *observability.Metrics, stage, kind string) float64 {
 	t.Helper()
-	for _, metric := range metricsSnapshot(t, metrics)["dsh_remote_host_flow_events_total"].GetMetric() {
+	for _, metric := range metricsSnapshot(t, metrics)["tokenworks_mobile_host_flow_events_total"].GetMetric() {
 		labels := map[string]string{}
 		for _, label := range metric.Label {
 			labels[label.GetName()] = label.GetValue()
@@ -44,7 +44,7 @@ func flowCount(t *testing.T, metrics *observability.Metrics, stage, kind string)
 
 func flowReports(t *testing.T, metrics *observability.Metrics, result string) float64 {
 	t.Helper()
-	for _, metric := range metricsSnapshot(t, metrics)["dsh_remote_host_flow_reports_total"].GetMetric() {
+	for _, metric := range metricsSnapshot(t, metrics)["tokenworks_mobile_host_flow_reports_total"].GetMetric() {
 		for _, label := range metric.Label {
 			if label.GetName() == "result" && label.GetValue() == result {
 				return metric.GetCounter().GetValue()

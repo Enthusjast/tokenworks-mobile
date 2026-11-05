@@ -7,7 +7,7 @@ import (
 	"errors"
 	"time"
 
-	"dsh-mobile-ustc/services/remote/internal/coldarchive"
+	"tokenworks-mobile/services/remote/internal/coldarchive"
 )
 
 var ErrControlExportInvalid = errors.New("store: invalid control export request")
@@ -49,7 +49,7 @@ func (ControlExportState) String() string   { return "store.ControlExportState" 
 func (ControlExportState) GoString() string { return "store.ControlExportState" }
 
 func lockExportOperation(ctx context.Context, tx *sql.Tx, id string) error {
-	if _, err := tx.ExecContext(ctx, `select pg_advisory_xact_lock(hashtextextended('dsh-control-export:'||$1::text,0))`, id); err != nil {
+	if _, err := tx.ExecContext(ctx, `select pg_advisory_xact_lock(hashtextextended('tokenworks-mobile-control-export:'||$1::text,0))`, id); err != nil {
 		return ErrDatabaseUnavailable
 	}
 	return nil
@@ -158,7 +158,7 @@ func exportSnapshot(ctx context.Context, tx *sql.Tx, request ControlExportReques
 	if err != nil {
 		return coldarchive.Payload{}, ErrDatabaseUnavailable
 	}
-	payload := coldarchive.Payload{Format: "dsh-control-archive", Version: 1, DomainID: request.DomainID, ExportID: request.ExportID, OperationEpoch: request.DatabaseEpoch, KeyID: request.Key.ID(), PreparedAt: preparedAt.UTC(),
+	payload := coldarchive.Payload{Format: "tokenworks-mobile-control-archive", Version: 1, DomainID: request.DomainID, ExportID: request.ExportID, OperationEpoch: request.DatabaseEpoch, KeyID: request.Key.ID(), PreparedAt: preparedAt.UTC(),
 		Batch: coldarchive.Batch{ID: batch.BatchID, DatabaseEpoch: batch.DatabaseEpoch, Limit: batch.Limit, RetentionYears: batch.RetentionYears, Cutoff: batch.Cutoff.UTC(), ArchivedAt: batch.ArchivedAt.UTC(), RetainUntil: batch.RetainUntil.UTC(), Events: batch.Events, PreviousEpochEvents: batch.PreviousEpochEvents}, Events: []coldarchive.Event{}, Recoveries: []coldarchive.Recovery{}}
 	rows, err := tx.QueryContext(ctx, `select event_id::text,batch_id::text,batch_epoch::text,database_epoch::text,topic,source_created_at,
 	 case when octet_length(source::text)<=$2 then source::text end,reason,archived_at,retain_until from control_outbox_archive

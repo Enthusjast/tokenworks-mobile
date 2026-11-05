@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"dsh-mobile-ustc/services/remote/internal/observability"
+	"tokenworks-mobile/services/remote/internal/observability"
 )
 
 func assertSenderSamples(t *testing.T, metrics *observability.Metrics, kind, result string, expected uint64) {
@@ -16,10 +16,10 @@ func assertSenderSamples(t *testing.T, metrics *observability.Metrics, kind, res
 	}
 	found := false
 	for _, family := range families {
-		if family.GetName() == "dsh_remote_push_delivery_results_total" || family.GetName() == "dsh_remote_push_client_receipts_total" {
+		if family.GetName() == "tokenworks_mobile_push_delivery_results_total" || family.GetName() == "tokenworks_mobile_push_client_receipts_total" {
 			t.Fatal("sender result invented database or client outcome")
 		}
-		if family.GetName() != "dsh_remote_push_provider_send_duration_seconds" {
+		if family.GetName() != "tokenworks_mobile_push_provider_send_duration_seconds" {
 			continue
 		}
 		for _, metric := range family.Metric {

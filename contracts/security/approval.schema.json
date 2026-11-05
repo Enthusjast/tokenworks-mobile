@@ -6,7 +6,7 @@
       "properties": {
         "domain": {
           "type": "string",
-          "const": "dsh-mobile-ustc/approval-context/v1"
+          "const": "tokenworks-mobile/approval-context/v1"
         },
         "protocol_version": {
           "type": "number",
@@ -174,7 +174,7 @@
       "properties": {
         "domain": {
           "type": "string",
-          "const": "dsh-mobile-ustc/approval-decision/v1"
+          "const": "tokenworks-mobile/approval-decision/v1"
         },
         "protocol_version": {
           "type": "number",
@@ -356,7 +356,7 @@
         },
         "domain": {
           "type": "string",
-          "const": "dsh-mobile-ustc/approval-authorization/v1"
+          "const": "tokenworks-mobile/approval-authorization/v1"
         },
         "protocol_version": {
           "type": "number",
@@ -368,7 +368,7 @@
         },
         "audience": {
           "type": "string",
-          "const": "dsh-approval-host/v1"
+          "const": "tokenworks-mobile-approval-host/v1"
         },
         "host_id": {
           "type": "string",
@@ -481,6 +481,6 @@
       ]
     }
   },
-  "$id": "urn:dsh-mobile-ustc:security:approval:v1",
+  "$id": "urn:tokenworks-mobile:security:approval:v1",
   "description": "Approval binding, signed decision and authority lease shapes. Implementations additionally enforce RFC 8785 bytes, UTF-8 byte budgets, scalar Unicode, canonical 32-byte nonces, valid UTC millisecond dates, unique resource facts, a maximum 180-second request lifetime, decision freshness, pinned authority keys and a maximum three-second connection-bound lease. This contract alone grants no execution authority."
 }

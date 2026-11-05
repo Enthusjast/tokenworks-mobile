@@ -77,7 +77,7 @@ func TestConfiguredFileServiceProcessRunsWorkersAndShutsDownCleanly(t *testing.T
 	metricsAddress := metricsListener.Addr().String()
 	_ = metricsListener.Close()
 	command := exec.CommandContext(h.ctx, binary)
-	command.Env = []string{"PATH=" + os.Getenv("PATH"), "REMOTE_ISSUER=https://id.example.edu", "REMOTE_AUDIENCE=urn:dsh-files", "REMOTE_JWKS_URL=" + h.jwksURL,
+	command.Env = []string{"PATH=" + os.Getenv("PATH"), "REMOTE_ISSUER=https://id.example.edu", "REMOTE_AUDIENCE=urn:tokenworks-mobile-files", "REMOTE_JWKS_URL=" + h.jwksURL,
 		"REMOTE_CLIENT_IDS=mobile,host-client", "REMOTE_HOST_CLIENT_IDS=host-client", "REMOTE_REQUIRED_SCOPES=remote.access", "REMOTE_PUBLIC_ORIGIN=" + origin,
 		"REMOTE_DATABASE_URL=" + childDSN, "REMOTE_LISTEN_ADDR=" + address, "REMOTE_FILES_CONFIG_FILE=" + config, "REMOTE_METRICS_LISTEN_ADDR=" + metricsAddress}
 	var output bytes.Buffer
@@ -125,9 +125,9 @@ func TestConfiguredFileServiceProcessRunsWorkersAndShutsDownCleanly(t *testing.T
 			body, readErr := io.ReadAll(io.LimitReader(response.Body, 512<<10))
 			_ = response.Body.Close()
 			if readErr == nil && response.StatusCode == 200 &&
-				strings.Contains(string(body), "dsh_remote_file_scanner_enabled 1\n") &&
-				strings.Contains(string(body), "dsh_remote_file_scanner_ready 1\n") &&
-				strings.Contains(string(body), "dsh_remote_file_scanner_probe_duration_seconds_count{result=\"ok\"} 1\n") {
+				strings.Contains(string(body), "tokenworks_mobile_file_scanner_enabled 1\n") &&
+				strings.Contains(string(body), "tokenworks_mobile_file_scanner_ready 1\n") &&
+				strings.Contains(string(body), "tokenworks_mobile_file_scanner_probe_duration_seconds_count{result=\"ok\"} 1\n") {
 				break
 			}
 		}
@@ -185,12 +185,12 @@ func TestConfiguredFileServiceProcessRunsWorkersAndShutsDownCleanly(t *testing.T
 				t.Fatal("operational metrics exposed private application input")
 			}
 		}
-		if strings.Contains(string(body), "dsh_remote_control_available{worker=\"outbox\"} 1") && strings.Contains(string(body), "dsh_remote_control_available{worker=\"leases\"} 1") &&
-			strings.Contains(string(body), "dsh_remote_unknown_snapshot_available 1\n") &&
-			strings.Contains(string(body), "dsh_remote_unknown_results{kind=\"command\"} 0\n") &&
-			strings.Contains(string(body), "dsh_remote_unknown_results{kind=\"approval\"} 0\n") &&
-			strings.Contains(string(body), "dsh_remote_file_scan_attempt_duration_seconds_count{direction=\"to_host\",result=\"clean\"} 1\n") &&
-			strings.Contains(string(body), "dsh_remote_file_scan_attempt_duration_seconds_count{direction=\"to_host\",result=\"rejected\"} 1\n") {
+		if strings.Contains(string(body), "tokenworks_mobile_control_available{worker=\"outbox\"} 1") && strings.Contains(string(body), "tokenworks_mobile_control_available{worker=\"leases\"} 1") &&
+			strings.Contains(string(body), "tokenworks_mobile_unknown_snapshot_available 1\n") &&
+			strings.Contains(string(body), "tokenworks_mobile_unknown_results{kind=\"command\"} 0\n") &&
+			strings.Contains(string(body), "tokenworks_mobile_unknown_results{kind=\"approval\"} 0\n") &&
+			strings.Contains(string(body), "tokenworks_mobile_file_scan_attempt_duration_seconds_count{direction=\"to_host\",result=\"clean\"} 1\n") &&
+			strings.Contains(string(body), "tokenworks_mobile_file_scan_attempt_duration_seconds_count{direction=\"to_host\",result=\"rejected\"} 1\n") {
 			break
 		}
 		if time.Now().After(deadline) {

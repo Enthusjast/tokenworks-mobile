@@ -8,9 +8,9 @@ import (
 	"testing"
 	"time"
 
-	"dsh-mobile-ustc/services/remote/internal/observability"
-	"dsh-mobile-ustc/services/remote/internal/store"
 	"github.com/coder/websocket"
+	"tokenworks-mobile/services/remote/internal/observability"
+	"tokenworks-mobile/services/remote/internal/store"
 )
 
 func TestControlEventsInvalidateOnlyTheirDeviceOrOlderRuntimeGrant(t *testing.T) {

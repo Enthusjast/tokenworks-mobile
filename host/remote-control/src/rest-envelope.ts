@@ -1,6 +1,6 @@
 /** Only the service REST transports negotiate this format. Issuer/JWKS, object
  * upload/download and WebSocket payloads keep their independent contracts. */
-export const restEnvelopeHeader = 'x-dsh-response-envelope'
+export const restEnvelopeHeader = 'x-tokenworks-mobile-response-envelope'
 export const restEnvelopeVersion = 'request-id.v1'
 const requestID = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/
 

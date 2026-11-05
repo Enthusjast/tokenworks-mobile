@@ -11,7 +11,7 @@ import subprocess
 import zipfile
 
 
-PACKAGE = "cn.edu.ustc.dsh.mobile"
+PACKAGE = "cn.edu.ustc.tokenworks"
 
 
 def digest(path):
@@ -41,7 +41,7 @@ def inspect_apk(path, sdk, version, version_name):
         dex = [name for name in names if re.fullmatch(r"classes(?:[2-9]|[1-9][0-9]+)?\.dex", name)]
         if "classes.dex" not in dex:
             raise RuntimeError("the candidate must contain executable application code")
-        required = {b"Lcn/edu/ustc/dsh/mobile/" + name + b";" for name in [b"MainActivity", b"DshApplication", b"LoginController", b"AppInstallations"]}
+        required = {b"Lcn/edu/ustc/tokenworks/" + name + b";" for name in [b"MainActivity", b"TokenWorksApplication", b"LoginController", b"AppInstallations"]}
         for name in dex:
             content = archive.read(name)
             required = {descriptor for descriptor in required if descriptor not in content}

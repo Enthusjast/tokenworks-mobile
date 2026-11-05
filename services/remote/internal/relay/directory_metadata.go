@@ -1,6 +1,6 @@
 package relay
 
-import "dsh-mobile-ustc/services/remote/internal/store"
+import "tokenworks-mobile/services/remote/internal/store"
 
 const directoryMetadataCapability = store.DirectoryMetadataCapability
 

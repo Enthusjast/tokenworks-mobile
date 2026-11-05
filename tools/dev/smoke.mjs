@@ -9,7 +9,7 @@ import { hostHelloDigest } from '../../host/remote-control/lib/relay-client.js'
 
 async function main() {
   const runtime = JSON.parse(await readFile(resolve(state, 'enrolled-runtime.json'), 'utf8'))
-  assert.equal(runtime.purpose, 'dsh-local-enrolled-runtime/v1')
+  assert.equal(runtime.purpose, 'tokenworks-mobile-local-enrolled-runtime/v1')
   const phone = await phoneClient()
   const device = await phone.request('GET', '/v1/devices/current')
   assert.equal(device.state, 'active')
@@ -22,8 +22,8 @@ async function main() {
   const ticket = await phone.request('POST', '/v1/realtime/tickets', { runtime_id: runtime.runtimeId,
     scope: { actions: ['session.read'], workspaces: [runtime.workspaces[0].workspaceId], sessions: [] } }, 201)
   const caps = ['command.relay.v1', 'connection.heartbeat.v1', 'session.read.v1']
-  const socket = new WebSocket(origin.replace('http:', 'ws:') + '/v1/realtime', 'dsh.remote.v1', {
-    headers: { authorization: 'DSH-Ticket ' + ticket.ticket }, perMessageDeflate: false, maxPayload: 65536,
+  const socket = new WebSocket(origin.replace('http:', 'ws:') + '/v1/realtime', 'tokenworks-mobile.remote.v1', {
+    headers: { authorization: 'TokenWorks-Mobile-Ticket ' + ticket.ticket }, perMessageDeflate: false, maxPayload: 65536,
   })
   let challengeSeen = false
   try {
@@ -38,11 +38,11 @@ async function main() {
           if (frame.type === 'challenge') {
             assert.equal(challengeSeen, false)
             challengeSeen = true
-            const claims = { iss: device.device.device_id, aud: 'urn:dsh-mobile-ustc:realtime',
+            const claims = { iss: device.device.device_id, aud: 'urn:tokenworks-mobile:realtime',
               challenge_id: frame.payload.challenge_id, connection_id: frame.payload.connection_id, nonce: frame.payload.nonce,
               runtime_id: runtime.runtimeId, hello_sha256: hostHelloDigest(['device', device.device.device_id, '1', caps.join('\n')]),
               iat: Math.floor(Date.now() / 1000), jti: randomUUID() }
-            const header = { alg: 'ES256', typ: 'dsh-relay-handshake-proof+jwt' }
+            const header = { alg: 'ES256', typ: 'tokenworks-mobile-relay-handshake-proof+jwt' }
             const input = [header, claims].map(value => Buffer.from(JSON.stringify(value)).toString('base64url')).join('.')
             const proof = input + '.' + sign('sha256', Buffer.from(input), { key: phone.proof.privateKey, dsaEncoding: 'ieee-p1363' }).toString('base64url')
             socket.send(JSON.stringify({ v: 1, type: 'hello.proof', payload: { device_id: device.device.device_id,

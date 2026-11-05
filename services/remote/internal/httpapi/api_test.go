@@ -9,9 +9,9 @@ import (
 	"testing"
 	"time"
 
-	"dsh-mobile-ustc/services/remote/internal/auth"
-	"dsh-mobile-ustc/services/remote/internal/releases"
-	"dsh-mobile-ustc/services/remote/internal/store"
+	"tokenworks-mobile/services/remote/internal/auth"
+	"tokenworks-mobile/services/remote/internal/releases"
+	"tokenworks-mobile/services/remote/internal/store"
 )
 
 type fakeRepository struct {
@@ -455,7 +455,7 @@ func TestHealthAndReadinessRoutes(t *testing.T) {
 
 func TestProtectedRoutesRejectAnonymousRequestsBeforeDatabaseAccess(t *testing.T) {
 	identity, err := auth.New(auth.Config{
-		Issuer: "https://id.example.edu", Audience: "urn:dsh-remote", JWKSURL: "https://keys.example.edu/jwks",
+		Issuer: "https://id.example.edu", Audience: "urn:tokenworks-mobile", JWKSURL: "https://keys.example.edu/jwks",
 		AllowedClients: []string{"mobile-client"}, RequiredScopes: []string{"remote.access"},
 		PublicOrigin: "https://api.example.edu", MaxTokenLifetime: 15 * time.Minute,
 	})

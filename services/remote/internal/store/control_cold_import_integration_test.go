@@ -10,8 +10,8 @@ import (
 	"testing"
 	"time"
 
-	"dsh-mobile-ustc/services/remote/internal/coldarchive"
-	"dsh-mobile-ustc/services/remote/internal/testsupport"
+	"tokenworks-mobile/services/remote/internal/coldarchive"
+	"tokenworks-mobile/services/remote/internal/testsupport"
 )
 
 func controlImportFixture(t *testing.T, expired bool) (context.Context, *Postgres, ControlImportRequest, []byte) {
@@ -197,7 +197,7 @@ func TestControlColdImportHistoryRequiresExplicitPrivileges(t *testing.T) {
 	if _, err := target.ImportControlHistory(ctx, request, artifact); err != nil {
 		t.Fatal(err)
 	}
-	role := "dsh_cold_import_" + strings.ReplaceAll(approvalTestUUID(t), "-", "")
+	role := "twm_cold_import_" + strings.ReplaceAll(approvalTestUUID(t), "-", "")
 	if _, err := target.DB.ExecContext(ctx, "create role "+role+" nologin"); err != nil {
 		t.Fatal(err)
 	}

@@ -102,19 +102,19 @@ func TestAuthorizationSignerRejectsInvalidContextIntervalsAndKeys(t *testing.T) 
 	} {
 		lease := fixture.Lease
 		mutate(&lease)
-		if _, err := SignAuthorization(lease, "dsh-approval-authority/test", key); err == nil {
+		if _, err := SignAuthorization(lease, "tokenworks-mobile-approval-authority/test", key); err == nil {
 			t.Fatal("invalid lease signed")
 		}
 	}
 	for _, badKey := range []*ecdsa.PrivateKey{nil, {}, {PublicKey: ecdsa.PublicKey{Curve: elliptic.P256()}}} {
-		if _, err := SignAuthorization(fixture.Lease, "dsh-approval-authority/test", badKey); err == nil {
+		if _, err := SignAuthorization(fixture.Lease, "tokenworks-mobile-approval-authority/test", badKey); err == nil {
 			t.Fatal("invalid signing key accepted")
 		}
 	}
 	if _, err := SignAuthorization(fixture.Lease, "https://untrusted.example/key", key); err == nil {
 		t.Fatal("key URL used as authority key identity")
 	}
-	if _, err := SignAuthorization(fixture.Lease, "dsh-approval-authority/test", key); err != nil {
+	if _, err := SignAuthorization(fixture.Lease, "tokenworks-mobile-approval-authority/test", key); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -155,7 +155,7 @@ func TestAuthorizationSignerCopiesKeysAndEnforcesItsOwnIssuerAndValidity(t *test
 		t.Fatal(err)
 	}
 	for _, bad := range []*ecdsa.PrivateKey{nil, {}, {PublicKey: ecdsa.PublicKey{Curve: elliptic.P256()}}} {
-		if _, err := NewAuthorizationSigner(fixture.Lease.Issuer, "dsh-approval-authority/test", bad, now.Add(-time.Hour), now.Add(time.Hour)); err == nil {
+		if _, err := NewAuthorizationSigner(fixture.Lease.Issuer, "tokenworks-mobile-approval-authority/test", bad, now.Add(-time.Hour), now.Add(time.Hour)); err == nil {
 			t.Fatal("invalid configured signing key accepted")
 		}
 	}
@@ -165,10 +165,10 @@ func TestAuthorizationSignerCopiesKeysAndEnforcesItsOwnIssuerAndValidity(t *test
 	}
 	mismatched := *key
 	mismatched.PublicKey = other.PublicKey
-	if _, err := NewAuthorizationSigner(fixture.Lease.Issuer, "dsh-approval-authority/test", &mismatched, now.Add(-time.Hour), now.Add(time.Hour)); err == nil {
+	if _, err := NewAuthorizationSigner(fixture.Lease.Issuer, "tokenworks-mobile-approval-authority/test", &mismatched, now.Add(-time.Hour), now.Add(time.Hour)); err == nil {
 		t.Fatal("mismatched public/private key accepted")
 	}
-	signer, err := NewAuthorizationSigner(fixture.Lease.Issuer, "dsh-approval-authority/test", key, now.Add(-time.Hour), now.Add(time.Hour))
+	signer, err := NewAuthorizationSigner(fixture.Lease.Issuer, "tokenworks-mobile-approval-authority/test", key, now.Add(-time.Hour), now.Add(time.Hour))
 	if err != nil {
 		t.Fatal(err)
 	}

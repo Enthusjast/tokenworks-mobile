@@ -4,7 +4,7 @@ import (
 	"errors"
 	"testing"
 
-	"dsh-mobile-ustc/services/remote/internal/files"
+	"tokenworks-mobile/services/remote/internal/files"
 )
 
 func (fixture *fileFixture) expired(t *testing.T, id string) {

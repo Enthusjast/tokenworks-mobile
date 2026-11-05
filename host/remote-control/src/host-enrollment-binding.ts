@@ -23,7 +23,7 @@ export class HostEnrollmentBindingError extends Error {
 }
 const failure = (code: Code = 'unavailable') => new HostEnrollmentBindingError(`host.enrollment_binding.${code}`)
 const busyPaths = guards.recoveryPaths
-const BINDING_MAGIC = Buffer.from('DSHENB01')
+const BINDING_MAGIC = Buffer.from('TWMENB01')
 
 export interface HostEnrollmentBindingOptions {
   /** Absolute path under a dedicated, current-user-owned 0700 directory. */
@@ -52,7 +52,7 @@ export class HostEnrollmentBindingStore {
       if (Buffer.byteLength(this.#path) > 8192 || basename(this.#path) === '' || this.#path === dirname(this.#path)) throw failure()
       this.#name = basename(this.#path); this.#client = options.client; this.#protector = protectorFrom(options.protector)
       const binding = enrollmentRecoveryBinding(options.client)
-      this.#context = Buffer.from(`dsh-host-enrollment-binding-store-v1\0${this.#path}\0${binding}\0${this.#protector.id}`, 'utf8')
+      this.#context = Buffer.from(`tokenworks-mobile-host-enrollment-binding-store-v1\0${this.#path}\0${binding}\0${this.#protector.id}`, 'utf8')
       this.signal = AbortSignal.any([this.#closed.signal, options.client.signal])
       Object.freeze(this)
     } catch { throw failure() }

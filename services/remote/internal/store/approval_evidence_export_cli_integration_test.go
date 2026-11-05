@@ -11,9 +11,9 @@ import (
 	"testing"
 	"time"
 
-	"dsh-mobile-ustc/services/remote/internal/coldarchive"
-	"dsh-mobile-ustc/services/remote/internal/evidencearchive"
-	"dsh-mobile-ustc/services/remote/internal/testsupport"
+	"tokenworks-mobile/services/remote/internal/coldarchive"
+	"tokenworks-mobile/services/remote/internal/evidencearchive"
+	"tokenworks-mobile/services/remote/internal/testsupport"
 )
 
 func TestEvidenceExportProductionBinaryRecoversAndVerifiesWithoutDisclosure(t *testing.T) {

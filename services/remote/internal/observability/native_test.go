@@ -5,7 +5,7 @@ import (
 	"os"
 	"testing"
 
-	"dsh-mobile-ustc/services/remote/internal/hostmetrics"
+	"tokenworks-mobile/services/remote/internal/hostmetrics"
 )
 
 func TestNativeHistogramAddsOnlyValidatedDeltasAndUsesSeconds(t *testing.T) {
@@ -43,7 +43,7 @@ func TestNativeHistogramAddsOnlyValidatedDeltasAndUsesSeconds(t *testing.T) {
 	}
 	found := false
 	for _, family := range families {
-		if family.GetName() != "dsh_remote_host_native_operation_duration_seconds" {
+		if family.GetName() != "tokenworks_mobile_host_native_operation_duration_seconds" {
 			continue
 		}
 		for _, metric := range family.Metric {
@@ -94,7 +94,7 @@ func TestJournalHistogramUsesFixedOperationsAndSeconds(t *testing.T) {
 	}
 	found := 0
 	for _, family := range families {
-		if family.GetName() != "dsh_remote_host_native_operation_duration_seconds" {
+		if family.GetName() != "tokenworks_mobile_host_native_operation_duration_seconds" {
 			continue
 		}
 		for _, metric := range family.Metric {

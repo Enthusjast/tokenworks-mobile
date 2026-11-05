@@ -12,9 +12,9 @@ import (
 	"strings"
 	"time"
 
-	"dsh-mobile-ustc/services/remote/internal/auth"
-	"dsh-mobile-ustc/services/remote/internal/canonical"
 	jose "github.com/go-jose/go-jose/v4"
+	"tokenworks-mobile/services/remote/internal/auth"
+	"tokenworks-mobile/services/remote/internal/canonical"
 )
 
 var ErrDecision = errors.New("approval: invalid signed decision")
@@ -34,7 +34,7 @@ type VerifiedDecision struct {
 }
 
 func KeyID(deviceID string, keyVersion int64) string {
-	return "dsh-approval/" + deviceID + "/" + strconv.FormatInt(keyVersion, 10)
+	return "tokenworks-mobile-approval/" + deviceID + "/" + strconv.FormatInt(keyVersion, 10)
 }
 
 func verifyDecisionSignature(compact string, registered RegisteredKey) (VerifiedDecision, error) {

@@ -16,9 +16,9 @@ import (
 	"testing"
 	"time"
 
-	"dsh-mobile-ustc/services/remote/internal/auth"
-	"dsh-mobile-ustc/services/remote/internal/store"
 	"github.com/coder/websocket"
+	"tokenworks-mobile/services/remote/internal/auth"
+	"tokenworks-mobile/services/remote/internal/store"
 )
 
 type relayTestStore struct {
@@ -264,7 +264,7 @@ func TestDeviceTicketRequiresKeyProofBeforeHelloAndHeartbeat(t *testing.T) {
 	server := httptest.NewServer(relayServer)
 	t.Cleanup(server.Close)
 	connection, response, err := websocket.Dial(context.Background(), wsURL(server.URL), &websocket.DialOptions{
-		HTTPHeader:   http.Header{"Authorization": []string{"DSH-Ticket " + strings.Repeat("A", 43)}},
+		HTTPHeader:   http.Header{"Authorization": []string{"TokenWorks-Mobile-Ticket " + strings.Repeat("A", 43)}},
 		Subprotocols: []string{protocolName},
 	})
 	if err != nil {
@@ -469,7 +469,7 @@ func TestInvalidDeviceProofDoesNotConsumeTicket(t *testing.T) {
 	server := httptest.NewServer(relayServer)
 	t.Cleanup(server.Close)
 	connection, _, err := websocket.Dial(context.Background(), wsURL(server.URL), &websocket.DialOptions{
-		HTTPHeader:   http.Header{"Authorization": []string{"DSH-Ticket " + strings.Repeat("B", 43)}},
+		HTTPHeader:   http.Header{"Authorization": []string{"TokenWorks-Mobile-Ticket " + strings.Repeat("B", 43)}},
 		Subprotocols: []string{protocolName},
 	})
 	if err != nil {
@@ -522,7 +522,7 @@ func TestHostHandshakeBindsHelloAndPersistsRuntimeConnection(t *testing.T) {
 	server := httptest.NewServer(relayServer)
 	t.Cleanup(server.Close)
 	connection, _, err := websocket.Dial(context.Background(), wsURL(server.URL), &websocket.DialOptions{
-		HTTPHeader:   http.Header{"Authorization": []string{"DSH-Host " + strings.Repeat("C", 43)}},
+		HTTPHeader:   http.Header{"Authorization": []string{"TokenWorks-Mobile-Host " + strings.Repeat("C", 43)}},
 		Subprotocols: []string{protocolName},
 	})
 	if err != nil {
@@ -702,7 +702,7 @@ func TestMessageSubmitRoutesToHostAndPersistsCommandReceipts(t *testing.T) {
 func dialRelayHost(t *testing.T, serverURL string, key *ecdsa.PrivateKey, installationID, runtimeID, runtimeEpoch string, capabilities ...string) *websocket.Conn {
 	t.Helper()
 	connection, _, err := websocket.Dial(context.Background(), wsURL(serverURL), &websocket.DialOptions{
-		HTTPHeader:   http.Header{"Authorization": []string{"DSH-Host " + strings.Repeat("H", 43)}},
+		HTTPHeader:   http.Header{"Authorization": []string{"TokenWorks-Mobile-Host " + strings.Repeat("H", 43)}},
 		Subprotocols: []string{protocolName},
 	})
 	if err != nil {
@@ -739,7 +739,7 @@ func dialRelayHost(t *testing.T, serverURL string, key *ecdsa.PrivateKey, instal
 func dialRelayDevice(t *testing.T, serverURL string, key *ecdsa.PrivateKey, ticket store.TicketRedemption, runtimeID string, capabilities ...string) *websocket.Conn {
 	t.Helper()
 	connection, _, err := websocket.Dial(context.Background(), wsURL(serverURL), &websocket.DialOptions{
-		HTTPHeader:   http.Header{"Authorization": []string{"DSH-Ticket " + strings.Repeat("T", 43)}},
+		HTTPHeader:   http.Header{"Authorization": []string{"TokenWorks-Mobile-Ticket " + strings.Repeat("T", 43)}},
 		Subprotocols: []string{protocolName},
 	})
 	if err != nil {
@@ -791,7 +791,7 @@ func TestRealtimeEndpointRejectsTicketInQuery(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	request.Header.Set("Authorization", "DSH-Ticket "+strings.Repeat("D", 43))
+	request.Header.Set("Authorization", "TokenWorks-Mobile-Ticket "+strings.Repeat("D", 43))
 	response, err := client.Do(request)
 	if err != nil {
 		t.Fatal(err)
@@ -812,7 +812,7 @@ func TestRealtimeEndpointClosesConnectionsWithoutSubprotocol(t *testing.T) {
 	server := httptest.NewServer(New(fake))
 	t.Cleanup(server.Close)
 	connection, _, err := websocket.Dial(context.Background(), wsURL(server.URL), &websocket.DialOptions{
-		HTTPHeader: http.Header{"Authorization": []string{"DSH-Ticket " + strings.Repeat("E", 43)}},
+		HTTPHeader: http.Header{"Authorization": []string{"TokenWorks-Mobile-Ticket " + strings.Repeat("E", 43)}},
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -824,7 +824,7 @@ func TestRealtimeEndpointClosesConnectionsWithoutSubprotocol(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
 	if _, _, err := connection.Read(ctx); err == nil {
-		t.Fatal("connection without dsh.remote.v1 remained open")
+		t.Fatal("connection without tokenworks-mobile.remote.v1 remained open")
 	}
 }
 
@@ -928,7 +928,7 @@ func relayTestPublicJWK(t *testing.T, key *ecdsa.PrivateKey) ([]byte, string) {
 
 func relaySign(t *testing.T, key *ecdsa.PrivateKey, claims map[string]any) string {
 	t.Helper()
-	header, err := json.Marshal(map[string]string{"typ": "dsh-relay-handshake-proof+jwt", "alg": "ES256"})
+	header, err := json.Marshal(map[string]string{"typ": "tokenworks-mobile-relay-handshake-proof+jwt", "alg": "ES256"})
 	if err != nil {
 		t.Fatal(err)
 	}

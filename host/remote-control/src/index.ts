@@ -53,7 +53,7 @@ export type { LinuxInstallationKeyOptions, LinuxInstallationIdentity } from './l
 export { HostEnrolledRuntimeError } from './host-enrolled-runtime.js'
 export type { HostEnrolledRuntimeOptions } from './host-enrolled-runtime.js'
 
-export const name = 'ustc-remote-control'
+export const name = 'tokenworks-mobile'
 export const inject = ['sessionController', 'sessions', 'agents', 'tools', 'approval', 'userQuestions', 'sessionProjections', 'workspaceRegistry', 'fileUploads', 'attachments', 'fs', 'loader']
 
 export interface Config {
@@ -100,7 +100,7 @@ async function applyInternal(ctx: Context, config: Config, credentials?: HostCre
   // apply function is invoked directly in a context that owns the native host.
   const parentFiber = ctx.fiber
   let setupError: unknown
-  const scope = ctx.plugin({ name: 'ustc-remote-control-owner',
+  const scope = ctx.plugin({ name: 'tokenworks-mobile-owner',
     inject: signedOptions && !signedOptions.workingDirectory ? [...inject, 'workingDirectory'] : inject,
     apply(owned: Context) {
       const task = applyOwned(owned, config, parentFiber, credentials, signedOptions, journalKeyProtector, enrollment)

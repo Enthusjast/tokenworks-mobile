@@ -7,12 +7,12 @@
     "payload": {
       "approval_id": "66666666-6666-4666-8666-666666666666",
       "execution_id": "77777777-7777-4777-8777-777777777777",
-      "binding_sha256": "7ff41820cf3132d1b01258a590c2675d6c10c6a77c2b11af06d17b1c3213e459",
-      "decision_payload_sha256": "5c32f9a9cc14e75c372dae35c02196511f9dd57f05cc2d3586c3f92b27f3f026",
+      "binding_sha256": "a44eb7f452c90883894a4453bda380a8b65c539290df527d64d60375a39b145f",
+      "decision_payload_sha256": "81da3b8e4afd12957dc08568391bff3661fe997c681f9a1d93aa1c94ad1853df",
       "state": "settled",
       "execution_outcome": "succeeded"
     }
   },
-  "canonical": "{\"payload\":{\"approval_id\":\"66666666-6666-4666-8666-666666666666\",\"binding_sha256\":\"7ff41820cf3132d1b01258a590c2675d6c10c6a77c2b11af06d17b1c3213e459\",\"decision_payload_sha256\":\"5c32f9a9cc14e75c372dae35c02196511f9dd57f05cc2d3586c3f92b27f3f026\",\"execution_id\":\"77777777-7777-4777-8777-777777777777\",\"execution_outcome\":\"succeeded\",\"state\":\"settled\"},\"runtime_epoch\":\"44444444-4444-4444-8444-444444444444\",\"runtime_id\":\"33333333-3333-4333-8333-333333333333\",\"session_id\":\"55555555-5555-4555-8555-555555555555\",\"type\":\"approval.result\"}",
-  "sha256": "84f2b215d9e2538352a5f2148656242f4073f9341b5e7bc958fcad27ac7abf1f"
+  "canonical": "{\"payload\":{\"approval_id\":\"66666666-6666-4666-8666-666666666666\",\"binding_sha256\":\"a44eb7f452c90883894a4453bda380a8b65c539290df527d64d60375a39b145f\",\"decision_payload_sha256\":\"81da3b8e4afd12957dc08568391bff3661fe997c681f9a1d93aa1c94ad1853df\",\"execution_id\":\"77777777-7777-4777-8777-777777777777\",\"execution_outcome\":\"succeeded\",\"state\":\"settled\"},\"runtime_epoch\":\"44444444-4444-4444-8444-444444444444\",\"runtime_id\":\"33333333-3333-4333-8333-333333333333\",\"session_id\":\"55555555-5555-4555-8555-555555555555\",\"type\":\"approval.result\"}",
+  "sha256": "5b54ff78a11dad04791a46a3a3141d3bf7b5e7e4a95a9872bb0f1d03c86bfb34"
 }

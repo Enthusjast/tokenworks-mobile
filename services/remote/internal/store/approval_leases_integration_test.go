@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"dsh-mobile-ustc/services/remote/internal/approval"
+	"tokenworks-mobile/services/remote/internal/approval"
 )
 
 func approvalTestSigner(t *testing.T, until time.Time) *approval.AuthorizationSigner {
@@ -19,7 +19,7 @@ func approvalTestSigner(t *testing.T, until time.Time) *approval.AuthorizationSi
 	if err != nil {
 		t.Fatal(err)
 	}
-	signer, err := approval.NewAuthorizationSigner("https://remote.example.edu", "dsh-approval-authority/postgres-test", key, time.Now().Add(-time.Hour).UTC().Truncate(time.Millisecond), until.UTC().Truncate(time.Millisecond))
+	signer, err := approval.NewAuthorizationSigner("https://remote.example.edu", "tokenworks-mobile-approval-authority/postgres-test", key, time.Now().Add(-time.Hour).UTC().Truncate(time.Millisecond), until.UTC().Truncate(time.Millisecond))
 	if err != nil {
 		t.Fatal(err)
 	}

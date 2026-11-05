@@ -14,8 +14,8 @@ import (
 	"strings"
 	"time"
 
-	"dsh-mobile-ustc/services/remote/internal/auth"
-	"dsh-mobile-ustc/services/remote/internal/requestlog"
+	"tokenworks-mobile/services/remote/internal/auth"
+	"tokenworks-mobile/services/remote/internal/requestlog"
 )
 
 //go:embed web/index.html web/app.js web/style.css
@@ -46,7 +46,7 @@ func NewPortal(service *Service, origin string, registration bool) (*Portal, err
 	return &Portal{service: service, origin: origin, secure: u.Scheme == "https", registration: registration}, nil
 }
 func (p *Portal) cookieName(csrf bool) string {
-	name := "remote_account"
+	name := "tokenworks_mobile_account"
 	if csrf {
 		name += "_csrf"
 	}

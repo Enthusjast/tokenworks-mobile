@@ -4,8 +4,8 @@ import (
 	"encoding/json"
 	"testing"
 
-	"dsh-mobile-ustc/services/remote/internal/store"
 	"github.com/coder/websocket"
+	"tokenworks-mobile/services/remote/internal/store"
 )
 
 func TestProductionSharedCommandBudgetSurvivesOwnerMigrationAndFreshSocket(t *testing.T) {
@@ -17,7 +17,7 @@ func TestProductionSharedCommandBudgetSurvivesOwnerMigrationAndFreshSocket(t *te
 	connectPhone := func(node string) *websocket.Conn {
 		t.Helper()
 		ticket := f.ticket(pair, "message.submit")
-		connection, err := capacityConnect(f.ctx, f.clients[node], f.origin, "device", "DSH-Ticket "+ticket.Token, pair.phoneKey, pair, "command.relay.v1")
+		connection, err := capacityConnect(f.ctx, f.clients[node], f.origin, "device", "TokenWorks-Mobile-Ticket "+ticket.Token, pair.phoneKey, pair, "command.relay.v1")
 		if err != nil {
 			t.Fatal(err)
 		}

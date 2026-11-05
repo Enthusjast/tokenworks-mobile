@@ -7,6 +7,7 @@ import { registerDesktopUI } from '../src/desktop-ui.js'
 test('desktop status is owner-only, read-only, fresh and removed with its plugin', async t => {
   const ctx = new Context()
   let handler: ((req: IncomingMessage, res: ServerResponse) => void) | undefined
+  let routePath: string | undefined
   const set = ctx.provide.bind(ctx) as (key: string, value: unknown) => void
   const retired = new AbortController(); retired.abort()
   set('connection', { admit(req: IncomingMessage) {
@@ -15,9 +16,11 @@ test('desktop status is owner-only, read-only, fresh and removed with its plugin
     if (!role) return { rejection: 401 }
     return { peer: { principal: { kind: role }, signal: role === 'retired' ? retired.signal : new AbortController().signal } }
   } })
-  set('webServer', { register(route: { handler: typeof handler }) {
+  set('webServer', { register(route: { kind: string; path: string; handler: typeof handler }) {
+    assert.equal(route.kind, 'exact')
+    routePath = route.path
     handler = route.handler
-    return () => { handler = undefined }
+    return () => { handler = undefined; routePath = undefined }
   } })
   let phase = 'connecting'
   const plugin = ctx.plugin({ name: 'desktop-fixture', apply(scope) {
@@ -25,12 +28,14 @@ test('desktop status is owner-only, read-only, fresh and removed with its plugin
       localSocket: true, protectedJournal: true, development: false, workspaces: [{ id: 'project', label: 'Project' }], presets: [] }))
   } })
   await plugin.await()
-  const server = createServer((req, res) => { if (handler) handler(req, res); else { res.writeHead(404); res.end() } })
+  const server = createServer((req, res) => { if (handler && req.url === routePath) handler(req, res); else { res.writeHead(404); res.end() } })
   await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve))
   t.after(async () => { await plugin.dispose(); await new Promise<void>(resolve => server.close(() => resolve())) })
   const address = server.address()
   assert.ok(address && typeof address === 'object')
-  const url = `http://127.0.0.1:${address.port}/ustc-remote-control/status`
+  const url = `http://127.0.0.1:${address.port}/tokenworks-mobile/status`
+  assert.equal(routePath, '/tokenworks-mobile/status')
+  assert.equal((await fetch(new URL('/ustc-remote-control/status', url), { headers: { 'x-test-role': 'owner' } })).status, 404)
   for (const [role, expected] of [['', 401], ['denied', 403], ['operator', 403], ['retired', 403]] as const) {
     const result = await fetch(url, { headers: { 'x-test-role': role } })
     assert.equal(result.status, expected)

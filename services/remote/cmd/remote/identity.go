@@ -9,7 +9,7 @@ import (
 	"os"
 	"time"
 
-	"dsh-mobile-ustc/services/remote/internal/store"
+	"tokenworks-mobile/services/remote/internal/store"
 )
 
 func runIdentityCommand(arguments []string, output io.Writer) error {

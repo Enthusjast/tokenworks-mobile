@@ -14,13 +14,13 @@ import (
 	"syscall"
 	"time"
 
-	"dsh-mobile-ustc/services/remote/internal/accounts"
-	"dsh-mobile-ustc/services/remote/internal/control"
-	"dsh-mobile-ustc/services/remote/internal/httpapi"
-	"dsh-mobile-ustc/services/remote/internal/observability"
-	"dsh-mobile-ustc/services/remote/internal/relay"
-	"dsh-mobile-ustc/services/remote/internal/requestlog"
-	"dsh-mobile-ustc/services/remote/internal/store"
+	"tokenworks-mobile/services/remote/internal/accounts"
+	"tokenworks-mobile/services/remote/internal/control"
+	"tokenworks-mobile/services/remote/internal/httpapi"
+	"tokenworks-mobile/services/remote/internal/observability"
+	"tokenworks-mobile/services/remote/internal/relay"
+	"tokenworks-mobile/services/remote/internal/requestlog"
+	"tokenworks-mobile/services/remote/internal/store"
 )
 
 func main() {

@@ -18,13 +18,13 @@ import (
 	"testing"
 	"time"
 
-	"dsh-mobile-ustc/services/remote/internal/approval"
-	"dsh-mobile-ustc/services/remote/internal/auth"
-	"dsh-mobile-ustc/services/remote/internal/httpapi"
-	"dsh-mobile-ustc/services/remote/internal/relay"
-	"dsh-mobile-ustc/services/remote/internal/store"
-	"dsh-mobile-ustc/services/remote/internal/testsupport"
 	jose "github.com/go-jose/go-jose/v4"
+	"tokenworks-mobile/services/remote/internal/approval"
+	"tokenworks-mobile/services/remote/internal/auth"
+	"tokenworks-mobile/services/remote/internal/httpapi"
+	"tokenworks-mobile/services/remote/internal/relay"
+	"tokenworks-mobile/services/remote/internal/store"
+	"tokenworks-mobile/services/remote/internal/testsupport"
 )
 
 func TestKotlinReadClientAgainstPostgresRelayOverTLS(t *testing.T) {
@@ -94,7 +94,7 @@ func TestKotlinReadClientAgainstPostgresRelayOverTLS(t *testing.T) {
 	var handler *httpapi.Handler
 	server := httptest.NewTLSServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) { handler.ServeHTTP(response, request) }))
 	t.Cleanup(server.Close)
-	identity, err := auth.New(auth.Config{Issuer: issuer, Audience: "urn:dsh-kotlin-relay", JWKSURL: keys.URL, AllowedClients: []string{"mobile", "fixture-host"}, RequiredScopes: []string{"remote.access"}, PublicOrigin: server.URL, MaxTokenLifetime: 15 * time.Minute})
+	identity, err := auth.New(auth.Config{Issuer: issuer, Audience: "urn:tokenworks-mobile-kotlin-relay", JWKSURL: keys.URL, AllowedClients: []string{"mobile", "fixture-host"}, RequiredScopes: []string{"remote.access"}, PublicOrigin: server.URL, MaxTokenLifetime: 15 * time.Minute})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -108,7 +108,7 @@ func TestKotlinReadClientAgainstPostgresRelayOverTLS(t *testing.T) {
 	}
 	authorityKey := approvalKey(t)
 	validFrom, validUntil := time.Now().UTC().Add(-time.Hour).Truncate(time.Millisecond), time.Now().UTC().Add(time.Hour).Truncate(time.Millisecond)
-	authority, err := approval.NewAuthorizationSigner(server.URL, "dsh-approval-authority/kotlin-fixture", authorityKey, validFrom, validUntil)
+	authority, err := approval.NewAuthorizationSigner(server.URL, "tokenworks-mobile-approval-authority/kotlin-fixture", authorityKey, validFrom, validUntil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -118,14 +118,14 @@ func TestKotlinReadClientAgainstPostgresRelayOverTLS(t *testing.T) {
 	}
 	handler = httpapi.New(postgres, identity, httpapi.Config{HostClientIDs: []string{"fixture-host"}, Approvals: &relay.ApprovalConfig{Control: control, Leases: leases}})
 	now := time.Now().UTC().Truncate(time.Second)
-	access := approvalSign(t, signing, jose.ES256, "kotlin-issuer", "at+jwt", map[string]any{"iss": issuer, "sub": "kotlin-fixture", "aud": "urn:dsh-kotlin-relay", "client_id": "mobile",
+	access := approvalSign(t, signing, jose.ES256, "kotlin-issuer", "at+jwt", map[string]any{"iss": issuer, "sub": "kotlin-fixture", "aud": "urn:tokenworks-mobile-kotlin-relay", "client_id": "mobile",
 		"jti": "kotlin-composition-access-token", "iat": now.Unix(), "exp": now.Add(5 * time.Minute).Unix(), "scope": "remote.access", "cnf": map[string]any{"jkt": proofJKT}, "auth_time": now.Unix(), "acr": "fixture:2", "amr": []string{"otp"}}, nil)
 	private, err := json.Marshal(jose.JSONWebKey{Key: proof})
 	if err != nil {
 		t.Fatal(err)
 	}
 	fixture := map[string]any{
-		"deployment": map[string]any{"issuer": issuer, "client_id": "mobile", "redirect_uri": "cn.edu.ustc.dsh.mobile:/oauth2redirect", "resource": "urn:dsh-kotlin-relay", "audience": "urn:dsh-kotlin-relay",
+		"deployment": map[string]any{"issuer": issuer, "client_id": "mobile", "redirect_uri": "cn.edu.ustc.tokenworks:/oauth2redirect", "resource": "urn:tokenworks-mobile-kotlin-relay", "audience": "urn:tokenworks-mobile-kotlin-relay",
 			"remote_origin": server.URL, "organization_id": orgID, "scopes": []string{"openid", "remote.access"}, "endpoint_origins": []string{issuer}, "signing_algorithms": []string{"ES256"}},
 		"proof_jwk": json.RawMessage(private), "access_token": access, "issuer_jwks": jwks, "device_id": deviceID, "runtime_id": runtimeID, "session_id": sessionID, "workspace_id": workspaceID, "subject": "kotlin-fixture",
 		"access_expires_at": now.Add(5 * time.Minute).UnixMilli(), "ca_pem": string(pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: server.Certificate().Raw})),
@@ -138,7 +138,7 @@ func TestKotlinReadClientAgainstPostgresRelayOverTLS(t *testing.T) {
 	fixture["approval_host_id"] = hostID
 	fixture["approval_jwk"] = json.RawMessage(approvalPrivate)
 	fixture["registered_approval"] = map[string]any{"user_id": userID, "device_id": deviceID, "key_version": 1, "active": true, "public_jwk": json.RawMessage(approvalJWK), "approval_key_jkt": approvalJKT}
-	fixture["approval_authority"] = map[string]any{"issuer": server.URL, "key_id": "dsh-approval-authority/kotlin-fixture", "public_jwk": json.RawMessage(authorityPublic), "key_jkt": authorityJKT, "active": true,
+	fixture["approval_authority"] = map[string]any{"issuer": server.URL, "key_id": "tokenworks-mobile-approval-authority/kotlin-fixture", "public_jwk": json.RawMessage(authorityPublic), "key_jkt": authorityJKT, "active": true,
 		"valid_from": validFrom.Format("2006-01-02T15:04:05.000Z"), "valid_until": validUntil.Format("2006-01-02T15:04:05.000Z")}
 	directory, err := os.MkdirTemp(cluster, "kotlin-relay-")
 	if err != nil {
@@ -157,7 +157,7 @@ func TestKotlinReadClientAgainstPostgresRelayOverTLS(t *testing.T) {
 	if java == "" {
 		java = "java"
 	}
-	command := exec.CommandContext(ctx, java, "-cp", classpath, "cn.edu.ustc.dsh.network.RunRelayProbe", path)
+	command := exec.CommandContext(ctx, java, "-cp", classpath, "io.github.enthusjast.tokenworks.network.RunRelayProbe", path)
 	output, err := command.CombinedOutput()
 	if err != nil {
 		t.Fatalf("actual Kotlin Relay client failed: %v\n%s", err, output)
@@ -177,7 +177,7 @@ func TestKotlinReadClientAgainstPostgresRelayOverTLS(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	hostAccess := approvalSign(t, signing, jose.ES256, "kotlin-issuer", "at+jwt", map[string]any{"iss": issuer, "sub": "kotlin-fixture", "aud": "urn:dsh-kotlin-relay", "client_id": "fixture-host",
+	hostAccess := approvalSign(t, signing, jose.ES256, "kotlin-issuer", "at+jwt", map[string]any{"iss": issuer, "sub": "kotlin-fixture", "aud": "urn:tokenworks-mobile-kotlin-relay", "client_id": "fixture-host",
 		"jti": "kotlin-binding-host-access", "iat": now.Unix(), "exp": now.Add(5 * time.Minute).Unix(), "scope": "remote.access", "cnf": map[string]any{"jkt": installationJKT}}, nil)
 	hostResult := make(chan error, 1)
 	go func() {
@@ -211,7 +211,7 @@ func TestKotlinReadClientAgainstPostgresRelayOverTLS(t *testing.T) {
 	if err = os.WriteFile(path, raw, 0600); err != nil {
 		t.Fatal(err)
 	}
-	command = exec.CommandContext(ctx, java, "-cp", classpath, "cn.edu.ustc.dsh.network.RunRelayProbe", path)
+	command = exec.CommandContext(ctx, java, "-cp", classpath, "io.github.enthusjast.tokenworks.network.RunRelayProbe", path)
 	output, err = command.CombinedOutput()
 	if err != nil {
 		t.Fatalf("actual Kotlin host binding failed: %v\n%s", err, output)
@@ -230,7 +230,7 @@ func TestKotlinReadClientAgainstPostgresRelayOverTLS(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	hostProof := approvalSign(t, installationKey, jose.ES256, "", "dsh-host-credential-proof+jwt", map[string]any{
+	hostProof := approvalSign(t, installationKey, jose.ES256, "", "tokenworks-mobile-host-credential-proof+jwt", map[string]any{
 		"iss": installationID, "aud": challenge.Audience, "challenge_id": challenge.ChallengeID, "nonce": challenge.Challenge,
 		"iat": time.Now().Unix(), "jti": "kotlin-host-credential-proof-0001",
 	}, nil)

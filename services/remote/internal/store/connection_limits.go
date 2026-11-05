@@ -10,7 +10,7 @@ import (
 	"sync"
 	"time"
 
-	"dsh-mobile-ustc/services/remote/internal/canonical"
+	"tokenworks-mobile/services/remote/internal/canonical"
 )
 
 var ErrConnectionLimit = errors.New("store: shared connection capacity exhausted")

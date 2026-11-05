@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"dsh-mobile-ustc/services/remote/internal/push"
+	"tokenworks-mobile/services/remote/internal/push"
 )
 
 func questionFixture(t *testing.T) *approvalFixture {

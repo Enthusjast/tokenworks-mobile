@@ -22,7 +22,7 @@ func examplePayload(t *testing.T) Payload {
 	created := archived.Add(-200 * 24 * time.Hour)
 	source, _ := json.Marshal(map[string]any{"id": testEvent, "database_epoch": testEpoch, "topic": "device.revoked", "created_at": created, "published_at": created, "producer_xid": "123", "payload": map[string]any{"device_id": testNode, "marker": "PRIVATE_ARCHIVE_BODY"}})
 	ack, _ := json.Marshal(map[string]any{"node_id": testNode, "event_id": testEvent, "applied_at": created})
-	return Payload{Format: "dsh-control-archive", Version: 1, DomainID: testDomain, ExportID: testExport, OperationEpoch: testEpoch, KeyID: "fixture-key", PreparedAt: archived,
+	return Payload{Format: "tokenworks-mobile-control-archive", Version: 1, DomainID: testDomain, ExportID: testExport, OperationEpoch: testEpoch, KeyID: "fixture-key", PreparedAt: archived,
 		Batch:  Batch{ID: testBatch, DatabaseEpoch: testEpoch, Limit: 64, RetentionYears: 1, Cutoff: archived.Add(-90 * 24 * time.Hour), ArchivedAt: archived, RetainUntil: utcYear(archived, 1), Events: 1},
 		Events: []Event{{ID: testEvent, BatchID: testBatch, BatchEpoch: testEpoch, DatabaseEpoch: testEpoch, Topic: "device.revoked", SourceCreatedAt: created, Source: source, Reason: "covered", ArchivedAt: archived, RetainUntil: utcYear(archived, 1), Acknowledgements: []Acknowledgement{{NodeID: testNode, EventID: testEvent, AppliedAt: created, Source: ack}}}}, Recoveries: []Recovery{}}
 }
@@ -58,6 +58,17 @@ func TestAuthenticatedArchiveRoundTripAndTamperRejection(t *testing.T) {
 	opened, err := Open(key, blob, testDomain, testExport)
 	if err != nil || opened.Batch.ID != testBatch || len(opened.Events) != 1 || len(opened.Events[0].Acknowledgements) != 1 {
 		t.Fatal("archive did not round-trip", err)
+	}
+	legacy := append([]byte(nil), blob...)
+	copy(legacy[:8], "DSHCA001")
+	before := append([]byte(nil), legacy...)
+	if _, err := Open(key, legacy, testDomain, testExport); !errors.Is(err, ErrInvalid) || !bytes.Equal(legacy, before) {
+		t.Fatal("legacy archive magic was accepted or altered", err)
+	}
+	legacyPayload := examplePayload(t)
+	legacyPayload.Format = "dsh-control-archive"
+	if err := legacyPayload.Validate(); err == nil {
+		t.Fatal("legacy archive payload format accepted")
 	}
 	for _, value := range []any{payload, payload.Events[0], payload.Events[0].Acknowledgements[0], key} {
 		if bytes.Contains([]byte(fmt.Sprintf("%v %#v", value, value)), []byte("PRIVATE_ARCHIVE_BODY")) {

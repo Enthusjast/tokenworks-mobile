@@ -13,9 +13,9 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"dsh-mobile-ustc/services/remote/internal/approval"
-	"dsh-mobile-ustc/services/remote/internal/auth"
-	"dsh-mobile-ustc/services/remote/internal/coldarchive"
+	"tokenworks-mobile/services/remote/internal/approval"
+	"tokenworks-mobile/services/remote/internal/auth"
+	"tokenworks-mobile/services/remote/internal/coldarchive"
 )
 
 type Proof struct {
@@ -68,7 +68,7 @@ func utcYear(value time.Time) time.Time {
 }
 
 func (payload Payload) Validate() error {
-	if payload.Format != "dsh-approval-evidence" || payload.Version != 1 || !coldarchive.UUID(payload.DomainID) || !coldarchive.UUID(payload.ExportID) || !coldarchive.UUID(payload.OperationEpoch) ||
+	if payload.Format != "tokenworks-mobile-approval-evidence" || payload.Version != 1 || !coldarchive.UUID(payload.DomainID) || !coldarchive.UUID(payload.ExportID) || !coldarchive.UUID(payload.OperationEpoch) ||
 		!coldarchive.KeyID(payload.KeyID) || payload.PreparedAt.IsZero() || payload.Recoveries == nil || len(payload.Recoveries) > coldarchive.MaxRecoveries {
 		return coldarchive.ErrInvalid
 	}

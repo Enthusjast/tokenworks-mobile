@@ -30,7 +30,7 @@ const visibleReview = z.object({
   confirmed_user: z.strictObject({ user_id: uuid, issuer: text, subject: text, eligible: z.literal(true) }),
 }).strict()
 
-const guardKey = Symbol.for('ustc.dsh.host-local-enrollment-terminal.v1')
+const guardKey = Symbol.for('tokenworks-mobile.host-local-enrollment-terminal.v1')
 const globalState = globalThis as unknown as Record<symbol, unknown>
 const existing = globalState[guardKey]
 if (existing !== undefined && !(existing instanceof Set)) throw new Error('host local terminal guard unavailable')
@@ -145,7 +145,7 @@ export async function presentHostEnrollmentOnTerminal(client: HostEnrollmentClie
   const pairingCode = attempt.code
   const lifetime = AbortSignal.any([signal, client.signal, AbortSignal.timeout(5_000)])
   const text = [
-    '\nDSH 远控绑定申请（仅在可信本机终端展示）',
+    '\nTokenWorks Mobile绑定申请（仅在可信本机终端展示）',
     `组织 ID: ${record.organization_id}`, `主机 ID: ${record.host_id}`, `安装实例 ID: ${record.installation_id}`,
     `运行实例 ID: ${record.runtime_id}`, `Profile: ${literal(record.profile_ref)}`, `安装公钥指纹: ${record.installation_key_jkt}`,
     `登记 ID: ${record.enrollment_id}`, `配对码: ${pairingCode}`, `有效期至: ${record.expires_at}`,
@@ -163,7 +163,7 @@ export async function approveHostEnrollmentOnTerminal(source: HostEnrollmentAppr
   const challenge = randomInt(100_000, 1_000_000).toString()
   const user = review.confirmed_user, row = review.enrollment
   const text = [
-    '\nDSH 远控绑定：请核对以下信息',
+    '\nTokenWorks Mobile绑定：请核对以下信息',
     `组织: ${literal(row.organization_name)} (${row.organization_id})`, `主机: ${literal(row.host_alias)} (${row.host_id})`,
     `安装实例: ${row.installation_id}`, `安装公钥指纹: ${row.installation_key_jkt}`,
     `运行实例: ${row.runtime_id}`, `Profile: ${literal(row.profile_ref)}`,

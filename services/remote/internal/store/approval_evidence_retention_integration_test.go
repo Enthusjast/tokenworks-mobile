@@ -14,7 +14,7 @@ import (
 	"testing"
 	"time"
 
-	"dsh-mobile-ustc/services/remote/internal/testsupport"
+	"tokenworks-mobile/services/remote/internal/testsupport"
 )
 
 func applyEvidenceRetentionFixtureMigration(t *testing.T, ctx context.Context, database *Postgres, direction string) {

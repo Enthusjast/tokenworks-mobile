@@ -7,9 +7,9 @@ import (
 	"errors"
 	"time"
 
-	"dsh-mobile-ustc/services/remote/internal/auditarchive"
-	"dsh-mobile-ustc/services/remote/internal/coldarchive"
-	"dsh-mobile-ustc/services/remote/internal/evidencearchive"
+	"tokenworks-mobile/services/remote/internal/auditarchive"
+	"tokenworks-mobile/services/remote/internal/coldarchive"
+	"tokenworks-mobile/services/remote/internal/evidencearchive"
 )
 
 var ErrColdHistoryImportInvalid = errors.New("store: invalid cold history import")
@@ -128,10 +128,10 @@ func (postgres *Postgres) ImportColdHistory(ctx context.Context, request ColdHis
 		return ColdHistoryImportResult{}, ErrDatabaseUnavailable
 	}
 	defer tx.Rollback()
-	if _, err := tx.ExecContext(ctx, `select pg_advisory_xact_lock(hashtextextended('dsh-cold-history-artifact:'||$1::text||':'||$2::text||':'||$3::text,0))`, request.Kind, request.DomainID, request.ExportID); err != nil {
+	if _, err := tx.ExecContext(ctx, `select pg_advisory_xact_lock(hashtextextended('tokenworks-mobile-cold-history-artifact:'||$1::text||':'||$2::text||':'||$3::text,0))`, request.Kind, request.DomainID, request.ExportID); err != nil {
 		return ColdHistoryImportResult{}, ErrDatabaseUnavailable
 	}
-	if _, err := tx.ExecContext(ctx, `select pg_advisory_xact_lock(hashtextextended('dsh-cold-history-import:'||$1::text,0))`, request.ImportID); err != nil {
+	if _, err := tx.ExecContext(ctx, `select pg_advisory_xact_lock(hashtextextended('tokenworks-mobile-cold-history-import:'||$1::text,0))`, request.ImportID); err != nil {
 		return ColdHistoryImportResult{}, ErrDatabaseUnavailable
 	}
 	if _, err := lockRecoveryReady(ctx, tx, request.DatabaseEpoch); err != nil {

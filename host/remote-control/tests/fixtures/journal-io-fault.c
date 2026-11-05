@@ -30,7 +30,7 @@ static void symbols(void) {
 }
 
 __attribute__((constructor)) static void initialize(void) {
-    const char *root = getenv("DSH_JOURNAL_IO_ROOT");
+    const char *root = getenv("TWM_JOURNAL_IO_ROOT");
     char canonical[PATH_MAX];
     struct stat status;
     if (!root || root[0] != '/' || strlen(root) > PATH_MAX - 64 ||

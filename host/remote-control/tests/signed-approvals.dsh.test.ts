@@ -36,7 +36,7 @@ test('normal native approval owner requires both phone proof and native policy a
     const authorityKeys = generateKeyPairSync('ec', { namedCurve: 'prime256v1' }), approvalKeys = generateKeyPairSync('ec', { namedCurve: 'prime256v1' })
     const publicAuthority = authorityKeys.publicKey.export({ format: 'jwk' }) as { kty: 'EC'; crv: 'P-256'; x: string; y: string }
     const publicPhone = approvalKeys.publicKey.export({ format: 'jwk' })
-    const authority = { issuer: 'https://remote.example.edu', key_id: 'dsh-approval-authority/native-owner', public_jwk: publicAuthority,
+    const authority = { issuer: 'https://remote.example.edu', key_id: 'tokenworks-mobile-approval-authority/native-owner', public_jwk: publicAuthority,
       key_jkt: await calculateJwkThumbprint(publicAuthority), active: true, valid_from: new Date(Date.now() - 60_000).toISOString(), valid_until: new Date(Date.now() + 3600_000).toISOString() }
     const workspaces = [{ id: 'fixture', cwd: h.cwd, remoteId: workspaceID }]
     const client = new DshClient(h.ctx, h.runtimeId, workspaces, ['fixture'])
@@ -92,7 +92,7 @@ test('normal native approval owner requires both phone proof and native policy a
       journal.confirmRegistration({ approval_id: context.approval_id, runtime_id: h.runtimeId, runtime_epoch: epoch, session_id: context.session_id,
         execution_id: context.execution_id, binding_sha256: approvalBinding(context).sha256, state: 'pending', expires_at: context.expires_at })
       if (mode === 'no-phone' || mode === 'auto-allow' || mode === 'native-never') return
-      const now = Date.now(), decision: ApprovalDecision = { domain: 'dsh-mobile-ustc/approval-decision/v1', protocol_version: 1,
+      const now = Date.now(), decision: ApprovalDecision = { domain: 'tokenworks-mobile/approval-decision/v1', protocol_version: 1,
         host_id: hostID, installation_id: installationID, runtime_id: h.runtimeId, runtime_epoch: epoch, session_id: context.session_id, approval_id: context.approval_id,
         execution_id: context.execution_id, binding_sha256: approvalBinding(context).sha256, decision: mode === 'reject' ? 'reject' : 'allow_once', user_id: randomUUID(),
         device_id: randomUUID(), key_version: 1, policy_version: 7, nonce: context.nonce, issued_at: new Date(now).toISOString(), expires_at: context.expires_at }

@@ -9,7 +9,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"dsh-mobile-ustc/services/remote/internal/observability"
+	"tokenworks-mobile/services/remote/internal/observability"
 )
 
 type Repository interface {

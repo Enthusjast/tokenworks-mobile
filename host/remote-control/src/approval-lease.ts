@@ -6,15 +6,15 @@ import { ApprovalDecision, approvalBinding, approvalDecisionCurrent, type Approv
 import { verifyApprovalDecision, type RegisteredApprovalKey } from './approval-signature.js'
 import { canonicalObject, parseSigningObject } from './canonical.js'
 
-export const APPROVAL_AUTHORIZATION_DOMAIN = 'dsh-mobile-ustc/approval-authorization/v1'
-export const APPROVAL_AUTHORIZATION_AUDIENCE = 'dsh-approval-host/v1'
-export const APPROVAL_AUTHORIZATION_JWS_TYPE = 'dsh-approval-authorization+jws'
+export const APPROVAL_AUTHORIZATION_DOMAIN = 'tokenworks-mobile/approval-authorization/v1'
+export const APPROVAL_AUTHORIZATION_AUDIENCE = 'tokenworks-mobile-approval-host/v1'
+export const APPROVAL_AUTHORIZATION_JWS_TYPE = 'tokenworks-mobile-approval-authorization+jws'
 const invalid = () => new Error('approval: invalid signed authorization')
 /** Both signatures verified, but a processed control invalidation fenced this actor. */
 export class ApprovalAuthorityRevokedError extends Error { constructor() { super('approval: authorization revoked') } }
 const uuid = ApprovalAuthorization.shape.runtime_id
 const utc = ApprovalAuthorization.shape.issued_at
-const keyID = z.string().regex(/^dsh-approval-authority\/[A-Za-z0-9._-]{1,80}$/)
+const keyID = z.string().regex(/^tokenworks-mobile-approval-authority\/[A-Za-z0-9._-]{1,80}$/)
 const issuer = z.string().max(512).refine(value => {
   try { const url = new URL(value); return value.startsWith('https://') && !/[\u0000-\u0020\u007f?#]/u.test(value) && url.protocol === 'https:' && !!url.hostname && !url.username && !url.password } catch { return false }
 })

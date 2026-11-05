@@ -14,8 +14,8 @@ import (
 	"testing"
 	"time"
 
-	"dsh-mobile-ustc/services/remote/internal/auth"
 	jose "github.com/go-jose/go-jose/v4"
+	"tokenworks-mobile/services/remote/internal/auth"
 )
 
 // This issuer exists only in the explicit device composition. It authenticates
@@ -72,7 +72,7 @@ func (fixture *androidOIDCFixture) authorize(response http.ResponseWriter, reque
 		URI string `json:"authorization_uri"`
 	}
 	request.Body = http.MaxBytesReader(response, request.Body, 16<<10)
-	if request.Method != "POST" || subtle.ConstantTimeCompare([]byte(request.Header.Get("X-DSH-Fixture")), []byte(fixture.secret)) != 1 || json.NewDecoder(request.Body).Decode(&input) != nil {
+	if request.Method != "POST" || subtle.ConstantTimeCompare([]byte(request.Header.Get("X-TokenWorks-Mobile-Fixture")), []byte(fixture.secret)) != 1 || json.NewDecoder(request.Body).Decode(&input) != nil {
 		androidJSON(response, 403, map[string]string{"error": "fixture_denied"})
 		return
 	}
@@ -92,7 +92,7 @@ func (fixture *androidOIDCFixture) authorize(response http.ResponseWriter, reque
 		decoded, err := base64.RawURLEncoding.Strict().DecodeString(value)
 		return err == nil && len(decoded) == 32 && base64.RawURLEncoding.EncodeToString(decoded) == value
 	}
-	if params.Get("client_id") != "mobile" || params.Get("redirect_uri") != "cn.edu.ustc.dsh.mobile:/oauth2redirect" || params.Get("response_type") != "code" || params.Get("resource") != "urn:dsh-android-relay" ||
+	if params.Get("client_id") != "mobile" || params.Get("redirect_uri") != "cn.edu.ustc.tokenworks:/oauth2redirect" || params.Get("response_type") != "code" || params.Get("resource") != "urn:tokenworks-mobile-android-relay" ||
 		params.Get("code_challenge_method") != "S256" || !validNonce(params.Get("nonce")) || !validNonce(params.Get("state")) || !validNonce(params.Get("code_challenge")) || !validNonce(params.Get("dpop_jkt")) {
 		androidJSON(response, 400, map[string]string{"error": "fixture_invalid_binding"})
 		return
@@ -126,8 +126,8 @@ func (fixture *androidOIDCFixture) token(response http.ResponseWriter, request *
 	code := request.PostForm.Get("code")
 	authorization, ok := fixture.codes[code]
 	verifierHash := sha256.Sum256([]byte(request.PostForm.Get("code_verifier")))
-	if !ok || !authorization.expires.After(time.Now()) || request.PostForm.Get("grant_type") != "authorization_code" || request.PostForm.Get("client_id") != "mobile" || request.PostForm.Get("redirect_uri") != "cn.edu.ustc.dsh.mobile:/oauth2redirect" ||
-		request.PostForm.Get("resource") != "urn:dsh-android-relay" || base64.RawURLEncoding.EncodeToString(verifierHash[:]) != authorization.challenge {
+	if !ok || !authorization.expires.After(time.Now()) || request.PostForm.Get("grant_type") != "authorization_code" || request.PostForm.Get("client_id") != "mobile" || request.PostForm.Get("redirect_uri") != "cn.edu.ustc.tokenworks:/oauth2redirect" ||
+		request.PostForm.Get("resource") != "urn:tokenworks-mobile-android-relay" || base64.RawURLEncoding.EncodeToString(verifierHash[:]) != authorization.challenge {
 		fail()
 		return
 	}
@@ -177,7 +177,7 @@ func (fixture *androidOIDCFixture) token(response http.ResponseWriter, request *
 	for name, value := range common {
 		access[name] = value
 	}
-	access["aud"], access["client_id"], access["jti"], access["scope"] = "urn:dsh-android-relay", "mobile", androidSecret(fixture.t), "remote.access"
+	access["aud"], access["client_id"], access["jti"], access["scope"] = "urn:tokenworks-mobile-android-relay", "mobile", androidSecret(fixture.t), "remote.access"
 	access["cnf"], access["auth_time"], access["acr"], access["amr"] = map[string]string{"jkt": jkt}, now.Unix(), "fixture:2", []string{"otp"}
 	identity := map[string]any{}
 	for name, value := range common {

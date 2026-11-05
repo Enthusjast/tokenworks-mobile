@@ -16,7 +16,7 @@ import (
 	"strings"
 	"unicode"
 
-	"dsh-mobile-ustc/services/remote/internal/canonical"
+	"tokenworks-mobile/services/remote/internal/canonical"
 )
 
 const MaxAPKBytes int64 = 512 << 20
@@ -171,7 +171,7 @@ func (catalog *Catalog) Latest(actor Actor, request Request) (Selection, error) 
 }
 
 func bucket(actor Actor, release string) int {
-	sum := sha256.Sum256([]byte("dsh-mobile-update-rollout-v1\x00" + actor.OrganizationID + "\x00" + actor.UserID + "\x00" + actor.DeviceID + "\x00" + release))
+	sum := sha256.Sum256([]byte("tokenworks-mobile-update-rollout-v1\x00" + actor.OrganizationID + "\x00" + actor.UserID + "\x00" + actor.DeviceID + "\x00" + release))
 	return int(binary.BigEndian.Uint64(sum[:8]) % 10000)
 }
 

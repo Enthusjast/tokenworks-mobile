@@ -18,8 +18,8 @@ import (
 	"testing"
 	"time"
 
-	"dsh-mobile-ustc/services/remote/internal/auth"
-	"dsh-mobile-ustc/services/remote/internal/store"
+	"tokenworks-mobile/services/remote/internal/auth"
+	"tokenworks-mobile/services/remote/internal/store"
 )
 
 func TestProtectedRoutesRequireActiveDeviceAndBindCommandStatusToIt(t *testing.T) {
@@ -45,7 +45,7 @@ func TestProtectedRoutesRequireActiveDeviceAndBindCommandStatusToIt(t *testing.T
 	}))
 	t.Cleanup(keyServer.Close)
 	identity, err := auth.New(auth.Config{
-		Issuer: issuer, Audience: "urn:dsh-remote", JWKSURL: keyServer.URL,
+		Issuer: issuer, Audience: "urn:tokenworks-mobile", JWKSURL: keyServer.URL,
 		AllowedClients: []string{"mobile-client", "host-client"}, RequiredScopes: []string{"remote.access"},
 		PublicOrigin: "https://api.example.edu", MaxTokenLifetime: 15 * time.Minute, Clock: func() time.Time { return now },
 	})
@@ -53,12 +53,12 @@ func TestProtectedRoutesRequireActiveDeviceAndBindCommandStatusToIt(t *testing.T
 		t.Fatal(err)
 	}
 	access := httpSignCompact(t, map[string]any{"typ": "at+jwt", "alg": "RS256", "kid": "issuer-key"}, map[string]any{
-		"iss": issuer, "sub": "user-ustc-123", "aud": "urn:dsh-remote", "client_id": "mobile-client",
+		"iss": issuer, "sub": "user-ustc-123", "aud": "urn:tokenworks-mobile", "client_id": "mobile-client",
 		"jti": "access-token-id-0001", "iat": now.Unix(), "exp": now.Add(5 * time.Minute).Unix(),
 		"scope": "remote.access", "cnf": map[string]any{"jkt": proofJKT},
 	}, accessKey)
 	hostAccess := httpSignCompact(t, map[string]any{"typ": "at+jwt", "alg": "RS256", "kid": "issuer-key"}, map[string]any{
-		"iss": issuer, "sub": "user-ustc-123", "aud": "urn:dsh-remote", "client_id": "host-client",
+		"iss": issuer, "sub": "user-ustc-123", "aud": "urn:tokenworks-mobile", "client_id": "host-client",
 		"jti": "access-token-id-host-0002", "iat": now.Unix(), "exp": now.Add(5 * time.Minute).Unix(),
 		"scope": "remote.access", "cnf": map[string]any{"jkt": proofJKT},
 	}, accessKey)
@@ -213,7 +213,7 @@ func TestProtectedRoutesRequireActiveDeviceAndBindCommandStatusToIt(t *testing.T
 		t.Fatalf("allowlisted host could not request a key-bound challenge: status=%d calls=%d key=%s body=%s", hostCredentialChallenge.Code, repo.challengeCalls, repo.challengeJKT, hostCredentialChallenge.Body.String())
 	}
 	repo.credentialResult = store.HostConnectionCredential{
-		Credential: strings.Repeat("B", 43), TokenType: "DSH-Host", InstallationID: repo.challengeResult.InstallationID,
+		Credential: strings.Repeat("B", 43), TokenType: "TokenWorks-Mobile-Host", InstallationID: repo.challengeResult.InstallationID,
 		KeyThumbprint: proofJKT, ExpiresAt: now.Add(5 * time.Minute),
 	}
 	credential := sendDPoPRequest(t, hostAPI, hostAccess, proofKey, proofJWK, http.MethodPost,

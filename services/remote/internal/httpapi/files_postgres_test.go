@@ -19,13 +19,13 @@ import (
 	"testing"
 	"time"
 
-	"dsh-mobile-ustc/services/remote/internal/auth"
-	"dsh-mobile-ustc/services/remote/internal/files"
-	"dsh-mobile-ustc/services/remote/internal/httpapi"
-	"dsh-mobile-ustc/services/remote/internal/observability"
-	"dsh-mobile-ustc/services/remote/internal/store"
-	"dsh-mobile-ustc/services/remote/internal/testsupport"
 	jose "github.com/go-jose/go-jose/v4"
+	"tokenworks-mobile/services/remote/internal/auth"
+	"tokenworks-mobile/services/remote/internal/files"
+	"tokenworks-mobile/services/remote/internal/httpapi"
+	"tokenworks-mobile/services/remote/internal/observability"
+	"tokenworks-mobile/services/remote/internal/store"
+	"tokenworks-mobile/services/remote/internal/testsupport"
 )
 
 const fileRuntimeID = "66666666-6666-4666-8666-666666666666"
@@ -157,7 +157,7 @@ func newFileHTTPFixture(t *testing.T, crossNode ...bool) *fileHTTPFixture {
 	var handler http.Handler
 	server := httptest.NewTLSServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) { handler.ServeHTTP(response, request) }))
 	t.Cleanup(server.Close)
-	identity, err := auth.New(auth.Config{Issuer: "https://id.example.edu", Audience: "urn:dsh-files", JWKSURL: keys.URL, AllowedClients: []string{"mobile", "host-client"}, RequiredScopes: []string{"remote.access"}, PublicOrigin: server.URL, MaxTokenLifetime: 15 * time.Minute})
+	identity, err := auth.New(auth.Config{Issuer: "https://id.example.edu", Audience: "urn:tokenworks-mobile-files", JWKSURL: keys.URL, AllowedClients: []string{"mobile", "host-client"}, RequiredScopes: []string{"remote.access"}, PublicOrigin: server.URL, MaxTokenLifetime: 15 * time.Minute})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -180,7 +180,7 @@ func newFileHTTPFixture(t *testing.T, crossNode ...bool) *fileHTTPFixture {
 	}
 	token := func(client, jkt string) string {
 		now := time.Now()
-		return approvalSign(t, issuer, jose.ES256, "file-issuer", "at+jwt", map[string]any{"iss": "https://id.example.edu", "sub": "file-owner", "aud": "urn:dsh-files", "client_id": client, "jti": "file-access-" + client + jkt, "iat": now.Unix(), "exp": now.Add(5 * time.Minute).Unix(), "scope": "remote.access", "cnf": map[string]any{"jkt": jkt}}, nil)
+		return approvalSign(t, issuer, jose.ES256, "file-issuer", "at+jwt", map[string]any{"iss": "https://id.example.edu", "sub": "file-owner", "aud": "urn:tokenworks-mobile-files", "client_id": client, "jti": "file-access-" + client + jkt, "iat": now.Unix(), "exp": now.Add(5 * time.Minute).Unix(), "scope": "remote.access", "cnf": map[string]any{"jkt": jkt}}, nil)
 	}
 	caller := &fileHTTPCaller{t: t, ctx: ctx, client: server.Client(), base: server.URL, key: proof, jwk: proofJWK}
 	second := &fileHTTPCaller{t: t, ctx: ctx, client: server.Client(), base: server.URL, key: secondProof, jwk: secondJWK}

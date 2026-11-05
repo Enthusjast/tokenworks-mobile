@@ -28,7 +28,7 @@ interface WebContext extends Context {
 export function registerDesktopUI(ctx: Context, status: () => DesktopStatus): void {
   ctx.inject(['webServer', 'connection'], scope => {
     const web = scope as WebContext
-    scope.effect(() => web.webServer.register({ kind: 'exact', path: '/ustc-remote-control/status', handler(req, res) {
+    scope.effect(() => web.webServer.register({ kind: 'exact', path: '/tokenworks-mobile/status', handler(req, res) {
       res.setHeader('Cache-Control', 'no-store')
       res.setHeader('X-Content-Type-Options', 'nosniff')
       const admission = web.connection.admit(req)

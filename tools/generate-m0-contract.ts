@@ -11,7 +11,7 @@ import { forkAnchorSchema, forkPayloadSchema, forkOutcomeSchema, messagePreviewR
 
 const output = fileURLToPath(new URL('../contracts/m0/command.schema.json', import.meta.url))
 const schema = z.toJSONSchema(Command, { target: 'draft-2020-12' })
-schema.$id = 'urn:dsh-mobile-ustc:m0:command:v0'
+schema.$id = 'urn:tokenworks-mobile:m0:command:v0'
 const generated = `${JSON.stringify(schema, null, 2)}\n`
 
 if (process.argv.includes('--check')) {
@@ -208,7 +208,7 @@ function referencedDefinitions(frames: readonly string[]): Record<string, JsonSc
   return Object.fromEntries(Object.entries(selected).sort(([left], [right]) => left.localeCompare(right)))
 }
 for (const [name, frames] of Object.entries(frameGroups)) await featureOutput(`ws/v1/${name}.schema.json`, {
-  $schema: 'https://json-schema.org/draft/2020-12/schema', $id: `urn:dsh-mobile-ustc:ws:${name}:v1`,
+  $schema: 'https://json-schema.org/draft/2020-12/schema', $id: `urn:tokenworks-mobile:ws:${name}:v1`,
   description: 'Negotiated strict feature frames; references convey no authority. Current owner, resource, runtime epoch, reader sync, exact manifest/anchor and independent action/export grants remain runtime requirements.',
   oneOf: frames.map(ref), $defs: referencedDefinitions(frames),
 })

@@ -13,8 +13,8 @@ import (
 	"testing"
 	"time"
 
-	"dsh-mobile-ustc/services/remote/internal/auth"
-	"dsh-mobile-ustc/services/remote/internal/store"
+	"tokenworks-mobile/services/remote/internal/auth"
+	"tokenworks-mobile/services/remote/internal/store"
 )
 
 type enrollmentAdminTestRepository struct {
@@ -78,13 +78,13 @@ func TestEnrollmentAdminHTTPRequiresPhoneDPoPAndExactReview(t *testing.T) {
 	}))
 	defer keys.Close()
 	now := time.Now().UTC().Truncate(time.Second)
-	verifier, err := auth.New(auth.Config{Issuer: "https://id.example.edu", Audience: "urn:dsh-remote", JWKSURL: keys.URL, AllowedClients: []string{"mobile-client", "host-client"}, RequiredScopes: []string{"remote.access"}, PublicOrigin: "https://api.example.edu", MaxTokenLifetime: 15 * time.Minute, Clock: func() time.Time { return now }})
+	verifier, err := auth.New(auth.Config{Issuer: "https://id.example.edu", Audience: "urn:tokenworks-mobile", JWKSURL: keys.URL, AllowedClients: []string{"mobile-client", "host-client"}, RequiredScopes: []string{"remote.access"}, PublicOrigin: "https://api.example.edu", MaxTokenLifetime: 15 * time.Minute, Clock: func() time.Time { return now }})
 	if err != nil {
 		t.Fatal(err)
 	}
 	token := func(client string) string {
 		return httpSignCompact(t, map[string]any{"typ": "at+jwt", "alg": "RS256", "kid": "issuer-key"}, map[string]any{
-			"iss": "https://id.example.edu", "sub": "fixture-admin", "aud": "urn:dsh-remote", "client_id": client, "jti": "admin-access-" + client, "iat": now.Unix(), "exp": now.Add(5 * time.Minute).Unix(), "scope": "remote.access", "cnf": map[string]any{"jkt": proofJKT}}, issuerKey)
+			"iss": "https://id.example.edu", "sub": "fixture-admin", "aud": "urn:tokenworks-mobile", "client_id": client, "jti": "admin-access-" + client, "iat": now.Unix(), "exp": now.Add(5 * time.Minute).Unix(), "scope": "remote.access", "cnf": map[string]any{"jkt": proofJKT}}, issuerKey)
 	}
 	access, hostAccess := token("mobile-client"), token("host-client")
 	const id = "66666666-6666-4666-8666-666666666666"

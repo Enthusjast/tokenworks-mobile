@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
-	"dsh-mobile-ustc/services/remote/internal/observability"
-	"dsh-mobile-ustc/services/remote/internal/store"
+	"tokenworks-mobile/services/remote/internal/observability"
+	"tokenworks-mobile/services/remote/internal/store"
 )
 
 type outboxFixture struct {
@@ -61,7 +61,7 @@ func TestDispatchRetainsFailedEventsAndReplaysBeforeAcknowledgement(t *testing.T
 				t.Fatal(err)
 			}
 			for _, family := range families {
-				if family.GetName() == "dsh_remote_control_event_age_seconds" {
+				if family.GetName() == "tokenworks_mobile_control_event_age_seconds" {
 					t.Fatal("failed event advanced completed propagation age")
 				}
 			}
@@ -82,7 +82,7 @@ func TestDispatchRetainsFailedEventsAndReplaysBeforeAcknowledgement(t *testing.T
 			}
 			observed := false
 			for _, family := range families {
-				if family.GetName() == "dsh_remote_control_event_age_seconds" {
+				if family.GetName() == "tokenworks_mobile_control_event_age_seconds" {
 					observed = len(family.Metric) == 1 && family.Metric[0].GetHistogram().GetSampleCount() == 2
 				}
 			}

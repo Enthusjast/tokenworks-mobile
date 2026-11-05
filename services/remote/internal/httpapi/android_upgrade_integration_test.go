@@ -17,11 +17,11 @@ import (
 	"testing"
 	"time"
 
-	"dsh-mobile-ustc/services/remote/internal/auth"
-	"dsh-mobile-ustc/services/remote/internal/httpapi"
-	"dsh-mobile-ustc/services/remote/internal/releases"
-	"dsh-mobile-ustc/services/remote/internal/store"
-	"dsh-mobile-ustc/services/remote/internal/testsupport"
+	"tokenworks-mobile/services/remote/internal/auth"
+	"tokenworks-mobile/services/remote/internal/httpapi"
+	"tokenworks-mobile/services/remote/internal/releases"
+	"tokenworks-mobile/services/remote/internal/store"
+	"tokenworks-mobile/services/remote/internal/testsupport"
 )
 
 // The issuer/API stay on the host while Android replaces and kills its own process.
@@ -59,7 +59,7 @@ func TestAndroidAppSelfUpgradePreservesIdentityAndData(t *testing.T) {
 			Signer  string `json:"signing_cert_sha256"`
 		} `json:"candidate"`
 	}
-	if json.Unmarshal(raw, &receipt) != nil || receipt.Version != 1 || receipt.Kind != "full-executable-app-upgrade-fixture" || receipt.Candidate.Package != "cn.edu.ustc.dsh.mobile" || receipt.Candidate.Version != 2 || receipt.Candidate.Signer != receipt.Baseline.Signer {
+	if json.Unmarshal(raw, &receipt) != nil || receipt.Version != 1 || receipt.Kind != "full-executable-app-upgrade-fixture" || receipt.Candidate.Package != "cn.edu.ustc.tokenworks" || receipt.Candidate.Version != 2 || receipt.Candidate.Signer != receipt.Baseline.Signer {
 		t.Fatal("full executable same-signer v2 receipt required")
 	}
 	path, err := filepath.EvalSymlinks(receipt.Candidate.Path)
@@ -143,7 +143,7 @@ func TestAndroidAppSelfUpgradePreservesIdentityAndData(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	identity, err := auth.New(auth.Config{Issuer: oidc.issuer, Audience: "urn:dsh-android-relay", JWKSURL: server.URL + "/jwks", AllowedClients: []string{"mobile"}, RequiredScopes: []string{"remote.access"}, PublicOrigin: server.URL, MaxTokenLifetime: 15 * time.Minute, HTTPClient: server.Client()})
+	identity, err := auth.New(auth.Config{Issuer: oidc.issuer, Audience: "urn:tokenworks-mobile-android-relay", JWKSURL: server.URL + "/jwks", AllowedClients: []string{"mobile"}, RequiredScopes: []string{"remote.access"}, PublicOrigin: server.URL, MaxTokenLifetime: 15 * time.Minute, HTTPClient: server.Client()})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -164,7 +164,7 @@ func TestAndroidAppSelfUpgradePreservesIdentityAndData(t *testing.T) {
 	}
 	defer os.RemoveAll(directory)
 	input := map[string]any{"v": 1, "secret": oidc.secret, "ca_pem": string(pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: server.Certificate().Raw})),
-		"deployment": map[string]any{"issuer": oidc.issuer, "client_id": "mobile", "redirect_uri": "cn.edu.ustc.dsh.mobile:/oauth2redirect", "resource": "urn:dsh-android-relay", "audience": "urn:dsh-android-relay", "remote_origin": server.URL, "organization_id": org, "scopes": []string{"openid", "remote.access"}, "endpoint_origins": []string{server.URL}, "signing_algorithms": []string{"ES256"}},
+		"deployment": map[string]any{"issuer": oidc.issuer, "client_id": "mobile", "redirect_uri": "cn.edu.ustc.tokenworks:/oauth2redirect", "resource": "urn:tokenworks-mobile-android-relay", "audience": "urn:tokenworks-mobile-android-relay", "remote_origin": server.URL, "organization_id": org, "scopes": []string{"openid", "remote.access"}, "endpoint_origins": []string{server.URL}, "signing_algorithms": []string{"ES256"}},
 		"runtime_id": runtimeID, "workspace_id": workspace, "candidate_sha256": receipt.Candidate.SHA256, "candidate_version_name": receipt.Candidate.Name, "candidate_size_bytes": receipt.Candidate.Size, "signing_cert_sha256": receipt.Candidate.Signer}
 	inputPath := filepath.Join(directory, "input.json")
 	raw, _ = json.Marshal(input)

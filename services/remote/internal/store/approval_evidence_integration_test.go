@@ -14,9 +14,9 @@ import (
 	"testing"
 	"time"
 
-	"dsh-mobile-ustc/services/remote/internal/approval"
-	"dsh-mobile-ustc/services/remote/internal/auth"
-	"dsh-mobile-ustc/services/remote/internal/testsupport"
+	"tokenworks-mobile/services/remote/internal/approval"
+	"tokenworks-mobile/services/remote/internal/auth"
+	"tokenworks-mobile/services/remote/internal/testsupport"
 )
 
 func TestApprovalEvidenceCapturesVerifiedKeyWithoutToolArguments(t *testing.T) {
@@ -382,7 +382,7 @@ func TestApprovalEvidenceLocksRecoveryBeforeDeviceDuringDecision(t *testing.T) {
 
 func TestApprovalEvidenceRequiresExplicitDatabasePrivileges(t *testing.T) {
 	f := newApprovalFixture(t)
-	role := "dsh_approval_evidence_" + strings.ReplaceAll(approvalTestUUID(t), "-", "")
+	role := "twm_approval_evidence_" + strings.ReplaceAll(approvalTestUUID(t), "-", "")
 	if _, err := f.database.DB.ExecContext(f.ctx, "create role "+role+" nologin"); err != nil {
 		t.Fatal(err)
 	}
@@ -403,7 +403,7 @@ func TestApprovalEvidenceCaptureWorksWithoutMaterialReadPrivilege(t *testing.T) 
 	f := newApprovalFixture(t)
 	f.register(t, f.request)
 	compact := f.signed(t, f.request, "reject")
-	role := "dsh_approval_writer_" + strings.ReplaceAll(approvalTestUUID(t), "-", "")
+	role := "twm_approval_writer_" + strings.ReplaceAll(approvalTestUUID(t), "-", "")
 	if _, err := f.database.DB.ExecContext(f.ctx, "create role "+role+" nologin"); err != nil {
 		t.Fatal(err)
 	}

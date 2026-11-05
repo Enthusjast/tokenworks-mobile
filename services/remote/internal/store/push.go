@@ -15,8 +15,8 @@ import (
 	"strings"
 	"time"
 
-	"dsh-mobile-ustc/services/remote/internal/push"
 	"github.com/jackc/pgx/v5/pgconn"
+	"tokenworks-mobile/services/remote/internal/push"
 )
 
 type PushStore struct {

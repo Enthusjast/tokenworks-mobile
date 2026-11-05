@@ -25,7 +25,7 @@ def main():
     arguments.add_argument("--android-relay", metavar="SERIAL", help="Run the APK/Go/DSH composition on an explicitly owned emulator")
     arguments.add_argument("--android-upgrade", metavar="SERIAL", help="Run actual full APK self-upgrade with host OIDC/API surviving replacement")
     arguments.add_argument("--upgrade-receipt", type=Path, help="Verified full-executable version-2 fixture receipt")
-    arguments.add_argument("--android-avd", default="dsh-remote-api26", help="Exact owned AVD identity for the Android composition")
+    arguments.add_argument("--android-avd", default="tokenworks-mobile-remote-api26", help="Exact owned AVD identity for the Android composition")
     arguments.add_argument("--go-run", metavar="REGEX", help="Run matching Go cases in the isolated cluster, without the separate Node composition")
     arguments.add_argument("--file-lifecycle", action="store_true", help="Only file handoff/revocation, native export and production scanner-worker composition in ./internal/httpapi")
     arguments.add_argument("--cross-node", action="store_true", help="Run the real npm DSH composition with Host and phone entering separate mutually authenticated relay processes")
@@ -98,7 +98,7 @@ def main():
             arguments.error("load configuration outside supported fixture bounds")
         if not options.load_race and any(flag in {"-race", "-race=true"} for flag in os.environ.get("GOFLAGS", "").split()):
             arguments.error("capacity measurements require ordinary non-race service/probe binaries")
-    if options.android_upgrade is not None and (not re.fullmatch(r"emulator-[0-9]+", options.android_upgrade) or not re.fullmatch(r"dsh-remote-api(?:26|36)", options.android_avd)):
+    if options.android_upgrade is not None and (not re.fullmatch(r"emulator-[0-9]+", options.android_upgrade) or not re.fullmatch(r"tokenworks-mobile-remote-api(?:26|36)", options.android_avd)):
         arguments.error("--android-upgrade requires an exact dedicated test AVD")
     if options.android_upgrade and (options.android_relay or options.kotlin_relay or options.go_run or not options.upgrade_receipt):
         arguments.error("--android-upgrade requires --upgrade-receipt and its own composition invocation")

@@ -52,7 +52,7 @@ func (ca *RelayCA) Issue(t *testing.T, node string) (certificatePEM, keyPEM []by
 	if err != nil {
 		t.Fatal(err)
 	}
-	uri, err := url.Parse("spiffe://dsh-remote/relay/" + node)
+	uri, err := url.Parse("spiffe://tokenworks-mobile/relay/" + node)
 	if err != nil {
 		t.Fatal(err)
 	}

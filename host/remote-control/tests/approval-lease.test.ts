@@ -49,7 +49,7 @@ test('untrusted anchors, changed actual execution contexts and replaced host con
   for (const authority of [
     { ...fixture.authorities[0]!, public_jwk: { ...fixture.authorities[0]!.public_jwk, d: 'private' } },
     { ...fixture.authorities[0]!, public_jwk: { ...fixture.authorities[0]!.public_jwk, jku: 'https://attacker.example/key' } },
-    { ...fixture.authorities[0]!, key_id: 'dsh-approval-authority/unknown' },
+    { ...fixture.authorities[0]!, key_id: 'tokenworks-mobile-approval-authority/unknown' },
   ]) await assert.rejects(verifyApprovalLease(valid.compact, authority, fixture.context, fixture.decision_jws, fixture.connection_id, now), /invalid signed authorization/)
   await assert.rejects(verifyApprovalLease(valid.compact, fixture.authorities[0]!, fixture.context, fixture.decision_jws, 'dddddddd-dddd-4ddd-8ddd-dddddddddddd', now), /invalid signed authorization/)
 })

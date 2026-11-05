@@ -7,8 +7,8 @@ import (
 	"errors"
 	"time"
 
-	"dsh-mobile-ustc/services/remote/internal/coldarchive"
-	"dsh-mobile-ustc/services/remote/internal/evidencearchive"
+	"tokenworks-mobile/services/remote/internal/coldarchive"
+	"tokenworks-mobile/services/remote/internal/evidencearchive"
 )
 
 var ErrEvidenceExportInvalid = errors.New("store: invalid approval evidence export")
@@ -47,7 +47,7 @@ func (EvidenceExportState) String() string   { return "store.EvidenceExportState
 func (EvidenceExportState) GoString() string { return "store.EvidenceExportState" }
 
 func lockEvidenceExport(ctx context.Context, tx *sql.Tx, id string) error {
-	if _, err := tx.ExecContext(ctx, `select pg_advisory_xact_lock(hashtextextended('dsh-evidence-export:'||$1::text,0))`, id); err != nil {
+	if _, err := tx.ExecContext(ctx, `select pg_advisory_xact_lock(hashtextextended('tokenworks-mobile-evidence-export:'||$1::text,0))`, id); err != nil {
 		return ErrDatabaseUnavailable
 	}
 	return nil
@@ -103,7 +103,7 @@ func evidenceExportAudit(ctx context.Context, tx *sql.Tx, action, status string,
 }
 
 func evidenceExportSnapshot(ctx context.Context, tx *sql.Tx, request EvidenceExportRequest, prepared time.Time) (evidencearchive.Payload, error) {
-	result := evidencearchive.Payload{Format: "dsh-approval-evidence", Version: 1, DomainID: request.DomainID, ExportID: request.ExportID, OperationEpoch: request.DatabaseEpoch,
+	result := evidencearchive.Payload{Format: "tokenworks-mobile-approval-evidence", Version: 1, DomainID: request.DomainID, ExportID: request.ExportID, OperationEpoch: request.DatabaseEpoch,
 		KeyID: request.Key.ID(), PreparedAt: prepared.UTC(), Recoveries: []coldarchive.Recovery{}}
 	p := &result.Proof
 	var fingerprint, provenance sql.NullString

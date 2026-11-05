@@ -2,41 +2,41 @@ rule_files:
   - rules.yml
 evaluation_interval: 15s
 group_eval_order:
-  - dsh-remote-recording
-  - dsh-remote-alerts
+  - tokenworks-mobile-recording
+  - tokenworks-mobile-alerts
 tests:
   - name: configured unready scanner persists long enough to alert
     interval: 15s
     input_series:
-      - series: up{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a"}
+      - series: up{job="tokenworks-mobile",cluster="fixture",database_scope="db-a",instance="node-a"}
         values: 1+0x40
-      - series: dsh_remote_relay_draining{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a"}
+      - series: tokenworks_mobile_relay_draining{job="tokenworks-mobile",cluster="fixture",database_scope="db-a",instance="node-a"}
         values: 0+0x40
-      - series: dsh_remote_unknown_snapshot_available{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a"}
+      - series: tokenworks_mobile_unknown_snapshot_available{job="tokenworks-mobile",cluster="fixture",database_scope="db-a",instance="node-a"}
         values: 0+0x40
-      - series: dsh_remote_control_available{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a",worker="outbox"}
+      - series: tokenworks_mobile_control_available{job="tokenworks-mobile",cluster="fixture",database_scope="db-a",instance="node-a",worker="outbox"}
         values: 1+0x40
-      - series: dsh_remote_control_last_success_timestamp_seconds{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a",worker="outbox"}
+      - series: tokenworks_mobile_control_last_success_timestamp_seconds{job="tokenworks-mobile",cluster="fixture",database_scope="db-a",instance="node-a",worker="outbox"}
         values: 0+15x40
-      - series: dsh_remote_control_available{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a",worker="leases"}
+      - series: tokenworks_mobile_control_available{job="tokenworks-mobile",cluster="fixture",database_scope="db-a",instance="node-a",worker="leases"}
         values: 1+0x40
-      - series: dsh_remote_control_last_success_timestamp_seconds{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a",worker="leases"}
+      - series: tokenworks_mobile_control_last_success_timestamp_seconds{job="tokenworks-mobile",cluster="fixture",database_scope="db-a",instance="node-a",worker="leases"}
         values: 0+15x40
-      - series: dsh_remote_control_available{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a",worker="consumer"}
+      - series: tokenworks_mobile_control_available{job="tokenworks-mobile",cluster="fixture",database_scope="db-a",instance="node-a",worker="consumer"}
         values: 1+0x40
-      - series: dsh_remote_control_last_success_timestamp_seconds{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a",worker="consumer"}
+      - series: tokenworks_mobile_control_last_success_timestamp_seconds{job="tokenworks-mobile",cluster="fixture",database_scope="db-a",instance="node-a",worker="consumer"}
         values: 0+15x40
-      - series: dsh_remote_control_available{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a",worker="consumer_cleanup"}
+      - series: tokenworks_mobile_control_available{job="tokenworks-mobile",cluster="fixture",database_scope="db-a",instance="node-a",worker="consumer_cleanup"}
         values: 1+0x40
-      - series: dsh_remote_control_last_success_timestamp_seconds{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a",worker="consumer_cleanup"}
+      - series: tokenworks_mobile_control_last_success_timestamp_seconds{job="tokenworks-mobile",cluster="fixture",database_scope="db-a",instance="node-a",worker="consumer_cleanup"}
         values: 0+15x40
-      - series: dsh_remote_control_available{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a",worker="approval_expiry"}
+      - series: tokenworks_mobile_control_available{job="tokenworks-mobile",cluster="fixture",database_scope="db-a",instance="node-a",worker="approval_expiry"}
         values: 1+0x40
-      - series: dsh_remote_control_last_success_timestamp_seconds{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a",worker="approval_expiry"}
+      - series: tokenworks_mobile_control_last_success_timestamp_seconds{job="tokenworks-mobile",cluster="fixture",database_scope="db-a",instance="node-a",worker="approval_expiry"}
         values: 0+15x40
-      - series: dsh_remote_file_scanner_enabled{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a"}
+      - series: tokenworks_mobile_file_scanner_enabled{job="tokenworks-mobile",cluster="fixture",database_scope="db-a",instance="node-a"}
         values: 1+0x40
-      - series: dsh_remote_file_scanner_ready{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a"}
+      - series: tokenworks_mobile_file_scanner_ready{job="tokenworks-mobile",cluster="fixture",database_scope="db-a",instance="node-a"}
         values: 0+0x40
     alert_rule_test:
       - eval_time: 45s
@@ -48,7 +48,7 @@ tests:
           - exp_labels:
               cluster: fixture
               database_scope: db-a
-              job: dsh-remote
+              job: tokenworks-mobile
               instance: node-a
               severity: warning
             exp_annotations:
@@ -62,35 +62,35 @@ tests:
   - name: short scanner recovery does not alert
     interval: 15s
     input_series:
-      - series: up{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a"}
+      - series: up{job="tokenworks-mobile",cluster="fixture",database_scope="db-a",instance="node-a"}
         values: 1+0x40
-      - series: dsh_remote_relay_draining{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a"}
+      - series: tokenworks_mobile_relay_draining{job="tokenworks-mobile",cluster="fixture",database_scope="db-a",instance="node-a"}
         values: 0+0x40
-      - series: dsh_remote_unknown_snapshot_available{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a"}
+      - series: tokenworks_mobile_unknown_snapshot_available{job="tokenworks-mobile",cluster="fixture",database_scope="db-a",instance="node-a"}
         values: 0+0x40
-      - series: dsh_remote_control_available{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a",worker="outbox"}
+      - series: tokenworks_mobile_control_available{job="tokenworks-mobile",cluster="fixture",database_scope="db-a",instance="node-a",worker="outbox"}
         values: 1+0x40
-      - series: dsh_remote_control_last_success_timestamp_seconds{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a",worker="outbox"}
+      - series: tokenworks_mobile_control_last_success_timestamp_seconds{job="tokenworks-mobile",cluster="fixture",database_scope="db-a",instance="node-a",worker="outbox"}
         values: 0+15x40
-      - series: dsh_remote_control_available{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a",worker="leases"}
+      - series: tokenworks_mobile_control_available{job="tokenworks-mobile",cluster="fixture",database_scope="db-a",instance="node-a",worker="leases"}
         values: 1+0x40
-      - series: dsh_remote_control_last_success_timestamp_seconds{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a",worker="leases"}
+      - series: tokenworks_mobile_control_last_success_timestamp_seconds{job="tokenworks-mobile",cluster="fixture",database_scope="db-a",instance="node-a",worker="leases"}
         values: 0+15x40
-      - series: dsh_remote_control_available{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a",worker="consumer"}
+      - series: tokenworks_mobile_control_available{job="tokenworks-mobile",cluster="fixture",database_scope="db-a",instance="node-a",worker="consumer"}
         values: 1+0x40
-      - series: dsh_remote_control_last_success_timestamp_seconds{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a",worker="consumer"}
+      - series: tokenworks_mobile_control_last_success_timestamp_seconds{job="tokenworks-mobile",cluster="fixture",database_scope="db-a",instance="node-a",worker="consumer"}
         values: 0+15x40
-      - series: dsh_remote_control_available{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a",worker="consumer_cleanup"}
+      - series: tokenworks_mobile_control_available{job="tokenworks-mobile",cluster="fixture",database_scope="db-a",instance="node-a",worker="consumer_cleanup"}
         values: 1+0x40
-      - series: dsh_remote_control_last_success_timestamp_seconds{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a",worker="consumer_cleanup"}
+      - series: tokenworks_mobile_control_last_success_timestamp_seconds{job="tokenworks-mobile",cluster="fixture",database_scope="db-a",instance="node-a",worker="consumer_cleanup"}
         values: 0+15x40
-      - series: dsh_remote_control_available{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a",worker="approval_expiry"}
+      - series: tokenworks_mobile_control_available{job="tokenworks-mobile",cluster="fixture",database_scope="db-a",instance="node-a",worker="approval_expiry"}
         values: 1+0x40
-      - series: dsh_remote_control_last_success_timestamp_seconds{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a",worker="approval_expiry"}
+      - series: tokenworks_mobile_control_last_success_timestamp_seconds{job="tokenworks-mobile",cluster="fixture",database_scope="db-a",instance="node-a",worker="approval_expiry"}
         values: 0+15x40
-      - series: dsh_remote_file_scanner_enabled{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a"}
+      - series: tokenworks_mobile_file_scanner_enabled{job="tokenworks-mobile",cluster="fixture",database_scope="db-a",instance="node-a"}
         values: 1+0x40
-      - series: dsh_remote_file_scanner_ready{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a"}
+      - series: tokenworks_mobile_file_scanner_ready{job="tokenworks-mobile",cluster="fixture",database_scope="db-a",instance="node-a"}
         values: 0+0x2 1+0x38
     alert_rule_test:
       - eval_time: 3m
@@ -99,33 +99,33 @@ tests:
   - name: disabled optional service is not an unready scanner
     interval: 15s
     input_series:
-      - series: up{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a"}
+      - series: up{job="tokenworks-mobile",cluster="fixture",database_scope="db-a",instance="node-a"}
         values: 1+0x40
-      - series: dsh_remote_relay_draining{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a"}
+      - series: tokenworks_mobile_relay_draining{job="tokenworks-mobile",cluster="fixture",database_scope="db-a",instance="node-a"}
         values: 0+0x40
-      - series: dsh_remote_unknown_snapshot_available{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a"}
+      - series: tokenworks_mobile_unknown_snapshot_available{job="tokenworks-mobile",cluster="fixture",database_scope="db-a",instance="node-a"}
         values: 0+0x40
-      - series: dsh_remote_control_available{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a",worker="outbox"}
+      - series: tokenworks_mobile_control_available{job="tokenworks-mobile",cluster="fixture",database_scope="db-a",instance="node-a",worker="outbox"}
         values: 1+0x40
-      - series: dsh_remote_control_last_success_timestamp_seconds{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a",worker="outbox"}
+      - series: tokenworks_mobile_control_last_success_timestamp_seconds{job="tokenworks-mobile",cluster="fixture",database_scope="db-a",instance="node-a",worker="outbox"}
         values: 0+15x40
-      - series: dsh_remote_control_available{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a",worker="leases"}
+      - series: tokenworks_mobile_control_available{job="tokenworks-mobile",cluster="fixture",database_scope="db-a",instance="node-a",worker="leases"}
         values: 1+0x40
-      - series: dsh_remote_control_last_success_timestamp_seconds{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a",worker="leases"}
+      - series: tokenworks_mobile_control_last_success_timestamp_seconds{job="tokenworks-mobile",cluster="fixture",database_scope="db-a",instance="node-a",worker="leases"}
         values: 0+15x40
-      - series: dsh_remote_control_available{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a",worker="consumer"}
+      - series: tokenworks_mobile_control_available{job="tokenworks-mobile",cluster="fixture",database_scope="db-a",instance="node-a",worker="consumer"}
         values: 1+0x40
-      - series: dsh_remote_control_last_success_timestamp_seconds{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a",worker="consumer"}
+      - series: tokenworks_mobile_control_last_success_timestamp_seconds{job="tokenworks-mobile",cluster="fixture",database_scope="db-a",instance="node-a",worker="consumer"}
         values: 0+15x40
-      - series: dsh_remote_control_available{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a",worker="consumer_cleanup"}
+      - series: tokenworks_mobile_control_available{job="tokenworks-mobile",cluster="fixture",database_scope="db-a",instance="node-a",worker="consumer_cleanup"}
         values: 1+0x40
-      - series: dsh_remote_control_last_success_timestamp_seconds{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a",worker="consumer_cleanup"}
+      - series: tokenworks_mobile_control_last_success_timestamp_seconds{job="tokenworks-mobile",cluster="fixture",database_scope="db-a",instance="node-a",worker="consumer_cleanup"}
         values: 0+15x40
-      - series: dsh_remote_control_available{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a",worker="approval_expiry"}
+      - series: tokenworks_mobile_control_available{job="tokenworks-mobile",cluster="fixture",database_scope="db-a",instance="node-a",worker="approval_expiry"}
         values: 1+0x40
-      - series: dsh_remote_control_last_success_timestamp_seconds{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a",worker="approval_expiry"}
+      - series: tokenworks_mobile_control_last_success_timestamp_seconds{job="tokenworks-mobile",cluster="fixture",database_scope="db-a",instance="node-a",worker="approval_expiry"}
         values: 0+15x40
-      - series: dsh_remote_file_scanner_enabled{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a"}
+      - series: tokenworks_mobile_file_scanner_enabled{job="tokenworks-mobile",cluster="fixture",database_scope="db-a",instance="node-a"}
         values: 0+0x40
     alert_rule_test:
       - eval_time: 3m
@@ -137,33 +137,33 @@ tests:
   - name: missing readiness is incomplete rather than a healthy zero
     interval: 15s
     input_series:
-      - series: up{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a"}
+      - series: up{job="tokenworks-mobile",cluster="fixture",database_scope="db-a",instance="node-a"}
         values: 1+0x40
-      - series: dsh_remote_relay_draining{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a"}
+      - series: tokenworks_mobile_relay_draining{job="tokenworks-mobile",cluster="fixture",database_scope="db-a",instance="node-a"}
         values: 0+0x40
-      - series: dsh_remote_unknown_snapshot_available{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a"}
+      - series: tokenworks_mobile_unknown_snapshot_available{job="tokenworks-mobile",cluster="fixture",database_scope="db-a",instance="node-a"}
         values: 0+0x40
-      - series: dsh_remote_control_available{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a",worker="outbox"}
+      - series: tokenworks_mobile_control_available{job="tokenworks-mobile",cluster="fixture",database_scope="db-a",instance="node-a",worker="outbox"}
         values: 1+0x40
-      - series: dsh_remote_control_last_success_timestamp_seconds{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a",worker="outbox"}
+      - series: tokenworks_mobile_control_last_success_timestamp_seconds{job="tokenworks-mobile",cluster="fixture",database_scope="db-a",instance="node-a",worker="outbox"}
         values: 0+15x40
-      - series: dsh_remote_control_available{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a",worker="leases"}
+      - series: tokenworks_mobile_control_available{job="tokenworks-mobile",cluster="fixture",database_scope="db-a",instance="node-a",worker="leases"}
         values: 1+0x40
-      - series: dsh_remote_control_last_success_timestamp_seconds{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a",worker="leases"}
+      - series: tokenworks_mobile_control_last_success_timestamp_seconds{job="tokenworks-mobile",cluster="fixture",database_scope="db-a",instance="node-a",worker="leases"}
         values: 0+15x40
-      - series: dsh_remote_control_available{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a",worker="consumer"}
+      - series: tokenworks_mobile_control_available{job="tokenworks-mobile",cluster="fixture",database_scope="db-a",instance="node-a",worker="consumer"}
         values: 1+0x40
-      - series: dsh_remote_control_last_success_timestamp_seconds{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a",worker="consumer"}
+      - series: tokenworks_mobile_control_last_success_timestamp_seconds{job="tokenworks-mobile",cluster="fixture",database_scope="db-a",instance="node-a",worker="consumer"}
         values: 0+15x40
-      - series: dsh_remote_control_available{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a",worker="consumer_cleanup"}
+      - series: tokenworks_mobile_control_available{job="tokenworks-mobile",cluster="fixture",database_scope="db-a",instance="node-a",worker="consumer_cleanup"}
         values: 1+0x40
-      - series: dsh_remote_control_last_success_timestamp_seconds{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a",worker="consumer_cleanup"}
+      - series: tokenworks_mobile_control_last_success_timestamp_seconds{job="tokenworks-mobile",cluster="fixture",database_scope="db-a",instance="node-a",worker="consumer_cleanup"}
         values: 0+15x40
-      - series: dsh_remote_control_available{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a",worker="approval_expiry"}
+      - series: tokenworks_mobile_control_available{job="tokenworks-mobile",cluster="fixture",database_scope="db-a",instance="node-a",worker="approval_expiry"}
         values: 1+0x40
-      - series: dsh_remote_control_last_success_timestamp_seconds{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a",worker="approval_expiry"}
+      - series: tokenworks_mobile_control_last_success_timestamp_seconds{job="tokenworks-mobile",cluster="fixture",database_scope="db-a",instance="node-a",worker="approval_expiry"}
         values: 0+15x40
-      - series: dsh_remote_file_scanner_enabled{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a"}
+      - series: tokenworks_mobile_file_scanner_enabled{job="tokenworks-mobile",cluster="fixture",database_scope="db-a",instance="node-a"}
         values: 1+0x40
     alert_rule_test:
       - eval_time: 3m
@@ -175,7 +175,7 @@ tests:
           - exp_labels:
               cluster: fixture
               database_scope: db-a
-              job: dsh-remote
+              job: tokenworks-mobile
               instance: node-a
               severity: warning
             exp_annotations:
@@ -186,31 +186,31 @@ tests:
   - name: missing enabled contract is not assumed disabled
     interval: 15s
     input_series:
-      - series: up{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a"}
+      - series: up{job="tokenworks-mobile",cluster="fixture",database_scope="db-a",instance="node-a"}
         values: 1+0x40
-      - series: dsh_remote_relay_draining{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a"}
+      - series: tokenworks_mobile_relay_draining{job="tokenworks-mobile",cluster="fixture",database_scope="db-a",instance="node-a"}
         values: 0+0x40
-      - series: dsh_remote_unknown_snapshot_available{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a"}
+      - series: tokenworks_mobile_unknown_snapshot_available{job="tokenworks-mobile",cluster="fixture",database_scope="db-a",instance="node-a"}
         values: 0+0x40
-      - series: dsh_remote_control_available{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a",worker="outbox"}
+      - series: tokenworks_mobile_control_available{job="tokenworks-mobile",cluster="fixture",database_scope="db-a",instance="node-a",worker="outbox"}
         values: 1+0x40
-      - series: dsh_remote_control_last_success_timestamp_seconds{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a",worker="outbox"}
+      - series: tokenworks_mobile_control_last_success_timestamp_seconds{job="tokenworks-mobile",cluster="fixture",database_scope="db-a",instance="node-a",worker="outbox"}
         values: 0+15x40
-      - series: dsh_remote_control_available{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a",worker="leases"}
+      - series: tokenworks_mobile_control_available{job="tokenworks-mobile",cluster="fixture",database_scope="db-a",instance="node-a",worker="leases"}
         values: 1+0x40
-      - series: dsh_remote_control_last_success_timestamp_seconds{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a",worker="leases"}
+      - series: tokenworks_mobile_control_last_success_timestamp_seconds{job="tokenworks-mobile",cluster="fixture",database_scope="db-a",instance="node-a",worker="leases"}
         values: 0+15x40
-      - series: dsh_remote_control_available{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a",worker="consumer"}
+      - series: tokenworks_mobile_control_available{job="tokenworks-mobile",cluster="fixture",database_scope="db-a",instance="node-a",worker="consumer"}
         values: 1+0x40
-      - series: dsh_remote_control_last_success_timestamp_seconds{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a",worker="consumer"}
+      - series: tokenworks_mobile_control_last_success_timestamp_seconds{job="tokenworks-mobile",cluster="fixture",database_scope="db-a",instance="node-a",worker="consumer"}
         values: 0+15x40
-      - series: dsh_remote_control_available{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a",worker="consumer_cleanup"}
+      - series: tokenworks_mobile_control_available{job="tokenworks-mobile",cluster="fixture",database_scope="db-a",instance="node-a",worker="consumer_cleanup"}
         values: 1+0x40
-      - series: dsh_remote_control_last_success_timestamp_seconds{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a",worker="consumer_cleanup"}
+      - series: tokenworks_mobile_control_last_success_timestamp_seconds{job="tokenworks-mobile",cluster="fixture",database_scope="db-a",instance="node-a",worker="consumer_cleanup"}
         values: 0+15x40
-      - series: dsh_remote_control_available{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a",worker="approval_expiry"}
+      - series: tokenworks_mobile_control_available{job="tokenworks-mobile",cluster="fixture",database_scope="db-a",instance="node-a",worker="approval_expiry"}
         values: 1+0x40
-      - series: dsh_remote_control_last_success_timestamp_seconds{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a",worker="approval_expiry"}
+      - series: tokenworks_mobile_control_last_success_timestamp_seconds{job="tokenworks-mobile",cluster="fixture",database_scope="db-a",instance="node-a",worker="approval_expiry"}
         values: 0+15x40
     alert_rule_test:
       - eval_time: 3m
@@ -222,7 +222,7 @@ tests:
           - exp_labels:
               cluster: fixture
               database_scope: db-a
-              job: dsh-remote
+              job: tokenworks-mobile
               instance: node-a
               severity: warning
             exp_annotations:
@@ -233,35 +233,35 @@ tests:
   - name: planned drain suppresses scanner alert
     interval: 15s
     input_series:
-      - series: up{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a"}
+      - series: up{job="tokenworks-mobile",cluster="fixture",database_scope="db-a",instance="node-a"}
         values: 1+0x40
-      - series: dsh_remote_relay_draining{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a"}
+      - series: tokenworks_mobile_relay_draining{job="tokenworks-mobile",cluster="fixture",database_scope="db-a",instance="node-a"}
         values: 1+0x40
-      - series: dsh_remote_unknown_snapshot_available{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a"}
+      - series: tokenworks_mobile_unknown_snapshot_available{job="tokenworks-mobile",cluster="fixture",database_scope="db-a",instance="node-a"}
         values: 0+0x40
-      - series: dsh_remote_control_available{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a",worker="outbox"}
+      - series: tokenworks_mobile_control_available{job="tokenworks-mobile",cluster="fixture",database_scope="db-a",instance="node-a",worker="outbox"}
         values: 1+0x40
-      - series: dsh_remote_control_last_success_timestamp_seconds{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a",worker="outbox"}
+      - series: tokenworks_mobile_control_last_success_timestamp_seconds{job="tokenworks-mobile",cluster="fixture",database_scope="db-a",instance="node-a",worker="outbox"}
         values: 0+15x40
-      - series: dsh_remote_control_available{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a",worker="leases"}
+      - series: tokenworks_mobile_control_available{job="tokenworks-mobile",cluster="fixture",database_scope="db-a",instance="node-a",worker="leases"}
         values: 1+0x40
-      - series: dsh_remote_control_last_success_timestamp_seconds{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a",worker="leases"}
+      - series: tokenworks_mobile_control_last_success_timestamp_seconds{job="tokenworks-mobile",cluster="fixture",database_scope="db-a",instance="node-a",worker="leases"}
         values: 0+15x40
-      - series: dsh_remote_control_available{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a",worker="consumer"}
+      - series: tokenworks_mobile_control_available{job="tokenworks-mobile",cluster="fixture",database_scope="db-a",instance="node-a",worker="consumer"}
         values: 1+0x40
-      - series: dsh_remote_control_last_success_timestamp_seconds{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a",worker="consumer"}
+      - series: tokenworks_mobile_control_last_success_timestamp_seconds{job="tokenworks-mobile",cluster="fixture",database_scope="db-a",instance="node-a",worker="consumer"}
         values: 0+15x40
-      - series: dsh_remote_control_available{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a",worker="consumer_cleanup"}
+      - series: tokenworks_mobile_control_available{job="tokenworks-mobile",cluster="fixture",database_scope="db-a",instance="node-a",worker="consumer_cleanup"}
         values: 1+0x40
-      - series: dsh_remote_control_last_success_timestamp_seconds{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a",worker="consumer_cleanup"}
+      - series: tokenworks_mobile_control_last_success_timestamp_seconds{job="tokenworks-mobile",cluster="fixture",database_scope="db-a",instance="node-a",worker="consumer_cleanup"}
         values: 0+15x40
-      - series: dsh_remote_control_available{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a",worker="approval_expiry"}
+      - series: tokenworks_mobile_control_available{job="tokenworks-mobile",cluster="fixture",database_scope="db-a",instance="node-a",worker="approval_expiry"}
         values: 1+0x40
-      - series: dsh_remote_control_last_success_timestamp_seconds{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a",worker="approval_expiry"}
+      - series: tokenworks_mobile_control_last_success_timestamp_seconds{job="tokenworks-mobile",cluster="fixture",database_scope="db-a",instance="node-a",worker="approval_expiry"}
         values: 0+15x40
-      - series: dsh_remote_file_scanner_enabled{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a"}
+      - series: tokenworks_mobile_file_scanner_enabled{job="tokenworks-mobile",cluster="fixture",database_scope="db-a",instance="node-a"}
         values: 1+0x40
-      - series: dsh_remote_file_scanner_ready{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a"}
+      - series: tokenworks_mobile_file_scanner_ready{job="tokenworks-mobile",cluster="fixture",database_scope="db-a",instance="node-a"}
         values: 0+0x40
     alert_rule_test:
       - eval_time: 3m
@@ -270,35 +270,35 @@ tests:
   - name: failed scrape does not classify scanner health
     interval: 15s
     input_series:
-      - series: up{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a"}
+      - series: up{job="tokenworks-mobile",cluster="fixture",database_scope="db-a",instance="node-a"}
         values: 0+0x40
-      - series: dsh_remote_relay_draining{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a"}
+      - series: tokenworks_mobile_relay_draining{job="tokenworks-mobile",cluster="fixture",database_scope="db-a",instance="node-a"}
         values: 0+0x40
-      - series: dsh_remote_unknown_snapshot_available{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a"}
+      - series: tokenworks_mobile_unknown_snapshot_available{job="tokenworks-mobile",cluster="fixture",database_scope="db-a",instance="node-a"}
         values: 0+0x40
-      - series: dsh_remote_control_available{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a",worker="outbox"}
+      - series: tokenworks_mobile_control_available{job="tokenworks-mobile",cluster="fixture",database_scope="db-a",instance="node-a",worker="outbox"}
         values: 1+0x40
-      - series: dsh_remote_control_last_success_timestamp_seconds{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a",worker="outbox"}
+      - series: tokenworks_mobile_control_last_success_timestamp_seconds{job="tokenworks-mobile",cluster="fixture",database_scope="db-a",instance="node-a",worker="outbox"}
         values: 0+15x40
-      - series: dsh_remote_control_available{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a",worker="leases"}
+      - series: tokenworks_mobile_control_available{job="tokenworks-mobile",cluster="fixture",database_scope="db-a",instance="node-a",worker="leases"}
         values: 1+0x40
-      - series: dsh_remote_control_last_success_timestamp_seconds{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a",worker="leases"}
+      - series: tokenworks_mobile_control_last_success_timestamp_seconds{job="tokenworks-mobile",cluster="fixture",database_scope="db-a",instance="node-a",worker="leases"}
         values: 0+15x40
-      - series: dsh_remote_control_available{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a",worker="consumer"}
+      - series: tokenworks_mobile_control_available{job="tokenworks-mobile",cluster="fixture",database_scope="db-a",instance="node-a",worker="consumer"}
         values: 1+0x40
-      - series: dsh_remote_control_last_success_timestamp_seconds{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a",worker="consumer"}
+      - series: tokenworks_mobile_control_last_success_timestamp_seconds{job="tokenworks-mobile",cluster="fixture",database_scope="db-a",instance="node-a",worker="consumer"}
         values: 0+15x40
-      - series: dsh_remote_control_available{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a",worker="consumer_cleanup"}
+      - series: tokenworks_mobile_control_available{job="tokenworks-mobile",cluster="fixture",database_scope="db-a",instance="node-a",worker="consumer_cleanup"}
         values: 1+0x40
-      - series: dsh_remote_control_last_success_timestamp_seconds{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a",worker="consumer_cleanup"}
+      - series: tokenworks_mobile_control_last_success_timestamp_seconds{job="tokenworks-mobile",cluster="fixture",database_scope="db-a",instance="node-a",worker="consumer_cleanup"}
         values: 0+15x40
-      - series: dsh_remote_control_available{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a",worker="approval_expiry"}
+      - series: tokenworks_mobile_control_available{job="tokenworks-mobile",cluster="fixture",database_scope="db-a",instance="node-a",worker="approval_expiry"}
         values: 1+0x40
-      - series: dsh_remote_control_last_success_timestamp_seconds{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a",worker="approval_expiry"}
+      - series: tokenworks_mobile_control_last_success_timestamp_seconds{job="tokenworks-mobile",cluster="fixture",database_scope="db-a",instance="node-a",worker="approval_expiry"}
         values: 0+15x40
-      - series: dsh_remote_file_scanner_enabled{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a"}
+      - series: tokenworks_mobile_file_scanner_enabled{job="tokenworks-mobile",cluster="fixture",database_scope="db-a",instance="node-a"}
         values: 1+0x40
-      - series: dsh_remote_file_scanner_ready{job="dsh-remote",cluster="fixture",database_scope="db-a",instance="node-a"}
+      - series: tokenworks_mobile_file_scanner_ready{job="tokenworks-mobile",cluster="fixture",database_scope="db-a",instance="node-a"}
         values: 0+0x40
     alert_rule_test:
       - eval_time: 3m

@@ -13,8 +13,8 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"dsh-mobile-ustc/services/remote/internal/auth"
-	"dsh-mobile-ustc/services/remote/internal/coldarchive"
+	"tokenworks-mobile/services/remote/internal/auth"
+	"tokenworks-mobile/services/remote/internal/coldarchive"
 )
 
 const MaxPlaintext = coldarchive.MaxExtendedPlaintext
@@ -128,7 +128,7 @@ func validateEntry(entry Entry, cutoff time.Time) error {
 }
 
 func (payload Payload) Validate() error {
-	if payload.Format != "dsh-audit-archive" || payload.Version != 1 || !coldarchive.UUID(payload.DomainID) || !coldarchive.UUID(payload.ExportID) || !coldarchive.UUID(payload.OperationEpoch) ||
+	if payload.Format != "tokenworks-mobile-audit-archive" || payload.Version != 1 || !coldarchive.UUID(payload.DomainID) || !coldarchive.UUID(payload.ExportID) || !coldarchive.UUID(payload.OperationEpoch) ||
 		!coldarchive.KeyID(payload.KeyID) || payload.PreparedAt.IsZero() || payload.Entries == nil {
 		return coldarchive.ErrInvalid
 	}

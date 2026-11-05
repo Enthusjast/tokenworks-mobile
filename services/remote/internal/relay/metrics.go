@@ -3,14 +3,14 @@ package relay
 import (
 	"strconv"
 
-	"dsh-mobile-ustc/services/remote/internal/observability"
 	"github.com/prometheus/client_golang/prometheus"
+	"tokenworks-mobile/services/remote/internal/observability"
 )
 
 var queueByteBuckets = []float64{0, 1024, 4096, 16384, 65536, 262144, 1048576}
 
 func relayDesc(name, help string, labels ...string) *prometheus.Desc {
-	return prometheus.NewDesc("dsh_remote_relay_"+name, help, labels, nil)
+	return prometheus.NewDesc("tokenworks_mobile_relay_"+name, help, labels, nil)
 }
 
 var relayMetricDescriptions = []*prometheus.Desc{

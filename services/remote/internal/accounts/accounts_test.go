@@ -9,9 +9,9 @@ import (
 	"strings"
 	"testing"
 
-	"dsh-mobile-ustc/services/remote/internal/auth"
-	"dsh-mobile-ustc/services/remote/internal/store"
-	"dsh-mobile-ustc/services/remote/internal/testsupport"
+	"tokenworks-mobile/services/remote/internal/auth"
+	"tokenworks-mobile/services/remote/internal/store"
+	"tokenworks-mobile/services/remote/internal/testsupport"
 )
 
 func TestPasswordAccountsBrowserLifecycleAndSecurityBoundaries(t *testing.T) {
@@ -101,6 +101,24 @@ func TestPasswordAccountsBrowserLifecycleAndSecurityBoundaries(t *testing.T) {
 	for _, cookie := range jar.Cookies(response.Request.URL) {
 		if cookie.Name == portal.cookieName(false) && len(cookie.Value) != 43 {
 			t.Fatal("bad session secret")
+		}
+	}
+	if portal.cookieName(false) != "tokenworks_mobile_account" || portal.cookieName(true) != "tokenworks_mobile_account_csrf" {
+		t.Fatal("browser cookie namespace was not cut over")
+	}
+	for _, cookie := range jar.Cookies(response.Request.URL) {
+		if cookie.Name != portal.cookieName(false) {
+			continue
+		}
+		legacy, _ := http.NewRequestWithContext(ctx, "GET", origin+"/account/api/session", nil)
+		legacy.AddCookie(&http.Cookie{Name: "remote_account", Value: cookie.Value})
+		legacyResponse, err := http.DefaultClient.Do(legacy)
+		if err != nil {
+			t.Fatal(err)
+		}
+		legacyResponse.Body.Close()
+		if legacyResponse.StatusCode != 401 {
+			t.Fatal("retired browser cookie authenticated a current session")
 		}
 	}
 	call("/v1/me", "", "", 503)

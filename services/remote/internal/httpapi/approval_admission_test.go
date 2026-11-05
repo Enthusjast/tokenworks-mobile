@@ -13,10 +13,10 @@ import (
 	"testing"
 	"time"
 
-	"dsh-mobile-ustc/services/remote/internal/approval"
-	"dsh-mobile-ustc/services/remote/internal/auth"
-	"dsh-mobile-ustc/services/remote/internal/relay"
-	"dsh-mobile-ustc/services/remote/internal/store"
+	"tokenworks-mobile/services/remote/internal/approval"
+	"tokenworks-mobile/services/remote/internal/auth"
+	"tokenworks-mobile/services/remote/internal/relay"
+	"tokenworks-mobile/services/remote/internal/store"
 )
 
 func TestApprovalHTTPSAdmissionRequiresFreshDPoPActiveDeviceAndAdmittedSocket(t *testing.T) {
@@ -38,12 +38,12 @@ func TestApprovalHTTPSAdmissionRequiresFreshDPoPActiveDeviceAndAdmittedSocket(t 
 	}))
 	defer keys.Close()
 	now := time.Now().UTC().Truncate(time.Second)
-	verifier, err := auth.New(auth.Config{Issuer: "https://id.example.edu", Audience: "urn:dsh-remote", JWKSURL: keys.URL, AllowedClients: []string{"mobile-client"}, RequiredScopes: []string{"remote.access"}, PublicOrigin: "https://api.example.edu", MaxTokenLifetime: 15 * time.Minute, Clock: func() time.Time { return now }})
+	verifier, err := auth.New(auth.Config{Issuer: "https://id.example.edu", Audience: "urn:tokenworks-mobile", JWKSURL: keys.URL, AllowedClients: []string{"mobile-client"}, RequiredScopes: []string{"remote.access"}, PublicOrigin: "https://api.example.edu", MaxTokenLifetime: 15 * time.Minute, Clock: func() time.Time { return now }})
 	if err != nil {
 		t.Fatal(err)
 	}
 	access := httpSignCompact(t, map[string]any{"typ": "at+jwt", "alg": "RS256", "kid": "issuer-key"}, map[string]any{
-		"iss": "https://id.example.edu", "sub": "owner", "aud": "urn:dsh-remote", "client_id": "mobile-client", "jti": "approval-access-token", "iat": now.Unix(), "exp": now.Add(5 * time.Minute).Unix(),
+		"iss": "https://id.example.edu", "sub": "owner", "aud": "urn:tokenworks-mobile", "client_id": "mobile-client", "jti": "approval-access-token", "iat": now.Unix(), "exp": now.Add(5 * time.Minute).Unix(),
 		"scope": "remote.access", "cnf": map[string]any{"jkt": proofJKT}, "auth_time": now.Add(-time.Second).Unix(), "acr": "school:2", "amr": []string{"otp"},
 	}, issuerKey)
 	assurance, err := auth.NewAssuranceVerifier([]auth.AssuranceMapping{{Issuer: "https://id.example.edu", ClientID: "mobile-client", Profile: "school/step-up", ACR: "school:2", RequiredAMR: []string{"otp"}}})
@@ -58,7 +58,7 @@ func TestApprovalHTTPSAdmissionRequiresFreshDPoPActiveDeviceAndAdmittedSocket(t 
 	if err != nil {
 		t.Fatal(err)
 	}
-	signer, err := approval.NewAuthorizationSigner("https://remote.example.edu", "dsh-approval-authority/http-test", serviceKey, now.Add(-time.Hour), now.Add(time.Hour))
+	signer, err := approval.NewAuthorizationSigner("https://remote.example.edu", "tokenworks-mobile-approval-authority/http-test", serviceKey, now.Add(-time.Hour), now.Add(time.Hour))
 	if err != nil {
 		t.Fatal(err)
 	}

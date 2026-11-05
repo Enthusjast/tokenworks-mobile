@@ -6,9 +6,9 @@ import (
 	"strings"
 	"time"
 
-	"dsh-mobile-ustc/services/remote/internal/files"
-	"dsh-mobile-ustc/services/remote/internal/relay"
-	"dsh-mobile-ustc/services/remote/internal/store"
+	"tokenworks-mobile/services/remote/internal/files"
+	"tokenworks-mobile/services/remote/internal/relay"
+	"tokenworks-mobile/services/remote/internal/store"
 )
 
 type ownerRoutingRepository interface {
@@ -34,15 +34,15 @@ func (api *API) forwardOwnerRequest(response http.ResponseWriter, request *http.
 	var runtime string
 	if kind == "host_file" {
 		values := request.Header.Values("Authorization")
-		if len(values) != 1 || len(request.Header.Values("X-DSH-File-Proof")) != 1 {
+		if len(values) != 1 || len(request.Header.Values("X-TokenWorks-Mobile-File-Proof")) != 1 {
 			return false
 		}
 		scheme, token, ok := strings.Cut(values[0], " ")
-		if !ok || scheme != "DSH-File" {
+		if !ok || scheme != "TokenWorks-Mobile-File" {
 			return false
 		}
 		inspection, err := repository.HostFileForRouting(ctx, id, token)
-		if err != nil || api.identity.VerifyFileReadProof(inspectionRequest, request.Header.Get("X-DSH-File-Proof"), inspection.PublicJWK, inspection.Expected) != nil {
+		if err != nil || api.identity.VerifyFileReadProof(inspectionRequest, request.Header.Get("X-TokenWorks-Mobile-File-Proof"), inspection.PublicJWK, inspection.Expected) != nil {
 			return false
 		}
 		runtime = inspection.Expected.RuntimeID

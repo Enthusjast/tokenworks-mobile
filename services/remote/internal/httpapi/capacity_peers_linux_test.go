@@ -19,10 +19,10 @@ import (
 	"sync/atomic"
 	"time"
 
-	"dsh-mobile-ustc/services/remote/internal/auth"
-	"dsh-mobile-ustc/services/remote/internal/store"
 	"github.com/coder/websocket"
 	jose "github.com/go-jose/go-jose/v4"
+	"tokenworks-mobile/services/remote/internal/auth"
+	"tokenworks-mobile/services/remote/internal/store"
 )
 
 func capacityID() string {
@@ -220,7 +220,7 @@ type capacityPair struct {
 }
 
 func capacityConnect(ctx context.Context, client *http.Client, origin, role, credential string, key capacityKey, pair *capacityPair, extraCapabilities ...string) (*websocket.Conn, error) {
-	connection, _, err := websocket.Dial(ctx, origin+"/v1/realtime", &websocket.DialOptions{HTTPClient: client, Subprotocols: []string{"dsh.remote.v1"},
+	connection, _, err := websocket.Dial(ctx, origin+"/v1/realtime", &websocket.DialOptions{HTTPClient: client, Subprotocols: []string{"tokenworks-mobile.remote.v1"},
 		HTTPHeader: http.Header{"Authorization": []string{credential}}, CompressionMode: websocket.CompressionDisabled})
 	if err != nil {
 		return nil, errors.New("WebSocket TLS admission failed")
@@ -259,7 +259,7 @@ func capacityConnect(ctx context.Context, client *http.Client, origin, role, cre
 	if role == "installation" {
 		claims["runtime_epoch"] = pair.epoch
 	}
-	hello["proof"], err = capacitySign(key, "dsh-relay-handshake-proof+jwt", claims, nil)
+	hello["proof"], err = capacitySign(key, "tokenworks-mobile-relay-handshake-proof+jwt", claims, nil)
 	if err != nil {
 		return nil, errors.New("WebSocket proof signing failed")
 	}
@@ -497,7 +497,7 @@ func (pair *capacityPair) admit(ctx, lifetime context.Context, httpClient *http.
 	if err := pair.hostAPI.call(ctx, "POST", "/v1/host-credentials/challenges", map[string]any{}, &challenge, 201); err != nil {
 		return err
 	}
-	proof, err := capacitySign(pair.hostKey, "dsh-host-credential-proof+jwt", map[string]any{"iss": pair.installation, "aud": challenge.Audience, "challenge_id": challenge.ChallengeID, "nonce": challenge.Challenge, "iat": time.Now().Unix(), "jti": capacityID()}, nil)
+	proof, err := capacitySign(pair.hostKey, "tokenworks-mobile-host-credential-proof+jwt", map[string]any{"iss": pair.installation, "aud": challenge.Audience, "challenge_id": challenge.ChallengeID, "nonce": challenge.Challenge, "iat": time.Now().Unix(), "jti": capacityID()}, nil)
 	if err != nil {
 		return err
 	}
@@ -505,7 +505,7 @@ func (pair *capacityPair) admit(ctx, lifetime context.Context, httpClient *http.
 	if err := pair.hostAPI.call(ctx, "POST", "/v1/host-credentials", map[string]any{"challenge_id": challenge.ChallengeID, "proof": proof}, &credential, 201); err != nil {
 		return err
 	}
-	connection, err := capacityConnect(lifetime, httpClient, origin, "installation", "DSH-Host "+credential.Credential, pair.hostKey, pair)
+	connection, err := capacityConnect(lifetime, httpClient, origin, "installation", "TokenWorks-Mobile-Host "+credential.Credential, pair.hostKey, pair)
 	if err != nil {
 		return err
 	}
@@ -565,13 +565,13 @@ func (pair *capacityPair) admit(ctx, lifetime context.Context, httpClient *http.
 			return errors.New("tampered JWT control failed")
 		}
 		checks["tampered_jwt_denied"] = true
-		if rejected, err := capacityConnect(ctx, httpClient, origin, "device", "DSH-Ticket "+ticket.Token, badKey, pair); err == nil {
+		if rejected, err := capacityConnect(ctx, httpClient, origin, "device", "TokenWorks-Mobile-Ticket "+ticket.Token, badKey, pair); err == nil {
 			_ = rejected.CloseNow()
 			return errors.New("foreign WSS key accepted")
 		}
 		checks["foreign_wss_key_denied"] = true
 	}
-	phone, err := capacityConnect(lifetime, httpClient, origin, "device", "DSH-Ticket "+ticket.Token, pair.phoneKey, pair)
+	phone, err := capacityConnect(lifetime, httpClient, origin, "device", "TokenWorks-Mobile-Ticket "+ticket.Token, pair.phoneKey, pair)
 	if err != nil {
 		return err
 	}

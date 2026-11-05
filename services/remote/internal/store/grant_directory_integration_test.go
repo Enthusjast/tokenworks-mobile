@@ -57,7 +57,7 @@ func TestRuntimeGrantDirectoryPaginatesRecordedGrantsAndCurrentRecipientState(t 
 		t.Fatal("former member appeared active", err)
 	}
 	raw, _ := json.Marshal(first)
-	for _, forbidden := range []string{"owner-subject", "issuer", "public_jwk", "thumbprint", "workspace-test", "opaque-dsh-session"} {
+	for _, forbidden := range []string{"owner-subject", "issuer", "public_jwk", "thumbprint", "workspace-test", "opaque-tokenworks-mobile-session"} {
 		if strings.Contains(string(raw), forbidden) {
 			t.Fatal("directory exported private identity or local references")
 		}

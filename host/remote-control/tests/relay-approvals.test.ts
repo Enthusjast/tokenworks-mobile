@@ -30,7 +30,7 @@ async function fixture(t: import('node:test').TestContext) {
   const agent = h.ctx.agents.get(await client.resolve(created.session_id, new AbortController().signal))!
   agent.session.append('turn/start', { turn: 1 })
   const owner = new SignedApprovals(h.ctx, h.runtimeId, epoch, journal, workspaces, value => value === agent, 3000, { hostId: hostID, installationId: installID,
-    policyVersion: 7, requiredAssurance: { profile: 'fixture/verified', max_auth_age_seconds: 60 }, authorities: [{ issuer: 'https://remote.example.edu', key_id: 'dsh-approval-authority/peer-test',
+    policyVersion: 7, requiredAssurance: { profile: 'fixture/verified', max_auth_age_seconds: 60 }, authorities: [{ issuer: 'https://remote.example.edu', key_id: 'tokenworks-mobile-approval-authority/peer-test',
       public_jwk: publicJWK, key_jkt: jkt, active: true, valid_from: new Date(Date.now() - 60_000).toISOString(), valid_until: new Date(Date.now() + 3600_000).toISOString() }] })
   const peers: RelayApprovals[] = []
   const connections: string[] = []
@@ -42,13 +42,13 @@ async function fixture(t: import('node:test').TestContext) {
     peers.push(peer)
     return peer
   }
-  const context = (): ApprovalContext => ({ domain: 'dsh-mobile-ustc/approval-context/v1', protocol_version: 1, host_id: hostID, installation_id: installID, runtime_id: h.runtimeId, runtime_epoch: epoch,
+  const context = (): ApprovalContext => ({ domain: 'tokenworks-mobile/approval-context/v1', protocol_version: 1, host_id: hostID, installation_id: installID, runtime_id: h.runtimeId, runtime_epoch: epoch,
     session_id: created.session_id, dsh_session_id: String(agent.id), approval_id: randomUUID(), execution_id: randomUUID(), call_id: randomUUID(), tool: 'protected', arguments: { value: 'private-report-fixture' },
     workspace: { workspace_id: workspaceID, root_sha256: 'a'.repeat(64) }, resources: [], nonce: randomBytes(32).toString('base64url'), policy_version: 7,
     required_assurance: { profile: 'fixture/verified', max_auth_age_seconds: 60 }, created_at: new Date().toISOString(), expires_at: new Date(Date.now() + 120_000).toISOString() })
   const approve = async (context: ApprovalContext) => {
     journal.register(context)
-    const decision: ApprovalDecision = { domain: 'dsh-mobile-ustc/approval-decision/v1', protocol_version: 1, host_id: hostID, installation_id: installID, runtime_id: h.runtimeId, runtime_epoch: epoch,
+    const decision: ApprovalDecision = { domain: 'tokenworks-mobile/approval-decision/v1', protocol_version: 1, host_id: hostID, installation_id: installID, runtime_id: h.runtimeId, runtime_epoch: epoch,
       session_id: context.session_id, approval_id: context.approval_id, execution_id: context.execution_id, binding_sha256: approvalBinding(context).sha256, decision: 'allow_once', ...actor, key_version: 1,
       policy_version: 7, nonce: context.nonce, issued_at: new Date().toISOString(), expires_at: new Date(Date.now() + 25_000).toISOString() }
     const proof = await new CompactSign(canonicalObject(decision)).setProtectedHeader({ alg: 'ES256', kid: approvalKeyID(actor.device_id, 1), typ: APPROVAL_JWS_TYPE }).sign(keys.privateKey)

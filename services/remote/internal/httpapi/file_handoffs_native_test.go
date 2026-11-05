@@ -284,20 +284,20 @@ func assertNativeHandoffMetrics(t *testing.T, h *fileHTTPFixture) {
 	for _, family := range families {
 		for _, metric := range family.Metric {
 			switch family.GetName() {
-			case "dsh_remote_file_handoff_events_total":
+			case "tokenworks_mobile_file_handoff_events_total":
 				for _, label := range metric.Label {
 					if label.GetName() == "stage" {
 						events[label.GetValue()] = metric.GetCounter().GetValue()
 					}
 				}
-			case "dsh_remote_file_scan_attempt_duration_seconds":
+			case "tokenworks_mobile_file_scan_attempt_duration_seconds":
 				if len(metric.Label) != 2 || metric.Label[0].GetValue() != "to_host" || metric.Label[1].GetValue() != "clean" {
 					t.Fatal("native handoff scan did not finish cleanly")
 				}
 				cleanScans += metric.GetHistogram().GetSampleCount()
-			case "dsh_remote_file_handoff_age_seconds":
+			case "tokenworks_mobile_file_handoff_age_seconds":
 				ages += metric.GetHistogram().GetSampleCount()
-			case "dsh_remote_file_handoff_read_to_stage_seconds":
+			case "tokenworks_mobile_file_handoff_read_to_stage_seconds":
 				intervals += metric.GetHistogram().GetSampleCount()
 			}
 		}

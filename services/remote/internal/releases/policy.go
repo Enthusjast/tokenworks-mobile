@@ -6,7 +6,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 
-	"dsh-mobile-ustc/services/remote/internal/canonical"
+	"tokenworks-mobile/services/remote/internal/canonical"
 )
 
 // PolicyRef identifies the entire effective publication policy, including empty
@@ -37,5 +37,5 @@ func (catalog *Catalog) policyDigest() ([32]byte, error) {
 	if err != nil {
 		return [32]byte{}, ErrInvalid
 	}
-	return sha256.Sum256(append([]byte("dsh-app-release-policy/v1\x00"), body...)), nil
+	return sha256.Sum256(append([]byte("tokenworks-mobile-app-release-policy/v1\x00"), body...)), nil
 }

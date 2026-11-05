@@ -20,15 +20,15 @@ import (
 	"testing"
 	"time"
 
-	"dsh-mobile-ustc/services/remote/internal/approval"
-	"dsh-mobile-ustc/services/remote/internal/auth"
-	"dsh-mobile-ustc/services/remote/internal/canonical"
-	"dsh-mobile-ustc/services/remote/internal/httpapi"
-	"dsh-mobile-ustc/services/remote/internal/relay"
-	"dsh-mobile-ustc/services/remote/internal/store"
-	"dsh-mobile-ustc/services/remote/internal/testsupport"
 	"github.com/coder/websocket"
 	jose "github.com/go-jose/go-jose/v4"
+	"tokenworks-mobile/services/remote/internal/approval"
+	"tokenworks-mobile/services/remote/internal/auth"
+	"tokenworks-mobile/services/remote/internal/canonical"
+	"tokenworks-mobile/services/remote/internal/httpapi"
+	"tokenworks-mobile/services/remote/internal/relay"
+	"tokenworks-mobile/services/remote/internal/store"
+	"tokenworks-mobile/services/remote/internal/testsupport"
 )
 
 type approvalWire struct {
@@ -221,7 +221,7 @@ func TestPostgresSignedApprovalHTTPAndWSSComposeWithCurrentAuthority(t *testing.
 		_ = json.NewEncoder(response).Encode(map[string]any{"keys": []any{jose.JSONWebKey{Key: &issuerKey.PublicKey, KeyID: "idp-key", Algorithm: "RS256", Use: "sig"}}})
 	}))
 	defer jwks.Close()
-	identity, err := auth.New(auth.Config{Issuer: "https://id.example.edu", Audience: "urn:dsh-remote", JWKSURL: jwks.URL, AllowedClients: []string{"android"}, RequiredScopes: []string{"remote.access"}, PublicOrigin: "https://remote.example.edu", MaxTokenLifetime: 15 * time.Minute})
+	identity, err := auth.New(auth.Config{Issuer: "https://id.example.edu", Audience: "urn:tokenworks-mobile", JWKSURL: jwks.URL, AllowedClients: []string{"android"}, RequiredScopes: []string{"remote.access"}, PublicOrigin: "https://remote.example.edu", MaxTokenLifetime: 15 * time.Minute})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -234,7 +234,7 @@ func TestPostgresSignedApprovalHTTPAndWSSComposeWithCurrentAuthority(t *testing.
 		t.Fatal(err)
 	}
 	now := time.Now().UTC().Truncate(time.Millisecond)
-	signer, err := approval.NewAuthorizationSigner("https://remote.example.edu", "dsh-approval-authority/wire-test", serviceKey, now.Add(-time.Hour), now.Add(time.Hour))
+	signer, err := approval.NewAuthorizationSigner("https://remote.example.edu", "tokenworks-mobile-approval-authority/wire-test", serviceKey, now.Add(-time.Hour), now.Add(time.Hour))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -245,14 +245,14 @@ func TestPostgresSignedApprovalHTTPAndWSSComposeWithCurrentAuthority(t *testing.
 	handler := httpapi.New(postgres, identity, httpapi.Config{Approvals: &relay.ApprovalConfig{Control: control, Leases: provider}})
 	server := httptest.NewServer(handler)
 	defer server.Close()
-	claims := map[string]any{"iss": "https://id.example.edu", "sub": "owner", "aud": "urn:dsh-remote", "client_id": "android", "jti": "approval-token", "iat": now.Unix(), "exp": now.Add(5 * time.Minute).Unix(), "scope": "remote.access", "cnf": map[string]any{"jkt": proofJKT}, "auth_time": now.Add(-2 * time.Second).Unix(), "acr": "school:2", "amr": []string{"otp"}}
+	claims := map[string]any{"iss": "https://id.example.edu", "sub": "owner", "aud": "urn:tokenworks-mobile", "client_id": "android", "jti": "approval-token", "iat": now.Unix(), "exp": now.Add(5 * time.Minute).Unix(), "scope": "remote.access", "cnf": map[string]any{"jkt": proofJKT}, "auth_time": now.Add(-2 * time.Second).Unix(), "acr": "school:2", "amr": []string{"otp"}}
 	access := approvalSign(t, issuerKey, jose.RS256, "idp-key", "at+jwt", claims, nil)
 	caller := &approvalHTTPClient{t: t, ctx: ctx, base: server.URL, key: phoneProof, jwk: proofJWK}
 	caps := []string{"approval.signed.v1", "command.relay.v1", "connection.heartbeat.v1", "session.catalog.v1", "session.read.v1"}
 	slices.Sort(caps)
 	connect := func(role, token string, key *ecdsa.PrivateKey) (*websocket.Conn, string) {
 		t.Helper()
-		connection, _, err := websocket.Dial(ctx, "ws"+strings.TrimPrefix(server.URL, "http")+"/v1/realtime", &websocket.DialOptions{Subprotocols: []string{"dsh.remote.v1"}, HTTPHeader: http.Header{"Authorization": []string{token}}})
+		connection, _, err := websocket.Dial(ctx, "ws"+strings.TrimPrefix(server.URL, "http")+"/v1/realtime", &websocket.DialOptions{Subprotocols: []string{"tokenworks-mobile.remote.v1"}, HTTPHeader: http.Header{"Authorization": []string{token}}})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -274,14 +274,14 @@ func TestPostgresSignedApprovalHTTPAndWSSComposeWithCurrentAuthority(t *testing.
 		if role == "host" {
 			proofClaims["runtime_epoch"] = epoch
 		}
-		hello["proof"] = approvalSign(t, key, jose.ES256, "", "dsh-relay-handshake-proof+jwt", proofClaims, nil)
+		hello["proof"] = approvalSign(t, key, jose.ES256, "", "tokenworks-mobile-relay-handshake-proof+jwt", proofClaims, nil)
 		approvalWrite(t, ctx, connection, map[string]any{"v": 1, "type": "hello.proof", "payload": hello})
 		if ack := approvalRead(t, ctx, connection); ack.Type != "hello.ok" {
 			t.Fatalf("handshake failed: %+v", ack)
 		}
 		return connection, connectionID
 	}
-	host, hostConnection := connect("host", "DSH-Host "+credential, hostKey)
+	host, hostConnection := connect("host", "TokenWorks-Mobile-Host "+credential, hostKey)
 	defer host.CloseNow()
 	approvalWrite(t, ctx, host, map[string]any{"v": 1, "type": "session.catalog", "request_id": approvalID, "runtime_id": runtimeID, "runtime_epoch": epoch, "payload": map[string]any{"mode": "snapshot", "index": 0, "complete": true, "items": []any{map[string]any{"session_id": sessionID, "dsh_session_id": "native-approval-transport", "workspace_id": workspaceID, "state": "running", "last_persisted_seq": -1}}}})
 	if ack := approvalRead(t, ctx, host); ack.Type != "session.catalog.ack" {
@@ -291,7 +291,7 @@ func TestPostgresSignedApprovalHTTPAndWSSComposeWithCurrentAuthority(t *testing.
 	if code != http.StatusCreated {
 		t.Fatalf("ticket failed: %d %+v", code, ticket)
 	}
-	device, deviceConnection := connect("device", "DSH-Ticket "+ticket["data"].(map[string]any)["ticket"].(string), phoneProof)
+	device, deviceConnection := connect("device", "TokenWorks-Mobile-Ticket "+ticket["data"].(map[string]any)["ticket"].(string), phoneProof)
 	defer device.CloseNow()
 	approvalWrite(t, ctx, device, map[string]any{"v": 1, "type": "approval.subscribe", "request_id": approvalID, "runtime_id": runtimeID, "payload": map[string]any{}})
 	if snapshot := approvalRead(t, ctx, device); snapshot.Type != "approval.snapshot" {

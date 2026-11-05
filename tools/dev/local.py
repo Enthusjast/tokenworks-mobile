@@ -24,9 +24,9 @@ import time
 import uuid
 
 ROOT = Path(__file__).resolve().parents[2]
-STATE = ROOT / '.local/dev'
+STATE = ROOT / '.local/tokenworks-mobile-dev'
 STATUS = STATE / 'status.json'
-SECURE_STATE = Path.home() / '.local/state/dsh-remote-development' / hashlib.sha256(str(ROOT).encode()).hexdigest()[:16]
+SECURE_STATE = Path.home() / '.local/state/tokenworks-mobile-development' / hashlib.sha256(str(ROOT).encode()).hexdigest()[:16]
 PG = Path(os.environ.get('REMOTE_DEV_PG_BIN', '/usr/lib/postgresql/18/bin'))
 SOCKET = STATE / 'ipc/probe.sock'
 PORTS = {'relay': 8080, 'issuer': 8082, 'dsh': 3000}
@@ -95,7 +95,7 @@ def relay_connected(epoch):
         return False
     try:
         runtime = json.loads((STATE / 'enrolled-runtime.json').read_text())
-        if runtime.get('purpose') != 'dsh-local-enrolled-runtime/v1':
+        if runtime.get('purpose') != 'tokenworks-mobile-local-enrolled-runtime/v1':
             return False
         runtime_id = str(uuid.UUID(runtime['runtimeId']))
         current_epoch = str(uuid.UUID(epoch))
@@ -249,7 +249,7 @@ def serve(profile, attach=None):
         issuer = ThreadingHTTPServer(('127.0.0.1', PORTS['issuer']), FixtureKeys)
         threading.Thread(target=issuer.serve_forever, daemon=True).start()
         remote_env = {name: value for name, value in os.environ.items() if not name.startswith('REMOTE_')}
-        remote_env.update(REMOTE_ISSUER='http://127.0.0.1:8082', REMOTE_AUDIENCE='urn:dsh-remote:local-dev',
+        remote_env.update(REMOTE_ISSUER='http://127.0.0.1:8082', REMOTE_AUDIENCE='urn:tokenworks-mobile:local-dev',
                           REMOTE_JWKS_URL='http://127.0.0.1:8082/jwks.json', REMOTE_CLIENT_IDS='local-dev-phone,local-dev-host',
                           REMOTE_HOST_CLIENT_IDS='local-dev-host', REMOTE_REQUIRED_SCOPES='remote.access',
                           REMOTE_PUBLIC_ORIGIN='http://127.0.0.1:8080', REMOTE_LISTEN_ADDR='127.0.0.1:8080',
@@ -286,7 +286,7 @@ def serve(profile, attach=None):
             if children['relay'].poll() is not None or time.monotonic() > deadline or stopping.wait(0.25):
                 raise RuntimeError('local relay did not become ready before fixture enrollment')
         public = json.loads((STATE / 'fixture-public.json').read_text())
-        if public.get('purpose') != 'dsh-local-development-only/v1' or public.get('issuer') != remote_env['REMOTE_ISSUER']:
+        if public.get('purpose') != 'tokenworks-mobile-local-development-only/v1' or public.get('issuer') != remote_env['REMOTE_ISSUER']:
             raise RuntimeError('local fixture identity is invalid')
         # Initialize authority only once. Restarts never revive a suspended user
         # or a revoked installation by reapplying an earlier snapshot.
@@ -305,7 +305,7 @@ def serve(profile, attach=None):
             command([str(STATE / 'remote'), 'identities', 'apply', '--authority-file', str(authority_file)], env=remote_env)
         command([node, str(FIXTURE), 'bootstrap', profile])
         enrolled = json.loads((STATE / 'enrolled-runtime.json').read_text())
-        if enrolled.get('purpose') != 'dsh-local-enrolled-runtime/v1' or enrolled.get('profileRef') != profile:
+        if enrolled.get('purpose') != 'tokenworks-mobile-local-enrolled-runtime/v1' or enrolled.get('profileRef') != profile:
             raise RuntimeError('local fixture enrollment is invalid')
         # Install the linked package in the actual npm DSH profile. Do not
         # replace its user patch, credentials, bundles, settings or sessions.
@@ -314,12 +314,12 @@ def serve(profile, attach=None):
         overlay = [
             {'id': 'hmr', 'config': {'base': ROOT.as_uri() + '/', 'root': ['host/remote-control/lib', 'tools/dev/fixture-host.mjs'],
                                     'ignored': ['**/node_modules/**', '**/*.map', '**/*.d.ts'], 'debounce': 500}},
-            {'insert': [{'id': 'ustc-remote-control-dev', 'name': str(FIXTURE),
+            {'insert': [{'id': 'tokenworks-mobile-dev', 'name': str(ROOT / 'host/remote-control/development.mjs'),
                          'config': {'enabled': True, 'runtimeId': runtime, 'socketPath': str(SOCKET),
                                     'commandJournalPath': str(SECURE_STATE / 'relay-journal/commands.sqlite'),
                                     'requireProtectedJournalKey': True, 'relayUrl': remote_env['REMOTE_PUBLIC_ORIGIN'],
                                     'applicationVersion': 'local-development-fixture',
-                                    'workspaces': [{'id': 'project', 'label': 'DSH remote development', 'cwd': str(ROOT),
+                                    'workspaces': [{'id': 'project', 'label': 'TokenWorks Mobile development', 'cwd': str(ROOT),
                                                     'remoteId': enrolled['workspaces'][0]['workspaceId']}],
                                     'presets': []}}]},
         ]
@@ -454,7 +454,7 @@ def main():
             print('ready: relay http://127.0.0.1:8080; dsh ' + current['dsh'] + '; both reloaders enabled')
             return
         if child.poll() is not None:
-            raise RuntimeError('development startup failed; inspect .local/dev/supervisor.log')
+            raise RuntimeError('development startup failed; inspect .local/tokenworks-mobile-dev/supervisor.log')
         time.sleep(0.5)
     raise RuntimeError('development startup is still pending; inspect status and private logs')
 

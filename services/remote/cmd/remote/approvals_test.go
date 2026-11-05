@@ -15,8 +15,8 @@ import (
 	"testing"
 	"time"
 
-	"dsh-mobile-ustc/services/remote/internal/auth"
-	"dsh-mobile-ustc/services/remote/internal/store"
+	"tokenworks-mobile/services/remote/internal/auth"
+	"tokenworks-mobile/services/remote/internal/store"
 )
 
 func deploymentFixture(t *testing.T) (string, approvalDeployment) {
@@ -38,7 +38,7 @@ func deploymentFixture(t *testing.T) (string, approvalDeployment) {
 	age := int64(60)
 	config.Policy.MaxAge = &age
 	config.Mappings = []auth.AssuranceMapping{{Issuer: "https://id.example.edu", ClientID: "android", Profile: "school/step-up", ACR: "school:2", RequiredAMR: []string{"otp"}}}
-	config.Signing.Issuer, config.Signing.KeyID, config.Signing.PrivateFile = "https://remote.example.edu", "dsh-approval-authority/test", "key.pem"
+	config.Signing.Issuer, config.Signing.KeyID, config.Signing.PrivateFile = "https://remote.example.edu", "tokenworks-mobile-approval-authority/test", "key.pem"
 	config.Signing.ValidFrom = time.Now().Add(-time.Hour).UTC().Truncate(time.Millisecond).Format("2006-01-02T15:04:05.000Z")
 	config.Signing.ValidUntil = time.Now().Add(time.Hour).UTC().Truncate(time.Millisecond).Format("2006-01-02T15:04:05.000Z")
 	return filepath.Join(root, "approvals.json"), config

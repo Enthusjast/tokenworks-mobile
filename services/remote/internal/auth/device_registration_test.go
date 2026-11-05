@@ -28,7 +28,7 @@ func TestDeviceRegistrationProofBindsApprovalKeyToCurrentDPoPRequest(t *testing.
 	principal := Principal{Issuer: keys.issuer, Subject: "user-ustc-123", ProofJTI: "dpop-proof-current-0001"}
 	deviceName := "phone"
 	claims := map[string]any{
-		"iss": keys.issuer, "sub": principal.Subject, "aud": "urn:dsh-mobile-ustc:device-registration",
+		"iss": keys.issuer, "sub": principal.Subject, "aud": "urn:tokenworks-mobile:device-registration",
 		"iat": keys.now.Unix(), "jti": "approval-proof-unique-0001",
 		"approval_key_jkt": approvalJKT, "proof_key_jkt": keys.proofJKT,
 		"device_name_sha256": deviceNameDigestForTest(deviceName), "dpop_jti": principal.ProofJTI,

@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 
-	"dsh-mobile-ustc/services/remote/internal/observability"
+	"tokenworks-mobile/services/remote/internal/observability"
 )
 
 // ConfigureMetrics is startup-only, before Run or any requests. A nil registry

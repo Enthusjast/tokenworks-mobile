@@ -142,7 +142,7 @@ try {
   const readerFixture = { ...fixture, session_id: sessionId, git_base: head, git_version: versionHash.digest('hex'), expected_patches: expected, human_seq: native.human_seq }
   for (const field of Object.keys(readerFixture)) if (field.startsWith('host_')) delete readerFixture[field]
   await writeFile(readerPath, JSON.stringify(readerFixture), { mode: 0o600 })
-  java = spawn(process.env.REMOTE_TEST_JAVA || 'java', ['-cp', process.env.REMOTE_TEST_KOTLIN_CLASSPATH, 'cn.edu.ustc.dsh.network.RunNativeReviewProbe', readerPath], { env: process.env, stdio: ['ignore', 'pipe', 'pipe'] })
+  java = spawn(process.env.REMOTE_TEST_JAVA || 'java', ['-cp', process.env.REMOTE_TEST_KOTLIN_CLASSPATH, 'io.github.enthusjast.tokenworks.network.RunNativeReviewProbe', readerPath], { env: process.env, stdio: ['ignore', 'pipe', 'pipe'] })
   let output = ''
   for (const stream of [java.stdout, java.stderr]) stream.setEncoding('utf8').on('data', text => { output = (output + text).slice(-8192) })
   const [code] = await once(java, 'exit')

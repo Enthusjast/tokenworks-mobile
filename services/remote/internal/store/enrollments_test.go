@@ -10,7 +10,7 @@ import (
 	"strings"
 	"testing"
 
-	"dsh-mobile-ustc/services/remote/internal/auth"
+	"tokenworks-mobile/services/remote/internal/auth"
 )
 
 func TestNormalizeEnrollmentInputCanonicalizesWorkspacesAndBindsRequestBody(t *testing.T) {

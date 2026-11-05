@@ -24,7 +24,7 @@ def main():
     if run_id != fixture["run_id"] or not re.fullmatch(r"emulator-[0-9]+", serial):
         raise RuntimeError("explicit owned emulator required")
     adb = [os.environ["REMOTE_TEST_ADB"], "-s", serial]
-    expected_avd = os.environ.get("REMOTE_TEST_ANDROID_AVD", "dsh-remote-api26")
+    expected_avd = os.environ.get("REMOTE_TEST_ANDROID_AVD", "tokenworks-mobile-remote-api26")
 
     def call(args, **kwargs):
         return subprocess.run(adb + args, check=True, timeout=kwargs.pop("timeout", 30), **kwargs)
@@ -35,7 +35,7 @@ def main():
             raise RuntimeError("owned AVD identity changed")
 
     owned()
-    package = "cn.edu.ustc.dsh.mobile"
+    package = "cn.edu.ustc.tokenworks"
     directory = "no_backup/device-composition/" + run_id
     ports = set()
     for origin in (fixture["deployment"]["remote_origin"], fixture["object_origin"]):
@@ -62,7 +62,7 @@ def main():
         print("Android phase: run actual application composition", flush=True)
         with log.open("w") as stream:
             process = subprocess.Popen(adb + ["shell", "am", "instrument", "-w", "-e", "deviceComposition", "true", "-e", "deviceCompositionRun", run_id,
-                "-e", "class", "cn.edu.ustc.dsh.mobile.DeviceCompositionTest", package + ".test/androidx.test.runner.AndroidJUnitRunner"], stdout=stream, stderr=subprocess.STDOUT)
+                "-e", "class", "cn.edu.ustc.tokenworks.DeviceCompositionTest", package + ".test/androidx.test.runner.AndroidJUnitRunner"], stdout=stream, stderr=subprocess.STDOUT)
             stopped = False
 
             def stop(*_):

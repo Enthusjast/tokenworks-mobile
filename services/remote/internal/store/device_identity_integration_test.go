@@ -9,7 +9,7 @@ import (
 	"sync"
 	"testing"
 
-	"dsh-mobile-ustc/services/remote/internal/auth"
+	"tokenworks-mobile/services/remote/internal/auth"
 )
 
 func TestDeviceRegistrationReconcilesConcurrentRetriesWithoutResurrectingAuthority(t *testing.T) {

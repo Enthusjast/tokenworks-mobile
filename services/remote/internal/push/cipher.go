@@ -57,7 +57,7 @@ func (keys *Cipher) Seal(plain []byte, binding string) ([]byte, error) {
 	if _, err := io.ReadFull(rand.Reader, nonce); err != nil {
 		return nil, ErrCipher
 	}
-	aad := append(append([]byte(nil), prefix...), []byte("\x00dsh-push-v1\x00"+binding)...)
+	aad := append(append([]byte(nil), prefix...), []byte("\x00tokenworks-mobile-push-v1\x00"+binding)...)
 	return aead.Seal(append(prefix, nonce...), nonce, plain, aad), nil
 }
 func (keys *Cipher) Open(body []byte, binding string) ([]byte, error) {
@@ -72,7 +72,7 @@ func (keys *Cipher) Open(body []byte, binding string) ([]byte, error) {
 	if aead == nil || len(body) < end+aead.NonceSize()+aead.Overhead() {
 		return nil, ErrCipher
 	}
-	aad := append(append([]byte(nil), body[:end]...), []byte("\x00dsh-push-v1\x00"+binding)...)
+	aad := append(append([]byte(nil), body[:end]...), []byte("\x00tokenworks-mobile-push-v1\x00"+binding)...)
 	plain, err := aead.Open(nil, body[end:end+aead.NonceSize()], body[end+aead.NonceSize():], aad)
 	if err != nil || len(plain) < 1 || len(plain) > 8192 {
 		clear(plain)
@@ -82,6 +82,6 @@ func (keys *Cipher) Open(body []byte, binding string) ([]byte, error) {
 }
 func (keys *Cipher) AddressHash(provider, project, address string) string {
 	hash := hmac.New(sha256.New, keys.lookup)
-	_, _ = hash.Write([]byte("dsh-push-address-v1\x00" + provider + "\x00" + project + "\x00" + address))
+	_, _ = hash.Write([]byte("tokenworks-mobile-push-address-v1\x00" + provider + "\x00" + project + "\x00" + address))
 	return hex.EncodeToString(hash.Sum(nil))
 }

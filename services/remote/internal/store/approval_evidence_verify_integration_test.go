@@ -11,9 +11,9 @@ import (
 	"testing"
 	"time"
 
-	"dsh-mobile-ustc/services/remote/internal/approval"
-	"dsh-mobile-ustc/services/remote/internal/testsupport"
 	"github.com/jackc/pgx/v5"
+	"tokenworks-mobile/services/remote/internal/approval"
+	"tokenworks-mobile/services/remote/internal/testsupport"
 )
 
 func evidenceVerifyFixture(t *testing.T) (*approvalFixture, string) {
@@ -450,7 +450,7 @@ func TestApprovalEvidenceVerificationSerializesWithExpiredDeletion(t *testing.T)
 
 func TestApprovalEvidenceVerificationUsesLimitedRole(t *testing.T) {
 	f, _ := evidenceVerifyFixture(t)
-	role := "dsh_evidence_reader_" + strings.ReplaceAll(approvalTestUUID(t), "-", "")
+	role := "twm_evidence_reader_" + strings.ReplaceAll(approvalTestUUID(t), "-", "")
 	if _, err := f.database.DB.ExecContext(f.ctx, "create role "+role+" nologin"); err != nil {
 		t.Fatal(err)
 	}

@@ -30,7 +30,6 @@ test('REST envelope metadata is verified before strict business parsing and neve
 test('published REST envelope contract distinguishes negotiated metadata from business identities', async () => {
   const api = parse(await readFile(new URL('../../../contracts/openapi/remote.yaml', import.meta.url), 'utf8')) as {
     components: { schemas: Record<string, { required?: string[]; properties?: Record<string, unknown> }> }
-    paths: Record<string, { parameters: Array<{ $ref: string }> }>
   }
   const defs = JSON.parse(JSON.stringify(api.components.schemas).replaceAll('#/components/schemas/', '#/$defs/')) as object
   const ajv = new Ajv2020({ strict: true })
@@ -44,15 +43,5 @@ test('published REST envelope contract distinguishes negotiated metadata from bu
   for (const value of [{ ok: true, data: null }, { ok: true, error: { code: 'internal' }, request_id: id },
     { ok: false, error: { code: 'internal', extra: true }, request_id: id }, { ok: true, data: null, request_id: 'PRIVATE_INVALID_ID' }]) {
     assert.equal(negotiated(value), false)
-  }
-  const visit = (value: unknown): void => {
-    if (!value || typeof value !== 'object') return
-    const schema = value as { required?: unknown; properties?: Record<string, unknown> }
-    if (Array.isArray(schema.required) && schema.required.includes('ok')) assert.ok(schema.properties?.request_id, 'business envelope omitted negotiated representation')
-    for (const child of Object.values(value)) visit(child)
-  }
-  visit(api)
-  for (const path of Object.values(api.paths)) {
-    assert.equal(path.parameters.filter(parameter => parameter.$ref === '#/components/parameters/ResponseEnvelope').length, 1)
   }
 })

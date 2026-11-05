@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "urn:dsh-mobile-ustc:ws:media:v1",
+  "$id": "urn:tokenworks-mobile:ws:media:v1",
   "description": "Negotiated strict feature frames; references convey no authority. Current owner, resource, runtime epoch, reader sync, exact manifest/anchor and independent action/export grants remain runtime requirements.",
   "oneOf": [
     {

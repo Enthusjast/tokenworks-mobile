@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://dsh-mobile-ustc.invalid/contracts/ws/v1/relay.schema.json",
-  "title": "DSH Mobile Relay v1 frames",
+  "$id": "https://tokenworks-mobile.invalid/contracts/ws/v1/relay.schema.json",
+  "title": "TokenWorks Mobile Relay v1 frames",
   "description": "Strict challenge, heartbeat, commands, scoped session reads and negotiated feature frames. Metadata requires session.metadata.v1 plus explicit metadata_version=1 and independent session.metadata.read; legacy catalog and model catalog/select shapes remain unchanged. Image parts require message.images.v1 and all existing file gates. Media references require session.media.v1/current reader and never grant independent export/download authority. Changes and message previews are bounded current-reader queries. Forks require session.fork.v1 and preserve source session_id, exact anchor/workspace and original-once partial outcomes. Runtime validators enforce cross-field identities, byte/pixel limits and current authorization. Fragmented projected payloads are at most 2 MiB.",
   "oneOf": [
     {"$ref":"#/$defs/hostFlowObservations"},

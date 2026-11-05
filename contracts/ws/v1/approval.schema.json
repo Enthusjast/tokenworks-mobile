@@ -126,7 +126,7 @@
               "properties": {
                 "domain": {
                   "type": "string",
-                  "const": "dsh-mobile-ustc/approval-context/v1"
+                  "const": "tokenworks-mobile/approval-context/v1"
                 },
                 "protocol_version": {
                   "type": "number",
@@ -946,7 +946,7 @@
               "properties": {
                 "domain": {
                   "type": "string",
-                  "const": "dsh-mobile-ustc/approval-context/v1"
+                  "const": "tokenworks-mobile/approval-context/v1"
                 },
                 "protocol_version": {
                   "type": "number",
@@ -1603,6 +1603,6 @@
       ]
     }
   },
-  "$id": "urn:dsh-mobile-ustc:ws:approval:v1",
+  "$id": "urn:tokenworks-mobile:ws:approval:v1",
   "description": "Negotiated approval.signed.v1 extension to the base Relay contract. Host actor invalidations additionally negotiate approval.invalidation.v1 and bind the exact connection. Phone decisions use fresh HTTPS JWT/DPoP admission before the Relay forwards approval.decision to the host. Context fragments contain at most 128 KiB in total, at most four ordered parts, with a three-second assembly deadline. Host result hashes cover JCS type/runtime/epoch/session/payload, excluding request_id, v and payload_sha256. Runtime validators enforce cross-field state/result and fragment bounds beyond JSON Schema."
 }

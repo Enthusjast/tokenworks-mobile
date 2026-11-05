@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"dsh-mobile-ustc/services/remote/internal/relay"
+	"tokenworks-mobile/services/remote/internal/relay"
 )
 
 func TestProductionNodeQueueLimitsLoadBeforeAdmissionAndRemainLocal(t *testing.T) {
@@ -55,7 +55,7 @@ func TestProductionNodeQueueLimitsLoadBeforeAdmissionAndRemainLocal(t *testing.T
 		}
 		// Prometheus renders the large default in exponent notation; parse
 		// through the existing fixture reader rather than matching formatting.
-		if capacityMetric(values, "dsh_remote_relay_send_limit_bytes", map[string]string{"lane": "ordinary"}) != float64(expected.OrdinaryBytes) || capacityMetric(values, "dsh_remote_relay_send_limit_bytes", map[string]string{"lane": "control"}) != float64(expected.ControlBytes) {
+		if capacityMetric(values, "tokenworks_mobile_relay_send_limit_bytes", map[string]string{"lane": "ordinary"}) != float64(expected.OrdinaryBytes) || capacityMetric(values, "tokenworks_mobile_relay_send_limit_bytes", map[string]string{"lane": "control"}) != float64(expected.ControlBytes) {
 			t.Fatal("node payload budget was not applied locally", name)
 		}
 	}
