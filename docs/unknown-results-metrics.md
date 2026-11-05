@@ -1,6 +1,6 @@
 # 当前未知结果积压快照
 
-`dsh_remote_unknown_results{kind="command|approval"}` 记录数据库最近一次成功快照中，
+`tokenworks_mobile_unknown_results{kind="command|approval"}` 记录数据库最近一次成功快照中，
 commands / approvals 的当前 state 为 outcome_unknown 的行数。它来自单条只读 SQL 的共同
 MVCC 快照，不从进程内状态转换计数相减。合法历史结果使状态离开 unknown 后，下次成功
 快照会减少；同一行反复重传不会增加积压。
@@ -20,7 +20,7 @@ MVCC 快照，不从进程内状态转换计数相减。合法历史结果使状
 | `unknown_snapshot_age_seconds` | 缓存快照的单调时钟年龄；首次成功前缺席 |
 | `unknown_snapshot_duration_seconds{result}` | 每次后台采样的单调耗时；result 为 ok / error / timeout / cancelled / invalid |
 
-共同前缀为 `dsh_remote_`。查询失败、超时或返回无效负计数时，保留上次成功的数量与时间，
+共同前缀为 `tokenworks_mobile_`。查询失败、超时或返回无效负计数时，保留上次成功的数量与时间，
 available 变为 0；不能把失败显示成“积压已清零”。成功读取空库会发布真实零值并恢复 available。
 两类计数、可用性和时间从同一份本地快照采集，不在一次 scrape 中混用两轮数据。
 
@@ -47,9 +47,9 @@ Prometheus 数值为浮点计数，不能作为持久精确账本。
 
 ```promql
 max by (cluster, kind) (
-  dsh_remote_unknown_results
-  and on (cluster, job, instance) (dsh_remote_unknown_snapshot_available == 1)
-  and on (cluster, job, instance) (dsh_remote_unknown_snapshot_age_seconds < 30)
+  tokenworks_mobile_unknown_results
+  and on (cluster, job, instance) (tokenworks_mobile_unknown_snapshot_available == 1)
+  and on (cluster, job, instance) (tokenworks_mobile_unknown_snapshot_age_seconds < 30)
 )
 ```
 

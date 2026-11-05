@@ -53,7 +53,7 @@ HTTP 路由和错误形状见 `contracts/openapi/remote.yaml`；共享严格 sch
   },
   "fcm": {
     "project_id": "your-firebase-project",
-    "package_name": "cn.edu.ustc.dsh.mobile",
+    "package_name": "cn.edu.ustc.tokenworks",
     "service_account_file": "google-service-account.json"
   }
 }

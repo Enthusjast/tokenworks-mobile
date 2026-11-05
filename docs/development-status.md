@@ -2,7 +2,7 @@
 
 [文档导航](README.md) · [项目首页](../README.md) · [历史验证与收据](verification-history.md)
 
-文档整理日期：2026-11-05；最近功能提交为 `eaaf00f`（账号网页），之前为 `5a533d4`（dsh 接入与状态 UI）。
+项目名现为 `tokenworks-mobile`，产品显示为 TokenWorks Mobile；改名包含协议和存储的不兼容切换，见[切换指南](project-identity-cutover.md)。
 本页汇总当前入口与未完成的出口，不是一份本次重新执行的产品测试报告。
 旧源码基线、运行快照和测试数量集中保留在[历史验证记录](verification-history.md)，不随本页日期更新。
 
@@ -12,7 +12,7 @@
 | --- | --- |
 | npm DSH | 根 package/lockfile 和 Host peers 锁定 `0.2.1-rc.5`；使用本机已安装的 dsh |
 | Node | 工程要求 `>=24.15.0 <25`；既有记录使用 24.20.0 |
-| Go / PostgreSQL | Go 模块为 1.26.0，既有本机验证使用 Go 1.26.10 / PostgreSQL 18；迁移按编号执行至 054 |
+| Go / PostgreSQL | Go 模块为 1.26.0，既有本机验证使用 Go 1.26.10 / PostgreSQL 18；迁移按编号执行至 055，已有数据库先隔离撤权 |
 | 本机持续开发 | [监督进程](local-development.md)启动私有 PostgreSQL、Go、TypeScript watch 和 dsh HMR |
 | 已有 dsh 接入 | [附加模式与状态 UI](dsh-desktop-plugin.md)保留原 dsh 进程，只管理自身后端和 watcher |
 | 账号网页 | [用户名密码账号](relay-accounts.md)，默认开发入口 `/account/`；可单独运行而不配置 IdP |

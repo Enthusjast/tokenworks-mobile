@@ -7,7 +7,7 @@
 
 ## 指标口径
 
-下表省略共同前缀 `dsh_remote_`。
+下表省略共同前缀 `tokenworks_mobile_`。
 
 | 指标 | 含义 |
 | --- | --- |
@@ -43,10 +43,10 @@ Host 未上报的阶段不会被指标补齐。`received` 仍只表示服务端�
 其未知命令数量在[恢复记录](database-recovery.md)中，不能用这里的 counter 代替。
 
 ```promql
-sum by (action, from, to) (rate(dsh_remote_command_transitions_total[5m]))
-sum by (origin) (increase(dsh_remote_command_transitions_total{to="outcome_unknown"}[1h]))
-histogram_quantile(0.95, sum by (le, action, state) (rate(dsh_remote_command_state_entry_age_seconds_bucket[5m])))
-histogram_quantile(0.95, sum by (le, operation, result) (rate(dsh_remote_command_store_duration_seconds_bucket[5m])))
+sum by (action, from, to) (rate(tokenworks_mobile_command_transitions_total[5m]))
+sum by (origin) (increase(tokenworks_mobile_command_transitions_total{to="outcome_unknown"}[1h]))
+histogram_quantile(0.95, sum by (le, action, state) (rate(tokenworks_mobile_command_state_entry_age_seconds_bucket[5m])))
+histogram_quantile(0.95, sum by (le, operation, result) (rate(tokenworks_mobile_command_store_duration_seconds_bucket[5m])))
 ```
 
 ## 时间与多节点边界

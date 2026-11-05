@@ -34,7 +34,7 @@ Linux 的[已登记插件入口](host-enrolled-runtime.md)在启动前检查本�
 import {
   HostEnrollmentBindingStore, HostEnrollmentClient, HostEnrollmentRecoveryStore,
   type HostEnrollmentApprovalReview, type HostEnrollmentIntent, type HostEnrollmentOptions, type HostEnrollmentReceipt, type JournalKeyProtector,
-} from '@ustc/dsh-remote-control'
+} from 'tokenworks-mobile'
 
 declare const options: HostEnrollmentOptions
 declare const protector: JournalKeyProtector

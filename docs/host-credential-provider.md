@@ -37,7 +37,7 @@ Go 服务还会独立验证 JWT / DPoP、当前账号、安装归属、登记状
 重新登记，不能用这个 provider 恢复旧 grants 或把旧安装自动移交给其他账号。
 
 ```ts
-import { HostRestCredentialProvider, createRemoteControlPlugin } from '@ustc/dsh-remote-control'
+import { HostRestCredentialProvider, createRemoteControlPlugin } from 'tokenworks-mobile'
 
 // 以下变量由已确认的安装身份和发行端登录/密钥适配层提供，不是学校 SDK 的示例 API。
 const credentials = new HostRestCredentialProvider({
@@ -63,7 +63,7 @@ origin 不允许用户信息、路径、查询或 fragment。Host Relay 还检�
 provider 只向固定 origin 发送两个 POST：`/v1/host-credentials/challenges` 和
 `/v1/host-credentials`。每次 HTTP 使用新的 ES256 DPoP proof，绑定 POST、精确 htu、
 access-token SHA-256、iat、随机 jti 及资源 nonce。安装 challenge 的 proof 使用独立用途
-`dsh-host-credential-proof+jwt`，绑定 installation、固定 audience、challenge ID 和原 nonce。
+`tokenworks-mobile-host-credential-proof+jwt`，绑定 installation、固定 audience、challenge ID 和原 nonce。
 它不把普通 DPoP 当作业务正文签名。
 
 仅对严格匹配的 401 / `DPoP error="use_dpop_nonce"`、`auth.proof_invalid` 及规范新 nonce，

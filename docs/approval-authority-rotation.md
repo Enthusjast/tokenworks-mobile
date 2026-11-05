@@ -18,7 +18,7 @@ export REMOTE_CLIENT_IDS='registered-android-client,registered-host-client'
 
 也可用 `REMOTE_APPROVAL_POLICY_FILE` 作为 policy-file 默认值。命令复用正常策略的
 字段、组织提供的 assurance 映射、私有文件及 P-256 密钥校验；映射和策略无效时不输出描述。
-输出只有 `format=dsh-approval-authority/v1`、`authority`、`policy`、`sha256`。
+输出只有 `format=tokenworks-mobile-approval-authority/v1`、`authority`、`policy`、`sha256`。
 authority 的字段正好为 Host 现有信任锚使用的 issuer、key_id、public_jwk、key_jkt、active、
 valid_from、valid_until；没有私钥、PEM 路径、OAuth client 列表或完整 assurance mappings。
 
@@ -35,7 +35,7 @@ active=true 表示该描述中的配置状态，不是“此刻可签名”的�
 ## Host 固定摘要
 
 ```ts
-import { parsePinnedApprovalAuthorityDescription } from '@ustc/dsh-remote-control'
+import { parsePinnedApprovalAuthorityDescription } from 'tokenworks-mobile'
 
 // raw 来自描述文件；trustedSHA256 来自独立可信的发行配置。
 // 不得将该文件自报的 sha256 或收到的 lease/JWS header 当作 trustedSHA256。

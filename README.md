@@ -1,9 +1,11 @@
-# dsh-mobile-ustc
+# tokenworks-mobile
 
-DSH 移动远程控制平台：进程内 Host 插件、Go 中转服务、用户名密码账号网页，以及 Android 客户端工程。
+TokenWorks Mobile 移动远程控制平台：进程内 Host 插件、Go 中转服务、用户名密码账号网页，以及 Android 客户端工程。
 Host 复用当前 dsh 的会话与模型服务；中转负责身份、授权、路由和元数据，不保存聊天正文。
 
 [文档导航](docs/README.md) · [当前能力与验收边界](docs/development-status.md) · [历史验证记录](docs/verification-history.md)
+
+本项目已切换产品标识；新包与旧客户端、签名和本机数据不兼容。[升级与重新登记说明](docs/project-identity-cutover.md)定义新包名、Android ID 和数据库隔离步骤。
 
 ## 项目结构
 

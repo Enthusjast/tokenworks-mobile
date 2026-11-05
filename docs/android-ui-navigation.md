@@ -121,7 +121,7 @@ Material surfaces, paired light/dark colors, system fonts, spacing tokens and gr
 
 ## Initial navigation verification (commit 77b19cc)
 
-2026-10-28, debug build, dedicated `dsh-remote-api26` emulator, Android 8.0 x86_64 under software emulation. Display override 720 × 1280 / 320 dpi; physical screenshot buffer 1080 × 1920. The synthetic Compose captures record their actual Compose root, density, font scale and theme in accompanying JSON. The device used its previously provisioned secure PIN and strong biometric; no enrollment or global ADB reset was performed for this run.
+2026-10-28, debug build, dedicated `tokenworks-mobile-remote-api26` emulator, Android 8.0 x86_64 under software emulation. Display override 720 × 1280 / 320 dpi; physical screenshot buffer 1080 × 1920. The synthetic Compose captures record their actual Compose root, density, font scale and theme in accompanying JSON. The device used its previously provisioned secure PIN and strong biometric; no enrollment or global ADB reset was performed for this run.
 
 - `./gradlew --no-daemon --max-workers=2 -Pkotlin.compiler.execution.strategy=in-process '-Dorg.gradle.jvmargs=-Xmx1024m -Dfile.encoding=UTF-8' check :app:assembleDebug :app:assembleDebugAndroidTest` — passed, including Android lint and JVM checks.
 - Actual default `MainActivity` startup displayed the unconfigured-school gate. The production window retained `FLAG_SECURE`; no authenticated demo mode was added.

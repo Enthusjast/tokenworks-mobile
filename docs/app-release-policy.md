@@ -31,7 +31,7 @@ remote app-releases describe --catalog-file /受控目录/releases-next.json
 
 # 读取当前 ready 数据库代次下该包的摘要和 revision；未登记时 configured=false。
 # REMOTE_DATABASE_URL、REMOTE_DATABASE_EPOCH 由部署环境提供。
-remote app-releases status --package-name cn.edu.ustc.dsh.mobile
+remote app-releases status --package-name cn.edu.ustc.tokenworks
 
 # expected-sha256 来自核对过的当前 status；operation-id 每个新变更唯一。
 remote app-releases replace \

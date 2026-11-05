@@ -26,7 +26,7 @@ import {
   HostEnrollmentBindingStore, HostEnrollmentClient, HostEnrollmentRecoveryStore,
   HostTerminalEnrollmentWorkflow,
   type HostEnrollmentOptions, type JournalKeyProtector,
-} from '@ustc/dsh-remote-control'
+} from 'tokenworks-mobile'
 
 declare const options: HostEnrollmentOptions
 declare const protector: JournalKeyProtector

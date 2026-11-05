@@ -46,7 +46,7 @@ tunnel 和对端缓冲各有自己的生命周期，不把本指标解释为进�
 ## 指标与验证
 
 私有指标新增 `relay_send_reserved_bytes{lane}` 和 `relay_send_limit_bytes{lane}`，共同
-前缀仍为 `dsh_remote_`，lane 只取 ordinary/control。前者合计等待和正在写入的 payload，
+前缀仍为 `tokenworks_mobile_`，lane 只取 ordinary/control。前者合计等待和正在写入的 payload，
 后者为本节点配置；均不使用用户、资源、帧类型或正文标签。原来的角色队列与 inflight
 指标继续区分两阶段，`relay_rejected_sends_total{reason="full"}` 同时覆盖连接和节点不足。
 

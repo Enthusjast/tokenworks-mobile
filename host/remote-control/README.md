@@ -11,12 +11,12 @@ M0 支持工作区白名单内根会话的列表、创建、文本 queue / steer
 本机 IPC 是显式选择的调试入口；仅使用 Relay 时可省略 `socketPath`。启用 IPC 时：Linux / macOS 使用权限 0700 父目录内的 Unix socket，Windows 使用按 runtime 隔离、`readableAll` 与 `writableAll` 均关闭的命名管道。修改示例配置为实际 profile 的稳定 UUID、绝对路径和已存在 preset：
 
 ```yaml
-- id: ustc-remote-control
-  name: /absolute/path/to/dsh-mobile-ustc/host/remote-control/lib/index.js
+- id: tokenworks-mobile
+  name: /absolute/path/to/tokenworks-mobile/host/remote-control/lib/index.js
   config:
     enabled: true
     runtimeId: 44444444-4444-4444-8444-444444444444
-    socketPath: /tmp/dsh-remote-private/probe.sock
+    socketPath: /tmp/tokenworks-mobile-remote-private/probe.sock
     workspaces:
       - id: project
         remoteId: 66666666-6666-4666-8666-666666666666 # workspace UUID returned by host enrollment
@@ -29,7 +29,7 @@ M0 支持工作区白名单内根会话的列表、创建、文本 queue / steer
 M1 可选配置 `relayUrl` 和真实 `applicationVersion`。启用 Relay 时，插件还需要由发行 / 主机集成提供的 `HostCredentialProvider`；不要把安装私钥写进 DSH YAML。通过 `createRemoteControlPlugin(provider)` 构造 Loader 插件入口，provider 在每次连接前取得短期主机 credential，并用 OS 安全存储中的安装密钥对握手输入签名：
 
 ```js
-import { createRemoteControlPlugin } from '/absolute/path/to/dsh-mobile-ustc/host/remote-control/lib/index.js'
+import { createRemoteControlPlugin } from '/absolute/path/to/tokenworks-mobile/host/remote-control/lib/index.js'
 import { hostCredentials } from './os-key-store.js'
 
 export const { name, inject, apply } = createRemoteControlPlugin(hostCredentials)
@@ -40,14 +40,14 @@ Linux 的已登记发行集成可使用 [createEnrolledRemoteControlPlugin](../.
 
 主插件配置中的 `relayUrl` 可用 HTTPS/WSS 地址；仅回环地址允许明文 HTTP/WS。Relay 连接和本机调试入口共用同一个 `ProbeRuntime`、命令日志与 DSH Agent。安装 credential 获取、OIDC/DPoP 调用及 OS 密钥库适配由宿主集成提供，尚未接入 TokenWorks 发行包。
 
-Windows 的 `socketPath` 形如 `\\.\pipe\dsh-mobile-ustc-<runtimeId>`。Node IPC server 将 `readableAll` 和 `writableAll` 都设为 false。当前 Linux DSH CLI 集成测试覆盖 Unix socket；命名管道访问 ACL 还需在 Windows 的 DSH CLI 测试中验收。
+Windows 的 `socketPath` 形如 `\\.\pipe\tokenworks-mobile-<runtimeId>`。Node IPC server 将 `readableAll` 和 `writableAll` 都设为 false。当前 Linux DSH CLI 集成测试覆盖 Unix socket；命名管道访问 ACL 还需在 Windows 的 DSH CLI 测试中验收。
 
 socket 父目录必须归当前用户所有、权限 0700 且不经过符号链接；插件将 socket 权限设为 0600，不覆盖已有监听。`runtimeId` 按安装用户 / profile 单独配置，重启保持不变，每次加载生成新 `runtime_epoch`。关闭或卸载插件会关闭连接、订阅和挂起交互。
 
 读取当前代次：
 
 ```sh
-curl --unix-socket /tmp/dsh-remote-private/probe.sock http://localhost/m0/probe
+curl --unix-socket /tmp/tokenworks-mobile-remote-private/probe.sock http://localhost/m0/probe
 ```
 
 操作通过 `POST /m0/command` 提交严格 JSON 信封，响应为 NDJSON：

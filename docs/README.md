@@ -52,6 +52,7 @@
 本地启动、账号页面及已运行的 dsh 接入；运行命令的范围见相应指南。
 
 - [当前开发状态与验证入口](development-status.md)
+- [TokenWorks Mobile 标识切换与重新登记](project-identity-cutover.md)
 - [本机 Go 与 dsh 持续开发](local-development.md)
 - [在已有 dsh Web 中开发远控插件](dsh-desktop-plugin.md)
 - [常驻开发 Relay 的身份夹具](local-relay-fixtures.md)

@@ -41,7 +41,7 @@ unprotect 也使用 UI_FORBIDDEN。它不提供一种可靠识别外部 DPAPI bl
 | data | protect 恰为 32 字节；unprotect 为 1–16384 字节 blob |
 
 固定请求缓冲上限为 32784 字节，额外一字节只用于识别超限；不会按声明长度分配内存。
-additional entropy 为固定域 `dsh-mobile-ustc/journal-dpapi/v1`、一个 NUL、再加原 context。
+additional entropy 为固定域 `tokenworks-mobile/journal-dpapi/v1`、一个 NUL、再加原 context。
 两个方向使用完全相同的组合。context 可以含 NUL 和二进制内容，不按 C 字符串截断。
 
 成功响应为 ASCII `DSHDPR01`、4 字节 unsigned little-endian 输出长度及输出字节。

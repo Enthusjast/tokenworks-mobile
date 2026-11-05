@@ -1,6 +1,6 @@
 # APK, Go and DSH device composition
 
-`npm run test:remote-android -- emulator-5594` explicitly selects a dedicated owned AVD for the application-to-service-to-host chain. The default required AVD name is `dsh-remote-api26`; another explicitly owned name can be supplied with `--android-avd`. A normal JVM, Go or Android test invocation does not activate this composition. The test class is selected individually rather than being mistaken for ordinary fixture-peer instrumentation.
+`npm run test:remote-android -- emulator-5594` explicitly selects a dedicated owned AVD for the application-to-service-to-host chain. The default required AVD name is `tokenworks-mobile-remote-api26`; another explicitly owned name can be supplied with `--android-avd`. A normal JVM, Go or Android test invocation does not activate this composition. The test class is selected individually rather than being mistaken for ordinary fixture-peer instrumentation.
 
 Provision that isolated emulator with a secure unlocked test PIN and enrolled strong fingerprint ID 1 before running. The committed runner checks the exact serial/AVD identity and supplies a sensor sample only after the active instrumentation run announces its matching per-use prompt. It does not create a PIN, enroll a fingerprint, or modify unrelated emulator/device settings. This automated mode accepts emulators only; physical-device acceptance remains separate.
 

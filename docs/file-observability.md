@@ -2,7 +2,7 @@
 
 生产入口启用 `REMOTE_METRICS_LISTEN_ADDR` 时，文件 worker 和仓库绑定同一私有 registry。
 停用指标时业务行为保持一致；采集器不查询数据库、不拉取对象或访问 Host。
-共同前缀为 `dsh_remote_`，标签仅使用固定词表，不含用户、设备、runtime、session、
+共同前缀为 `tokenworks_mobile_`，标签仅使用固定词表，不含用户、设备、runtime、session、
 file、handoff、attempt ID，文件名、大小、摘要、正文、对象 key、扫描策略摘要或下载凭据。
 
 ## Scanner 健康与自检
@@ -68,10 +68,10 @@ unavailable 或 other。ok 包括成功空返回与相同结果重试，不能�
 有效的其他区间仍可采样。仓库尝试耗时使用独立的进程单调时钟，不能与两个 percentile 相加。
 
 ```promql
-sum by (direction, result) (rate(dsh_remote_file_scan_attempt_duration_seconds_count[5m]))
-histogram_quantile(0.95, sum by (le, direction) (rate(dsh_remote_file_scan_attempt_duration_seconds_bucket{result="clean"}[5m])))
-histogram_quantile(0.95, sum by (le) (rate(dsh_remote_file_handoff_read_to_stage_seconds_bucket[5m])))
-sum by (operation, result) (rate(dsh_remote_file_handoff_operation_duration_seconds_count[5m]))
+sum by (direction, result) (rate(tokenworks_mobile_file_scan_attempt_duration_seconds_count[5m]))
+histogram_quantile(0.95, sum by (le, direction) (rate(tokenworks_mobile_file_scan_attempt_duration_seconds_bucket{result="clean"}[5m])))
+histogram_quantile(0.95, sum by (le) (rate(tokenworks_mobile_file_handoff_read_to_stage_seconds_bucket[5m])))
+sum by (operation, result) (rate(tokenworks_mobile_file_handoff_operation_duration_seconds_count[5m]))
 ```
 
 这些观察不属于路由 SLO，包含扫描/存储或 Host 下载与暂存等待。指标是进程本地尽力采样，

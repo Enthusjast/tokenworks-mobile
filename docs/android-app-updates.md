@@ -44,7 +44,7 @@ cd android
 ./gradlew check :app:assembleDebug :app:assembleDebugAndroidTest
 cd ..
 python3 tools/integration/run_apk_update_preflight.py \
-  --serial emulator-5594 --avd dsh-remote-api26 \
+  --serial emulator-5594 --avd tokenworks-mobile-remote-api26 \
   --installer-fixture --update-flow-fixture
 ```
 

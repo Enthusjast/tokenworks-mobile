@@ -2,7 +2,7 @@
 
 入口为 `run_remote_dsh.py --android-upgrade SERIAL --android-avd AVD --upgrade-receipt FILE`。它建立专用 PostgreSQL 数据库、宿主 TLS/OIDC 夹具和真实 Go API，随后启动 Android 安装前 / 安装后方法。身份服务保持在宿主进程，手机进程被 APK 替换终止后仍可验证同一账号。
 
-只接受 `dsh-remote-api26/36` 专用 AVD 和完整可执行同签名 v2 收据，排除物理设备及可见 preview。驱动再次验证 Manifest、DEX、签名和完整文件摘要；不接受微型无代码预安装候选。设备必须处于 debug 基线 v1，驱动不会静默降级或重置 userdata。
+只接受 `tokenworks-mobile-remote-api26/36` 专用 AVD 和完整可执行同签名 v2 收据，排除物理设备及可见 preview。驱动再次验证 Manifest、DEX、签名和完整文件摘要；不接受微型无代码预安装候选。设备必须处于 debug 基线 v1，驱动不会静默降级或重置 userdata。
 
 原生驱动将两阶段日志、公开结果与摘要证明保存在 `.local/app-self-upgrade/<run_id>/`，即使宿主临时集群清理或来源权限恢复失败也保留。目录为 0700、文件为 0600；只复制指定诊断文件，不复制 OIDC 输入、token、私钥或数据库。摘要中的 `native_passed` 只说明手机两阶段通过，最终成功仍需外层 Go 用例验证相同设备的数据库记录、下载次数及发行复查次数。
 
@@ -23,7 +23,7 @@
 
 ## 2026-10-27 修复后 API 36 完整通过
 
-专用 `dsh-remote-api36` / `emulator-5596` 使用保留 userdata 的调试基线准备后，完成一次新的系统 v1→v2 自升级。准备操作仅针对已核对 AVD、DEBUGGABLE、已安装完整摘要及同一签名的测试包；显式 `adb install -r -d` 恢复 v1 前后，68 个持久私有文件的路径 / 内容组合摘要相同，原失败批次的数据没有删除。这不是产品降级能力，也不是本轮升级成功的依据。准备记录为 `.local/app-self-upgrade-fixed-baseline-restoration.json`。
+专用 `tokenworks-mobile-remote-api36` / `emulator-5596` 使用保留 userdata 的调试基线准备后，完成一次新的系统 v1→v2 自升级。准备操作仅针对已核对 AVD、DEBUGGABLE、已安装完整摘要及同一签名的测试包；显式 `adb install -r -d` 恢复 v1 前后，68 个持久私有文件的路径 / 内容组合摘要相同，原失败批次的数据没有删除。这不是产品降级能力，也不是本轮升级成功的依据。准备记录为 `.local/app-self-upgrade-fixed-baseline-restoration.json`。
 
 本轮使用 `.local/apk-upgrade/pinned-baseline-fixed-v2/fixture.json` 的两份固定完整 APK：
 
@@ -38,7 +38,7 @@
 
 ```sh
 python3 tools/integration/run_remote_dsh.py \
-  --android-upgrade emulator-5596 --android-avd dsh-remote-api36 \
+  --android-upgrade emulator-5596 --android-avd tokenworks-mobile-remote-api36 \
   --upgrade-receipt .local/apk-upgrade/pinned-baseline-fixed-v2/fixture.json
 ```
 
@@ -48,11 +48,11 @@ python3 tools/integration/run_remote_dsh.py \
 
 ## 2026-10-27 API 26 完整通过
 
-专用 `dsh-remote-api26` / `emulator-5594` 保留原 FDE userdata，用既有测试 PIN 启动并解锁，原包仍为 versionCode 1。本轮由驱动以普通同版本替换装入上述固定基线，没有降级、卸载或清空数据。
+专用 `tokenworks-mobile-remote-api26` / `emulator-5594` 保留原 FDE userdata，用既有测试 PIN 启动并解锁，原包仍为 versionCode 1。本轮由驱动以普通同版本替换装入上述固定基线，没有降级、卸载或清空数据。
 
 首轮停在来源设置，尚未下载或安装目标：该平台的 `android.widget.Switch` 是 enabled / checkable，但不可点击；实际 ACTION_CLICK 属于带「Allow from this source」文字的外层设置行。日志为 `.local/app-self-upgrade-fixed-api26-first.log`，失败证据为 `.local/app-self-upgrade/2357b53b-bb74-4d13-8828-29a96386c79b/`。测试选择器现在读取 Switch 状态，并在限定祖先层级内匹配该系统设置行；仍要求系统包和本应用标签。API 36 的直接 Compose toggle 点击路径保留，没有增加 shell 授权或坐标批准。
 
-第二轮命令仅将上例参数改为 `--android-upgrade emulator-5594 --android-avd dsh-remote-api26`，继续使用同一固定收据及完全相同的 v1 / v2 字节。外层 Go/PostgreSQL 用例在 249.96 秒内通过，日志 `.local/app-self-upgrade-fixed-api26-second.log`；独立安装后方法在 18.541 秒内通过。完整证据为 `.local/app-self-upgrade/7fb384a3-0521-40be-b432-94c56fdfd0ae/`，测试 APK / 测试源码摘要另记于 `.local/app-self-upgrade-fixed-api26-harness.json`，应用 APK 未因选择器修正而改变。
+第二轮命令仅将上例参数改为 `--android-upgrade emulator-5594 --android-avd tokenworks-mobile-remote-api26`，继续使用同一固定收据及完全相同的 v1 / v2 字节。外层 Go/PostgreSQL 用例在 249.96 秒内通过，日志 `.local/app-self-upgrade-fixed-api26-second.log`；独立安装后方法在 18.541 秒内通过。完整证据为 `.local/app-self-upgrade/7fb384a3-0521-40be-b432-94c56fdfd0ae/`，测试 APK / 测试源码摘要另记于 `.local/app-self-upgrade-fixed-api26-harness.json`，应用 APK 未因选择器修正而改变。
 
 本轮同样通过来源设置往返、系统明确确认、原进程死亡、目标 base APK 完整摘要、同一账号 / 用户 / 设备 / 两把密钥指纹、SQLCipher 原请求及摘要、尝试次数 1 / RECONCILE、生产更新页 INSTALLED、服务设备记录及下载 / 发行复查次数。结束后来源 app-op 恢复为原默认状态（API 26 查询显示 No operations），adb reverse 为空。两端保存的证据均复核为目录 0700、四个指定文件各 0600，结果与独立安装摘要一致。
 

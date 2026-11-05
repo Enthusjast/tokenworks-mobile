@@ -16,7 +16,7 @@ import {
   HostRestCredentialProvider,
   type HostEnrollmentOptions, type HostRestCredentialOptions, type JournalKeyProtector,
   type SignedApprovalOptions,
-} from '@ustc/dsh-remote-control'
+} from 'tokenworks-mobile'
 
 // 值来自可信发行配置、当前已验证账号和受保护安装密钥。
 declare const enrollmentOptions: HostEnrollmentOptions

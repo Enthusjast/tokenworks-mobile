@@ -1,6 +1,6 @@
 # Go 服务运行指标
 
-服务使用独立的 Prometheus registry，按[命名与标签约定](https://prometheus.io/docs/practices/naming/)输出 `dsh_remote_` 指标。实现锁定 `client_golang v1.25.0`；没有使用全局默认 registry。指标包含运行统计，不包含用户、组织、设备、主机、runtime、会话、request ID、正文、路径、凭据或签名证明。
+服务使用独立的 Prometheus registry，按[命名与标签约定](https://prometheus.io/docs/practices/naming/)输出 `tokenworks_mobile_` 指标。实现锁定 `client_golang v1.25.0`；没有使用全局默认 registry。指标包含运行统计，不包含用户、组织、设备、主机、runtime、会话、request ID、正文、路径、凭据或签名证明。
 
 HTTP 故障定位使用独立的[请求关联头与安全访问日志](http-request-correlation.md)，
 每次尝试的 ID 不进入指标标签；已有业务 `request_id` 的幂等语义保持不变。
@@ -19,7 +19,7 @@ REMOTE_METRICS_LISTEN_ADDR=127.0.0.1:9090 go run ./cmd/remote
 
 ## 已有指标及精确含义
 
-下表省略共同前缀 `dsh_remote_`。
+下表省略共同前缀 `tokenworks_mobile_`。
 
 | 指标 | 含义 |
 | --- | --- |
@@ -70,11 +70,11 @@ session 路由时间由服务内部单调时钟记录，入口时间不接受远
 ## 采集示例
 
 ```promql
-sum by (role, phase) (dsh_remote_relay_connections)
-sum by (role) (rate(dsh_remote_relay_written_bytes_total[5m]))
-histogram_quantile(0.95, sum by (le, role) (rate(dsh_remote_relay_queue_duration_seconds_bucket[5m])))
-histogram_quantile(0.95, sum by (le, topic) (rate(dsh_remote_control_event_age_seconds_bucket[5m])))
-dsh_remote_control_available
+sum by (role, phase) (tokenworks_mobile_relay_connections)
+sum by (role) (rate(tokenworks_mobile_relay_written_bytes_total[5m]))
+histogram_quantile(0.95, sum by (le, role) (rate(tokenworks_mobile_relay_queue_duration_seconds_bucket[5m])))
+histogram_quantile(0.95, sum by (le, topic) (rate(tokenworks_mobile_control_event_age_seconds_bucket[5m])))
+tokenworks_mobile_control_available
 ```
 
 `relay_queued_*` 与 `relay_inflight_bytes` 查看当前资源，累计 counter / duration histogram 才用于 rate 或增量。阈值需要试点与负载基线，当前不预设已满足 SLO 的告警数值。
@@ -98,9 +98,9 @@ go test -run '^$' -bench 'Benchmark(FrameMetrics|RelayMetrics)' \
 
 ## 跨节点补充
 
-[节点路由](relay-routing.md)新增 `dsh_remote_relay_proxy_tunnels`、按固定方向统计的
-`dsh_remote_relay_proxy_inflight_bytes`、`dsh_remote_relay_tunnel_transit_duration_seconds`
-和 `dsh_remote_relay_owner_http_forwards`。入口隧道与 owner 业务连接分别计数；前者包括尚在准入的隧道。
+[节点路由](relay-routing.md)新增 `tokenworks_mobile_relay_proxy_tunnels`、按固定方向统计的
+`tokenworks_mobile_relay_proxy_inflight_bytes`、`tokenworks_mobile_relay_tunnel_transit_duration_seconds`
+和 `tokenworks_mobile_relay_owner_http_forwards`。入口隧道与 owner 业务连接分别计数；前者包括尚在准入的隧道。
 HTTP 转发上限为 128。隧道时延只覆盖一个入口转发方向，已有 session route 只覆盖 owner
 处理路径；不能相加两个 p95 来宣称完整跨节点 SLO，需认证客户端端到端负载另测。
 共享 DPoP、控制逐节点分发和双节点业务链路已有分阶段证据，目标集群容量、备份恢复和更广故障窗口仍待验收。

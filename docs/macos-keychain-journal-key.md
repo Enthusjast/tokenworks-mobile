@@ -16,15 +16,15 @@
 不要通过命令行参数、普通配置、日志或远程协议传递该值。
 
 ```ts
-import { MacOSKeychainJournalProtector, createRemoteControlPlugin } from '@ustc/dsh-remote-control'
-import type { HostCredentialProvider, SignedApprovalOptions } from '@ustc/dsh-remote-control'
+import { MacOSKeychainJournalProtector, createRemoteControlPlugin } from 'tokenworks-mobile'
+import type { HostCredentialProvider, SignedApprovalOptions } from 'tokenworks-mobile'
 
 declare const credentials: HostCredentialProvider
 declare const signedApprovals: SignedApprovalOptions
 const protector = new MacOSKeychainJournalProtector({
   executable: '/usr/bin/security',
   keychainPath: '/Users/<current-user>/Library/Keychains/login.keychain-db',
-  service: 'cn.edu.ustc.dsh.journal',
+  service: 'io.github.enthusjast.tokenworks.journal',
   account: 'preprovisioned-runtime-master',
 })
 const plugin = createRemoteControlPlugin(credentials, signedApprovals, protector)

@@ -7,7 +7,7 @@ authority key ID、参数、正文或签名证明。采集器不访问数据库�
 
 ## 状态与执行事实分开
 
-共同前缀为 `dsh_remote_`。
+共同前缀为 `tokenworks_mobile_`。
 
 | 指标 | 含义 |
 | --- | --- |
@@ -69,10 +69,10 @@ commit 中或网络投递前过期。commit 已确认但检查时已过期，准
 consumed 回报恰好对应某个 renewal；不要据此计算精确活跃租约数量或每条 lease 的消费率。
 
 ```promql
-sum by (to, cause) (rate(dsh_remote_approval_state_transitions_total[5m]))
-sum by (outcome) (increase(dsh_remote_approval_host_transitions_total{to="settled"}[1h]))
-sum by (decision, result) (rate(dsh_remote_approval_lease_availability_checks_total[5m]))
-histogram_quantile(0.95, sum by (le, decision) (rate(dsh_remote_approval_lease_remaining_seconds_bucket[5m])))
+sum by (to, cause) (rate(tokenworks_mobile_approval_state_transitions_total[5m]))
+sum by (outcome) (increase(tokenworks_mobile_approval_host_transitions_total{to="settled"}[1h]))
+sum by (decision, result) (rate(tokenworks_mobile_approval_lease_availability_checks_total[5m]))
+histogram_quantile(0.95, sum by (le, decision) (rate(tokenworks_mobile_approval_lease_remaining_seconds_bucket[5m])))
 ```
 
 这些是进程本地、尽力采样的计数。关闭指标、进程重启、commit 确认丢失或提交后立刻崩溃可能造成

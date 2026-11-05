@@ -16,7 +16,7 @@
 
 ```sh
 # REMOTE_DATABASE_URL、REMOTE_DATABASE_EPOCH 从受控部署环境提供。
-remote app-releases status --package-name cn.edu.ustc.dsh.mobile
+remote app-releases status --package-name cn.edu.ustc.tokenworks
 remote app-releases describe --catalog-file /受控目录/current-releases.json
 
 # 仅在可信当前目录与恢复库中的策略完全一致时确认。

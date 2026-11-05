@@ -16,7 +16,7 @@ audience、client ID 或 JWKS 地址。学校配置尚未登记时只能使用�
 import {
   HostEnrollmentClient, HostResourceJwtProvider, HostRestCredentialProvider,
   type HostResourceIdentity, type HostResourceTokenSource,
-} from '@ustc/dsh-remote-control'
+} from 'tokenworks-mobile'
 
 // 这些值由发行端的可信配置和当前登录账号提供。
 declare const origin: string

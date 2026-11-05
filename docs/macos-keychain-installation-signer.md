@@ -22,7 +22,7 @@ Keychain，也不会修改其搜索列表、条目、访问控制或文件权限
 import {
   MacOSKeychainInstallationSigner, HostRestCredentialProvider,
   type HostResourceAccessProvider, type HostResourceIdentity,
-} from '@ustc/dsh-remote-control'
+} from 'tokenworks-mobile'
 
 declare const account: HostResourceAccessProvider
 declare const identity: HostResourceIdentity
@@ -32,7 +32,7 @@ declare const remoteOrigin: string
 const signer = new MacOSKeychainInstallationSigner({
   executable: '/usr/bin/security',
   keychainPath: '/Users/<current-user>/Library/Keychains/login.keychain-db',
-  service: 'cn.edu.ustc.dsh.installation',
+  service: 'io.github.enthusjast.tokenworks.installation',
   account: 'preprovisioned-installation-reference',
   publicJwk,
   ownerSignal: account.signal,

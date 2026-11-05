@@ -12,18 +12,20 @@ npm run dev:stop
 Linux。可用 `REMOTE_DEV_GO`、`REMOTE_DEV_PG_BIN` 指定已安装工具，用
 `python3 tools/dev/local.py start --profile <name>` 指定本机 dsh profile，默认 `web`。
 
+项目标识已切换，新运行状态为 `.local/tokenworks-mobile-dev`；旧 `.local/tokenworks-mobile-dev` 和旧 HOME 私密身份保持原样，不自动复用。首次使用新状态需重新登记，见[切换说明](project-identity-cutover.md)。
+
 | 入口 | 地址／位置 |
 | --- | --- |
 | Go HTTP／WebSocket | http://127.0.0.1:8080 |
 | Go 就绪检查 | http://127.0.0.1:8080/readyz，成功为 204 |
 | 本地测试 JWKS | http://127.0.0.1:8082/jwks.json |
 | dsh Web | http://127.0.0.1:3000 |
-| 插件本机 IPC | `.local/dev/ipc/probe.sock` |
-| 开发状态与日志 | `.local/dev/status.json`、`supervisor.log`、`relay.log`、`go-build.log`、`typescript.log`、`dsh.log` |
+| 插件本机 IPC | `.local/tokenworks-mobile-dev/ipc/probe.sock` |
+| 开发状态与日志 | `.local/tokenworks-mobile-dev/status.json`、`supervisor.log`、`relay.log`、`go-build.log`、`typescript.log`、`dsh.log` |
 
 dsh Web 仍使用自身浏览器授权机制；访问凭据只在私有 `dsh.log` 中，不写进文档、提交或状态
 输出。监督进程、全部监听和 PostgreSQL 都限定在本机；数据库只开放私有 Unix socket，
-不占用系统 PostgreSQL 的 5432 端口。状态和数据库放在当前用户拥有的 0700 `.local/dev`；身份密钥、绑定与签名日志改用
+不占用系统 PostgreSQL 的 5432 端口。状态和数据库放在当前用户拥有的 0700 `.local/tokenworks-mobile-dev`；身份密钥、绑定与签名日志改用
 用户状态目录的独立私有路径，详见[本地登记夹具](local-relay-fixtures.md)。
 
 ## 修改后如何生效
@@ -40,7 +42,7 @@ dsh Web 仍使用自身浏览器授权机制；访问凭据只在私有 `dsh.log
   保留数据库、身份／绑定、插件日志和已安装的 profile 链接，以便下次继续。不会停止其它 dsh 或数据库。
 
 插件通过正式 `dsh plugin --profile web add link:<仓库>/host/remote-control` 安装为本机
-profile 依赖。开发启动额外传入 `.local/dev/dsh.patch.yml`，启用 HMR 和插件本机 IPC，
+profile 依赖。开发启动额外传入 `.local/tokenworks-mobile-dev/dsh.patch.yml`，启用 HMR 和插件本机 IPC，
 只允许本仓库工作区；不覆写原 cordis.patch.yml、账号凭据、profile bundles 或会话。
 直接执行不带该 overlay 的 `dsh web` 不会启用这个开发入口。
 
@@ -64,15 +66,15 @@ node lease；健康检查成功或目录记录存在都不能单独将它设为 
 
 此前开发启动器的验证记录：
 
-- `.local/dev/rc5-verify.log`：协议检查、类型检查、构建及 Host 495 项全部通过，包含实际本机
+- `.local/tokenworks-mobile-dev/rc5-verify.log`：协议检查、类型检查、构建及 Host 495 项全部通过，包含实际本机
   npm dsh rc.5 的 CLI 回归。
-- `.local/dev/rc5-native-composition.log`：真实 Go 入口、隔离 PostgreSQL、npm dsh rc.5 联合
+- `.local/tokenworks-mobile-dev/rc5-native-composition.log`：真实 Go 入口、隔离 PostgreSQL、npm dsh rc.5 联合
   用例通过，覆盖签名登记／凭据、会话、消息与快照、问题、撤权。身份和模型均为本地夹具，
   该临时联合环境与上面的常驻服务分别运行。
-- `.local/dev/reload-proof.json`：实际修改再恢复 TypeScript 和 Go 源码，插件 epoch 两次更新、
+- `.local/tokenworks-mobile-dev/reload-proof.json`：实际修改再恢复 TypeScript 和 Go 源码，插件 epoch 两次更新、
   dsh PID 不变，Go PID 两次更新且 readyz 恢复；另验证重复启动、停止后重启，以及 relay
   退出后保留 dsh、通过源码变更恢复。源码摘要记录在证明文件中。
-- `.local/dev/ipc-smoke-proof.json`：当前常驻插件实际返回 session.list.result，未发起推理调用。
+- `.local/tokenworks-mobile-dev/ipc-smoke-proof.json`：当前常驻插件实际返回 session.list.result，未发起推理调用。
 
 Android APP、模拟器／真机、大负载和厂商推送配置未参与此开发环境启动。真实学校账号、
 平台安全存储、生产部署及各平台验收仍需相应证据。

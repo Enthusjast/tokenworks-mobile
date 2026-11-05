@@ -49,7 +49,7 @@ verify 不需要 Go，不启动候选二进制。先校验清单摘要，再检�
 
 ## 内容与使用边界
 
-归档固定为 `remote-service-linux-amd64.tgz`：
+归档固定为 `tokenworks-mobile-service-linux-amd64.tgz`：
 
 - `service/bin/remote`：0755 静态服务二进制。
 - `service/module/go.mod`、`go.sum`：模块记录。

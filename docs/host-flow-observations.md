@@ -53,7 +53,7 @@ runtime／epoch／connection。每个连接的报告尝试最多每秒处理一�
 报告字段里的连接身份仅用于复核，不作为指标标签，不写入业务数据库。Collector 只读取
 本地计数；没有在 scrape 时查询 Host 或数据库。
 
-指标共同前缀 `dsh_remote_`：
+指标共同前缀 `tokenworks_mobile_`：
 
 | 指标 | 含义 |
 | --- | --- |
@@ -62,8 +62,8 @@ runtime／epoch／connection。每个连接的报告尝试最多每秒处理一�
 | host_flow_reports_total{result} | accepted / duplicate / rejected / throttled / denied |
 
 ```promql
-sum by (stage, kind) (rate(dsh_remote_host_flow_events_total[5m]))
-sum by (result) (rate(dsh_remote_host_flow_reports_total[5m]))
+sum by (stage, kind) (rate(tokenworks_mobile_host_flow_events_total[5m]))
+sum by (result) (rate(tokenworks_mobile_host_flow_reports_total[5m]))
 ```
 
 未出现某个系列不证明源事件为零：可能未协商、没有新样本、上报受阻或窗口已关闭。这些仍是

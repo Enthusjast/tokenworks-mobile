@@ -6,14 +6,14 @@
 和[连接凭据 provider](host-credential-provider.md)。
 
 ```ts
-import { LinuxInstallationKeyStore } from '@ustc/dsh-remote-control'
+import { LinuxInstallationKeyStore } from 'tokenworks-mobile'
 
 declare const ownerSignal: AbortSignal // 安装所有者退出或身份切换时取消
 declare const operationSignal: AbortSignal
 const keys = new LinuxInstallationKeyStore({
   path: '/home/example/.local/share/dsh-remote/installation/reference.json',
   executable: '/usr/bin/secret-tool',
-  service: 'ustc-dsh-installation',
+  service: 'tokenworks-mobile-installation',
   ownerSignal,
 })
 let installation = await keys.open(operationSignal)

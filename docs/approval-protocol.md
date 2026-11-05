@@ -12,7 +12,7 @@ Enable the server only through `REMOTE_APPROVAL_POLICY_FILE`. Omission leaves bo
     "acr": "urn:example:verified", "required_amr": ["otp"]
   }],
   "signing": {
-    "issuer": "https://remote.example.edu", "key_id": "dsh-approval-authority/current",
+    "issuer": "https://remote.example.edu", "key_id": "tokenworks-mobile-approval-authority/current",
     "private_key_file": "/run/secrets/approval-key.pem",
     "valid_from": "<UTC millisecond timestamp>", "valid_until": "<UTC millisecond timestamp>"
   }

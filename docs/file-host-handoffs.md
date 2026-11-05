@@ -17,12 +17,12 @@ Host 启用远控 Relay 后提供 `file.handoff.v1`，只有服务端也提供�
 
 1. Go 每秒为当前 Host 查找至多两个待交接文件，仅选当前 scanner policy 下 clean、会话可写、原始上传设备 / key / grant 仍有效的对象。每连接至多追踪 32 个交接；Host 至多并行下载两个文件。
 2. `file.offer` 包含不可变名称 / 大小 / SHA-256、原始上传用户和设备、授权版本、交接 UUID、一次性读取 ticket 及期限。每文件只允许一个活动交接，最多每分钟十次重建。达到限制的文件不阻塞其他待交接文件。
-3. Host 从已经认证的 Relay origin 构造 `GET /v1/host-files/{handoff_id}/content`。它使用 `Authorization: DSH-File <ticket>` 和 `X-DSH-File-Proof`，拒绝重定向、内容压缩和不匹配的响应长度 / 类型。不会向对象服务传递安装凭据或学校 token。
+3. Host 从已经认证的 Relay origin 构造 `GET /v1/host-files/{handoff_id}/content`。它使用 `Authorization: TokenWorks-Mobile-File <ticket>` 和 `X-TokenWorks-Mobile-File-Proof`，拒绝重定向、内容压缩和不匹配的响应长度 / 类型。不会向对象服务传递安装凭据或学校 token。
 4. Go 事务校验已登记安装公钥、原始上传者和当前资源授权，再原子消费 ticket。无效证明不消费 ticket，并发有效请求只有一个成功。ticket 仅保存 SHA-256。消费后的网络失败需要重新 offer，不能重放旧 GET。
 5. Go 通过私有 S3 SDK 代理读取已提交对象。Host 将流拆成不超过 64 KiB 的块，由原生准入层核对准确大小和 SHA-256，随后保留目标会话的临时 receipt。上传不会写入或覆盖工作区路径。
 6. Host 只发送 `file.staged` 的文件 ID、交接 ID 和准入后的名称 / 大小 / 摘要。服务端持久确认后回 `file.staged.ack`，Host 才开放该临时映射。确认会标记相应 `file.clean` outbox 事件已处理，但不代表任何消息已进入 Agent 队列。
 
-读取证明的头必须严格为 `typ=dsh-file-read-proof+jwt, alg=ES256`。payload 只包含 `iss/aud/htm/htu/runtime_id/runtime_epoch/connection_id/handoff_id/file_id/ath/iat/jti`，audience 固定为 `urn:dsh-mobile-ustc:file-read`，`ath` 为 ticket 字符串的 base64url SHA-256。GET 路径和公开 origin 必须准确匹配，`iat` 最大偏差 30 秒。不能用证明内嵌公钥替代已登记密钥。Node / Go 共用 `contracts/security/file-read-proof.json`，其中所有密钥均为公开测试夹具。
+读取证明的头必须严格为 `typ=tokenworks-mobile-file-read-proof+jwt, alg=ES256`。payload 只包含 `iss/aud/htm/htu/runtime_id/runtime_epoch/connection_id/handoff_id/file_id/ath/iat/jti`，audience 固定为 `urn:tokenworks-mobile:file-read`，`ath` 为 ticket 字符串的 base64url SHA-256。GET 路径和公开 origin 必须准确匹配，`iat` 最大偏差 30 秒。不能用证明内嵌公钥替代已登记密钥。Node / Go 共用 `contracts/security/file-read-proof.json`，其中所有密钥均为公开测试夹具。
 
 成功读取和暂存分别产生 `file.host_read`、`file.host_staged` 安装主体审计；读取审计与 ticket 消费同事务，暂存重试只记一次。审计仅记录资源 ID、连接 / 代次、密钥版本、大小和摘要，不记录 ticket、文件名、路径、receipt 或内容。
 

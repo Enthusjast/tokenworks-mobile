@@ -37,8 +37,8 @@
 正文、SQL 或错误文本。指标仍使用现有固定前缀，不新增动态标签：
 
 ```promql
-sum by (operation, result) (rate(dsh_remote_host_native_operations_total{operation=~"journal_command|journal_approval"}[5m]))
-histogram_quantile(0.95, sum by (le, operation, result) (rate(dsh_remote_host_native_operation_duration_seconds_bucket{operation=~"journal_command|journal_approval"}[5m])))
+sum by (operation, result) (rate(tokenworks_mobile_host_native_operations_total{operation=~"journal_command|journal_approval"}[5m]))
+histogram_quantile(0.95, sum by (le, operation, result) (rate(tokenworks_mobile_host_native_operation_duration_seconds_bucket{operation=~"journal_command|journal_approval"}[5m])))
 ```
 
 这些是当前已认证 Host 的自报运行观察，不能授权调用或替代 journal、审批证明及服务端账本。

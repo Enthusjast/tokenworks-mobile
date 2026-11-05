@@ -44,11 +44,11 @@ API 26/27 使用 `GET_SIGNATURES`。28+ 同时请求 `GET_SIGNATURES | GET_SIGNI
 cd android
 ./gradlew check :app:assembleDebug :app:assembleDebugAndroidTest
 cd ..
-python3 tools/integration/run_apk_update_preflight.py --serial emulator-5594 --avd dsh-remote-api26
-python3 tools/integration/run_apk_update_preflight.py --serial emulator-5596 --avd dsh-remote-api36 --prepare-dex
+python3 tools/integration/run_apk_update_preflight.py --serial emulator-5594 --avd tokenworks-mobile-remote-api26
+python3 tools/integration/run_apk_update_preflight.py --serial emulator-5596 --avd tokenworks-mobile-remote-api36 --prepare-dex
 ```
 
-runner 要求显式的测试 emulator serial 与匹配的 `dsh-remote-api...` 名称，排除可见 preview 与物理设备。它验证默认主 APK 没有学校 / push / 测试资产，检查测试 APK 完整，然后只安装普通 app/test APK。候选 APK 仅被下载和校验；测试逐项确认原安装快照及本应用 installer session ID 集合未变化。没有卸载、重置 userdata、触碰其他 AVD 或自动确认安装。
+runner 要求显式的测试 emulator serial 与匹配的 `tokenworks-mobile-remote-api...` 名称，排除可见 preview 与物理设备。它验证默认主 APK 没有学校 / push / 测试资产，检查测试 APK 完整，然后只安装普通 app/test APK。候选 APK 仅被下载和校验；测试逐项确认原安装快照及本应用 installer session ID 集合未变化。没有卸载、重置 userdata、触碰其他 AVD 或自动确认安装。
 
 ## 验证记录
 

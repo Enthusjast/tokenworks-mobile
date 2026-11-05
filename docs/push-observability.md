@@ -7,7 +7,7 @@ FID、地址摘要、provider message ID、challenge、撤销凭据、token、�
 
 ## 三种事实
 
-共同前缀为 `dsh_remote_`。
+共同前缀为 `tokenworks_mobile_`。
 
 | 指标 | 记录点 |
 | --- | --- |
@@ -58,10 +58,10 @@ unavailable / other。ok 包括相同回执成功去重；它不等于新增客�
 没有为每个 notification 建立指标标签或缓存，不能从这些计数计算精确当前积压/送达率。
 
 ```promql
-sum by (kind, result) (rate(dsh_remote_push_provider_send_duration_seconds_count[5m]))
-sum by (kind, state, code) (rate(dsh_remote_push_delivery_results_total[5m]))
-sum by (kind, state) (increase(dsh_remote_push_client_receipts_total[1h]))
-histogram_quantile(0.95, sum by (le, kind, state) (rate(dsh_remote_push_client_receipt_age_seconds_bucket[5m])))
+sum by (kind, result) (rate(tokenworks_mobile_push_provider_send_duration_seconds_count[5m]))
+sum by (kind, state, code) (rate(tokenworks_mobile_push_delivery_results_total[5m]))
+sum by (kind, state) (increase(tokenworks_mobile_push_client_receipts_total[1h]))
+histogram_quantile(0.95, sum by (le, kind, state) (rate(tokenworks_mobile_push_client_receipt_age_seconds_bucket[5m])))
 ```
 
 ## 本地验证范围

@@ -15,7 +15,7 @@
 只对这个本地夹具自动确认，不代表有人进行真实的手机或桌面确认。
 
 已有批准每次启动都向 Go 在线复核。中断的申请恢复原 request_id／配对码；缺少原申请、
-过期、冲突或撤销时失败关闭，不删除记录重新配对。原来的 `.local/dev/runtime.json` 和
+过期、冲突或撤销时失败关闭，不删除记录重新配对。原来的 `.local/tokenworks-mobile-dev/runtime.json` 和
 M0 `journal` 保留，签名模式使用自己独立的运行实例与日志。
 
 插件通过 createEnrolledRemoteControlPlugin 装配，继续验证绑定、工作区 UUID、安装身份和
@@ -32,13 +32,13 @@ M0 `journal` 保留，签名模式使用自己独立的运行实例与日志。
 私钥、封装主密钥、绑定、恢复记录及签名命令日志保存在：
 
 ```text
-~/.local/state/dsh-remote-development/<仓库绝对路径 SHA-256 前16位>/
+~/.local/state/tokenworks-mobile-development/<仓库绝对路径 SHA-256 前16位>/
 ```
 
 专用目录为 0700，文件为 0600，正常 Host 的目录、符号链接和文件检查保留。仓库 `.local`
 可能允许组写，不能拿它充当受保护绑定的祖先目录；本实现不修改仓库或其它 profile 的权限。
 这里的 file-backed protector 仅用于开发：复制密钥目录仍可获得封装主密钥和安装私钥，
-不能宣称已完成 OS 密钥库接入。旧版保留在 `.local/dev` 中的夹具文件不再用于当前身份。
+不能宣称已完成 OS 密钥库接入。旧版保留在 `.local/tokenworks-mobile-dev` 中的夹具文件不再用于当前身份。
 
 状态 `relay_plugin_connected` 是瞬时连接观察值，不是执行许可。它必须同时匹配当前本机
 probe epoch、runtime connection、dispatcher incarnation／route 及有效 node lease。

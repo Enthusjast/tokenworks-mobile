@@ -44,7 +44,7 @@ Run the vault tests on an explicitly prepared, secure, unlocked test device:
 ```sh
 cd android
 ANDROID_SERIAL=<test-serial> ./gradlew :core:keystore:connectedDebugAndroidTest -PvaultFixture=true \
-  -Pandroid.testInstrumentationRunnerArguments.class=cn.edu.ustc.dsh.keystore.AccountVaultTest
+  -Pandroid.testInstrumentationRunnerArguments.class=io.github.enthusjast.tokenworks.keystore.AccountVaultTest
 ```
 
 The test opt-in checks the lock; it does not configure one, unlock a real device, enroll biometrics or authorize unrelated prompts. The fixture PIN belongs only to this task's disposable emulator.

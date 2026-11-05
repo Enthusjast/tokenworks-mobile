@@ -38,9 +38,9 @@ API 26 实测在 SELinux Enforcing 下，即便 session 尚未封存，普通应
 
 ```sh
 python3 tools/integration/run_apk_update_preflight.py \
-  --serial emulator-5594 --avd dsh-remote-api26 --installer-fixture
+  --serial emulator-5594 --avd tokenworks-mobile-remote-api26 --installer-fixture
 python3 tools/integration/run_apk_update_preflight.py \
-  --serial emulator-5596 --avd dsh-remote-api36 --installer-fixture --prepare-dex
+  --serial emulator-5596 --avd tokenworks-mobile-remote-api36 --installer-fixture --prepare-dex
 ```
 
 runner 只接受明确拥有的测试 AVD，安装普通 app/test APK，临时打开此应用的未知来源 app-op 并在 finally 中恢复原值；不授予特权安装权限，不操作 preview 或物理设备。以上是验证入口，实际运行结论应以记录中的平台、最终构建和通过数为准。完整应用的真实自更新、升级后数据保存、进程死亡、来源权限设置往返和 OEM 安装行为仍需后续独立验收。

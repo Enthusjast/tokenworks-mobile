@@ -1,6 +1,6 @@
 # Go 服务离线版本信息
 
-`remote version` 和 `remote --version` 直接向 stdout 输出 `dsh-remote-service-version/v1` JSON，
+`remote version` 和 `remote --version` 直接向 stdout 输出 `tokenworks-mobile-remote-service-version/v1` JSON，
 包含 Go 版本、编译平台、源码 revision 和源码清单摘要。它们不读取部署配置，不连接数据库，
 也不启动 HTTP／Relay、身份或密钥服务；额外参数被拒绝。
 

@@ -41,7 +41,7 @@ WebSocket Hijack。它也不处理升级之后的消息内容。
 
 ## JSON 响应格式协商
 
-请求携带单个 `X-DSH-Response-Envelope: request-id.v1` 后，标准 JSON 响应增加顶层
+请求携带单个 `X-TokenWorks-Mobile-Response-Envelope: request-id.v1` 后，标准 JSON 响应增加顶层
 `request_id`，同时通过同名响应头确认格式。该 ID 必须与 `X-Request-ID` 相等。
 成功响应为 `{ok:true,data:...,request_id:...}`；错误响应为
 `{ok:false,error:{code:...},request_id:...}`。这是 PLAN §6.2 的响应关联格式，

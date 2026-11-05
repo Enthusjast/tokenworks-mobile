@@ -16,7 +16,7 @@ Unix socket 或经验证的 TLS/TCP 使用实际配置。成功只输出一条 J
 
 ```json
 {
-  "format": "dsh-remote-file-check/v1",
+  "format": "tokenworks-mobile-remote-file-check/v1",
   "configuration_valid": true,
   "scanner_self_test": "passed",
   "policy_sha256": "<实际受保护扫描策略的 SHA-256>",

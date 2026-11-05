@@ -26,7 +26,7 @@ Secret Service 读取**预先配置**的安装私钥，用于资源请求、一�
 import {
   HostRestCredentialProvider, LinuxSecretServiceInstallationSigner,
   type HostResourceAccessProvider, type HostResourceIdentity,
-} from '@ustc/dsh-remote-control'
+} from 'tokenworks-mobile'
 
 declare const account: HostResourceAccessProvider
 declare const identity: HostResourceIdentity
@@ -35,7 +35,7 @@ declare const publicJwk: { kty: 'EC'; crv: 'P-256'; x: string; y: string }
 declare const remoteOrigin: string
 const signer = new LinuxSecretServiceInstallationSigner({
   executable: '/usr/bin/secret-tool',
-  service: 'ustc-dsh-installation',
+  service: 'tokenworks-mobile-installation',
   account: 'stable-installation-reference',
   publicJwk,
   ownerSignal: account.signal,

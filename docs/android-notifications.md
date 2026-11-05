@@ -14,7 +14,7 @@ Firebase Messaging 精确锁定为 26.0.1，依赖锁和 SHA-256 校验文件一
 {
   "v": 1,
   "deployment_sha256": "<canonical deployment.json SHA-256>",
-  "package_name": "cn.edu.ustc.dsh.mobile",
+  "package_name": "cn.edu.ustc.tokenworks",
   "fcm": {
     "project_id": "your-firebase-project",
     "application_id": "1:123456789:android:0123456789abcdef",
@@ -80,8 +80,8 @@ routing vault 位于 `noBackupFilesDir`，不与账号凭据库混用。它只�
 ```sh
 adb -s <owned-test-serial> shell am instrument -w \
   -e accountFixture true -e networkFixture true \
-  -e class cn.edu.ustc.dsh.mobile.NotificationCenterTest,cn.edu.ustc.dsh.mobile.NotificationFlowTest \
-  cn.edu.ustc.dsh.mobile.test/androidx.test.runner.AndroidJUnitRunner
+  -e class cn.edu.ustc.tokenworks.NotificationCenterTest,cn.edu.ustc.tokenworks.NotificationFlowTest \
+  cn.edu.ustc.tokenworks.test/androidx.test.runner.AndroidJUnitRunner
 ```
 
 本轮 Go 修复也通过通知定向 PostgreSQL / HTTPS 回归和完整隔离 Go race / Kotlin / 真实 npm DSH 0.2.1-rc.2 组合，记录为 `.local/push-api-regression.log` 和 `.local/android-push-full-chain.log`；没有尝试 TokenWorks。

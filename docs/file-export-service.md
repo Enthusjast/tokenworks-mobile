@@ -49,7 +49,7 @@ down 迁移只使导出失效、终止扫描并保留对象与配额追踪，不
 
 正文入口经过正常手机客户端限制、JWT / DPoP、活动设备和实时权限解析。另一个设备及 Host OAuth 客户端都不能仅凭文件 UUID 下载原设备的私有导出。下载要求正确的已提交对象键、已上传证明、当前 scanner policy 和未过期文件；当前设备 key 不得把旧 key 的私有导出直接升级为新权限。
 
-响应使用 application/octet-stream、attachment 文件名、准确 Content-Length / X-DSH-Content-SHA256、nosniff 与 no-store/no-transform。拒绝 Range 和 query/object-key 选择器。服务端重新校验实际字节，并在完成长度与摘要验证前保留最后一块；对象服务提供的新 checksum 不能覆盖原 manifest。
+响应使用 application/octet-stream、attachment 文件名、准确 Content-Length / X-TokenWorks-Mobile-Content-SHA256、nosniff 与 no-store/no-transform。拒绝 Range 和 query/object-key 选择器。服务端重新校验实际字节，并在完成长度与摘要验证前保留最后一块；对象服务提供的新 checksum 不能覆盖原 manifest。
 
 每次流最多五分钟且不超过 token / 文件到期。授权使用五秒短租约、每半秒复核；独立取消计时器确保阻塞中的数据库续期不会延长旧租约。即使新 grant 仍允许相同操作，generation 变化也终止已经打开的旧流，新请求须重新授权。撤权、token / 租约到期、进程关闭和客户端取消都会关闭对象读取，慢写也有独立期限。
 

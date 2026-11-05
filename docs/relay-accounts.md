@@ -6,7 +6,7 @@ Go 内嵌 HTML/CSS/JavaScript，无前端构建步骤、CDN、外部字体或客
 
 ## 开启
 
-先依次应用迁移至 `054_account_session_revocation`（含 `053_local_accounts`），然后设置：
+先依次应用迁移至 `055_tokenworks_mobile_identity`（含 053/054）；已有旧身份数据库先按[标识切换](project-identity-cutover.md)隔离升级，然后设置：
 
 ```sh
 export REMOTE_ACCOUNTS_ORIGIN='https://remote.example.edu'
@@ -32,7 +32,7 @@ origin 必须是精确的 HTTPS origin，不带路径、查询、用户信息或
 
 - 用户名为 3–32 位 ASCII 字母、数字、`_ . -`，首位是字母或数字，去除首尾空白并转小写。
 - 新密码至少 12 个 Unicode 字符、最多 256 UTF-8 字节；不修剪密码，允许空格、粘贴和密码管理器。
-- 注册生成新的内部用户 UUID 和独立随机 subject，issuer 固定为 `urn:dsh-remote:local-account:v1`。
+- 注册生成新的内部用户 UUID 和独立随机 subject，issuer 固定为 `urn:tokenworks-mobile:local-account:v1`。
   不按用户名或邮箱关联已有学校用户。注册不创建组织成员关系、设备、安装或主机 grants。
 - 网页主机概览复用既有 `ListHosts` 归属和授权查询，仅显示当前账号的可见元数据。
   新账号正常显示空列表；已有组织关系也不自动授予主机访问权限。

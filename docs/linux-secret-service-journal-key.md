@@ -25,13 +25,13 @@ Linux 实现。它调用受信任的 `secret-tool lookup`，从当前用户的 S
 import {
   LinuxSecretServiceJournalProtector, createRemoteControlPlugin,
   type HostCredentialProvider, type SignedApprovalOptions,
-} from '@ustc/dsh-remote-control'
+} from 'tokenworks-mobile'
 
 declare const hostCredentials: HostCredentialProvider
 declare const signedApprovalOptions: SignedApprovalOptions
 const protector = new LinuxSecretServiceJournalProtector({
   executable: '/usr/bin/secret-tool',
-  service: 'ustc-dsh-journal',
+  service: 'tokenworks-mobile-journal',
   account: 'stable-installation-reference',
 })
 const plugin = createRemoteControlPlugin(hostCredentials, signedApprovalOptions, protector)

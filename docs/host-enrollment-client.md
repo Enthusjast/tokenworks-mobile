@@ -13,7 +13,7 @@
 import {
   HostEnrollmentBindingStore, HostEnrollmentClient, HostEnrollmentRecoveryStore,
   type HostEnrollmentOptions, type HostEnrollmentApprovalReview, type JournalKeyProtector,
-} from '@ustc/dsh-remote-control'
+} from 'tokenworks-mobile'
 
 // account 必须验证资源 access token、签名、issuer、audience、scope 和 DPoP 绑定，
 // 并在登出、账号切换或安装密钥变更时取消其 signal。

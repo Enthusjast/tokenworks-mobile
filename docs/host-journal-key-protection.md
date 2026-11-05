@@ -22,7 +22,7 @@
 实现安全，也不会替代其访问控制和密钥轮换方案。
 
 ```ts
-import { createRemoteControlPlugin, type HostCredentialProvider, type JournalKeyProtector, type SignedApprovalOptions } from '@ustc/dsh-remote-control'
+import { createRemoteControlPlugin, type HostCredentialProvider, type JournalKeyProtector, type SignedApprovalOptions } from 'tokenworks-mobile'
 
 // platformProtector 由发行端受信任的平台密钥设施提供，不是可直接运行的示例实现。
 declare const platformProtector: JournalKeyProtector

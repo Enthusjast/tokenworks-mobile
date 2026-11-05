@@ -7,7 +7,7 @@
 
 ## 连接当前进程
 
-附加模式要求目标 profile 的 `node_modules/@ustc/dsh-remote-control` 链接本仓库的
+附加模式要求目标 profile 的 `node_modules/tokenworks-mobile` 链接本仓库的
 `host/remote-control`；工具会校验链接目标。尚未链接时，先用该 profile 的正常依赖安装方式链接本包。
 下面的 PID 和端口必须替换为实际运行的 dsh；命令只接受当前用户拥有的 `dsh web` 和本机 HTTP origin。
 
@@ -22,13 +22,13 @@ python3 tools/dev/local.py status
 附加模式当前使用 HTTP 本地夹具，不支持与 `--mobile` 同时使用。
 
 `attach-profile.mjs` 校验依赖确实链接这个检出，将原 patch 备份至私有的
-`.local/dev/profile-backups`，再原子写入独立插件入口和 HMR 配置；已有模型、语言等配置保留。
+`.local/tokenworks-mobile-dev/profile-backups`，再原子写入独立插件入口和 HMR 配置；已有模型、语言等配置保留。
 HMR 监听 Host lib、客户端 UI 和开发 adapter；TypeScript 编译失败时保留上一版输出。
 开发入口 `development.mjs` 只适用于链接检出，不进入发行包。
 
 修改代码后，Node 宿主和浏览器客户端分别由 dsh 的 HMR 更新；运行代次改变后旧审批失效。
 关闭后端时，profile 中的插件入口仍保留并尝试重连。需要停用插件时使用 dsh 插件管理或移除
-对应 `ustc-remote-control-dev` patch；不要复原旧备份覆盖后来修改的整个 profile。
+对应 `tokenworks-mobile-dev` patch；不要复原旧备份覆盖后来修改的整个 profile。
 
 ## dsh 内的界面
 
@@ -44,7 +44,7 @@ HMR 监听 Host lib、客户端 UI 和开发 adapter；TypeScript 编译失败�
 dsh 的浏览器授权、这个只读状态页和中转 `/account/` 是不同入口。中转的用户名密码登录
 不会登录 dsh、绑定 Host 或自动授予远控权限；账号功能及 SSO 未启用的边界见[账号指南](relay-accounts.md)。
 
-状态接口 `/ustc-remote-control/status` 复用 dsh Connection 的认证、Host/Origin 与 owner 检查，
+状态接口 `/tokenworks-mobile/status` 复用 dsh Connection 的认证、Host/Origin 与 owner 检查，
 只接受 GET、禁止缓存；不返回凭据、密钥、正文、文件系统路径或原始异常。
 注册及客户端样式随插件卸载清理。无 Web 服务的 SDK/无头 Host 不需要此 UI。
 

@@ -59,7 +59,7 @@ dropped 不包含未绑定、连接结束或网络中丢失的所有观察，不
 
 ## 私有指标
 
-共同前缀为 `dsh_remote_`；operation/result 为上述固定词表，没有动态标签。
+共同前缀为 `tokenworks_mobile_`；operation/result 为上述固定词表，没有动态标签。
 
 | 指标 | 含义 |
 | --- | --- |
@@ -69,9 +69,9 @@ dropped 不包含未绑定、连接结束或网络中丢失的所有观察，不
 | host_observation_reports_total{result} | accepted / duplicate / rejected / throttled / denied 次数 |
 
 ```promql
-sum by (result) (rate(dsh_remote_host_native_operations_total{operation="checkpoint"}[5m]))
-histogram_quantile(0.95, sum by (le, operation, result) (rate(dsh_remote_host_native_operation_duration_seconds_bucket[5m])))
-increase(dsh_remote_host_native_dropped_samples_total[1h])
+sum by (result) (rate(tokenworks_mobile_host_native_operations_total{operation="checkpoint"}[5m]))
+histogram_quantile(0.95, sum by (le, operation, result) (rate(tokenworks_mobile_host_native_operation_duration_seconds_bucket[5m])))
+increase(tokenworks_mobile_host_native_dropped_samples_total[1h])
 ```
 
 这些是可丢失的运行观察，不持久化、不提供恰好一次交付。节点重启会清零，连接末尾未上报的样本可能丢失。

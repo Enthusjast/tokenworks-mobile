@@ -40,7 +40,7 @@ require 与相对模块边界，直接模块必须在 dependencies 或 peerDepen
 
 成功目录包含：
 
-- `ustc-dsh-remote-control-0.0.1.tgz`：仅插件运行文件和元数据，不含 node_modules；peer 仍需由宿主提供。
+- `tokenworks-mobile-0.0.1.tgz`：仅插件运行文件和元数据，不含 node_modules；peer 仍需由宿主提供。
 - `manifest.json`：源码 commit 与逐文件输入摘要、builder 摘要、Node/npm/TypeScript、构建平台、
   dsh CLI 版本和入口文件摘要、实际解析的直接／peer 版本，以及包大小、哈希、逐文件清单和模式。
 - `build.log`：本地编译／npm 输出，保留作构建诊断，不在 npm 包内。

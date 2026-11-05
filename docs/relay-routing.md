@@ -25,7 +25,7 @@ Enable the private transport with a unique stable `REMOTE_RELAY_NODE_ID` and
 Configuration and credential files must be regular owner-only files. Relative
 paths resolve beside the configuration. Use a dedicated cluster CA. Each node
 leaf certificate must have the origin hostname/IP SAN, both client/server EKUs
-and exactly one URI SAN: `spiffe://dsh-remote/relay/<node UUID>`. Startup verifies
+and exactly one URI SAN: `spiffe://tokenworks-mobile/relay/<node UUID>`. Startup verifies
 the certificate chain, hostname, lifetime, usages and node identity. The listener
 binds an explicit literal private or loopback IP. Configure network access so
 only relay nodes can reach it; the public HTTP router has no private RPC route.
@@ -74,10 +74,10 @@ owner sockets and ingress tunnels. Cleanup from old host/node incarnations
 cannot remove replacement routes. Directory resolution and business authority
 checks retain their existing independent fail-closed deadlines.
 
-Metrics distinguish `dsh_remote_relay_proxy_tunnels` and directional
-`dsh_remote_relay_proxy_inflight_bytes` from owner sockets. The directional
-`dsh_remote_relay_tunnel_transit_duration_seconds` measures one proxy leg.
-`dsh_remote_relay_owner_http_forwards` reports the separate active HTTP budget.
+Metrics distinguish `tokenworks_mobile_relay_proxy_tunnels` and directional
+`tokenworks_mobile_relay_proxy_inflight_bytes` from owner sockets. The directional
+`tokenworks_mobile_relay_tunnel_transit_duration_seconds` measures one proxy leg.
+`tokenworks_mobile_relay_owner_http_forwards` reports the separate active HTTP budget.
 The existing session route histogram measures the owner handler; it excludes
 the added ingress leg. Quantiles must not be added or presented as complete
 cross-node end-to-end latency. No resource identity or body appears in labels.
