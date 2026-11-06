@@ -4,6 +4,14 @@ import android.app.KeyguardManager
 import androidx.activity.ComponentActivity
 import androidx.annotation.StringRes
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.requiredSize
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.Density
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -33,6 +41,7 @@ class HomeNavigationTest {
     private var controller: LoginController? = null
     private val model = mutableStateOf<HomeViewModel?>(null)
     private var center: NotificationCenter? = null
+    private val viewport = mutableStateOf<WorkspaceViewport?>(null)
 
     @Before fun setup() {
         assumeTrue("explicit account fixture required", InstrumentationRegistry.getArguments().getString("accountFixture") == "true")
@@ -61,7 +70,10 @@ class HomeNavigationTest {
         rule.onNodeWithTag(tag).performScrollToNode(hasText(text(id)))
         return action(id)
     }
-    private fun tab(@StringRes id: Int) = action(id)
+    private fun tab(@StringRes id: Int): SemanticsNodeInteraction {
+        rule.onNodeWithContentDescription(text(R.string.workspace_open_navigation)).performClick()
+        return action(if (id == R.string.nav_sessions) R.string.workspace_return_sessions else id)
+    }
     private fun row() = rule.onNodeWithTag("session-${fixture!!.sessionId}")
     private fun until(label: String, condition: () -> Boolean) {
         try {
@@ -80,7 +92,19 @@ class HomeNavigationTest {
             controller = LoginController(context, fixture!!.http, environment)
             model.value = HomeViewModel(controller!!)
         }
-        rule.setContent { model.value?.let { current -> TokenWorksTheme { HomeRoute(current, {}, current::cancel) } } }
+        rule.setContent {
+            model.value?.let { current ->
+                val measured = viewport.value ?: rememberWorkspaceViewport()
+                val density = if (viewport.value == null) LocalDensity.current else Density(.5f, 1f)
+                CompositionLocalProvider(LocalDensity provides density) {
+                    TokenWorksTheme {
+                        Box(if (viewport.value == null) Modifier.fillMaxSize() else Modifier.requiredSize(measured.widthDp.dp, measured.heightDp.dp)) {
+                            HomeRoute(model = current, onSecuritySettings = {}, viewport = measured, onCancel = current::cancel)
+                        }
+                    }
+                }
+            }
+        }
         main { controller!!.foreground(true) }
     }
 
@@ -92,7 +116,6 @@ class HomeNavigationTest {
                     state.sessions.singleOrNull()?.id == fixture!!.sessionId
             }
         }
-        tab(R.string.nav_sessions).assertIsSelected()
         rule.onNodeWithTag("session-${fixture!!.sessionId}").assertIsDisplayed()
     }
 
@@ -124,7 +147,7 @@ class HomeNavigationTest {
         assertNull(controller!!.state.value.outbox)
     }
 
-    @Test fun restoredReadyListsAutomaticallyAndBothBackActionsReturnToTheSameDirectory() {
+    @Test fun restoredReadyListsAutomaticallyAndRepeatedChatReturnsKeepTheSameDirectory() {
         fixture!!.holdSessions = true
         start()
         until("restored READY starts its first authorized directory without a computer tap") {
@@ -138,7 +161,7 @@ class HomeNavigationTest {
         val requests = fixture!!.sessionRequests.get()
 
         openRead(1)
-        rule.onNodeWithContentDescription("返回会话列表").performClick()
+        systemBack()
         assertRetired(1)
         directory()
         assertSame(rows, controller!!.state.value.sessions)
@@ -155,10 +178,11 @@ class HomeNavigationTest {
 
     @Test fun switchingComputersAndSettingsRetiresTheContextWithoutHiddenReaders() {
         start(); directory(); openRead(1)
-        systemBack(); assertRetired(1); directory()
         tab(R.string.nav_computers).performClick()
+        assertRetired(1)
+        rule.onNodeWithTag("workspace-drawer").assertDoesNotExist()
         until("computer destination clears directory ownership") { controller!!.state.value.selectedRuntimeId == null }
-        tab(R.string.nav_computers).assertIsSelected()
+        rule.onNodeWithTag("computers-directory").assertIsDisplayed()
         assertTrue(controller!!.state.value.sessions.isEmpty())
         assertNull(controller!!.state.value.reader)
         assertEquals(1, fixture!!.ticketRequests.get())
@@ -167,14 +191,14 @@ class HomeNavigationTest {
         directory()
         rule.onNodeWithContentDescription(text(R.string.action_back_computers)).performClick()
         until("computer-origin directory back retires its selection") { controller!!.state.value.selectedRuntimeId == null }
-        tab(R.string.nav_computers).assertIsSelected()
+        rule.onNodeWithTag("computers-directory").assertIsDisplayed()
 
         tab(R.string.nav_sessions).performClick(); directory(); openRead(2)
-        rule.onNodeWithContentDescription("返回会话列表").performClick()
-        assertRetired(2); directory()
         tab(R.string.nav_settings).performClick()
+        assertRetired(2)
+        rule.onNodeWithTag("workspace-drawer").assertDoesNotExist()
         until("settings destination clears directory ownership") { controller!!.state.value.selectedRuntimeId == null }
-        tab(R.string.nav_settings).assertIsSelected()
+        rule.onNodeWithTag("settings-list").assertIsDisplayed()
         assertTrue(controller!!.state.value.sessions.isEmpty())
         assertNull(controller!!.state.value.reader)
         assertEquals(2, fixture!!.ticketRequests.get())
@@ -189,23 +213,23 @@ class HomeNavigationTest {
         until("notification settings child") { controller!!.state.value.notificationSettings }
         rule.onNodeWithContentDescription("返回设置").performClick()
         until("page back closes notification child") { !controller!!.state.value.notificationSettings }
-        tab(R.string.nav_settings).assertIsSelected()
+        rule.onNodeWithTag("settings-list").assertIsDisplayed()
         listAction("settings-list", R.string.settings_notifications).performClick()
         until("notification child reopens") { controller!!.state.value.notificationSettings }
         systemBack()
         until("system back closes notification child") { !controller!!.state.value.notificationSettings }
-        tab(R.string.nav_settings).assertIsSelected()
+        rule.onNodeWithTag("settings-list").assertIsDisplayed()
 
         listAction("settings-list", R.string.settings_updates).performClick()
         until("app update settings child") { controller!!.state.value.appUpdateSettings }
         rule.onNodeWithContentDescription("返回设置").performClick()
         until("page back closes update child") { !controller!!.state.value.appUpdateSettings }
-        tab(R.string.nav_settings).assertIsSelected()
+        rule.onNodeWithTag("settings-list").assertIsDisplayed()
         listAction("settings-list", R.string.settings_updates).performClick()
         until("update child reopens") { controller!!.state.value.appUpdateSettings }
         systemBack()
         until("system back closes update child") { !controller!!.state.value.appUpdateSettings }
-        tab(R.string.nav_settings).assertIsSelected()
+        rule.onNodeWithTag("settings-list").assertIsDisplayed()
         assertNull(controller!!.state.value.selectedRuntimeId)
         assertNull(controller!!.state.value.reader)
         assertEquals(requests, fixture!!.sessionRequests.get())
@@ -222,11 +246,11 @@ class HomeNavigationTest {
         rule.onNodeWithTag("appearance-settings-list").assertIsDisplayed()
         assertNull(controller!!.state.value.reader)
         rule.onNodeWithContentDescription("返回设置").performClick()
-        tab(R.string.nav_settings).assertIsSelected()
+        rule.onNodeWithTag("settings-list").assertIsDisplayed()
         listAction("settings-list", R.string.directory_appearance_entry).performClick()
         rule.onNodeWithTag("appearance-settings-list").assertIsDisplayed()
         systemBack()
-        tab(R.string.nav_settings).assertIsSelected()
+        rule.onNodeWithTag("settings-list").assertIsDisplayed()
         assertEquals(0, fixture!!.ticketRequests.get())
         assertEquals(0, fixture!!.subscriptions.get())
     }
@@ -238,7 +262,7 @@ class HomeNavigationTest {
         listAction("settings-list", R.string.action_exit_account).performClick()
         rule.onNode(hasText(text(R.string.action_exit_account)) and hasAnyAncestor(isDialog())).performClick()
         until("local account and reader cleared") { controller!!.state.value.phase == HomePhase.SIGNED_OUT && fixture!!.vault.read() == null }
-        rule.onNodeWithText("使用学校账号登录").assertIsDisplayed()
+        rule.onNodeWithText("连接账号").assertIsDisplayed()
         rule.onAllNodes(hasText(text(R.string.nav_settings)) and hasClickAction()).assertCountEquals(0)
         assertNull(controller!!.state.value.reader)
         assertNull(controller!!.state.value.selectedRuntimeId)
@@ -258,6 +282,44 @@ class HomeNavigationTest {
         assertNull(controller!!.state.value.reader)
         assertFalse(controller!!.state.value.notificationSettings)
         assertFalse(controller!!.state.value.appUpdateSettings)
+    }
+
+    @Test fun drawerAndWindowChangesKeepTheSameAuthorizedReaderWithoutRequestsOrClaims() {
+        val server = fixture!!
+        server.questionMode = true
+        viewport.value = WorkspaceViewport(360, 800)
+        start(); directory()
+        row().performClick()
+        until("authorized reader and question snapshot") {
+            controller!!.state.value.reader?.let { read ->
+                read.phase == SessionReadPhase.READY && read.questions.items.isNotEmpty()
+            } == true && server.subscriptions.get() == 1
+        }
+        val original = controller!!.state.value
+        fun requests() = listOf(server.meRequests.get(), server.hostRequests.get(), server.sessionRequests.get(),
+            server.ticketRequests.get(), server.subscriptions.get(), server.relayClosures.get(),
+            server.commandWrites.get(), server.claimWrites.get(), server.releaseWrites.get(), server.questionWrites.get())
+        val before = requests()
+        assertEquals(0, server.claimWrites.get())
+        rule.onNodeWithContentDescription(text(R.string.workspace_open_navigation)).performClick()
+        rule.onNodeWithTag("workspace-drawer").assertIsDisplayed()
+        systemBack()
+        rule.onNodeWithTag("workspace-drawer").assertDoesNotExist()
+        for (width in listOf(599, 600, 839, 840, 1119, 1120, 1280, 360)) {
+            rule.runOnIdle { viewport.value = WorkspaceViewport(width, 800) }
+            rule.waitForIdle()
+            rule.runOnIdle {
+                assertEquals(original.presentationOwner, controller!!.state.value.presentationOwner)
+                assertEquals(original.selectedRuntimeId, controller!!.state.value.selectedRuntimeId)
+                assertEquals(original.selectedSessionId, controller!!.state.value.selectedSessionId)
+                assertEquals(SessionReadPhase.READY, controller!!.state.value.reader?.phase)
+                assertEquals(before, requests())
+            }
+        }
+        rule.onNodeWithContentDescription(text(R.string.workspace_open_navigation)).performClick()
+        row().performClick()
+        rule.onNodeWithTag("workspace-drawer").assertDoesNotExist()
+        rule.runOnIdle { assertEquals(before, requests()) }
     }
 
     @Test fun listOnlyAuthorizationNeverStartsAReader() {
@@ -312,13 +374,14 @@ class HomeNavigationTest {
         assertFalse("command.status" in server.ticketScopes.single().actions)
         assertEquals(0, server.questionWrites.get())
 
-        rule.onNodeWithContentDescription("返回提醒").performClick()
+        rule.onNodeWithContentDescription(text(R.string.workspace_open_navigation)).performClick()
+        action(R.string.workspace_back_reminders).performClick()
         assertRetired(1)
         assertTrue(controller!!.state.value.notificationSettings)
         assertNull(controller!!.state.value.knownTarget)
         systemBack()
         until("notification child closes back to settings") { !controller!!.state.value.notificationSettings }
-        tab(R.string.nav_settings).assertIsSelected()
+        rule.onNodeWithTag("settings-list").assertIsDisplayed()
         assertEquals(0, server.sessionRequests.get())
         assertEquals(1, server.ticketRequests.get())
     }

@@ -73,7 +73,7 @@ class DeviceCompositionTest {
                 if (token != null) progress("READY", token)
             }
         }
-        activity.setContent { TokenWorksTheme { HomeRoute(HomeViewModel(current), {}, current::cancel) } }
+        activity.setContent { TokenWorksTheme { HomeRoute(model = HomeViewModel(current), onSecuritySettings = {}, onCancel = current::cancel) } }
     }
     private fun open(runtime: String, session: String) {
         main { controller!!.openRuntime(runtime) }

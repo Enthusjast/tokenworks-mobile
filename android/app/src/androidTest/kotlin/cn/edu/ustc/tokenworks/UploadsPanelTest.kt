@@ -64,7 +64,7 @@ class UploadsPanelTest {
     @Test fun readyFileOnlyMessagesUseTheExistingComposerWithoutInventingText() {
         var sent: Triple<String, String, Boolean>? = null
         rule.setContent { TokenWorksTheme {
-            SessionsScreen(base().copy(uploads = SessionUploadState(listOf(row(UploadPhase.READY)), setOf(id))), {}, {}, {}, {}, { sent = Triple(it.draft.mode, it.draft.value.text, it.sendNow) })
+            SyntheticSessionScreen(base().copy(uploads = SessionUploadState(listOf(row(UploadPhase.READY)), setOf(id))), {}, {}, {}, {}, { sent = Triple(it.draft.mode, it.draft.value.text, it.sendNow) })
         } }
         rule.onNodeWithText("已选择 1 个附件，发送时仍需电脑确认。").assertExists()
         rule.onNodeWithContentDescription("发送 · 排队").assertIsEnabled().performClick()
@@ -142,7 +142,7 @@ class UploadsPanelTest {
             row(UploadPhase.READY, secondId, "44444444-4444-4444-8444-444444444444", "待分析日志.txt")), setOf(id, secondId)))
         var toggled: String? = null
         rule.setContent { TokenWorksTheme {
-            SessionsScreen(base().copy(uploads = files.value), {}, {}, {}, {}, onToggleFile = { selected ->
+            SyntheticSessionScreen(base().copy(uploads = files.value), {}, {}, {}, {}, onToggleFile = { selected ->
                 toggled = selected
                 files.value = files.value.copy(selected = files.value.selected - selected)
             }, onRemoveFile = { fail("Removing a message selection must not delete an upload record") })
@@ -170,13 +170,13 @@ class UploadsPanelTest {
             scenario.onActivity { activity ->
                 assertEquals(fontScale, activity.resources.configuration.fontScale, 0f)
                 activity.setContent { TokenWorksTheme(darkTheme = true) { Box(Modifier.width(320.dp).height(480.dp)) {
-                    SessionsScreen(base().copy(uploads = files), {}, {}, {}, {},
+                    SyntheticSessionScreen(base().copy(uploads = files), {}, {}, {}, {},
                         onToggleFile = { fail("Reading attachment details must not change message selection") })
                 } } }
             }
-            val back = rule.onNodeWithContentDescription("返回会话列表").assertIsDisplayed().fetchSemanticsNode().boundsInRoot
+            val menu = rule.onNodeWithContentDescription("打开会话导航").assertIsDisplayed().fetchSemanticsNode().boundsInRoot
             val composer = rule.onNodeWithTag("message-composer").fetchSemanticsNode().boundsInRoot
-            assertTrue("The attachment composer must not cover the title-bar back action", back.bottom <= composer.top)
+            assertTrue("The attachment composer must not cover the title-bar menu action", menu.bottom <= composer.top)
             rule.onNodeWithText("消息内容").assertIsDisplayed()
             rule.onNodeWithContentDescription("发送 · 排队").assertIsDisplayed().assertIsEnabled()
             fun revealFileActions() {

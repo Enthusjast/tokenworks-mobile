@@ -4,6 +4,8 @@ import android.content.pm.ActivityInfo
 import android.content.res.Configuration
 import androidx.activity.ComponentActivity
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.width
 import androidx.compose.runtime.Composable
@@ -98,9 +100,18 @@ class TokenWorksAppShellTest {
     ) {
         val density = LocalDensity.current
         SideEffect { fixtureDensity = density }
-        TokenWorksAppShell(state, navigation, { navigation.destination = it }, onRuntime, onSession,
-            {}, onRefreshSessions, onCreate, onBinding, onNotifications, onAppearance, onAppUpdates, onExit,
-            { navigation.destination = HomeDestination.COMPUTERS })
+        BoxWithConstraints(Modifier.fillMaxSize()) {
+            val layout = workspaceLayout(WorkspaceViewport(maxWidth.value.toInt(), maxHeight.value.toInt()),
+                navigation.chatDetail != null, navigation.navigationExpanded)
+            TokenWorksAppShell(state, navigation, { navigation.closePresentationPanels(); navigation.destination = it }, onRuntime,
+                { navigation.drawerOpen = false; onSession(it) },
+                {}, onRefreshSessions, onCreate, onBinding, onNotifications, onAppearance, onAppUpdates, onExit,
+                { navigation.closePresentationPanels(); navigation.destination = HomeDestination.COMPUTERS },
+                layout = layout, chromeVisible = true, onOpenNavigation = {
+                    if (layout.navigationWidth > 0.dp) navigation.navigationExpanded = !navigation.navigationExpanded
+                    else navigation.drawerOpen = true
+                })
+        }
     }
 
     @Test fun semanticNamesRemainGrantBoundAndKeepStableIdsAndStateFilters() {
@@ -115,10 +126,7 @@ class TokenWorksAppShellTest {
         rule.setContent { TokenWorksTheme { Shell(current, nav) } }
         rule.onNodeWithTag("session-directory").performScrollToNode(hasTestTag("session-$sessionA"))
         rule.onNodeWithTag("session-$sessionA").assertTextContains("同名原生会话", substring = true)
-        rule.onNodeWithTag("session-$sessionA").assertTextContains(sessionA.take(8), substring = true)
-        rule.onNodeWithTag("session-directory").performScrollToNode(hasTestTag("directory-open-search"))
-        rule.onNodeWithTag("directory-open-search").performClick()
-        rule.onNodeWithTag("directory-search").performTextInput("原生工作区")
+        rule.onNodeWithTag("directory-search").performScrollTo().performTextInput("原生工作区")
         rule.onNodeWithTag("session-directory").performScrollToNode(hasTestTag("session-$sessionB"))
         rule.onNodeWithTag("session-$sessionB").assertExists()
         rule.onNodeWithTag("session-directory").performScrollToNode(hasTestTag("directory-status-ACTIVE"))
@@ -126,7 +134,7 @@ class TokenWorksAppShellTest {
         rule.onNodeWithTag("session-$sessionB").assertDoesNotExist()
         rule.runOnIdle { current = current.copy(runtimes = listOf(runtime(runtimeA))) }
         rule.onNodeWithTag("session-$sessionA").assertDoesNotExist()
-        rule.onNodeWithTag("directory-search").performTextClearance()
+        rule.onNodeWithTag("directory-search").performScrollTo().performTextClearance()
         rule.onNodeWithTag("session-directory").performScrollToNode(hasTestTag("session-$sessionA"))
         rule.onNodeWithTag("session-$sessionA").assertExists().assert(!hasText("同名原生会话", substring = true))
         rule.onNodeWithTag("session-$sessionB").assertDoesNotExist()
@@ -174,7 +182,7 @@ class TokenWorksAppShellTest {
         rule.onNodeWithTag("runtime-filter-$runtimeB").assertExists()
         rule.onNodeWithTag("runtime-filter-$workspace").assertDoesNotExist()
         rule.onNodeWithTag("runtime-filter-$runtimeB").performScrollTo().performClick()
-        rule.onNodeWithTag("runtime-filter").assertTextContains("运行环境 ${runtimeB.take(8)}…${runtimeB.takeLast(4)}", substring = true)
+        rule.runOnIdle { assertEquals(runtimeB, nav.directoryRuntimeId) }
         rule.onNodeWithTag("session-directory").performScrollToNode(hasTestTag("session-$sessionB"))
         rule.onNodeWithTag("session-$sessionB").assertExists()
         rule.onNodeWithTag("session-$sessionA").assertDoesNotExist()
@@ -182,12 +190,13 @@ class TokenWorksAppShellTest {
         saveFixture("session-directory-filtered-dark", dark = true)
     }
 
-    @Test fun collidingRuntimeAbbreviationsShowTheFullSelectedIdentifier() {
+    @Test fun collidingRuntimeAbbreviationsKeepFullIdentifiersReachableInSelection() {
         val collision = "11111111-2222-4222-8222-222222221111"
         val nav = navigation()
         rule.setContent { TokenWorksTheme { Shell(state(listOf(runtime(runtimeA), runtime(collision))), nav) } }
-        rule.onNodeWithTag("runtime-filter").assertTextContains(runtimeA, substring = true)
         rule.onNodeWithTag("runtime-filter").performClick()
+        rule.onNodeWithTag("runtime-filter-$runtimeA").assertTextContains(runtimeA, substring = true)
+        rule.onNodeWithTag("runtime-filter-$collision").assertTextContains(collision, substring = true)
         rule.onNodeWithTag("runtime-filter-$runtimeA").assertExists()
         rule.onNodeWithTag("runtime-filter-$collision").assertExists()
     }
@@ -221,7 +230,6 @@ class TokenWorksAppShellTest {
         rule.setContent {
             TokenWorksTheme { Shell(current, nav, onSession = { reads++ }, onRefreshSessions = { refreshes++ }) }
         }
-        rule.onNodeWithTag("directory-open-search").performClick()
         rule.onNodeWithTag("directory-search").performTextInput(sessionB)
         rule.onNodeWithTag("session-directory").performScrollToNode(hasTestTag("session-$sessionB"))
         rule.onNodeWithTag("session-$sessionB").assertExists()
@@ -231,7 +239,7 @@ class TokenWorksAppShellTest {
         rule.onNodeWithTag("session-$sessionB").assertDoesNotExist()
         rule.onNodeWithTag("session-$sessionA").assertDoesNotExist()
         rule.onNodeWithTag("session-directory").performScrollToNode(hasTestTag("directory-search"))
-        rule.onNodeWithTag("directory-search").performTextReplacement(sessionA)
+        rule.onNodeWithTag("directory-search").performScrollTo().performTextReplacement(sessionA)
         rule.onNodeWithTag("session-directory").performScrollToNode(hasTestTag("session-$sessionA"))
         rule.onNodeWithTag("session-$sessionA").assertExists()
         rule.onNodeWithTag("session-$sessionB").assertDoesNotExist()
@@ -240,8 +248,7 @@ class TokenWorksAppShellTest {
         // An error and a subsequent load cannot turn retained rows into search results.
         rule.runOnIdle { current = current.copy(sessionError = "network.unavailable") }
         rule.onNodeWithTag("session-$sessionA").assertDoesNotExist()
-        rule.onNodeWithTag("directory-search").assertDoesNotExist()
-        rule.onNodeWithTag("directory-open-search").assertIsNotEnabled()
+        rule.onNodeWithTag("directory-search").assertIsNotEnabled()
         rule.onNodeWithTag("session-directory").performScrollToNode(hasText("暂时无法读取会话目录，请检查网络后刷新。"))
         rule.onNodeWithText("当前授权范围内没有会话。").assertDoesNotExist()
         rule.onNodeWithContentDescription("刷新").performClick()
@@ -249,8 +256,7 @@ class TokenWorksAppShellTest {
             assertEquals(1, refreshes)
             current = current.copy(sessionError = null, loadingSessions = true)
         }
-        rule.onNodeWithTag("directory-search").assertDoesNotExist()
-        rule.onNodeWithTag("directory-open-search").assertIsNotEnabled()
+        rule.onNodeWithTag("directory-search").assertIsNotEnabled()
         rule.onNodeWithContentDescription("刷新").assertIsNotEnabled()
         rule.onNodeWithTag("session-directory").performScrollToNode(hasTestTag("session-$sessionA"))
         rule.onNodeWithTag("session-$sessionA").assertIsNotEnabled().assertHasNoClickAction()
@@ -271,7 +277,6 @@ class TokenWorksAppShellTest {
                 current = current.copy(selectedRuntimeId = id, sessions = listOf(session(sessionB)))
             }, onSession = { reads++ }) }
         }
-        rule.onNodeWithTag("directory-open-search").performClick()
         rule.onNodeWithTag("directory-search").performTextInput(sessionA)
         rule.onNodeWithTag("runtime-filter").performScrollTo().assertIsDisplayed().performClick()
         rule.onNode(hasScrollAction() and hasAnyAncestor(isDialog())).performScrollToNode(hasTestTag("runtime-filter-$runtimeB"))
@@ -361,8 +366,8 @@ class TokenWorksAppShellTest {
             offset = position.firstVisibleItemScrollOffset
             check(index > 0)
         }
-        rule.onNode(hasText("电脑") and hasClickAction()).performClick()
-        rule.onNode(hasText("会话") and hasClickAction()).performClick()
+        navigateTo(HomeDestination.COMPUTERS)
+        navigateTo(HomeDestination.SESSIONS)
         rule.runOnIdle {
             nav.selectRuntime(runtimeA)
             assertEquals(position, nav.directoryPosition)
@@ -512,12 +517,11 @@ class TokenWorksAppShellTest {
         rule.onNodeWithTag("session-$sessionB").assertDoesNotExist()
         rule.onNodeWithTag("session-directory").performScrollToNode(hasTestTag("directory-reset-filters"))
         rule.onNodeWithTag("directory-reset-filters").performClick()
-        rule.onNodeWithTag("directory-open-search").performClick()
         rule.onNodeWithTag("directory-search").performTextInput(otherWorkspace.uppercase())
         rule.onNodeWithTag("session-directory").performScrollToNode(hasTestTag("session-$sessionB"))
         rule.onNodeWithTag("session-$sessionA").assertDoesNotExist()
         rule.onNodeWithTag("session-directory").performScrollToNode(hasTestTag("directory-search"))
-        rule.onNodeWithTag("directory-search").performTextReplacement(sessionA)
+        rule.onNodeWithTag("directory-search").performScrollTo().performTextReplacement(sessionA)
         rule.onNodeWithTag("session-directory").performScrollToNode(hasTestTag("session-$sessionA"))
         rule.onNodeWithTag("session-$sessionB").assertDoesNotExist()
         rule.runOnIdle {
@@ -673,6 +677,12 @@ class TokenWorksAppShellTest {
         rule.runOnIdle { current = current.copy(error = null) }
         rule.onNodeWithText("尚无获授权的电脑").assertExists()
     }
+    private fun navigateTo(destination: HomeDestination) {
+        rule.onNodeWithContentDescription(rule.activity.getString(R.string.workspace_open_navigation)).performClick()
+        val label = if (destination == HomeDestination.SESSIONS) R.string.workspace_return_sessions else destination.label
+        rule.onNode(hasText(rule.activity.getString(label)) and hasClickAction()).performClick()
+    }
+
 
     private fun clickSettingsItem(label: String) {
         rule.onNodeWithTag("settings-list").performScrollToNode(hasText(label))

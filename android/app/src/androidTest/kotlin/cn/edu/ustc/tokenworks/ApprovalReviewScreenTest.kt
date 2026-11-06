@@ -148,13 +148,25 @@ class ApprovalReviewScreenTest {
         assertTrue(projection.completelyReviewed(projection.pages.indices.toSet()))
         assertEquals(context.document.sha256(), context.bindingSha256)
     }
-    @Test fun viewerAuthorityHidesTheContextAndSchoolAssuranceFailureOffersExplicitReauthentication() {
+    @Test fun viewerAuthorityHidesTheContextAndProviderAssuranceFailureOffersExplicitReauthentication() {
         val fixture = ApprovalUiFixture()
         content(fixture.state(role = "viewer", error = "approval.assurance_required"))
         rule.onNodeWithText("printf ui-fixture", substring = true).assertDoesNotExist()
         rule.onNodeWithText("仅本次允许并确认身份").performScrollTo().assertIsNotEnabled()
         rule.onNodeWithText("拒绝并确认身份").performScrollTo().assertIsNotEnabled()
-        rule.onNodeWithText("重新验证学校登录").assertExists()
+        rule.onNodeWithText(rule.activity.getString(R.string.approval_ux_reauthenticate)).performScrollTo().assertIsEnabled()
+    }
+    @Test fun refusalUsesTheCurrentHandleWithoutReadingOrConsentingToLongContext() {
+        val fixture = ApprovalUiFixture("x".repeat(17_000) + "UNREVIEWED_SUFFIX")
+        var result: ApprovalChoice? = null
+        var decidedHandle: ApprovalReviewHandle? = null
+        content(fixture.state(), { handle, choice -> decidedHandle = handle; result = choice })
+        rule.onNodeWithText("仅本次允许并确认身份").performScrollTo().assertIsNotEnabled()
+        rule.onNodeWithText("拒绝并确认身份").performScrollTo().assertHeightIsAtLeast(48.dp).performClick()
+        rule.runOnIdle {
+            assertEquals(ApprovalChoice.REJECT, result)
+            assertEquals(fixture.handle, decidedHandle)
+        }
     }
 
     @Test fun fieldDirectoryAndUnreviewedJumpNavigateWithoutAcknowledgingAnyPage() {

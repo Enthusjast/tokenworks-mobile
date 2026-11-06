@@ -94,4 +94,25 @@ class AppUpdatesScreenTest {
         rule.runOnIdle { assertEquals(1, reads); assertEquals(1, backs) }
         rule.onNodeWithText("打开系统安装确认").assertDoesNotExist()
     }
+
+    @Test fun releaseDetailsDoNotStartDownloadOrInstaller() {
+        val publication = release()
+        var downloads = 0
+        var installs = 0
+        rule.setContent { TokenWorksTheme {
+            AppUpdatesScreen(AppUpdateUiState(phase = AppUpdatePhase.AVAILABLE, installedVersion = 1,
+                release = publication, canInstall = true), {}, { downloads++ }, { installs++ }, {}, {}, {}, {})
+        } }
+        rule.onNodeWithText(publication.releaseNotes).assertDoesNotExist()
+        val expand = rule.activity.getString(R.string.workspace_panel_release)
+        rule.onNode(hasScrollToIndexAction()).performScrollToNode(hasText(expand))
+        rule.onNodeWithText(expand).assertHeightIsAtLeast(48.dp).performClick()
+        rule.onNode(hasScrollToIndexAction()).performScrollToNode(hasText(publication.releaseNotes))
+        rule.onNodeWithText(publication.releaseNotes).assertIsDisplayed()
+        rule.runOnIdle { assertEquals(0, downloads); assertEquals(0, installs) }
+        val collapse = rule.activity.getString(R.string.workspace_panel_hide_release)
+        rule.onNodeWithText(collapse).performScrollTo().performClick()
+        rule.onNodeWithText(publication.releaseNotes).assertDoesNotExist()
+        rule.runOnIdle { assertEquals(0, downloads); assertEquals(0, installs) }
+    }
 }

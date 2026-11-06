@@ -53,7 +53,7 @@ class ChatReadingTest {
 
     @Test fun incomingMessagesDoNotInterruptHistoryAndLatestButtonReturnsToBottom() {
         val current = mutableStateOf(state(transcript(0, 40)))
-        rule.setContent { TokenWorksTheme { SessionsScreen(current.value, {}, {}, {}, {}) } }
+        rule.setContent { TokenWorksTheme { SyntheticSessionScreen(current.value, {}, {}, {}, {}) } }
         val image = rule.onRoot().captureToImage().asAndroidBitmap()
         val directory = File(InstrumentationRegistry.getInstrumentation().targetContext.filesDir, "ui-navigation-fixtures").apply { mkdirs() }
         File(directory, "chat-reading.png").outputStream().use { check(image.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, it)) }
@@ -84,13 +84,76 @@ class ChatReadingTest {
 
     @Test fun earlierRecordsDoNotMoveTheCurrentMessageAnchor() {
         val current = mutableStateOf(state(transcript(20, 40)))
-        rule.setContent { TokenWorksTheme { SessionsScreen(current.value, {}, {}, {}, {}) } }
+        rule.setContent { TokenWorksTheme { SyntheticSessionScreen(current.value, {}, {}, {}, {}) } }
         rule.onNodeWithTag("chat-list").performScrollToNode(hasText("message 25"))
         rule.onNodeWithText("message 25").assertIsDisplayed()
         rule.runOnIdle { current.value = state(transcript(0, 40)) }
         rule.onNodeWithText("message 25").assertIsDisplayed()
         rule.onNodeWithText("有新消息 · 回到最新").assertDoesNotExist()
     }
+
+    @Test fun prependedProcessesKeepExpandedSourcesAndRestoreReadingAcrossChatUnmount() {
+        fun processes(start: Int): SessionTranscript = SessionWindow(request).apply {
+            val records = (start..40).map { seq ->
+                if (seq < 20) jsonObject("native_seq" to seq.toLong().json(), "time" to 1000L.json(),
+                    "type" to "tool/call".json(), "surface_op" to "append".json(),
+                    "data" to jsonObject("callId" to "call-$seq".json(), "name" to "tool-$seq".json(), "arguments" to jsonObject()))
+                else jsonObject("native_seq" to seq.toLong().json(), "time" to 1000L.json(),
+                    "type" to "user/message".json(), "surface_op" to "append".json(),
+                    "data" to jsonObject("content" to JsonArray(listOf(jsonObject("type" to "text".json(), "text" to "message $seq".json())))))
+            }
+            accept(SessionContent("session.snapshot", request, id, jsonObject("cursor" to 40L.json(),
+                "has_more" to JsonBoolean(true), "assistant" to JsonNull, "records" to JsonArray(records))))
+            accept(SessionContent("session.checkpoint", request, id, jsonObject("state" to "persisted".json(), "through_seq" to 40L.json())))
+        }.snapshot()
+        val current = mutableStateOf(state(processes(12)))
+        val active = mutableStateOf(true)
+        val position = ChatReadingPosition()
+        rule.setContent { TokenWorksTheme {
+            if (active.value) SyntheticSessionScreen(current.value, {}, {}, {}, {}, readingPosition = position)
+        } }
+        rule.onNodeWithTag("chat-list").performScrollToNode(hasText("过程 · 8项"))
+        rule.onNodeWithText("tool-16").assertDoesNotExist()
+        rule.onNodeWithText("过程 · 8项").performClick()
+        rule.onNodeWithTag("chat-list").performScrollToNode(hasText("tool-16"))
+        val before = rule.onNodeWithText("tool-16").assertIsDisplayed().fetchSemanticsNode().boundsInRoot.top
+        rule.runOnIdle { current.value = state(processes(8)) }
+        val after = rule.onNodeWithText("tool-16").assertIsDisplayed().fetchSemanticsNode().boundsInRoot.top
+        assertEquals(before, after, 1f)
+        var source: String? = null
+        rule.runOnIdle {
+            source = position.key
+            org.junit.Assert.assertTrue(current.value.reader!!.window!!.items.any { it.id == source })
+            org.junit.Assert.assertFalse(source.orEmpty().startsWith("process:"))
+            active.value = false
+        }
+        rule.runOnIdle { active.value = true }
+        rule.onNodeWithText("tool-16").assertIsDisplayed()
+        rule.runOnIdle { assertEquals(source, position.key) }
+    }
+    @Test fun scrollingInsideOneTallMessageRestoresItsFinalOffsetAfterDetails() {
+        val body = (0..100).joinToString("\n\n") { "public paragraph $it" }
+        val record = SessionRecord.parse(jsonObject("native_seq" to 0L.json(), "time" to 1000L.json(),
+            "type" to "assistant/message".json(), "data" to jsonObject("message" to jsonObject(
+                "content" to JsonArray(listOf(jsonObject("type" to "text".json(), "text" to body.json())))))))
+        val window = CachedTranscript(id, 1000, listOf(record)).transcript
+        val current = state(window).copy(runtimes = listOf(RuntimeRow(id, id, "public", "公开电脑")))
+        val position = ChatReadingPosition()
+        rule.setContent { TokenWorksTheme { SyntheticSessionScreen(current, {}, {}, {}, {}, readingPosition = position) } }
+        rule.onNodeWithTag("chat-list").performTouchInput { swipeDown() }
+        rule.onNodeWithTag("chat-list").performTouchInput { swipeDown() }
+        rule.waitForIdle()
+        val before = rule.onNodeWithTag("conversation-message:event:0").getUnclippedBoundsInRoot().top
+        rule.runOnIdle { org.junit.Assert.assertTrue(position.offset > 0) }
+        rule.onNodeWithContentDescription(rule.activity.getString(R.string.chat_task_more)).performClick()
+        rule.onNodeWithText(rule.activity.getString(R.string.chat_details)).performClick()
+        rule.onNodeWithContentDescription(rule.activity.getString(R.string.chat_messages)).performClick()
+        rule.waitForIdle()
+        val after = rule.onNodeWithTag("conversation-message:event:0").getUnclippedBoundsInRoot().top
+        assertEquals(before.value, after.value, 1f)
+        rule.runOnIdle { assertEquals("event:0", position.key) }
+    }
+
     @Test fun expandedLongContentStaysVisibleWhenStreamingContinues() {
         val text = mutableStateOf("x".repeat(17_000) + "END")
         rule.setContent { TokenWorksTheme { Column(Modifier.verticalScroll(rememberScrollState())) { RichMessageText(text.value) } } }

@@ -3,6 +3,7 @@ package cn.edu.ustc.tokenworks
 import android.graphics.Rect
 import android.os.Bundle
 import android.os.SystemClock
+import android.view.KeyEvent
 import android.view.MotionEvent
 import android.view.accessibility.AccessibilityNodeInfo
 import androidx.activity.ComponentActivity
@@ -50,6 +51,7 @@ class SessionKeyboardTest {
             runtimes = listOf(RuntimeRow(id, id, "fixture", "电脑夹具", access)), selectedRuntimeId = id,
             selectedSessionId = id, reader = SessionReadState(SessionReadPhase.READY), outbox = CommandOutboxState(connected = true)))
         val backs = AtomicInteger()
+        val submissions = AtomicInteger()
         val imeBottom = AtomicInteger()
         val imeShown = AtomicBoolean()
         val activity = AtomicReference<ComponentActivity>()
@@ -62,7 +64,8 @@ class SessionKeyboardTest {
                     val visible = WindowInsets.isImeVisible
                     SideEffect { imeBottom.set(bottom); imeShown.set(visible) }
                     TokenWorksTheme {
-                        SessionsScreen(live.value, { backs.incrementAndGet() }, {}, {}, {},
+                        SyntheticSessionScreen(live.value, { backs.incrementAndGet() }, {}, {}, {},
+                            onSubmit = { submissions.incrementAndGet() },
                             onComposerChange = { live.value = live.value.copy(composer = it.copy(revision = it.revision + 1)) })
                     }
                 }
@@ -92,6 +95,10 @@ class SessionKeyboardTest {
             }
             assertTrue(requireNotNull(find { it.isEditable }).performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, arguments))
             waitFor("Send action becomes enabled") { find { it.contentDescription?.toString() == "发送 · 排队" }?.isEnabled == true }
+            instrumentation.sendKeyDownUpSync(KeyEvent.KEYCODE_ENTER)
+            instrumentation.waitForIdleSync()
+            assertEquals("Enter must never submit a message or confirm a send", 0, submissions.get())
+            val retainedInput = requireNotNull(find { it.isEditable }).text?.toString()
             val send = requireNotNull(find { it.contentDescription?.toString() == "发送 · 排队" })
             val sendBounds = Rect().also(send::getBoundsInScreen)
             val screenHeight = if (android.os.Build.VERSION.SDK_INT >= 30) activity.get().windowManager.currentWindowMetrics.bounds.height()
@@ -106,11 +113,12 @@ class SessionKeyboardTest {
                     }
                 } finally { bitmap.recycle() }
             }
-            tap(requireNotNull(find { it.contentDescription?.toString() == "返回会话列表" }))
+            instrumentation.sendKeyDownUpSync(KeyEvent.KEYCODE_BACK)
             waitFor("First back closes the IME session") { !imeShown.get() }
             assertEquals(0, backs.get())
-            assertEquals("键盘中的消息", requireNotNull(find { it.isEditable }).text?.toString())
-            tap(requireNotNull(find { it.contentDescription?.toString() == "返回会话列表" }))
+            assertEquals(retainedInput, requireNotNull(find { it.isEditable }).text?.toString())
+            assertEquals(0, submissions.get())
+            instrumentation.sendKeyDownUpSync(KeyEvent.KEYCODE_BACK)
             waitFor("Second back leaves conversation") { backs.get() == 1 }
         }
     }

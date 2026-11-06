@@ -86,7 +86,7 @@ class ApprovalDeliveryTest {
                     if (token != null) progress("READY", token)
                 }
             }
-            if (render) activity.setContent { TokenWorksTheme { HomeRoute(HomeViewModel(current), {}, current::cancel) } }
+            if (render) activity.setContent { TokenWorksTheme { HomeRoute(model = HomeViewModel(current), onSecuritySettings = {}, onCancel = current::cancel) } }
         }
         return scenario
     }

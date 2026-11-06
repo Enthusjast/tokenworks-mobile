@@ -53,6 +53,8 @@ class SessionImagesPanelTest {
                 { fail("Gallery must be disabled") }, { fail("Camera must be disabled") }, {}, {}, {}, {}, {})
         } } }
         rule.onNodeWithText("当前电脑、模型或授权尚未确认支持原生图片输入。仍可通过普通附件发送文件，但这不代表模型能够看图。").assertExists()
+        rule.onNodeWithText(rule.activity.getString(R.string.conversation_image_selection)).assertExists()
+        rule.onNodeWithText(rule.activity.getString(R.string.conversation_image_source)).assertExists()
         rule.onNodeWithText("从系统照片选择").assertIsNotEnabled().assertHeightIsAtLeast(48.dp)
         rule.onNodeWithText("使用系统相机拍照").assertIsNotEnabled().assertHeightIsAtLeast(48.dp)
     }
@@ -100,6 +102,21 @@ class SessionImagesPanelTest {
         rule.onNodeWithContentDescription("删除图片本机记录：待分析照片.png").performScrollTo().performClick()
         rule.onNode(hasText("删除本机记录") and hasAnyAncestor(isDialog())).performClick()
         rule.runOnIdle { assertEquals(request, deleted) }
+    }
+
+    @Test fun selectedTrayCanRemoveTheOriginalImageWithoutAttachmentCapabilityOrAnotherPicker() {
+        val uploads = mutableStateOf(SessionUploadState(listOf(row(UploadPhase.WAITING)), setOf(request)))
+        var toggled: String? = null
+        rule.setContent { TokenWorksTheme { Column(Modifier.verticalScroll(rememberScrollState())) {
+            SessionImagesPanel(SessionImageState(), uploads.value, false,
+                { fail("No implicit gallery") }, { fail("No implicit camera") },
+                { id -> toggled = id; uploads.value = uploads.value.copy(selected = emptySet()) }, {}, {}, {}, {})
+        } } }
+        rule.onNodeWithContentDescription(rule.activity.getString(R.string.conversation_image_tray_remove, "待分析照片.png"))
+            .performScrollTo().assertHeightIsAtLeast(48.dp).performClick()
+        rule.runOnIdle { assertEquals(request, toggled) }
+        rule.onNodeWithContentDescription(rule.activity.getString(R.string.conversation_image_tray_remove, "待分析照片.png")).assertDoesNotExist()
+        rule.onNodeWithText("待分析照片.png").performScrollTo().assertIsDisplayed()
     }
 
     @Test fun originalImageReselectKeepsRequestIdAndRequiresCurrentCapabilityIdleAndCallback() {

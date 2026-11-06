@@ -65,6 +65,8 @@ class SessionCreationScreenTest {
                 TokenWorksTheme { Box(Modifier.width(320.dp)) { SessionCreationScreen(state(listOf(unknown)),{_,_,_->submitted++},{},{queries++},{},{},{}) } }
             }
         }
+        rule.onNodeWithText(rule.activity.getString(R.string.conversation_creation_results)).assertIsDisplayed()
+        rule.runOnIdle { assertEquals(0,submitted); assertEquals(0,queries) }
         rule.onNode(hasScrollToIndexAction()).performScrollToNode(hasText("创建结果待确认"))
         rule.onNodeWithText("创建结果待确认").performScrollTo().assertIsDisplayed()
         rule.onNodeWithText("重新转交同一请求").assertDoesNotExist();rule.onNodeWithText("会话已创建").assertDoesNotExist()

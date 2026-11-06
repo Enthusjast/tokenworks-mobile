@@ -71,6 +71,9 @@ class HostBindingScreenTest {
         rule.setContent { TokenWorksTheme { HostBindingScreen(HostBindingState(HostBindingPhase.UNKNOWN, id, details(), "network.unavailable"), "fixture-account", { _, _ -> }, {}, {}, { queries++ }, {}, {}) } }
         rule.onNodeWithText("绑定结果待核对").assertIsDisplayed()
         rule.onNodeWithText("确认绑定这台电脑").assertDoesNotExist()
+        rule.onNodeWithText(rule.activity.getString(R.string.flow_binding_phone)).performScrollTo().assertIsDisplayed()
+        rule.onNodeWithText(rule.activity.getString(R.string.flow_binding_host)).performScrollTo().assertIsDisplayed()
+        rule.onNodeWithText(rule.activity.getString(R.string.flow_binding_access)).performScrollTo().assertIsDisplayed()
         rule.onNodeWithText("查询绑定状态").performScrollTo().performClick()
         rule.runOnIdle { assertEquals(1, queries) }
     }

@@ -3,6 +3,8 @@ package cn.edu.ustc.tokenworks
 import androidx.activity.ComponentActivity
 import androidx.annotation.StringRes
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.key
 import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -30,7 +32,8 @@ class SessionModelsScreenTest {
     @Test fun duplicateLabelsKeepOpaqueIdentityAndEffortDoesNotFollowAnotherModel() {
         var submitted: SessionModelSelection? = null
         rule.setContent { TokenWorksTheme {
-            SessionModelsScreen(catalog(), null, false, null, {}, {}, {}, { submitted = it }, {}, {}, {}, {})
+            SessionModelsScreen(catalog(), null, false, null, {}, {}, {}, { submitted = it }, {}, {}, {}, {},
+                uiState = remember(1L) { ModelPanelUiState() })
         } }
         rule.onNodeWithText(text(R.string.models_apply)).assertIsNotEnabled()
         val firstChoice = hasText(first.model.id) and isSelectable()
@@ -50,7 +53,8 @@ class SessionModelsScreenTest {
         val current = mutableStateOf(catalog())
         var submitted = false
         rule.setContent { TokenWorksTheme {
-            SessionModelsScreen(current.value, null, false, null, {}, {}, {}, { submitted = true }, {}, {}, {}, {})
+            SessionModelsScreen(current.value, null, false, null, {}, {}, {}, { submitted = true }, {}, {}, {}, {},
+                uiState = remember(current.value.contextId) { ModelPanelUiState() })
         } }
         val firstChoice = hasText(first.model.id) and isSelectable()
         reveal(firstChoice)
@@ -71,7 +75,8 @@ class SessionModelsScreenTest {
             1, 2, 1, 2, null, true, false, null)
         rule.setContent { TokenWorksTheme {
             SessionModelsScreen(catalog(), original, false, null, {}, {}, {}, { fail("Uncertain original must not create another selection") }, {}, {},
-                { fail("Uncertain original must not be discarded") }, {})
+                { fail("Uncertain original must not be discarded") }, {},
+                uiState = remember(1L) { ModelPanelUiState() })
         } }
         rule.onNodeWithText(text(R.string.models_apply)).assertIsNotEnabled()
         val secondChoice = hasText(second.model.id) and isSelectable()
@@ -80,5 +85,60 @@ class SessionModelsScreenTest {
         rule.onNodeWithText(text(R.string.models_discard_unsent)).assertDoesNotExist()
         reveal(hasText(text(R.string.models_unknown)))
         rule.onNodeWithText(text(R.string.models_unknown)).assertExists()
+    }
+
+    @Test fun containerChangeKeepsQueryOpaqueChoiceEffortAndReadingPosition() {
+        val embedded = mutableStateOf(false)
+        lateinit var ui: ModelPanelUiState
+        var submitted: SessionModelSelection? = null
+        val manyModels = catalog().copy(items = listOf(first, second) + List(30) { index ->
+            SessionModelItem(first.provider, SessionModelLabel("opaque-extra-$index", "目录模型 $index"), emptyList())
+        })
+        rule.setContent { TokenWorksTheme {
+            val panelState = remember(1L) { ModelPanelUiState().apply { query = "opaque" } }
+            ui = panelState
+            key(embedded.value) {
+                SessionModelsScreen(manyModels, null, false, null, {}, {}, {}, { submitted = it }, {}, {}, {}, {},
+                    uiState = panelState, embedded = embedded.value)
+            }
+        } }
+        rule.onNode(hasSetTextAction()).assertTextContains("opaque")
+        val firstChoice = hasText(first.model.id) and isSelectable()
+        reveal(firstChoice)
+        rule.onNode(firstChoice).performClick()
+        reveal(hasText("高强度"))
+        rule.onNodeWithText("高强度").performClick()
+        rule.onNode(hasScrollToIndexAction()).performScrollToIndex(5)
+        var index = 0
+        var offset = 0
+        lateinit var previous: ModelPanelUiState
+        rule.runOnIdle {
+            previous = ui
+            index = ui.listState.firstVisibleItemIndex
+            offset = ui.listState.firstVisibleItemScrollOffset
+            embedded.value = true
+        }
+        rule.runOnIdle {
+            assertSame(previous, ui)
+            assertEquals("opaque", ui.query)
+            assertEquals(first.provider.id to first.model.id, ui.choice)
+            assertEquals("effort-a", ui.effort)
+            assertEquals(index, ui.listState.firstVisibleItemIndex)
+            assertEquals(offset, ui.listState.firstVisibleItemScrollOffset)
+        }
+        rule.onNodeWithText(text(R.string.models_apply)).performClick()
+        rule.runOnIdle { assertEquals(SessionModelSelection(first.provider.id, first.model.id, "effort-a"), submitted) }
+    }
+
+    @Test fun deniedCatalogNeverMakesAnExistingOpaqueChoiceSelectable() {
+        rule.setContent { TokenWorksTheme {
+            val ui = remember(1L) { ModelPanelUiState().apply { choice = first.provider.id to first.model.id } }
+            SessionModelsScreen(catalog().copy(phase = SessionModelCatalogPhase.DENIED, canSelect = false), null,
+                false, null, {}, {}, {}, { fail("Denied catalog cannot select") }, {}, {}, {}, {}, ui, embedded = true)
+        } }
+        rule.onNodeWithText(text(R.string.models_apply)).assertIsNotEnabled()
+        val firstChoice = hasText(first.model.id) and isSelectable()
+        reveal(firstChoice)
+        rule.onNode(firstChoice).assertIsNotEnabled()
     }
 }

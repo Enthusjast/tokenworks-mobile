@@ -128,7 +128,7 @@ class AppSelfUpgradeTest {
                     }
                 }
             }
-            activity.setContent { TokenWorksTheme { HomeRoute(HomeViewModel(controller), {}, controller::cancel) } }
+            activity.setContent { TokenWorksTheme { HomeRoute(model = HomeViewModel(controller), onSecuritySettings = {}, onCancel = controller::cancel) } }
         }
     }
     private fun authorizeIfNeeded() {

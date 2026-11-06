@@ -15,6 +15,8 @@ import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertHasNoClickAction
+import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertIsOn
 import androidx.compose.ui.test.assertIsSelected
@@ -84,9 +86,12 @@ class AppearanceSettingsScreenTest {
             assertEquals(1.1f, current.value.preferences.codeScale)
         }
         list.performScrollToNode(hasTestTag("appearance-code-preview"))
-        rule.onNodeWithTag("appearance-code-preview").assertIsDisplayed()
+        rule.onNodeWithTag("appearance-code-preview").assertIsDisplayed().assertHasNoClickAction()
         list.performScrollToNode(hasTestTag("appearance-body-preview"))
-        rule.onNodeWithTag("appearance-body-preview").assertIsDisplayed()
+        rule.onNodeWithTag("appearance-body-preview").assertIsDisplayed().assertHasNoClickAction()
+        val sample = context.getString(R.string.workspace_appearance_sample_user)
+        list.performScrollToNode(hasText(sample))
+        rule.onNodeWithText(sample).assertIsDisplayed().assertHasNoClickAction()
     }
 
     @Test fun failedReadCannotOverwritePreferencesAndFailedSaveHasExplicitRetry() {

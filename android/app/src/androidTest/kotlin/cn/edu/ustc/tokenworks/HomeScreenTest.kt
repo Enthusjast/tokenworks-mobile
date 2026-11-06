@@ -8,6 +8,7 @@ import androidx.activity.ComponentActivity
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.width
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.platform.LocalDensity
@@ -30,17 +31,27 @@ import java.io.File
 class HomeScreenTest {
     @get:Rule val rule = createAndroidComposeRule<ComponentActivity>()
 
-    @Test fun unconfiguredSmallScreenKeepsLargeTextAndDisabledLoginAccessible() {
+    @Test fun losingTrustedConfigurationRemovesLoginAndRegistrationAtLargeText() {
+        val current = mutableStateOf(HomeState(HomePhase.SIGNED_OUT, "https://id.example.edu"))
+        var logins = 0
+        var registrations = 0
         rule.setContent {
             val density = LocalDensity.current.density
             CompositionLocalProvider(LocalDensity provides Density(density, 2f)) {
                 TokenWorksTheme(darkTheme = false) {
-                    Box(Modifier.width(375.dp)) { HomeScreen(HomeState(HomePhase.UNCONFIGURED), {}, {}, {}, {}) }
+                    Box(Modifier.width(320.dp)) { HomeScreen(current.value, { logins++ }, { registrations++ }, {}, {}) }
                 }
             }
         }
-        rule.onNodeWithText("学校登录尚未配置").performScrollTo().assertIsDisplayed()
-        rule.onNodeWithText("请联系管理员获取配置了学校登录的安装包。").assertExists()
+        rule.onNodeWithTag("onboarding-login").performScrollTo().assertIsEnabled().performClick()
+        rule.runOnIdle { current.value = current.value.copy(phase = HomePhase.INVALID_CONFIGURATION) }
+        rule.onNodeWithTag("onboarding-login").assertDoesNotExist()
+        rule.onNodeWithTag("onboarding-register").assertDoesNotExist()
+        rule.onNodeWithTag("onboarding-INVALID_CONFIGURATION").assertExists()
+        rule.runOnIdle { current.value = HomeState(HomePhase.UNCONFIGURED) }
+        rule.onNodeWithTag("onboarding-login").assertDoesNotExist()
+        rule.onNodeWithTag("onboarding-register").assertDoesNotExist()
+        rule.runOnIdle { assertEquals(1, logins); assertEquals(0, registrations) }
         save("unconfigured-large-text")
     }
 
@@ -51,9 +62,10 @@ class HomeScreenTest {
                 HomeScreen(HomeState(HomePhase.SIGNED_OUT, "https://id.example.edu"), { requests++ }, {}, {}, {})
             }
         }
-        rule.onNodeWithText("查看学校登录来源").performScrollTo().performClick()
+        rule.onNodeWithText("https://id.example.edu").assertDoesNotExist()
+        rule.onNodeWithTag("onboarding-source").performScrollTo().performClick()
         rule.onNodeWithText("https://id.example.edu").assertIsDisplayed()
-        rule.onNodeWithText("使用学校账号登录").assertHasClickAction().performClick()
+        rule.onNodeWithTag("onboarding-login").performScrollTo().assertHasClickAction().performClick()
         rule.runOnIdle { assertEquals(1, requests) }
         save("login-dark")
     }
@@ -91,8 +103,8 @@ class HomeScreenTest {
         rule.setContent {
             TokenWorksTheme { HomeScreen(HomeState(HomePhase.REAUTHENTICATE, "https://id.example.edu", subject = "verified-school-user"), { logins++ }, {}, {}, { exits++ }) }
         }
-        rule.onNodeWithText("重新登录此账号").performScrollTo().performClick()
-        rule.onNodeWithText("退出本机登录").performScrollTo().performClick()
+        rule.onNodeWithTag("onboarding-reauthenticate").performScrollTo().performClick()
+        rule.onNodeWithTag("onboarding-cancel").performScrollTo().performClick()
         rule.runOnIdle { assertEquals(1, logins); assertEquals(1, exits) }
     }
 
@@ -129,14 +141,14 @@ class HomeScreenTest {
 @RunWith(AndroidJUnit4::class)
 class MainStartupTest {
     @get:Rule val rule = createAndroidComposeRule<MainActivity>()
-    @Test fun actualHiltApplicationKeepsLoginDisabledWithoutSchoolConfigurationAndIgnoresUnsolicitedCallback() {
+    @Test fun actualHiltApplicationKeepsLoginUnavailableWithoutDeploymentAndIgnoresUnsolicitedCallback() {
         val context = InstrumentationRegistry.getInstrumentation().targetContext
         assumeFalse(context.assets.list("")!!.contains("deployment.json"))
-        rule.waitUntil(10_000) { rule.onAllNodesWithText("学校登录尚未配置").fetchSemanticsNodes().isNotEmpty() }
-        rule.onNodeWithText("使用学校账号登录").assertDoesNotExist()
+        rule.waitUntil(10_000) { rule.onAllNodesWithTag("onboarding-UNCONFIGURED").fetchSemanticsNodes().isNotEmpty() }
+        rule.onNodeWithTag("onboarding-login").assertDoesNotExist()
         assertTrue("default startup must not initialize Firebase", com.google.firebase.FirebaseApp.getApps(context).isEmpty())
         rule.activity.startActivity(Intent(context, LoginRedirectActivity::class.java).setData(Uri.parse("cn.edu.ustc.tokenworks:/oauth2redirect?code=unsolicited&state=wrong")))
         rule.waitForIdle()
-        rule.onNodeWithText("学校登录尚未配置").assertIsDisplayed()
+        rule.onNodeWithTag("onboarding-UNCONFIGURED").assertIsDisplayed()
     }
 }

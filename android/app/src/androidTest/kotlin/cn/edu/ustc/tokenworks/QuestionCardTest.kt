@@ -111,6 +111,9 @@ class QuestionCardTest {
             assertEquals(claim, questions.beginRelease(handle, release))
         })
         rule.runOnIdle { assertEquals(0, claims); assertNull(questions.state(true).items.single().claim) }
+        rule.onNodeWithText(rule.activity.getString(R.string.conversation_question_count, current.batch.prompts.size)).assertIsDisplayed()
+        rule.onNodeWithText("A", substring = false).assertDoesNotExist()
+        rule.runOnIdle { assertEquals(0, claims); assertEquals(0, releases) }
         rule.onNodeWithText("查看并答复").performClick()
         rule.runOnIdle { assertEquals(1, claims); assertEquals(ClaimPhase.PENDING, questions.state(true).items.single().claim!!.phase) }
         rule.onNodeWithText("暂不回答").performScrollTo().performClick()

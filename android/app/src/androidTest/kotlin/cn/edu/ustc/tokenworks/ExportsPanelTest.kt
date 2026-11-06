@@ -53,6 +53,8 @@ class ExportsPanelTest {
     @Test fun unknownAndTransferringRecordsNeverOfferSaveAndCleanStillDoesNotClaimSaved() {
         val state = mutableStateOf(SessionExportState(connected = true, rows = listOf(row())))
         content { ExportsPanel(state.value, { _, _ -> }, {}, {}, {}, {}, { fail("Unexpected save") }) }
+        rule.onNodeWithText(rule.activity.getString(R.string.file_ux_export_records)).performScrollTo().assertIsDisplayed()
+        rule.onNodeWithText(rule.activity.getString(R.string.conversation_export_save_boundary)).performScrollTo().assertIsDisplayed()
         rule.onNodeWithText("原请求结果待核对；不会自动重新导出").performScrollTo().assertIsDisplayed()
         rule.onNodeWithText("保存到文档").assertDoesNotExist()
         rule.runOnIdle { state.value = state.value.copy(rows = listOf(row("uploading"))) }
