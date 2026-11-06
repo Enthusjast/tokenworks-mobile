@@ -31,11 +31,11 @@ internal fun NotificationsScreen(state: NotificationUiState, refresh: () -> Unit
     WorkspacePanelFrame(stringResource(R.string.settings_notifications), back, embedded = false,
         backLabel = stringResource(R.string.flow_notifications_back)) {
         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
-            LazyColumn(Modifier.widthIn(max = TokenWorksSpacing.chatMaxWidth).fillMaxWidth(),
-                contentPadding = PaddingValues(TokenWorksSpacing.page),
-                verticalArrangement = Arrangement.spacedBy(TokenWorksSpacing.large)) {
+            LazyColumn(Modifier.widthIn(max = TokenWorksSpacing.readingWidth).fillMaxWidth(),
+                contentPadding = PaddingValues(TokenWorksSpacing.lg),
+                verticalArrangement = Arrangement.spacedBy(TokenWorksSpacing.xxl)) {
                 item("channel") {
-                    Column(verticalArrangement = Arrangement.spacedBy(TokenWorksSpacing.small)) {
+                    Column(verticalArrangement = Arrangement.spacedBy(TokenWorksSpacing.sm)) {
                         Text(stringResource(R.string.flow_notifications_registration), style = MaterialTheme.typography.titleMedium,
                             modifier = Modifier.semantics { heading() })
                         Text(stringResource(when (state.phase) {
@@ -91,7 +91,7 @@ internal fun NotificationsScreen(state: NotificationUiState, refresh: () -> Unit
                 item("reference-scope") {
                     HorizontalDivider()
                     Text(stringResource(R.string.flow_notifications_references), style = MaterialTheme.typography.titleMedium,
-                        modifier = Modifier.padding(top = TokenWorksSpacing.medium).semantics { heading() })
+                        modifier = Modifier.padding(top = TokenWorksSpacing.md).semantics { heading() })
                     Text(stringResource(R.string.flow_notifications_reference_scope), style = MaterialTheme.typography.bodySmall)
                     if (state.phase == NotificationPhase.ACTIVE) OutlinedButton(inbox, Modifier.fillMaxWidth().heightIn(min = 48.dp)) {
                         Text(stringResource(R.string.workspace_notifications_inbox))
@@ -101,7 +101,7 @@ internal fun NotificationsScreen(state: NotificationUiState, refresh: () -> Unit
                 }
                 state.note?.let { note -> item("note") { Text(note, modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite }) } }
                 items(state.items, key = { it.id }) { reference ->
-                    Column(verticalArrangement = Arrangement.spacedBy(TokenWorksSpacing.small)) {
+                    Column(verticalArrangement = Arrangement.spacedBy(TokenWorksSpacing.sm)) {
                         Text(notificationReferenceText(reference), style = MaterialTheme.typography.bodyLarge)
                         OutlinedButton({ open(reference.bindingId, reference.id) }, Modifier.fillMaxWidth().heightIn(min = 48.dp)) {
                             Text(stringResource(R.string.workspace_notifications_open))

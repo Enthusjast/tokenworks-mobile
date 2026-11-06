@@ -68,9 +68,9 @@ internal fun SessionChangesScreen(
     WorkspacePanelFrame(stringResource(R.string.changes_fork_changes_title), back, embedded,
         subtitle = stringResource(R.string.changes_fork_changes_subtitle)) {
         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
-            LazyColumn(Modifier.widthIn(max = TokenWorksSpacing.chatMaxWidth).fillMaxSize().testTag("changes-list"), state = uiState.listState,
-                contentPadding = PaddingValues(TokenWorksSpacing.page),
-                verticalArrangement = Arrangement.spacedBy(TokenWorksSpacing.medium)) {
+            LazyColumn(Modifier.widthIn(max = TokenWorksSpacing.readingWidth).fillMaxSize().testTag("changes-list"), state = uiState.listState,
+                contentPadding = PaddingValues(TokenWorksSpacing.lg),
+                verticalArrangement = Arrangement.spacedBy(TokenWorksSpacing.md)) {
                 item("scope") {
                     val expansion = stringResource(if (showSource) R.string.detail_expanded else R.string.detail_collapsed)
                     TextButton({ showSource = !showSource }, Modifier.heightIn(min = 48.dp).semantics { stateDescription = expansion }) {

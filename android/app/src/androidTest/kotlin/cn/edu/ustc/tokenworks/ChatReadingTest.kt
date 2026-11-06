@@ -112,9 +112,9 @@ class ChatReadingTest {
         rule.setContent { TokenWorksTheme {
             if (active.value) SyntheticSessionScreen(current.value, {}, {}, {}, {}, readingPosition = position)
         } }
-        rule.onNodeWithTag("chat-list").performScrollToNode(hasText("过程 · 8项"))
+        rule.onNodeWithTag("chat-list").performScrollToNode(hasText("过程 · 8 项"))
         rule.onNodeWithText("tool-16").assertDoesNotExist()
-        rule.onNodeWithText("过程 · 8项").performClick()
+        rule.onNodeWithText("过程 · 8 项").performClick()
         rule.onNodeWithTag("chat-list").performScrollToNode(hasText("tool-16"))
         val before = rule.onNodeWithText("tool-16").assertIsDisplayed().fetchSemanticsNode().boundsInRoot.top
         rule.runOnIdle { current.value = state(processes(8)) }
@@ -124,7 +124,8 @@ class ChatReadingTest {
         rule.runOnIdle {
             source = position.key
             org.junit.Assert.assertTrue(current.value.reader!!.window!!.items.any { it.id == source })
-            org.junit.Assert.assertFalse(source.orEmpty().startsWith("process:"))
+            org.junit.Assert.assertFalse(source.orEmpty().startsWith("g"))
+            org.junit.Assert.assertFalse(source.orEmpty().startsWith("tp"))
             active.value = false
         }
         rule.runOnIdle { active.value = true }

@@ -51,20 +51,20 @@ fun TokenWorksTopBar(
         ) {
             BoxWithConstraints(Modifier.widthIn(max = contentMaxWidth).fillMaxWidth()) {
                 val stackedActions = maxWidth < 360.dp || LocalDensity.current.fontScale >= 1.5f
-                Column(Modifier.fillMaxWidth().padding(vertical = TokenWorksSpacing.extraSmall)) {
+                Column(Modifier.fillMaxWidth().padding(vertical = TokenWorksSpacing.xs)) {
                     Row(
                         Modifier.fillMaxWidth()
-                            .heightIn(min = TokenWorksSpacing.minimumTouchTarget)
-                            .padding(horizontal = TokenWorksSpacing.page),
-                        horizontalArrangement = Arrangement.spacedBy(TokenWorksSpacing.small),
+                            .heightIn(min = TokenWorksMetrics.chatBarHeight)
+                            .padding(horizontal = TokenWorksSpacing.lg),
+                        horizontalArrangement = Arrangement.spacedBy(TokenWorksSpacing.sm),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         navigationIcon()
                         Text(
                             text = title,
-                            style = MaterialTheme.typography.titleMedium,
+                            style = MaterialTheme.typography.titleLarge,
                             modifier = Modifier.weight(1f)
-                                .padding(vertical = TokenWorksSpacing.small)
+                                .padding(vertical = TokenWorksSpacing.sm)
                                 .semantics { heading() },
                         )
                         if (!stackedActions) actions()
@@ -73,15 +73,15 @@ fun TokenWorksTopBar(
                         Text(
                             text = subtitle,
                             modifier = Modifier.fillMaxWidth()
-                                .padding(horizontal = TokenWorksSpacing.page)
-                                .padding(bottom = TokenWorksSpacing.small),
+                                .padding(horizontal = TokenWorksSpacing.lg)
+                                .padding(bottom = TokenWorksSpacing.sm),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }
                     if (stackedActions) {
                         Row(
-                            modifier = Modifier.fillMaxWidth().padding(horizontal = TokenWorksSpacing.page),
+                            modifier = Modifier.fillMaxWidth().padding(horizontal = TokenWorksSpacing.lg),
                             horizontalArrangement = Arrangement.End,
                             verticalAlignment = Alignment.CenterVertically,
                             content = actions,
@@ -107,13 +107,13 @@ fun TokenWorksStatusNotice(
                 liveRegion = LiveRegionMode.Polite
                 if (isError) error(text)
             },
-        shape = MaterialTheme.shapes.small,
+        shape = tokenWorksSquircle(TokenWorksRadius.md),
         color = if (isError) MaterialTheme.colorScheme.errorContainer else MaterialTheme.colorScheme.surfaceContainerLow,
         contentColor = if (isError) MaterialTheme.colorScheme.onErrorContainer else MaterialTheme.colorScheme.onSurfaceVariant,
     ) {
         Text(
             text = text,
-            modifier = Modifier.padding(horizontal = TokenWorksSpacing.medium, vertical = TokenWorksSpacing.small),
+            modifier = Modifier.padding(horizontal = TokenWorksSpacing.md, vertical = TokenWorksSpacing.sm),
             style = MaterialTheme.typography.bodySmall,
         )
     }

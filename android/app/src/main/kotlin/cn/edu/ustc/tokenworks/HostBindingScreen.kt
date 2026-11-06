@@ -41,7 +41,7 @@ fun HostBindingScreen(state: HostBindingState, subject: String, onPreview: (Stri
         )
     }) { insets ->
         Box(Modifier.fillMaxSize().padding(insets).imePadding(), contentAlignment = Alignment.TopCenter) {
-            Column(Modifier.widthIn(max = 720.dp).fillMaxWidth().verticalScroll(rememberScrollState()).padding(io.github.enthusjast.tokenworks.ui.TokenWorksSpacing.page),
+            Column(Modifier.widthIn(max = 720.dp).fillMaxWidth().verticalScroll(rememberScrollState()).padding(io.github.enthusjast.tokenworks.ui.TokenWorksSpacing.lg),
                 verticalArrangement = Arrangement.spacedBy(16.dp)) {
                 Text(stringResource(when (state.phase) {
                     HostBindingPhase.ENTER -> R.string.flow_binding_step_input

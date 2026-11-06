@@ -93,8 +93,8 @@ internal fun AppearanceSettingsContent(
         Box(Modifier.fillMaxSize().padding(insets), contentAlignment = Alignment.TopCenter) {
             LazyColumn(
                 modifier = Modifier.widthIn(max = 720.dp).fillMaxWidth().testTag("appearance-settings-list"),
-                contentPadding = PaddingValues(TokenWorksSpacing.page),
-                verticalArrangement = Arrangement.spacedBy(TokenWorksSpacing.page),
+                contentPadding = PaddingValues(TokenWorksSpacing.lg),
+                verticalArrangement = Arrangement.spacedBy(TokenWorksSpacing.lg),
             ) {
                 item("scope") { Text(stringResource(R.string.appearance_scope), style = MaterialTheme.typography.bodyMedium) }
                 item("persistence") {

@@ -52,9 +52,14 @@ private fun ReadyHomeRoute(state: HomeState, model: HomeViewModel, viewport: Wor
         state.reviewingApprovalId == null && bindingState == null && state.creation == null && state.selectedSessionId == null
     val chromeVisible = !appearanceSettings && !state.appUpdateSettings && !state.notificationSettings &&
         state.reviewingApprovalId == null && bindingState == null && state.creation == null
-    val layout = workspaceLayout(viewport, navigation.chatDetail != null || state.modelSelectionOpen || state.changesOpen || state.messageActionsOpen,
-        navigation.navigationExpanded)
-        .let { if (state.knownTarget != null) it.copy(navigationWidth = 0.dp) else it }
+    val layout = workspaceLayout(
+        viewport = viewport,
+        hasSession = state.selectedSessionId != null,
+        panelRequested = navigation.chatDetail != null || state.modelSelectionOpen || state.changesOpen || state.messageActionsOpen,
+        navigationExpanded = navigation.navigationExpanded,
+    ).let {
+        if (state.knownTarget != null) it.copy(leftPane = WorkspaceLeftPane.NONE, navigationWidth = 0.dp) else it
+    }
     val keyboard = LocalSoftwareKeyboardController.current
     val imeVisible = WindowInsets.isImeVisible
     val back: () -> Unit = {
@@ -113,11 +118,14 @@ private fun ReadyHomeRoute(state: HomeState, model: HomeViewModel, viewport: Wor
     }
     val backToComputers: () -> Unit = { selectDestination(HomeDestination.COMPUTERS) }
     val openNavigation: () -> Unit = {
-        if (layout.navigationWidth >= io.github.enthusjast.tokenworks.ui.TokenWorksSpacing.navigationWidth) navigation.navigationExpanded = false
-        else if (layout.navigationWidth > 0.dp) {
-            closeChild()
-            navigation.navigationExpanded = true
-        } else navigation.drawerOpen = true
+        when (layout.leftPane) {
+            WorkspaceLeftPane.SIDEBAR -> navigation.navigationExpanded = false
+            WorkspaceLeftPane.RAIL -> {
+                closeChild()
+                navigation.navigationExpanded = true
+            }
+            WorkspaceLeftPane.NONE -> navigation.drawerOpen = true
+        }
     }
     val selectRuntime: (String) -> Unit = { id ->
         navigation.closePresentationPanels()

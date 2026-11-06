@@ -2,7 +2,6 @@
 <resources>
     <string name="workspace_open_navigation">打开会话导航</string>
     <string name="workspace_close_navigation">关闭会话导航</string>
-    <string name="workspace_expand_navigation">展开会话导航</string>
     <string name="workspace_collapse_navigation">收起会话导航</string>
     <string name="workspace_title">TokenWorks Mobile</string>
     <string name="workspace_choose_session">选择会话，继续工作</string>
@@ -55,4 +54,22 @@
     <string name="composer_attachment_help">附件可用性说明</string>
     <string name="composer_attachment_busy">正在准备或传输附件，请稍候。</string>
     <string name="workspace_nav_reminders">提醒</string>
+    <string name="workspace_process_summary">过程 · %1$d 项</string>
+    <string name="workspace_turn_footnote">用时 %1$s · %2$d 步 · %3$d 次工具</string>
+    <string name="workspace_turn_footnote_brief">%1$d 步 · %2$d 次工具</string>
+    <string name="workspace_drawer_recent">最近</string>
+    <string name="workspace_drawer_earlier">更早</string>
+    <string name="workspace_unread">未读</string>
+    <string name="workspace_rail_sessions">会话</string>
+    <string name="workspace_rail_search">搜索</string>
+    <string name="workspace_composer_mode_queue">排队</string>
+    <string name="workspace_composer_mode_steer">插入</string>
+    <string name="workspace_attachment_panel_title">附件</string>
+    <string name="workspace_relative_now">刚刚</string>
+    <string name="workspace_relative_minutes">%1$d 分钟前</string>
+    <string name="workspace_relative_hours">%1$d 小时前</string>
+    <string name="workspace_relative_date">%1$d月%2$d日</string>
+    <string name="workspace_duration_seconds">%1$d 秒</string>
+    <string name="workspace_duration_minutes">%1$d 分 %2$d 秒</string>
+    <string name="workspace_duration_hours">%1$d 小时 %2$d 分</string>
 </resources>

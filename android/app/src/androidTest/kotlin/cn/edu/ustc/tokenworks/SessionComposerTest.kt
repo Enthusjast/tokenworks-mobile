@@ -70,7 +70,7 @@ class SessionComposerTest {
         rule.setContent { TokenWorksTheme { ComposerFixture(state(false), onSubmit = { submitted = Triple(it.draft.mode, it.draft.value.text, it.sendNow) }) } }
         rule.onNodeWithContentDescription("保存待发送").assertIsNotEnabled()
         rule.onNodeWithText("消息内容").performTextInput("离线草稿🙂")
-        rule.onNodeWithText("排队发送").performClick()
+        rule.onNodeWithTag("composer-mode").performClick()
         rule.onNodeWithText("补充当前任务").performClick()
         rule.onNodeWithContentDescription("保存待发送").assertIsEnabled().performClick()
         rule.runOnIdle { assertEquals(Triple("steer", "离线草稿🙂", false), submitted) }
@@ -109,7 +109,7 @@ class SessionComposerTest {
         rule.onNodeWithText("正在保存请求…").assertIsDisplayed()
         rule.onNodeWithContentDescription("正在保存…").assertIsNotEnabled()
         rule.onNodeWithText("保持中的输入").assertExists()
-        rule.onNodeWithText("排队发送").performClick()
+        rule.onNodeWithTag("composer-mode").performClick()
         rule.onNodeWithText("等待轮到此消息时处理").assertIsDisplayed()
         rule.onNodeWithText("向电脑当前任务补充内容").assertIsDisplayed()
         rule.runOnIdle { assertNull(submitted) }

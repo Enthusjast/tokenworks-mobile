@@ -71,9 +71,9 @@ internal fun SessionModelsScreen(
         subtitle = stringResource(R.string.models_not_current)) {
         Column(Modifier.fillMaxSize().then(if (embedded) Modifier else Modifier.imePadding()),
             horizontalAlignment = Alignment.CenterHorizontally) {
-            LazyColumn(Modifier.widthIn(max = TokenWorksSpacing.chatMaxWidth).fillMaxWidth().weight(1f),
+            LazyColumn(Modifier.widthIn(max = TokenWorksSpacing.readingWidth).fillMaxWidth().weight(1f),
                 state = uiState.listState,
-                contentPadding = PaddingValues(TokenWorksSpacing.page), verticalArrangement = Arrangement.spacedBy(TokenWorksSpacing.medium)) {
+                contentPadding = PaddingValues(TokenWorksSpacing.lg), verticalArrangement = Arrangement.spacedBy(TokenWorksSpacing.md)) {
                 item("catalog-state") {
                     Text(stringResource(when (state.phase) {
                         SessionModelCatalogPhase.UNAVAILABLE -> R.string.models_unsupported
@@ -232,12 +232,12 @@ internal fun WorkspacePanelFrame(
     if (embedded) {
         Column(Modifier.fillMaxSize()) {
             Surface(color = MaterialTheme.colorScheme.surface) {
-                Row(Modifier.fillMaxWidth().padding(end = TokenWorksSpacing.medium),
+                Row(Modifier.fillMaxWidth().padding(end = TokenWorksSpacing.md),
                     verticalAlignment = Alignment.CenterVertically) {
                     IconButton(onBack, Modifier.size(TokenWorksSpacing.minimumTouchTarget)) {
                         Icon(painterResource(R.drawable.ic_back), backLabel)
                     }
-                    Column(Modifier.weight(1f).padding(vertical = TokenWorksSpacing.small)) {
+                    Column(Modifier.weight(1f).padding(vertical = TokenWorksSpacing.sm)) {
                         Text(title, style = MaterialTheme.typography.titleMedium, modifier = Modifier.semantics { heading() })
                         subtitle?.let { Text(it, style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant) }

@@ -43,7 +43,7 @@ fun SessionCreationScreen(state: HomeState, onCreate: (String,String,String)->Un
         )
     }) { insets ->
         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
-        LazyColumn(Modifier.widthIn(max = 720.dp).fillMaxSize().padding(insets).imePadding(),contentPadding=PaddingValues(io.github.enthusjast.tokenworks.ui.TokenWorksSpacing.page),verticalArrangement=Arrangement.spacedBy(16.dp)) {
+        LazyColumn(Modifier.widthIn(max = 720.dp).fillMaxSize().padding(insets).imePadding(),contentPadding=PaddingValues(io.github.enthusjast.tokenworks.ui.TokenWorksSpacing.lg),verticalArrangement=Arrangement.spacedBy(16.dp)) {
             val error=state.commandError ?: creation.error ?: creation.outbox.error
             if(error!=null) item("error") { io.github.enthusjast.tokenworks.ui.TokenWorksStatusNotice(creationError(error), isError=true) }
             if(creation.outbox.records.isNotEmpty()) item("records") {

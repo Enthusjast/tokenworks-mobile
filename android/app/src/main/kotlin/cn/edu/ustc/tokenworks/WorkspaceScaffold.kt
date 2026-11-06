@@ -68,6 +68,7 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import io.github.enthusjast.tokenworks.ui.TokenWorksMetrics
 import io.github.enthusjast.tokenworks.ui.TokenWorksSpacing
 import kotlin.math.roundToInt
 
@@ -75,26 +76,52 @@ internal data class WorkspaceViewport(val widthDp: Int, val heightDp: Int)
 
 internal enum class WorkspaceSize { COMPACT, MEDIUM, EXPANDED }
 
+internal enum class WorkspaceLeftPane { NONE, RAIL, SIDEBAR }
+
 internal data class WorkspaceLayoutSpec(
     val size: WorkspaceSize,
+    val leftPane: WorkspaceLeftPane,
     val navigationWidth: Dp,
-    val inspectorWidth: Dp,
+    val panelWidth: Dp,
+    val panelShown: Boolean,
 )
 
+/**
+ * Splits an expanded window into navigation, chat and panel columns. The panel keeps 30% of the
+ * window (clamped to 360..420 dp) but never starves chat below 400 dp; the sidebar only unfolds
+ * when chat still keeps 600 dp next to it.
+ */
 internal fun workspaceLayout(
     viewport: WorkspaceViewport,
-    inspectorRequested: Boolean,
+    hasSession: Boolean,
+    panelRequested: Boolean,
     navigationExpanded: Boolean,
 ): WorkspaceLayoutSpec {
-    if (viewport.widthDp <= 0 || viewport.heightDp <= 0 || viewport.heightDp < 480 || viewport.widthDp < 600) {
-        return WorkspaceLayoutSpec(WorkspaceSize.COMPACT, 0.dp, 0.dp)
+    if (viewport.widthDp <= 0 || viewport.heightDp <= 0) {
+        return WorkspaceLayoutSpec(WorkspaceSize.COMPACT, WorkspaceLeftPane.NONE, 0.dp, 0.dp, false)
     }
-    if (viewport.widthDp < 840) return WorkspaceLayoutSpec(WorkspaceSize.MEDIUM, 0.dp, 0.dp)
-    val compactNavigation = !navigationExpanded || (inspectorRequested && viewport.widthDp < 1120)
+    val size = when {
+        viewport.heightDp < 480 || viewport.widthDp < 600 -> WorkspaceSize.COMPACT
+        viewport.widthDp < 840 -> WorkspaceSize.MEDIUM
+        else -> WorkspaceSize.EXPANDED
+    }
+    if (size != WorkspaceSize.EXPANDED) {
+        return WorkspaceLayoutSpec(size, WorkspaceLeftPane.NONE, 0.dp, 0.dp, false)
+    }
+    val width = viewport.widthDp.dp
+    val room = (width - TokenWorksMetrics.railWidth - TokenWorksMetrics.chatMin).coerceAtLeast(0.dp)
+    val panelWidth = minOf(TokenWorksMetrics.panelIdeal(viewport.widthDp), room)
+    val available = hasSession && panelWidth >= TokenWorksMetrics.panelMin
+    val panelShown = available && panelRequested
+    val fits = width - TokenWorksMetrics.sidebarWidth -
+        (if (panelShown) panelWidth else 0.dp) >= TokenWorksMetrics.chatComfort
+    val leftPane = if (navigationExpanded && fits) WorkspaceLeftPane.SIDEBAR else WorkspaceLeftPane.RAIL
     return WorkspaceLayoutSpec(
-        size = WorkspaceSize.EXPANDED,
-        navigationWidth = if (compactNavigation) 72.dp else TokenWorksSpacing.navigationWidth,
-        inspectorWidth = if (inspectorRequested) TokenWorksSpacing.inspectorWidth else 0.dp,
+        size = size,
+        leftPane = leftPane,
+        navigationWidth = if (leftPane == WorkspaceLeftPane.SIDEBAR) TokenWorksMetrics.sidebarWidth else TokenWorksMetrics.railWidth,
+        panelWidth = panelWidth,
+        panelShown = panelShown,
     )
 }
 
@@ -152,6 +179,7 @@ internal fun WorkspaceScaffold(
     navigationOpen: Boolean,
     onNavigationOpenChange: (Boolean) -> Unit,
     chromeVisible: Boolean,
+    railContent: @Composable () -> Unit,
     navigationContent: @Composable () -> Unit,
     content: @Composable () -> Unit,
 ) {
@@ -159,15 +187,19 @@ internal fun WorkspaceScaffold(
         Box(Modifier.fillMaxSize().testTag("workspace-content")) { content() }
         return
     }
-    if (layout.navigationWidth > 0.dp) {
+    if (layout.leftPane != WorkspaceLeftPane.NONE) {
         LaunchedEffect(navigationOpen) { if (navigationOpen) onNavigationOpenChange(false) }
         Row(Modifier.fillMaxSize()) {
             Surface(
-                modifier = Modifier.width(layout.navigationWidth).fillMaxHeight().testTag("workspace-navigation"),
+                modifier = Modifier.width(layout.navigationWidth).fillMaxHeight().testTag(
+                    if (layout.leftPane == WorkspaceLeftPane.RAIL) "workspace-rail" else "workspace-navigation",
+                ),
                 color = MaterialTheme.colorScheme.surfaceContainerLow,
             ) {
                 Box {
-                    Box(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing)) { navigationContent() }
+                    Box(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing)) {
+                        if (layout.leftPane == WorkspaceLeftPane.RAIL) railContent() else navigationContent()
+                    }
                     ColumnDivider(Modifier.align(Alignment.CenterEnd))
                 }
             }
@@ -207,7 +239,7 @@ internal fun WorkspaceScaffold(
         }
     }
     BoxWithConstraints(Modifier.fillMaxSize()) {
-        val drawerWidth = minOf(360.dp, (maxWidth - TokenWorksSpacing.large).coerceAtLeast(0.dp))
+        val drawerWidth = minOf(TokenWorksMetrics.drawerMaxWidth, (maxWidth - TokenWorksSpacing.xxl).coerceAtLeast(0.dp))
         ModalNavigationDrawer(
             drawerState = drawerState,
             // Never steal horizontal code/table gestures to open a closed drawer.
@@ -285,7 +317,7 @@ internal fun AdaptiveSessionPanel(
                         } else true
                     },
                 ),
-                sheetMaxWidth = TokenWorksSpacing.chatMaxWidth,
+                sheetMaxWidth = TokenWorksSpacing.readingWidth,
                 containerColor = MaterialTheme.colorScheme.surface,
                 contentWindowInsets = { safeInsets },
             ) {
@@ -308,7 +340,7 @@ internal fun AdaptiveSessionPanel(
             }
             Surface(
                 modifier = Modifier.width(
-                    layout.inspectorWidth.takeIf { it > 0.dp } ?: TokenWorksSpacing.inspectorWidth,
+                    layout.panelWidth.takeIf { it > 0.dp } ?: TokenWorksMetrics.panelIdealMin,
                 ).fillMaxHeight().testTag("workspace-panel-side"),
                 color = MaterialTheme.colorScheme.surface,
             ) {

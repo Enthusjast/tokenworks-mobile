@@ -14,11 +14,20 @@ import org.junit.Test
 class ChatTimelineTest {
     private fun message(id: String, role: ConversationRole = ConversationRole.TOOL,
         blocks: List<DisplayBlock> = listOf(DisplayBlock(BlockKind.TEXT, "result $id")),
-        live: Boolean = false, interrupted: Boolean = false, error: Boolean = false) =
-        ConversationItem(id, role, blocks, live, !live, interrupted, error)
+        live: Boolean = false, interrupted: Boolean = false, error: Boolean = false,
+        seq: Long = id.filter { it.isDigit() }.toLongOrNull() ?: -1L,
+        turn: Long? = null, step: Long? = null, time: Long? = null) =
+        ConversationItem(id, role, blocks, live, !live, interrupted, error,
+            seq = seq, turn = turn, step = step, time = time)
 
-    private fun reasoning(id: String, text: String = "reasoning $id", live: Boolean = false) =
-        message(id, ConversationRole.ASSISTANT, listOf(DisplayBlock(BlockKind.REASONING, text)), live)
+    private fun reasoning(id: String, text: String = "reasoning $id", live: Boolean = false, turn: Long? = null,
+        seq: Long = id.filter { it.isDigit() }.toLongOrNull() ?: -1L) =
+        message(id, ConversationRole.ASSISTANT, listOf(DisplayBlock(BlockKind.REASONING, text)), live, turn = turn, seq = seq)
+
+    private fun answer(id: String, turn: Long?, seq: Long = id.filter { it.isDigit() }.toLongOrNull() ?: -1L,
+        time: Long? = null, step: Long? = null) =
+        message(id, ConversationRole.ASSISTANT, listOf(DisplayBlock(BlockKind.TEXT, "answer $id")),
+            turn = turn, seq = seq, time = time, step = step)
 
     @Test fun emptyWindowHasNoRowsOrSourceAnchors() {
         val projection = projectChatTimeline(emptyList())
@@ -29,14 +38,14 @@ class ChatTimelineTest {
         assertNull(projection.sourceIdForRenderKey("missing"))
     }
 
-    @Test fun adjacentCallsResultsAndPureReasoningShareOneNeutralGroupWithOriginalChildren() {
+    @Test fun adjacentCallsResultsAndPureReasoningShareOneGroupWithOriginalChildren() {
         val call = message("event:0", blocks = listOf(DisplayBlock(BlockKind.TOOL, "", "shell", "call-1")))
         val result = message("event:1")
-        val thinking = reasoning("live:attempt", live = true)
+        val thinking = reasoning("event:2")
         val source = listOf(call, result, thinking)
         val projection = projectChatTimeline(source)
-        val group = projection.rows.single() as ChatTimelineRow.ProcessGroup
-        assertEquals("process:event:0", group.key)
+        val group = projection.rows.single() as ChatTimelineRow.ToolGroup
+        assertEquals("g0", group.key)
         assertEquals(source, group.items)
         group.items.zip(source).forEach { (child, original) -> assertSame(original, child) }
         assertEquals(source.associate { it.id to group.key }, projection.sourceToGroup)
@@ -48,6 +57,75 @@ class ChatTimelineTest {
             assertEquals(item.id, projection.sourceIdForRenderKey(item.id))
         }
         assertEquals(call.id, projection.sourceIdForRenderKey(group.key))
+    }
+
+    @Test fun twoAdjacentProcessRowsStayIndividualAndThreeBecomeOneGroup() {
+        val pair = listOf(message("event:1"), message("event:2"))
+        assertEquals(listOf("event:1", "event:2"), projectChatTimeline(pair).rows.map { it.key })
+        val triple = listOf(message("event:1"), message("event:2"), message("event:3"))
+        val rows = projectChatTimeline(triple).rows
+        assertEquals(1, rows.size)
+        assertEquals(listOf("event:1", "event:2", "event:3"), (rows.single() as ChatTimelineRow.ToolGroup).items.map { it.id })
+    }
+
+    @Test fun finishedTurnFoldsItsProcessAndKeepsTheAnswerAndFootnote() {
+        val user = message("event:1", ConversationRole.USER, listOf(DisplayBlock(BlockKind.TEXT, "do it")))
+        val first = message("event:2", turn = 1, step = 1, time = 1_000)
+        val second = message("event:3", turn = 1, step = 2, time = 2_000)
+        val third = reasoning("event:4", turn = 1, seq = 4).copyTime(3_000, 2)
+        val body = answer("event:5", turn = 1, time = 4_000, step = 3)
+        val projection = projectChatTimeline(listOf(user, first, second, third, body))
+        assertEquals(4, projection.rows.size)
+        assertSame(user, (projection.rows[0] as ChatTimelineRow.Message).item)
+        val process = projection.rows[1] as ChatTimelineRow.TurnProcess
+        assertEquals(listOf(first, second, third), process.items)
+        assertSame(body, (projection.rows[2] as ChatTimelineRow.Message).item)
+        val footnote = projection.rows[3] as ChatTimelineRow.TurnFootnote
+        assertEquals(1L, footnote.ofTurn)
+        assertEquals(3_000L, footnote.durationMillis)
+        assertEquals(3, footnote.steps)
+        assertEquals(2, footnote.toolCalls)
+        assertEquals(listOf("event:1", "tp2", "event:5", "ft1"), projection.renderKeys(emptySet()))
+        assertEquals(listOf("event:1", "tp2", "event:2", "event:3", "event:4", "event:5", "ft1"),
+            projection.renderKeys(setOf(second.id)))
+    }
+
+    private fun ConversationItem.copyTime(time: Long, step: Long) = ConversationItem(
+        id, role, blocks, live, persisted, interrupted, hasError, seq = seq, turn = turn, step = step, time = time,
+    )
+
+    @Test fun runningInterruptedOrErroredTurnsNeverFold() {
+        fun turn(interrupted: Boolean = false, error: Boolean = false) = listOf(
+            message("event:1", ConversationRole.USER, listOf(DisplayBlock(BlockKind.TEXT, "do it"))),
+            message("event:2", turn = 1, step = 1, time = 1_000),
+            message("event:3", turn = 1, step = 2, time = 2_000, interrupted = interrupted, error = error),
+            reasoning("event:4", turn = 1).copyTime(2_000, 2),
+            answer("event:5", turn = 1, time = 3_000, step = 3),
+        )
+        val streaming = projectChatTimeline(turn(), running = true)
+        assertTrue(streaming.rows.none { it is ChatTimelineRow.TurnProcess })
+        assertTrue(streaming.rows.none { it is ChatTimelineRow.TurnFootnote })
+        assertEquals(1, streaming.rows.count { it is ChatTimelineRow.ToolGroup })
+        // An errored or interrupted row keeps its own identity, which also breaks the run around it.
+        for (projection in listOf(
+            projectChatTimeline(turn(interrupted = true)),
+            projectChatTimeline(turn(error = true)),
+        )) {
+            assertTrue(projection.rows.none { it is ChatTimelineRow.TurnProcess })
+            assertTrue(projection.rows.none { it is ChatTimelineRow.TurnFootnote })
+            assertTrue(projection.rows.none { it is ChatTimelineRow.ToolGroup })
+        }
+    }
+
+    @Test fun foldNeedsAnAnswerAndOnlyProcessBeforeIt() {
+        val tools = listOf(message("event:1", turn = 1), message("event:2", turn = 1), message("event:3", turn = 1))
+        assertTrue(projectChatTimeline(tools).rows.none { it is ChatTimelineRow.TurnProcess })
+
+        val lateTool = message("event:6", turn = 1)
+        val afterAnswer = projectChatTimeline(tools + answer("event:4", turn = 1) + lateTool)
+        assertTrue(afterAnswer.rows.none { it is ChatTimelineRow.TurnProcess })
+        assertTrue(afterAnswer.rows.any { it is ChatTimelineRow.Message && it.item.id == "event:4" })
+        assertEquals("event:6", (afterAnswer.rows.last() as ChatTimelineRow.Message).item.id)
     }
 
     @Test fun bodyUserNoticeOtherImageErrorAndInterruptionEachBreakBothSidesOfAGroup() {
@@ -74,12 +152,12 @@ class ChatTimelineTest {
                 listOf(DisplayBlock(BlockKind.REASONING, "incomplete")), interrupted = true),
         )
         for (boundary in boundaries) {
-            val before = message("before")
-            val after = reasoning("after")
-            val projection = projectChatTimeline(listOf(before, boundary, after))
-            assertEquals(boundary.id, 3, projection.rows.size)
+            val before = listOf(message("event:10"), message("event:11"), message("event:12"))
+            val after = listOf(reasoning("event:20"), message("event:21"), message("event:22"))
+            val projection = projectChatTimeline(before + boundary + after)
+            assertEquals(3, projection.rows.size)
             assertSame(boundary, (projection.rows[1] as ChatTimelineRow.Message).item)
-            assertEquals(listOf("process:before", boundary.id, "process:after"), projection.renderKeys(emptySet()))
+            assertEquals(listOf("g10", boundary.id, "g20"), projection.renderKeys(emptySet()))
             assertFalse(projection.sourceToGroup.containsKey(boundary.id))
             assertEquals(boundary.id, projection.renderKeyForSource(boundary.id, emptySet()))
         }
@@ -95,8 +173,8 @@ class ChatTimelineTest {
             message("empty-tool", blocks = listOf(DisplayBlock(BlockKind.TOOL, ""))),
         )
         for (item in empty) {
-            val projection = projectChatTimeline(listOf(reasoning("before"), item, reasoning("after")))
-            assertSame(item, (projection.rows[1] as ChatTimelineRow.Message).item)
+            val projection = projectChatTimeline(listOf(item))
+            assertSame(item, (projection.rows.single() as ChatTimelineRow.Message).item)
             assertEquals(item.id, projection.renderKeyForSource(item.id, emptySet()))
             assertFalse(projection.sourceToGroup.containsKey(item.id))
         }
@@ -104,48 +182,49 @@ class ChatTimelineTest {
 
     @Test fun toolMetadataIsContentButErrorWordsNeverInferFailure() {
         val items = listOf(
-            message("call", blocks = listOf(DisplayBlock(BlockKind.TOOL, "", "shell", "call-1"))),
-            message("result", blocks = listOf(DisplayBlock(BlockKind.TEXT, "Error is a quoted word, not a status"))),
-            message("tool-process", blocks = listOf(DisplayBlock(BlockKind.TEXT, "output"),
+            message("event:1", blocks = listOf(DisplayBlock(BlockKind.TOOL, "", "shell", "call-1"))),
+            message("event:2", blocks = listOf(DisplayBlock(BlockKind.TEXT, "Error is a quoted word, not a status"))),
+            message("event:3", blocks = listOf(DisplayBlock(BlockKind.TEXT, "output"),
                 DisplayBlock(BlockKind.REASONING, "note"), DisplayBlock(BlockKind.TOOL, "", "read", "call-2"))),
         )
-        assertEquals(items, (projectChatTimeline(items).rows.single() as ChatTimelineRow.ProcessGroup).items)
+        assertEquals(items, (projectChatTimeline(items).rows.single() as ChatTimelineRow.ToolGroup).items)
     }
 
     @Test fun prependingHistoryMergesHeadersWithoutLosingExpandedSourcesOrChangingActionIdentity() {
-        val first = reasoning("event:20")
-        val selected = message("event:21")
-        val body = message("event:22", ConversationRole.ASSISTANT)
-        val original = projectChatTimeline(listOf(first, selected, body))
+        val tools = (19L..21L).map { message("event:$it", seq = it, turn = 1) }
+        val selected = tools[1]
+        val body = answer("event:22", turn = 1, time = 4_000)
+        val original = projectChatTimeline(tools + body)
         val expandedIds = setOf(selected.id)
         val originalKey = original.renderKeyForSource(selected.id, expandedIds)!!
         assertEquals(2, original.renderKeys(expandedIds).indexOf(originalKey))
 
-        val earlier = reasoning("event:19")
-        val prepended = projectChatTimeline(listOf(earlier, first, selected, body))
-        assertEquals("process:event:19", prepended.sourceToGroup[selected.id])
+        val olderTools = (16L..18L).map { message("event:$it", seq = it, turn = 0) }
+        val prepended = projectChatTimeline(olderTools + answer("event:18b", turn = 0, seq = 18) + tools + body)
+        assertEquals("tp19", prepended.sourceToGroup[selected.id])
         assertEquals(selected.id, prepended.renderKeyForSource(selected.id, expandedIds))
-        assertEquals(3, prepended.renderKeys(expandedIds).indexOf(selected.id))
-        assertSame(selected, (prepended.rows.first() as ChatTimelineRow.ProcessGroup).items[2])
+        assertTrue(prepended.renderKeys(expandedIds).indexOf(selected.id) > 0)
+        assertSame(selected, (prepended.rows.filterIsInstance<ChatTimelineRow.TurnProcess>().last()).items[1])
         assertEquals(selected.id, prepended.sourceIdForRenderKey(selected.id))
 
         val collapsedKey = prepended.renderKeyForSource(selected.id, emptySet())!!
-        assertEquals("process:event:19", collapsedKey)
-        assertEquals(0, prepended.renderKeys(emptySet()).indexOf(collapsedKey))
+        assertEquals("tp19", collapsedKey)
+        assertEquals(3, prepended.renderKeys(emptySet()).indexOf(collapsedKey))
         assertEquals(selected.id, prepended.renderKeyForSource(selected.id, expandedIds))
-        assertFalse(prepended.renderKeys(expandedIds).contains("process:event:20"))
+        assertFalse(prepended.renderKeys(expandedIds).contains("event:16"))
+        assertFalse(prepended.renderKeys(expandedIds).contains("event:17"))
     }
 
     @Test fun retiredSourcesCannotExpandAnotherGroupAndMissingAnchorsDoNotGetInvented() {
         val selected = message("event:1")
-        val remaining = message("event:2")
-        val old = projectChatTimeline(listOf(selected, remaining))
-        assertEquals(listOf("process:event:1", selected.id, remaining.id), old.renderKeys(setOf(selected.id)))
-        val current = projectChatTimeline(listOf(remaining))
-        assertEquals(listOf("process:event:2"), current.renderKeys(setOf(selected.id)))
+        val remaining = listOf(message("event:2"), message("event:3"))
+        val old = projectChatTimeline(listOf(selected) + remaining)
+        assertEquals(listOf("g1", selected.id, "event:2", "event:3"), old.renderKeys(setOf(selected.id)))
+        val current = projectChatTimeline(remaining)
+        assertEquals(listOf("event:2", "event:3"), current.renderKeys(setOf(selected.id)))
         assertNull(current.renderKeyForSource(selected.id, setOf(selected.id)))
-        assertNull(current.sourceIdForRenderKey("process:event:1"))
+        assertNull(current.sourceIdForRenderKey("g1"))
         assertNull(current.sourceIdForRenderKey(selected.id))
-        assertEquals(remaining.id, current.sourceIdForRenderKey("process:event:2"))
+        assertEquals("event:2", current.sourceIdForRenderKey("event:2"))
     }
 }

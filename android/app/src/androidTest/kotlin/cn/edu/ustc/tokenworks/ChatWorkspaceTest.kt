@@ -218,30 +218,30 @@ class ChatWorkspaceTest {
     @Test fun nativeProcessesCollapseButAcceptedLongToolErrorStaysUnfolded() {
         val start = "公开工具错误开头："
         val end = "公开工具错误末尾：保留必要说明。"
-        val error = record(1, "tool/result", jsonObject("message" to jsonObject("isError" to JsonBoolean(true),
+        val error = record(3, "tool/result", jsonObject("message" to jsonObject("isError" to JsonBoolean(true),
             "content" to JsonArray(listOf(text(start + "这是必要的错误说明，不等于整个任务失败。".repeat(80), "reasoning"), text(end))))))
-        val source = window(listOf(tool(0), error, tool(2), user(3, "公开尾部消息"))).snapshot()
-        assertTrue(source.items.single { it.id == "event:1" }.hasError)
+        val source = window(listOf(tool(0), tool(1), tool(2), error, user(4, "公开尾部消息"))).snapshot()
+        assertTrue(source.items.single { it.id == "event:3" }.hasError)
         val position = ChatReadingPosition().apply { key = "event:0"; following = false }
         NativeChatFixture.launch().use { ui ->
             ui.content { SyntheticSessionScreen(initial(source), {}, {}, {}, {}, readingPosition = position, viewport = ui.viewport) }
-            ui.scrollTo({ it.tag("process:event:0") }, forward = false)
-            val collapsed = ui.requireNode { it.tag("process:event:0") }
+            ui.scrollTo({ it.tag("g0") }, forward = false)
+            val collapsed = ui.requireNode { it.tag("g0") }
             assertEquals("已收起", collapsed.state)
             assertTrue(collapsed.bounds.height() + 1 >= 48f * ui.density)
             ui.absent { it.label("public-read-0") }
-            ui.clickTag("process:event:0")
+            ui.clickTag("g0")
             ui.await("original process message expanded") { nodes -> nodes.any { it.label("public-read-0") } }
             ui.requireNode { it.tag("conversation-message:event:0") }
-            ui.scrollTo({ it.tag("process:event:0") }, forward = false)
-            ui.clickTag("process:event:0")
+            ui.scrollTo({ it.tag("g0") }, forward = false)
+            ui.clickTag("g0")
             ui.await("process collapsed again") { nodes -> nodes.none { it.label("public-read-0") } }
             ui.scrollTo({ it.label("工具返回错误") }, forward = true)
             ui.scrollTo({ it.contains(start) }, forward = true)
             ui.scrollTo({ it.contains(end) }, forward = true)
             ui.requireNode { it.contains(end) }
             ui.absent { it.label("执行成功") || it.label("任务已完成") }
-            assertFalse(position.key.orEmpty().startsWith("process:"))
+            assertFalse(position.key.orEmpty().startsWith("g"))
             ui.capture("native-chat-long-error-unfolded")
         }
     }
@@ -284,6 +284,52 @@ class ChatWorkspaceTest {
         }
     }
 
+    @Test fun nativeFinishedTurnFoldsProcessAndKeepsTheAnswerAndFootnote() {
+        val records = listOf(
+            record(0, "turn/start", jsonObject("turn" to 1L.json())),
+            tool(1), tool(2), tool(3),
+            record(4, "assistant/message", jsonObject("turn" to 1L.json(), "step" to 3L.json(),
+                "message" to jsonObject("content" to JsonArray(listOf(text("公开回合答案")))))),
+            record(5, "turn/end", jsonObject("turn" to 1L.json(), "reason" to "completed".json())),
+        )
+        val source = window(records).snapshot()
+        assertFalse(source.taskRunning)
+        NativeChatFixture.launch(WorkspaceViewport(360, 800)).use { ui ->
+            ui.content { SyntheticSessionScreen(initial(source), {}, {}, {}, {}, viewport = ui.viewport) }
+            ui.await("folded turn header") { nodes -> nodes.any { it.tag("tp1") } }
+            ui.requireNode { it.contains("过程 · 3 项") }
+            ui.requireNode { it.contains("公开回合答案") }
+            ui.requireNode { it.contains("用时") }
+            ui.absent { it.label("public-read-1") }
+            ui.capture("native-turn-folded")
+            ui.clickTag("tp1")
+            ui.await("turn process expanded") { nodes -> nodes.any { it.label("public-read-1") } }
+            ui.capture("native-turn-expanded")
+        }
+    }
+
+    @Test fun nativeNavigationColumnRendersAcrossPublicBoundaryWidths() {
+        NativeChatFixture.launch(WorkspaceViewport(360, 800)).use { ui ->
+            ui.content { SyntheticSessionScreen(initial(), {}, {}, {}, {}, viewport = ui.viewport) }
+            for (width in listOf(320, 360, 600)) {
+                ui.resize(width, 800)
+                ui.click(label(R.string.workspace_open_navigation))
+                ui.await("drawer at $width") { nodes -> nodes.any { it.tag("directory-search") } }
+                ui.capture("native-navigation-drawer-${width}x800")
+                ui.back()
+                ui.await("drawer closed at $width") { nodes -> nodes.none { it.tag("directory-search") } }
+            }
+            for (width in listOf(840, 1280)) {
+                ui.resize(width, 800)
+                ui.await("navigation column at $width") { nodes ->
+                    nodes.any { it.tag("workspace-navigation") || it.tag("workspace-rail") }
+                }
+                ui.capture("native-navigation-column-${width}x800")
+            }
+            ui.absent { it.tag("workspace-drawer") }
+        }
+    }
+
     @Test fun nativeBoundaryResizesKeepTheSameDetailsAndDoNotInventControllerAuthority() {
         var refreshes = 0
         var pages = 0
@@ -302,13 +348,14 @@ class ChatWorkspaceTest {
                 }
                 assertEquals(1, ui.nodes().count { it.contains("会话：$session") })
                 if (width >= 840) {
-                    val nav = ui.requireNode { it.tag("workspace-navigation") }
-                    assertEquals(if (width < 1120) 72f else 304f, nav.bounds.width() / ui.density, 2f)
-                } else ui.absent { it.tag("workspace-navigation") }
+                    // The open details panel keeps chat at its minimum, so navigation stays a rail.
+                    val rail = ui.requireNode { it.tag("workspace-rail") }
+                    assertEquals(68f, rail.bounds.width() / ui.density, 2f)
+                } else ui.absent { it.tag("workspace-rail") }
             }
             ui.closeDetails()
             ui.await("expanded navigation preference restored") { nodes -> nodes.any { it.tag("workspace-navigation") &&
-                kotlin.math.abs(it.bounds.width() / ui.density - 304f) < 2f } }
+                kotlin.math.abs(it.bounds.width() / ui.density - 320f) < 2f } }
             assertEquals(0, refreshes)
             assertEquals(0, pages)
             assertEquals(0, claims)

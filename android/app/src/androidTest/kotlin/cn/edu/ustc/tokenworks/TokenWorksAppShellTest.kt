@@ -102,13 +102,13 @@ class TokenWorksAppShellTest {
         SideEffect { fixtureDensity = density }
         BoxWithConstraints(Modifier.fillMaxSize()) {
             val layout = workspaceLayout(WorkspaceViewport(maxWidth.value.toInt(), maxHeight.value.toInt()),
-                navigation.chatDetail != null, navigation.navigationExpanded)
+                state.selectedSessionId != null, navigation.chatDetail != null, navigation.navigationExpanded)
             TokenWorksAppShell(state, navigation, { navigation.closePresentationPanels(); navigation.destination = it }, onRuntime,
                 { navigation.drawerOpen = false; onSession(it) },
                 {}, onRefreshSessions, onCreate, onBinding, onNotifications, onAppearance, onAppUpdates, onExit,
                 { navigation.closePresentationPanels(); navigation.destination = HomeDestination.COMPUTERS },
                 layout = layout, chromeVisible = true, onOpenNavigation = {
-                    if (layout.navigationWidth > 0.dp) navigation.navigationExpanded = !navigation.navigationExpanded
+                    if (layout.leftPane != WorkspaceLeftPane.NONE) navigation.navigationExpanded = !navigation.navigationExpanded
                     else navigation.drawerOpen = true
                 })
         }

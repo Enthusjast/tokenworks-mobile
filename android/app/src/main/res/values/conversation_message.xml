@@ -20,5 +20,4 @@
     <string name="conversation_message_tool_error">工具返回错误</string>
     <string name="conversation_message_reply_error">回复异常</string>
     <string name="conversation_message_preparing">正在准备回复</string>
-    <string name="conversation_process_count">过程 · %1$d项</string>
 </resources>

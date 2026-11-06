@@ -1,11 +1,13 @@
 package cn.edu.ustc.tokenworks
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
@@ -13,6 +15,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.sizeIn
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
@@ -47,12 +51,16 @@ import androidx.compose.ui.semantics.onLongClick
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import io.github.enthusjast.tokenworks.protocol.VisibleMediaReference
 import io.github.enthusjast.tokenworks.session.BlockKind
 import io.github.enthusjast.tokenworks.session.ConversationItem
 import io.github.enthusjast.tokenworks.session.ConversationRole
 import io.github.enthusjast.tokenworks.session.DisplayBlock
+import io.github.enthusjast.tokenworks.ui.TokenWorksRadius
+import io.github.enthusjast.tokenworks.ui.TokenWorksSpacing
+import io.github.enthusjast.tokenworks.ui.tokenWorksSquircle
 import kotlinx.coroutines.CancellationException
 
 /** Actions use only the current display text; a quote is an editable local draft, not a server relation. */
@@ -85,7 +93,9 @@ internal fun ConversationMessage(item: ConversationItem, onQuote: ((String) -> U
         }
     }
     BoxWithConstraints(Modifier.fillMaxWidth().then(if (interactive) Modifier else Modifier.clearAndSetSemantics { })) {
-        val width = if (user) Modifier.widthIn(max = minOf(640.dp, maxWidth * 0.88f)) else Modifier.fillMaxWidth()
+        // A prompt never spans a wall of text, and long answers stop at the reading measure.
+        val width = if (user) Modifier.widthIn(max = minOf(TokenWorksSpacing.readingWidth, maxWidth * 0.82f))
+        else Modifier.widthIn(max = TokenWorksSpacing.readingWidth).fillMaxWidth()
         val messageModifier = width.testTag("conversation-message:${item.id}").then(if (interactive) Modifier
             .semantics {
                 isTraversalGroup = true
@@ -95,11 +105,8 @@ internal fun ConversationMessage(item: ConversationItem, onQuote: ((String) -> U
             .conversationMessageLongPress(item.id) { menuExpanded = true }
             else Modifier.clearAndSetSemantics { })
         val content: @Composable () -> Unit = {
-            Column(Modifier.padding(horizontal = if (user) 12.dp else 0.dp, vertical = 8.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                if (item.hasError) Text(stringResource(if (item.role == ConversationRole.TOOL)
-                    R.string.conversation_message_tool_error else R.string.conversation_message_reply_error),
-                    style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.error)
+            Column(Modifier.padding(horizontal = if (user) TokenWorksSpacing.lg else 0.dp, vertical = TokenWorksSpacing.sm),
+                verticalArrangement = Arrangement.spacedBy(TokenWorksSpacing.inTurn)) {
                 if (item.live && item.blocks.all { it.text.isEmpty() && it.media == null && it.name.isEmpty() && it.callId.isEmpty() }) Text(
                     stringResource(R.string.conversation_message_preparing), style = MaterialTheme.typography.bodyLarge)
                 for ((index, block) in item.blocks.withIndex()) key(item.id, index) {
@@ -134,10 +141,13 @@ internal fun ConversationMessage(item: ConversationItem, onQuote: ((String) -> U
                     style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.error)
                 if (!item.persisted && !item.live) Text(stringResource(R.string.conversation_message_unconfirmed),
                     style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                if (item.hasError) Text(stringResource(if (item.role == ConversationRole.TOOL)
+                    R.string.conversation_message_tool_error else R.string.conversation_message_reply_error),
+                    style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
                 if (interactive) Row(verticalAlignment = Alignment.CenterVertically) {
                     TextButton(copy, Modifier.heightIn(min = 48.dp), enabled = item.blocks.any { it.text.isNotEmpty() },
                         colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.onSurfaceVariant)) {
-                        Text(stringResource(R.string.conversation_message_copy_short))
+                        Text(stringResource(R.string.conversation_message_copy_short), style = MaterialTheme.typography.labelSmall)
                     }
                     Box {
                         IconButton({ menuExpanded = true }, Modifier.sizeIn(minWidth = 48.dp, minHeight = 48.dp)) {
@@ -170,7 +180,7 @@ internal fun ConversationMessage(item: ConversationItem, onQuote: ((String) -> U
         Box(Modifier.fillMaxWidth(), contentAlignment = if (user) Alignment.CenterEnd else Alignment.CenterStart) {
             if (user) Surface(messageModifier, color = MaterialTheme.colorScheme.primaryContainer,
                 contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
-                shape = MaterialTheme.shapes.medium, content = content)
+                shape = tokenWorksSquircle(TokenWorksRadius.lg), content = content)
             else Column(messageModifier) { content() }
         }
     }
@@ -185,19 +195,59 @@ private fun ConversationMessageDetail(itemId: String, index: Int, block: Display
     val title = if (reasoning) stringResource(R.string.conversation_message_reasoning)
         else block.name.ifEmpty { stringResource(R.string.conversation_message_tool) }
     val expansion = stringResource(if (open) R.string.conversation_message_expanded else R.string.conversation_message_collapsed)
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    val tone = if (reasoning) null else toolTone(block.name)
+    val titleStyle = if (reasoning) MaterialTheme.typography.labelLarge
+    else MaterialTheme.typography.titleSmall.copy(fontFamily = FontFamily.Monospace)
+    Column(verticalArrangement = Arrangement.spacedBy(TokenWorksSpacing.sm)) {
         if (interactive && !forceExpanded) TextButton({ expanded = !expanded }, Modifier.fillMaxWidth().heightIn(min = 48.dp)
             .semantics { stateDescription = expansion }) {
-            Text(title, Modifier.weight(1f), style = MaterialTheme.typography.labelLarge)
+            ToolToneMark(tone)
+            Text(title, Modifier.weight(1f), style = titleStyle)
             Icon(painterResource(R.drawable.ic_chevron), contentDescription = null,
-                modifier = Modifier.size(20.dp).rotate(if (open) 90f else 0f))
-        } else Text(title, style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                modifier = Modifier.size(TokenWorksSpacing.iconSize).rotate(if (open) 90f else 0f))
+        } else Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(TokenWorksSpacing.sm)) {
+            ToolToneMark(tone)
+            Text(title, style = titleStyle, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
         if (open) {
             if (!reasoning && block.callId.isNotEmpty()) Text(
                 stringResource(R.string.conversation_message_call_id, block.callId), style = MaterialTheme.typography.bodySmall)
             if (block.text.isNotEmpty()) RichMessageText(block.text, if (reasoning) 16 * 1024 else 4 * 1024,
                 interactive = interactive)
         }
+    }
+}
+
+/** Display-only grouping of tool names; it never implies execution status or success. */
+internal enum class ToolTone { TERMINAL, EDIT, READ, SEARCH, WEB, AGENT, PLAN, NEUTRAL }
+
+internal fun toolTone(name: String): ToolTone = when (name.lowercase().trim()) {
+    "bash", "pwsh", "shell", "terminal" -> ToolTone.TERMINAL
+    "write", "edit", "str_replace_editor", "apply_patch", "multiedit" -> ToolTone.EDIT
+    "read", "read_image", "view" -> ToolTone.READ
+    "grep", "glob", "search" -> ToolTone.SEARCH
+    "web_fetch", "web_search", "fetch" -> ToolTone.WEB
+    "subagent", "subagent_fork", "send_message", "workflow" -> ToolTone.AGENT
+    "todo_write" -> ToolTone.PLAN
+    else -> ToolTone.NEUTRAL
+}
+
+@Composable
+private fun ToolToneMark(tone: ToolTone?) {
+    when (tone) {
+        null -> Spacer(Modifier.width(TokenWorksSpacing.xxs))
+        else -> Box(
+            Modifier.size(20.dp).background(
+                when (tone) {
+                    ToolTone.TERMINAL, ToolTone.AGENT -> MaterialTheme.colorScheme.primary
+                    ToolTone.EDIT, ToolTone.WEB -> MaterialTheme.colorScheme.tertiary
+                    ToolTone.READ, ToolTone.SEARCH, ToolTone.PLAN -> MaterialTheme.colorScheme.secondary
+                    ToolTone.NEUTRAL -> MaterialTheme.colorScheme.outline
+                },
+                CircleShape,
+            ),
+        )
     }
 }
 

@@ -2,9 +2,12 @@ package cn.edu.ustc.tokenworks
 
 import androidx.annotation.DrawableRes
 import androidx.annotation.StringRes
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.text.selection.SelectionContainer
@@ -14,7 +17,15 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.unit.sp
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.painterResource
@@ -32,9 +43,15 @@ import io.github.enthusjast.tokenworks.network.SessionDirectoryEntry
 import io.github.enthusjast.tokenworks.network.SessionReadPhase
 import io.github.enthusjast.tokenworks.network.DirectoryDisplayMetadata
 import io.github.enthusjast.tokenworks.network.directoryWorkspaceTitles
+import io.github.enthusjast.tokenworks.ui.TokenWorksMetrics
 import io.github.enthusjast.tokenworks.ui.TokenWorksSpacing
 import io.github.enthusjast.tokenworks.ui.TokenWorksStatusNotice
+import io.github.enthusjast.tokenworks.ui.TokenWorksRadius
 import io.github.enthusjast.tokenworks.ui.TokenWorksTopBar
+import io.github.enthusjast.tokenworks.ui.tokenWorksSquircle
+import io.github.enthusjast.tokenworks.ui.tokenWorksPress
+import io.github.enthusjast.tokenworks.ui.tokenWorksSurfaces
+import java.util.Calendar
 import java.text.DateFormat
 import java.util.Date
 
@@ -64,6 +81,21 @@ internal class HomeNavigation {
     var drawerOpen by mutableStateOf(false)
     var hostSwitcherOpen by mutableStateOf(false)
     var navigationExpanded by mutableStateOf(true)
+
+    /** Bumped by the rail's search key; the directory consumes it once by focusing its search field. */
+    var directorySearchRequest by mutableStateOf(0)
+        private set
+    private var directorySearchServed = 0
+
+    fun requestDirectorySearch() {
+        directorySearchRequest++
+    }
+
+    fun consumeDirectorySearch(): Boolean {
+        if (directorySearchServed == directorySearchRequest) return false
+        directorySearchServed = directorySearchRequest
+        return true
+    }
     var chatDetail by mutableStateOf<ChatDetailTarget?>(null)
         private set
 
@@ -253,16 +285,24 @@ internal fun TokenWorksAppShell(
 ) {
     val destination = navigation.destination
     val runtime = state.directoryRuntime(navigation.directoryRuntimeId)
+    val appContext = LocalContext.current.applicationContext
+    val ownerKey = state.appearanceScope().ownerKey
+    val readMarks = remember(ownerKey) { ownerKey?.let { SessionReadMarks(appContext, it) } }
     SideEffect {
         navigation.reconcileDirectory(state)
         navigation.reconcileChatDetail(state)
     }
     val directoryInNavigation = chromeVisible && destination == HomeDestination.SESSIONS &&
-        state.knownTarget == null && (layout.navigationWidth >= TokenWorksSpacing.navigationWidth || layout.navigationWidth == 0.dp && navigation.drawerOpen)
+        state.knownTarget == null && (
+            layout.leftPane == WorkspaceLeftPane.SIDEBAR || layout.leftPane == WorkspaceLeftPane.NONE && navigation.drawerOpen
+        )
     WorkspaceScaffold(layout, navigation.drawerOpen, { navigation.drawerOpen = it }, chromeVisible,
+        railContent = {
+            WorkspaceRail(state, navigation, onDestination, onCreate)
+        },
         navigationContent = {
             WorkspaceNavigation(state, navigation, layout, onDestination, onRuntime, onSession, onCreate,
-                onBinding, onNotifications, onOpenNavigation)
+                onBinding, onNotifications, onOpenNavigation, readMarks)
         }) {
         if (content != null) content()
         else Scaffold(
@@ -294,7 +334,7 @@ internal fun TokenWorksAppShell(
             Box(Modifier.fillMaxSize().padding(insets), contentAlignment = Alignment.TopCenter) {
                 when (destination) {
                     HomeDestination.SESSIONS -> if (directoryInNavigation) WorkspaceEmptySelection()
-                        else SessionDirectoryScreen(state, navigation, onRuntime, onSession, onBinding)
+                        else SessionDirectoryScreen(state, navigation, onRuntime, onSession, onBinding, readMarks = readMarks)
                     HomeDestination.COMPUTERS -> ComputersScreen(state, onRuntime, onCreate, onBinding)
                     HomeDestination.SETTINGS -> SettingsScreen(state, onNotifications, onAppearance, onAppUpdates, onExit)
                 }
@@ -322,11 +362,12 @@ internal fun TokenWorksAppShell(
 
 @Composable
 private fun WorkspaceEmptySelection() {
-    Column(Modifier.widthIn(max = TokenWorksSpacing.chatMaxWidth).fillMaxWidth().padding(32.dp),
+    Column(Modifier.widthIn(max = TokenWorksSpacing.readingWidth).fillMaxWidth().padding(32.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        Text(stringResource(R.string.workspace_choose_session), style = MaterialTheme.typography.headlineSmall,
+        Text(stringResource(R.string.workspace_choose_session), style = MaterialTheme.typography.displaySmall,
             modifier = Modifier.semantics { heading() })
-        Text(stringResource(R.string.workspace_choose_session_detail), color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(stringResource(R.string.workspace_choose_session_detail), style = MaterialTheme.typography.bodyMedium,
+            color = tokenWorksSurfaces().textTertiary)
     }
 }
 
@@ -334,95 +375,141 @@ private fun WorkspaceEmptySelection() {
 @Composable
 private fun WorkspaceNavigation(state: HomeState, navigation: HomeNavigation, layout: WorkspaceLayoutSpec,
     onDestination: (HomeDestination) -> Unit, onRuntime: (String) -> Unit, onSession: (String) -> Unit,
-    onCreate: (String) -> Unit, onBinding: () -> Unit, onNotifications: () -> Unit, onOpenNavigation: () -> Unit) {
-    val rail = layout.navigationWidth > 0.dp && layout.navigationWidth <= 72.dp
+    onCreate: (String) -> Unit, onBinding: () -> Unit, onNotifications: () -> Unit, onOpenNavigation: () -> Unit,
+    readMarks: SessionReadMarks?) {
     val runtime = state.directoryRuntime(navigation.directoryRuntimeId)
+    val inSidebar = layout.leftPane == WorkspaceLeftPane.SIDEBAR
     BoxWithConstraints(Modifier.fillMaxSize()) {
         val compactChrome = maxHeight < 480.dp * androidx.compose.ui.platform.LocalDensity.current.fontScale.coerceAtLeast(1f)
         Column(Modifier.fillMaxSize()) {
-            if (rail) {
-                IconButton(onOpenNavigation, Modifier.size(48.dp).align(Alignment.CenterHorizontally)) {
-                    ShellIcon(R.drawable.ic_menu, R.string.workspace_expand_navigation)
+            Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text(stringResource(R.string.workspace_title), Modifier.weight(1f), style = MaterialTheme.typography.titleSmall,
+                    maxLines = if (compactChrome) 1 else Int.MAX_VALUE, overflow = TextOverflow.Ellipsis)
+                if (compactChrome && runtime?.access?.creationScope() != null) IconButton({ onCreate(runtime.id) }, Modifier.size(48.dp)) {
+                    ShellIcon(R.drawable.ic_add, R.string.action_create_session)
                 }
-                HomeDestination.entries.forEach { destination ->
-                    IconButton({ onDestination(destination) }, Modifier.size(48.dp).align(Alignment.CenterHorizontally)
-                        .semantics { selected = navigation.destination == destination }) { ShellIcon(destination.icon, destination.label) }
+                IconButton({ if (inSidebar) navigation.navigationExpanded = false else navigation.drawerOpen = false }, Modifier.size(48.dp)) {
+                    ShellIcon(if (inSidebar) R.drawable.ic_menu else R.drawable.ic_back,
+                        if (inSidebar) R.string.workspace_collapse_navigation else R.string.workspace_close_navigation)
                 }
-                Spacer(Modifier.weight(1f))
-                if (state.knownTarget == null) IconButton({ navigation.hostSwitcherOpen = true }, Modifier.size(48.dp).align(Alignment.CenterHorizontally)) {
-                    ShellIcon(R.drawable.ic_computers, R.string.workspace_switch_host)
+            }
+            if (state.knownTarget != null) {
+                TextButton({ navigation.drawerOpen = false; onDestination(HomeDestination.SESSIONS) }, Modifier.fillMaxWidth().heightIn(min = 48.dp)) {
+                    Text(stringResource(R.string.workspace_back_reminders))
                 }
             } else {
-                Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Text(stringResource(R.string.workspace_title), Modifier.weight(1f), style = MaterialTheme.typography.titleSmall,
-                        maxLines = if (compactChrome) 1 else Int.MAX_VALUE, overflow = TextOverflow.Ellipsis)
-                    if (compactChrome && runtime?.access?.creationScope() != null) IconButton({ onCreate(runtime.id) }, Modifier.size(48.dp)) {
-                        ShellIcon(R.drawable.ic_add, R.string.action_create_session)
-                    }
-                    IconButton({ if (layout.navigationWidth > 0.dp) navigation.navigationExpanded = false else navigation.drawerOpen = false }, Modifier.size(48.dp)) {
-                        ShellIcon(if (layout.navigationWidth > 0.dp) R.drawable.ic_menu else R.drawable.ic_back,
-                            if (layout.navigationWidth > 0.dp) R.string.workspace_collapse_navigation else R.string.workspace_close_navigation)
+                if (!compactChrome && runtime?.access?.creationScope() != null) FilledTonalButton({ onCreate(runtime.id) },
+                    Modifier.fillMaxWidth().padding(horizontal = 16.dp).heightIn(min = 48.dp)) {
+                    ShellIcon(R.drawable.ic_add)
+                    Spacer(Modifier.width(8.dp))
+                    Text(stringResource(R.string.action_create_session))
+                }
+                Box(Modifier.weight(1f).fillMaxWidth()) {
+                    if (navigation.destination == HomeDestination.SESSIONS) SessionDirectoryScreen(state, navigation, onRuntime, onSession, onBinding, inNavigation = true, readMarks = readMarks)
+                    else TextButton({ onDestination(HomeDestination.SESSIONS) }, Modifier.padding(16.dp).heightIn(min = 48.dp)) {
+                        Text(stringResource(R.string.workspace_return_sessions))
                     }
                 }
-                if (state.knownTarget != null) {
-                    TextButton({ navigation.drawerOpen = false; onDestination(HomeDestination.SESSIONS) }, Modifier.fillMaxWidth().heightIn(min = 48.dp)) {
-                        Text(stringResource(R.string.workspace_back_reminders))
-                    }
-                } else {
-                    if (!compactChrome && runtime?.access?.creationScope() != null) FilledTonalButton({ onCreate(runtime.id) },
-                        Modifier.fillMaxWidth().padding(horizontal = 16.dp).heightIn(min = 48.dp)) {
-                        ShellIcon(R.drawable.ic_add)
-                        Spacer(Modifier.width(8.dp))
-                        Text(stringResource(R.string.action_create_session))
-                    }
-                    Box(Modifier.weight(1f).fillMaxWidth()) {
-                        if (navigation.destination == HomeDestination.SESSIONS) SessionDirectoryScreen(state, navigation, onRuntime, onSession, onBinding, inNavigation = true)
-                        else TextButton({ onDestination(HomeDestination.SESSIONS) }, Modifier.padding(16.dp).heightIn(min = 48.dp)) {
-                            Text(stringResource(R.string.workspace_return_sessions))
-                        }
-                    }
-                    HorizontalDivider()
-                    if (compactChrome) {
-                        FlowRow(Modifier.fillMaxWidth().padding(horizontal = 8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                            val hostLabel = stringResource(R.string.workspace_host_status, runtime?.hostAlias ?: stringResource(R.string.session_select_computer), stringResource(R.string.workspace_switch_host))
-                            IconButton({ navigation.hostSwitcherOpen = true }, Modifier.size(48.dp)) {
-                                Icon(painterResource(R.drawable.ic_computers), hostLabel, Modifier.size(20.dp))
-                            }
-                            HomeDestination.entries.forEach { destination -> if (destination != HomeDestination.SESSIONS) {
-                                IconButton({ onDestination(destination) }, Modifier.size(48.dp).semantics { selected = navigation.destination == destination }) {
-                                    ShellIcon(destination.icon, destination.label)
-                                }
-                            } }
-                            val reminders = stringResource(R.string.settings_notifications)
-                            TextButton({ navigation.drawerOpen = false; onNotifications() }, Modifier.heightIn(min = 48.dp)
-                                .semantics { contentDescription = reminders }) { Text(stringResource(R.string.workspace_nav_reminders), style = MaterialTheme.typography.bodySmall) }
-                        }
-                    } else {
-                        TextButton({ navigation.hostSwitcherOpen = true }, Modifier.fillMaxWidth().heightIn(min = 48.dp).padding(horizontal = 8.dp)) {
-                            ShellIcon(R.drawable.ic_computers)
-                            Spacer(Modifier.width(8.dp))
-                            Column(Modifier.weight(1f), horizontalAlignment = Alignment.Start) {
-                                Text(runtime?.hostAlias ?: stringResource(R.string.session_select_computer), maxLines = 2, overflow = TextOverflow.Ellipsis)
-                                Text(stringResource(if (state.selectedSessionId != null && state.reader?.phase == SessionReadPhase.READY)
-                                    R.string.workspace_live_connection else R.string.workspace_presence_unknown), style = MaterialTheme.typography.bodySmall)
-                            }
-                            ShellIcon(R.drawable.ic_chevron)
+                HorizontalDivider()
+                if (compactChrome) {
+                    FlowRow(Modifier.fillMaxWidth().padding(horizontal = 8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        val hostLabel = stringResource(R.string.workspace_host_status, runtime?.hostAlias ?: stringResource(R.string.session_select_computer), stringResource(R.string.workspace_switch_host))
+                        IconButton({ navigation.hostSwitcherOpen = true }, Modifier.size(48.dp)) {
+                            Icon(painterResource(R.drawable.ic_computers), hostLabel, Modifier.size(20.dp))
                         }
                         HomeDestination.entries.forEach { destination -> if (destination != HomeDestination.SESSIONS) {
-                            TextButton({ onDestination(destination) }, Modifier.fillMaxWidth().heightIn(min = 48.dp)
-                                .semantics { selected = navigation.destination == destination }) {
-                                ShellIcon(destination.icon)
-                                Spacer(Modifier.width(8.dp))
-                                Text(stringResource(destination.label), Modifier.weight(1f))
+                            IconButton({ onDestination(destination) }, Modifier.size(48.dp).semantics { selected = navigation.destination == destination }) {
+                                ShellIcon(destination.icon, destination.label)
                             }
                         } }
-                        TextButton({ navigation.drawerOpen = false; onNotifications() }, Modifier.fillMaxWidth().heightIn(min = 48.dp)) {
-                            Text(stringResource(R.string.settings_notifications))
+                        val reminders = stringResource(R.string.settings_notifications)
+                        TextButton({ navigation.drawerOpen = false; onNotifications() }, Modifier.heightIn(min = 48.dp)
+                            .semantics { contentDescription = reminders }) { Text(stringResource(R.string.workspace_nav_reminders), style = MaterialTheme.typography.bodySmall) }
+                    }
+                } else {
+                    TextButton({ navigation.hostSwitcherOpen = true }, Modifier.fillMaxWidth().heightIn(min = 48.dp).padding(horizontal = 8.dp)) {
+                        ShellIcon(R.drawable.ic_computers)
+                        Spacer(Modifier.width(8.dp))
+                        Column(Modifier.weight(1f), horizontalAlignment = Alignment.Start) {
+                            Text(runtime?.hostAlias ?: stringResource(R.string.session_select_computer), maxLines = 2, overflow = TextOverflow.Ellipsis)
+                            Text(stringResource(if (state.selectedSessionId != null && state.reader?.phase == SessionReadPhase.READY)
+                                R.string.workspace_live_connection else R.string.workspace_presence_unknown), style = MaterialTheme.typography.bodySmall)
                         }
+                        ShellIcon(R.drawable.ic_chevron)
+                    }
+                    HomeDestination.entries.forEach { destination -> if (destination != HomeDestination.SESSIONS) {
+                        TextButton({ onDestination(destination) }, Modifier.fillMaxWidth().heightIn(min = 48.dp)
+                            .semantics { selected = navigation.destination == destination }) {
+                            ShellIcon(destination.icon)
+                            Spacer(Modifier.width(8.dp))
+                            Text(stringResource(destination.label), Modifier.weight(1f))
+                        }
+                    } }
+                    val reminders = stringResource(R.string.settings_notifications)
+                    TextButton({ navigation.drawerOpen = false; onNotifications() }, Modifier.fillMaxWidth().heightIn(min = 48.dp)
+                        .semantics { contentDescription = reminders }) {
+                        Text(stringResource(R.string.settings_notifications))
                     }
                 }
             }
         }
+    }
+}
+
+/**
+ * The 68 dp collapsed column: one key per top-level action instead of a squeezed copy of the
+ * sidebar. Nothing here fetches or mutates session resources; it only moves presentation state.
+ */
+@Composable
+private fun WorkspaceRail(state: HomeState, navigation: HomeNavigation,
+    onDestination: (HomeDestination) -> Unit, onCreate: (String) -> Unit) {
+    val runtime = state.directoryRuntime(navigation.directoryRuntimeId)
+    Column(
+        Modifier.fillMaxHeight().fillMaxWidth().padding(TokenWorksMetrics.edge),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(TokenWorksMetrics.gap),
+    ) {
+        RailKey(R.drawable.ic_menu, R.string.workspace_rail_sessions, selected = false) {
+            navigation.drawerOpen = true
+        }
+        RailKey(R.drawable.ic_search, R.string.workspace_rail_search, selected = false) {
+            navigation.requestDirectorySearch()
+            navigation.drawerOpen = true
+        }
+        RailKey(R.drawable.ic_computers, R.string.workspace_switch_host, selected = navigation.hostSwitcherOpen) {
+            navigation.hostSwitcherOpen = true
+        }
+        Spacer(Modifier.weight(1f))
+        if (state.knownTarget == null && runtime?.access?.creationScope() != null) {
+            RailKey(R.drawable.ic_add, R.string.action_create_session, selected = false) { onCreate(runtime.id) }
+        }
+        RailKey(R.drawable.ic_settings, R.string.nav_settings, selected = navigation.destination == HomeDestination.SETTINGS) {
+            onDestination(HomeDestination.SETTINGS)
+        }
+    }
+}
+
+@Composable
+private fun RailKey(@DrawableRes icon: Int, @StringRes label: Int, selected: Boolean, onClick: () -> Unit) {
+    val description = stringResource(label)
+    Box(
+        Modifier.size(TokenWorksMetrics.key)
+            .tokenWorksPress()
+            .clip(CircleShape)
+            .background(if (selected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceContainerHigh)
+            .clickable(role = Role.Button, onClick = onClick)
+            .semantics {
+                this.selected = selected
+                contentDescription = description
+            },
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(
+            painterResource(icon),
+            contentDescription = null,
+            modifier = Modifier.size(TokenWorksSpacing.iconSize),
+            tint = if (selected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant,
+        )
     }
 }
 
@@ -432,8 +519,23 @@ private fun ShellIcon(@DrawableRes icon: Int, @StringRes description: Int? = nul
 }
 
 @OptIn(ExperimentalLayoutApi::class)
+/** One ordered directory row: a section label or a session entry. */
+private sealed interface DirectoryRow {
+    val key: String
+    val type: String
+
+    data class Eyebrow(@get:StringRes val text: Int, override val key: String) : DirectoryRow {
+        override val type: String get() = "eyebrow"
+    }
+
+    data class Session(val entry: SessionDirectoryEntry) : DirectoryRow {
+        override val key: String get() = entry.id
+        override val type: String get() = "session"
+    }
+}
+
 @Composable
-private fun SessionDirectoryScreen(state: HomeState, navigation: HomeNavigation, onRuntime: (String) -> Unit, onSession: (String) -> Unit, onBinding: () -> Unit, inNavigation: Boolean = false) {
+private fun SessionDirectoryScreen(state: HomeState, navigation: HomeNavigation, onRuntime: (String) -> Unit, onSession: (String) -> Unit, onBinding: () -> Unit, inNavigation: Boolean = false, readMarks: SessionReadMarks? = null) {
     val listable = state.runtimes.filter { it.access?.organizationId != null && it.access.canList() }
     val runtime = state.directoryRuntime(navigation.directoryRuntimeId)
     val staleSelection = navigation.directoryRuntimeId != null && runtime == null
@@ -460,6 +562,10 @@ private fun SessionDirectoryScreen(state: HomeState, navigation: HomeNavigation,
     val searchAvailable = runtime != null && !state.refreshing && !state.loadingSessions && state.sessionError == null && state.error == null
     val focusManager = LocalFocusManager.current
     val keyboard = LocalSoftwareKeyboardController.current
+    val searchFocus = remember { FocusRequester() }
+    LaunchedEffect(navigation.directorySearchRequest, searchAvailable) {
+        if (searchAvailable && navigation.consumeDirectorySearch()) searchFocus.requestFocus()
+    }
     LaunchedEffect(runtime?.id, state.refreshing, state.loadingSessions, state.sessionError, state.error) {
         if (runtime == null || state.refreshing || state.loadingSessions || state.sessionError != null || state.error != null) {
             focusManager.clearFocus()
@@ -468,22 +574,50 @@ private fun SessionDirectoryScreen(state: HomeState, navigation: HomeNavigation,
             if (state.sessionError != null) navigation.directoryPosition.scrollToItem(0)
         }
     }
+        val dayAgo = remember(rows) { System.currentTimeMillis() - 24L * 60 * 60 * 1000 }
+        val fresh = matches.filter { it.updatedAt >= dayAgo }
+        val older = matches.filter { it.updatedAt < dayAgo }
+        val grouped: List<DirectoryRow> = buildList {
+            when {
+                navigation.directorySessionFilter == DirectorySessionFilter.ARCHIVED ->
+                    if (matches.isNotEmpty()) {
+                        add(DirectoryRow.Eyebrow(R.string.directory_filter_archived, "eyebrow-archived"))
+                        matches.forEach { add(DirectoryRow.Session(it)) }
+                    }
+                fresh.isEmpty() && older.isNotEmpty() -> {
+                    add(DirectoryRow.Eyebrow(R.string.workspace_drawer_earlier, "eyebrow-earlier"))
+                    older.forEach { add(DirectoryRow.Session(it)) }
+                }
+                else -> {
+                    if (fresh.isNotEmpty()) {
+                        add(DirectoryRow.Eyebrow(R.string.workspace_drawer_recent, "eyebrow-recent"))
+                        fresh.forEach { add(DirectoryRow.Session(it)) }
+                    }
+                    if (older.isNotEmpty()) {
+                        add(DirectoryRow.Eyebrow(R.string.workspace_drawer_earlier, "eyebrow-earlier"))
+                        older.forEach { add(DirectoryRow.Session(it)) }
+                    }
+                }
+            }
+        }
     LazyColumn(
         modifier = Modifier.widthIn(max = 800.dp).fillMaxSize().imePadding().testTag("session-directory"),
         state = navigation.directoryPosition,
-        contentPadding = PaddingValues(TokenWorksSpacing.page),
-        verticalArrangement = Arrangement.spacedBy(TokenWorksSpacing.small),
+        contentPadding = PaddingValues(TokenWorksSpacing.lg),
+        verticalArrangement = Arrangement.spacedBy(TokenWorksSpacing.sm),
     ) {
         item("scope") {
-            Column(verticalArrangement = Arrangement.spacedBy(TokenWorksSpacing.small)) {
+            Column(verticalArrangement = Arrangement.spacedBy(TokenWorksSpacing.sm)) {
                 OutlinedTextField(
                     value = navigation.directoryQuery,
                     onValueChange = { navigation.directoryQuery = it },
                     enabled = searchAvailable,
-                    label = { Text(stringResource(R.string.directory_search_label)) },
+                    placeholder = { Text(stringResource(R.string.directory_search_label),
+                        style = MaterialTheme.typography.bodyMedium, color = tokenWorksSurfaces().textTertiary) },
                     singleLine = true,
-                    shape = MaterialTheme.shapes.extraLarge,
-                    modifier = Modifier.fillMaxWidth().testTag("directory-search"),
+                    textStyle = MaterialTheme.typography.bodyMedium,
+                    shape = tokenWorksSquircle(TokenWorksRadius.xl),
+                    modifier = Modifier.fillMaxWidth().focusRequester(searchFocus).testTag("directory-search"),
                 )
                 if (!inNavigation) OutlinedButton({ choosingComputer = true }, enabled = listable.isNotEmpty(),
                     modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp).testTag("runtime-filter")) {
@@ -558,15 +692,25 @@ private fun SessionDirectoryScreen(state: HomeState, navigation: HomeNavigation,
                     ShellIcon(R.drawable.ic_chevron)
                 }
             }
-            items(matches, key = { it.id }) { session ->
-                SessionListItem(session, stableLabel(session.id, rows) { it.id },
-                    session.workspaceId?.let { workspaceTitles[it] ?: stableLabel(it, rows) { row -> row.workspaceId.orEmpty() } },
-                    runtime.access?.let(session::viewScope) != null, session.displayMetadata(runtime.access), state.loadingSessions,
-                    isSelected = state.selectedSessionId == session.id) {
-                    if (!state.loadingSessions && !state.refreshing && state.directoryRows(navigation.directoryRuntimeId).any { it.id == session.id } &&
-                        runtime.access?.let(session::viewScope) != null) onSession(session.id)
+            items(grouped, key = { it.key }, contentType = { it.type }) { row ->
+                when (row) {
+                    is DirectoryRow.Eyebrow -> DrawerEyebrow(stringResource(row.text))
+                    is DirectoryRow.Session -> {
+                        val session = row.entry
+                        val readable = runtime.access?.let(session::viewScope) != null
+                        val unread = readMarks != null && session.id != state.selectedSessionId &&
+                            remember(session.id, session.lastPersisted, state.selectedSessionId) {
+                                readMarks.isUnread(session.id, session.lastPersisted)
+                            }
+                        SessionListItem(session, stableLabel(session.id, rows) { it.id },
+                            session.workspaceId?.let { workspaceTitles[it] ?: stableLabel(it, rows) { entry -> entry.workspaceId.orEmpty() } },
+                            readable, session.displayMetadata(runtime.access), state.loadingSessions,
+                            isSelected = state.selectedSessionId == session.id, unread = unread) {
+                            if (!state.loadingSessions && !state.refreshing && state.directoryRows(navigation.directoryRuntimeId).any { it.id == session.id } &&
+                                readable) onSession(session.id)
+                        }
+                    }
                 }
-                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
             }
         }
     }
@@ -642,32 +786,101 @@ private fun SessionDirectoryScreen(state: HomeState, navigation: HomeNavigation,
 
 @Composable
 private fun SessionListItem(session: SessionDirectoryEntry, label: String, workspaceLabel: String?, canRead: Boolean,
-    display: DirectoryDisplayMetadata?, refreshing: Boolean, isSelected: Boolean, onClick: () -> Unit) {
-    val updated = remember(session.updatedAt) { DateFormat.getDateTimeInstance(DateFormat.SHORT, DateFormat.SHORT).format(Date(session.updatedAt)) }
-    val status = stringResource(when (session.state) {
+    display: DirectoryDisplayMetadata?, refreshing: Boolean, isSelected: Boolean, unread: Boolean, onClick: () -> Unit) {
+    val title = display?.title ?: stringResource(R.string.session_short_title, label)
+    val stateLabel = stringResource(when (session.state) {
         "running" -> R.string.session_running
         "archived" -> R.string.session_archived
         "unavailable" -> R.string.session_unavailable
         else -> R.string.session_available
     })
-    ListItem(
-        headlineContent = { Text(display?.title ?: stringResource(R.string.session_short_title, label),
-            style = MaterialTheme.typography.titleSmall, maxLines = 2, overflow = TextOverflow.Ellipsis) },
-        supportingContent = {
-            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text(if (workspaceLabel == null) updated else "$workspaceLabel · $updated",
-                    style = MaterialTheme.typography.bodySmall, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                if (refreshing) Text(stringResource(R.string.session_actions_directory_retained), style = MaterialTheme.typography.bodySmall)
-                else if (!canRead) Text(stringResource(R.string.session_directory_only), style = MaterialTheme.typography.bodySmall)
+    val time = relativeSessionTime(session.updatedAt)
+    // While a refresh keeps the last directory, or the row is directory-only, say so instead of
+    // silently ignoring taps.
+    val readableHint = when {
+        refreshing -> stringResource(R.string.session_actions_directory_retained)
+        !canRead -> stringResource(R.string.session_directory_only)
+        else -> null
+    }
+    val secondary = listOfNotNull(
+        workspaceLabel,
+        time.ifEmpty { null },
+        stateLabel.takeIf { session.state == "archived" || session.state == "unavailable" },
+        readableHint,
+    ).joinToString(" · ")
+    val description = if (unread) stateLabel + " · " + stringResource(R.string.workspace_unread) else stateLabel
+    val selectedBar = MaterialTheme.colorScheme.primary
+    Surface(
+        shape = tokenWorksSquircle(TokenWorksRadius.md),
+        color = if (isSelected) MaterialTheme.colorScheme.surfaceContainerHigh else Color.Transparent,
+    ) {
+        Row(
+            Modifier.fillMaxWidth().heightIn(min = 56.dp)
+                .tokenWorksPress(enabled = canRead && !refreshing)
+                .drawBehind {
+                    if (isSelected) drawRect(selectedBar, size = Size(3.dp.toPx(), size.height))
+                }
+                .clickable(enabled = canRead && !refreshing, role = Role.Button, onClick = onClick)
+                .semantics { selected = isSelected; stateDescription = description }
+                .padding(start = TokenWorksSpacing.md, end = TokenWorksSpacing.sm, top = TokenWorksSpacing.sm, bottom = TokenWorksSpacing.sm)
+                .testTag("session-${session.id}"),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(TokenWorksSpacing.sm),
+        ) {
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(TokenWorksSpacing.xxs)) {
+                Text(title, style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(
+                    secondary,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = tokenWorksSurfaces().textTertiary,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
             }
-        },
-        trailingContent = { Text(status, style = MaterialTheme.typography.labelMedium) },
-        modifier = Modifier.fillMaxWidth().heightIn(min = 72.dp).testTag("session-${session.id}")
-            .semantics { selected = isSelected; stateDescription = status }
-            .then(if (canRead && !refreshing) Modifier.clickable(role = Role.Button, onClick = onClick)
-                else Modifier.semantics { disabled() }),
-        colors = ListItemDefaults.colors(containerColor = if (isSelected) MaterialTheme.colorScheme.primaryContainer
-            else MaterialTheme.colorScheme.surfaceContainerLow),
+            when {
+                session.state == "running" -> Box(
+                    Modifier.size(8.dp).background(MaterialTheme.colorScheme.primary, CircleShape),
+                )
+                unread -> {
+                    val unreadLabel = stringResource(R.string.workspace_unread)
+                    Box(
+                        Modifier.size(8.dp).background(MaterialTheme.colorScheme.primary.copy(alpha = 0.8f), CircleShape)
+                            .semantics { contentDescription = unreadLabel },
+                    )
+                }
+                else -> Unit
+            }
+        }
+    }
+}
+
+/** Small uppercase-looking section label; it groups directory rows without adding a second list. */
+@Composable
+private fun DrawerEyebrow(text: String) {
+    Text(
+        text = text,
+        modifier = Modifier.fillMaxWidth().padding(
+            start = TokenWorksSpacing.md, end = TokenWorksSpacing.md,
+            top = TokenWorksSpacing.md, bottom = TokenWorksSpacing.xs,
+        ),
+        style = MaterialTheme.typography.labelSmall.copy(letterSpacing = 0.8.sp),
+        color = tokenWorksSurfaces().textTertiary,
+    )
+}
+
+/** Relative time for directory rows; UTC-independent, bounded to three forms. */
+@Composable
+internal fun relativeSessionTime(updatedAt: Long, now: Long = System.currentTimeMillis()): String {
+    if (updatedAt <= 0) return ""
+    val minutes = ((now - updatedAt).coerceAtLeast(0)) / 60_000
+    if (minutes < 1) return stringResource(R.string.workspace_relative_now)
+    if (minutes < 60) return stringResource(R.string.workspace_relative_minutes, minutes.toInt())
+    if (minutes < 24 * 60) return stringResource(R.string.workspace_relative_hours, (minutes / 60).toInt())
+    val calendar = Calendar.getInstance().apply { timeInMillis = updatedAt }
+    return stringResource(
+        R.string.workspace_relative_date,
+        calendar.get(Calendar.MONTH) + 1,
+        calendar.get(Calendar.DAY_OF_MONTH),
     )
 }
 
@@ -678,7 +891,7 @@ private fun ComputersScreen(state: HomeState, onRuntime: (String) -> Unit, onCre
     LaunchedEffect(state.runtimes) {
         if (state.runtimes.none { it.id == detailId }) detailId = null
     }
-    LazyColumn(Modifier.widthIn(max = 800.dp).fillMaxSize().testTag("computers-directory"), contentPadding = PaddingValues(TokenWorksSpacing.page), verticalArrangement = Arrangement.spacedBy(TokenWorksSpacing.medium)) {
+    LazyColumn(Modifier.widthIn(max = 800.dp).fillMaxSize().testTag("computers-directory"), contentPadding = PaddingValues(TokenWorksSpacing.lg), verticalArrangement = Arrangement.spacedBy(TokenWorksSpacing.md)) {
         item("bind") {
             OutlinedButton(onBinding, Modifier.fillMaxWidth().heightIn(min = 48.dp)) {
                 Text(stringResource(if (state.pendingBindingId == null) R.string.action_bind_computer else R.string.action_review_binding))
@@ -718,7 +931,7 @@ private fun ComputersScreen(state: HomeState, onRuntime: (String) -> Unit, onCre
             onDismissRequest = { detailId = null },
             title = { Text(stringResource(R.string.action_computer_details)) },
             text = {
-                LazyColumn(verticalArrangement = Arrangement.spacedBy(TokenWorksSpacing.medium)) {
+                LazyColumn(verticalArrangement = Arrangement.spacedBy(TokenWorksSpacing.md)) {
                     item { DetailField(R.string.computer_name, runtime.hostAlias) }
                     item { DetailField(R.string.computer_host_id, runtime.hostId) }
                     item { DetailField(R.string.computer_runtime_id, runtime.id) }
@@ -736,7 +949,7 @@ private fun ComputersScreen(state: HomeState, onRuntime: (String) -> Unit, onCre
 private fun SettingsScreen(state: HomeState, onNotifications: () -> Unit, onAppearance: () -> Unit, onAppUpdates: () -> Unit, onExit: () -> Unit) {
     var confirmExit by remember(state.issuer, state.subject, state.deviceId, state.presentationOwner?.fingerprint) { mutableStateOf(false) }
     var accountDetails by remember(state.issuer, state.subject, state.deviceId, state.presentationOwner?.fingerprint) { mutableStateOf(false) }
-    LazyColumn(Modifier.widthIn(max = 800.dp).fillMaxSize().testTag("settings-list"), contentPadding = PaddingValues(TokenWorksSpacing.page), verticalArrangement = Arrangement.spacedBy(TokenWorksSpacing.page)) {
+    LazyColumn(Modifier.widthIn(max = 800.dp).fillMaxSize().testTag("settings-list"), contentPadding = PaddingValues(TokenWorksSpacing.lg), verticalArrangement = Arrangement.spacedBy(TokenWorksSpacing.lg)) {
         item("account") {
             Text(stringResource(R.string.settings_account), style = MaterialTheme.typography.titleMedium, modifier = Modifier.semantics { heading() })
         }
@@ -769,7 +982,7 @@ private fun SettingsScreen(state: HomeState, onNotifications: () -> Unit, onAppe
         onDismissRequest = { accountDetails = false },
         title = { Text(stringResource(R.string.directory_account_details)) },
         text = {
-            LazyColumn(Modifier.testTag("account-detail-list"), verticalArrangement = Arrangement.spacedBy(TokenWorksSpacing.small)) {
+            LazyColumn(Modifier.testTag("account-detail-list"), verticalArrangement = Arrangement.spacedBy(TokenWorksSpacing.sm)) {
                 item("subject") { DetailField(R.string.settings_subject, state.subject) }
                 item("issuer") { DetailField(R.string.settings_account_source, state.issuer) }
                 item("device-name") { DetailField(R.string.settings_device, state.deviceName ?: stringResource(R.string.settings_device_registered)) }
@@ -811,7 +1024,7 @@ private fun SettingsHeading(@StringRes title: Int) {
 
 @Composable
 private fun DetailField(@StringRes label: Int, value: String) {
-    Column(Modifier.padding(vertical = TokenWorksSpacing.extraSmall), verticalArrangement = Arrangement.spacedBy(TokenWorksSpacing.extraSmall)) {
+    Column(Modifier.padding(vertical = TokenWorksSpacing.xs), verticalArrangement = Arrangement.spacedBy(TokenWorksSpacing.xs)) {
         Text(stringResource(label), style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
         SelectionContainer { Text(value, style = MaterialTheme.typography.bodyMedium) }
     }
@@ -819,7 +1032,7 @@ private fun DetailField(@StringRes label: Int, value: String) {
 
 @Composable
 private fun DirectoryProgress(@StringRes text: Int) {
-    Row(Modifier.fillMaxWidth().padding(vertical = TokenWorksSpacing.small), horizontalArrangement = Arrangement.spacedBy(TokenWorksSpacing.medium), verticalAlignment = Alignment.CenterVertically) {
+    Row(Modifier.fillMaxWidth().padding(vertical = TokenWorksSpacing.sm), horizontalArrangement = Arrangement.spacedBy(TokenWorksSpacing.md), verticalAlignment = Alignment.CenterVertically) {
         CircularProgressIndicator(Modifier.size(24.dp), strokeWidth = 2.dp)
         TokenWorksStatusNotice(stringResource(text), Modifier.weight(1f))
     }
@@ -827,7 +1040,7 @@ private fun DirectoryProgress(@StringRes text: Int) {
 
 @Composable
 private fun EmptyDirectory(@StringRes title: Int, @StringRes detail: Int) {
-    Column(Modifier.padding(vertical = TokenWorksSpacing.page), verticalArrangement = Arrangement.spacedBy(TokenWorksSpacing.small)) {
+    Column(Modifier.padding(vertical = TokenWorksSpacing.lg), verticalArrangement = Arrangement.spacedBy(TokenWorksSpacing.sm)) {
         Text(stringResource(title), style = MaterialTheme.typography.titleMedium, modifier = Modifier.semantics { heading() })
         Text(stringResource(detail), color = MaterialTheme.colorScheme.onSurfaceVariant)
     }

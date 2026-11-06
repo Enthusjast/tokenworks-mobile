@@ -1,6 +1,8 @@
 package cn.edu.ustc.tokenworks
 
 import android.net.Uri
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
@@ -27,9 +29,14 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.LayoutDirection
 import io.github.enthusjast.tokenworks.ui.LocalTokenWorksReadingStyle
+import io.github.enthusjast.tokenworks.ui.TokenWorksRadius
+import io.github.enthusjast.tokenworks.ui.TokenWorksSpacing
+import io.github.enthusjast.tokenworks.ui.tokenWorksSquircle
+import io.github.enthusjast.tokenworks.ui.tokenWorksSurfaces
 
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
@@ -194,6 +201,7 @@ private fun MessageCode(source: String, block: MessageMarkdownBlock.Code, trunca
     latestSource: String, latestEnd: Int, interactive: Boolean) {
     val clipboard = LocalClipboardManager.current
     val reading = LocalTokenWorksReadingStyle.current
+    val surfaces = tokenWorksSurfaces()
     val content = remember(source, block.content) { block.content.text(source) }
     var copied by remember(content) { mutableStateOf(false) }
     var copyFailed by remember(content) { mutableStateOf(false) }
@@ -201,11 +209,20 @@ private fun MessageCode(source: String, block: MessageMarkdownBlock.Code, trunca
     val currentEnd by rememberUpdatedState(latestEnd)
     LaunchedEffect(copied) { if (copied) { delay(2000); copied = false } }
     val complete = block.closed || !truncated
-    Surface(color = MaterialTheme.colorScheme.surfaceContainerHigh, shape = MaterialTheme.shapes.small) {
-        Column(Modifier.fillMaxWidth().padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            FlowRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text(block.language?.text(source) ?: stringResource(R.string.chat_code), Modifier.align(Alignment.CenterVertically),
-                    style = MaterialTheme.typography.labelMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+    Surface(
+        color = surfaces.codeWellBackground,
+        shape = tokenWorksSquircle(TokenWorksRadius.md),
+        border = BorderStroke(1.dp, surfaces.codeWellBorder),
+    ) {
+        Column(Modifier.fillMaxWidth()) {
+            Row(
+                Modifier.fillMaxWidth().background(surfaces.codeWellHeader)
+                    .padding(horizontal = TokenWorksSpacing.md, vertical = TokenWorksSpacing.xs),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(block.language?.text(source) ?: stringResource(R.string.chat_code), Modifier.weight(1f),
+                    style = MaterialTheme.typography.labelSmall, color = surfaces.codeWellHeaderForeground,
+                    maxLines = 1, overflow = TextOverflow.Ellipsis)
                 if (interactive) TextButton({
                     copied = false
                     try {
@@ -222,15 +239,29 @@ private fun MessageCode(source: String, block: MessageMarkdownBlock.Code, trunca
                     catch (cancelled: CancellationException) { throw cancelled }
                     catch (_: Exception) { copyFailed = true }
                 }, enabled = complete && latestSource == source,
+                    colors = ButtonDefaults.textButtonColors(contentColor = surfaces.codeWellHeaderForeground),
                     modifier = Modifier.heightIn(min = 48.dp).semantics { liveRegion = LiveRegionMode.Polite }) {
-                    Text(stringResource(if (copied) R.string.chat_copied else if (block.closed) R.string.chat_copy_code else R.string.chat_copy_visible_code))
+                    Text(stringResource(if (copied) R.string.chat_copied else if (block.closed) R.string.chat_copy_code else R.string.chat_copy_visible_code),
+                        style = MaterialTheme.typography.labelSmall)
                 }
             }
-            MessageSelection(interactive) { Text(content, if (reading.wrapCode) Modifier.fillMaxWidth() else Modifier.horizontalScroll(rememberScrollState(), enabled = interactive),
-                fontFamily = FontFamily.Monospace, style = MaterialTheme.typography.bodySmall.let { it.copy(fontSize = it.fontSize * reading.codeScale, lineHeight = it.lineHeight * reading.codeScale) }, softWrap = reading.wrapCode) }
-            if (!complete) Text(stringResource(R.string.chat_code_incomplete), style = MaterialTheme.typography.bodySmall)
-            if (copyFailed) Text(stringResource(R.string.chat_copy_failed), style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.error, modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite })
+            Box(Modifier.fillMaxWidth().padding(TokenWorksSpacing.md)) {
+                MessageSelection(interactive) { Text(content,
+                    if (reading.wrapCode) Modifier.fillMaxWidth() else Modifier.horizontalScroll(rememberScrollState(), enabled = interactive),
+                    color = surfaces.codeWellForeground,
+                    fontFamily = FontFamily.Monospace,
+                    style = MaterialTheme.typography.bodySmall.copy(
+                        fontSize = 13.sp * reading.codeScale,
+                        lineHeight = 20.sp * reading.codeScale,
+                    ),
+                    softWrap = reading.wrapCode) }
+            }
+            if (!complete) Text(stringResource(R.string.chat_code_incomplete),
+                modifier = Modifier.padding(horizontal = TokenWorksSpacing.md),
+                style = MaterialTheme.typography.bodySmall, color = surfaces.codeWellHeaderForeground)
+            if (copyFailed) Text(stringResource(R.string.chat_copy_failed),
+                modifier = Modifier.padding(horizontal = TokenWorksSpacing.md).semantics { liveRegion = LiveRegionMode.Polite },
+                style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
         }
     }
 }

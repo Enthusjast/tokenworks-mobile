@@ -18,7 +18,7 @@ fun UploadsPanel(state: SessionUploadState, online: Boolean, onPick: (String?) -
     onRemove: (String) -> Unit, onCancel: () -> Unit) {
     val rows = state.rows.filter { it.stored.intent.image == null }
     val selectedRows = rows.filter { it.stored.intent.requestId in state.selected }
-    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(io.github.enthusjast.tokenworks.ui.TokenWorksSpacing.page)) {
+    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(io.github.enthusjast.tokenworks.ui.TokenWorksSpacing.lg)) {
             Text(stringResource(R.string.file_ux_upload_title), style = MaterialTheme.typography.titleMedium, modifier = Modifier.semantics { heading() })
             Text(stringResource(R.string.file_ux_upload_hint), style = MaterialTheme.typography.bodySmall)
 

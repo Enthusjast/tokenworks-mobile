@@ -128,9 +128,9 @@ private fun QuestionForm(view: PresentedQuestion, canAnswer: Boolean, submitting
                 )
                 HorizontalDivider()
                 Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.TopCenter) {
-                Column(Modifier.widthIn(max = io.github.enthusjast.tokenworks.ui.TokenWorksSpacing.chatMaxWidth).fillMaxWidth()
+                Column(Modifier.widthIn(max = io.github.enthusjast.tokenworks.ui.TokenWorksSpacing.readingWidth).fillMaxWidth()
                     .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal + WindowInsetsSides.Bottom))
-                    .imePadding().verticalScroll(rememberScrollState()).padding(io.github.enthusjast.tokenworks.ui.TokenWorksSpacing.page),
+                    .imePadding().verticalScroll(rememberScrollState()).padding(io.github.enthusjast.tokenworks.ui.TokenWorksSpacing.lg),
                     verticalArrangement = Arrangement.spacedBy(16.dp)) {
                     if (plan) Text(stringResource(R.string.question_plan_not_approval), style = MaterialTheme.typography.bodyMedium)
                     QuestionStatus(view)

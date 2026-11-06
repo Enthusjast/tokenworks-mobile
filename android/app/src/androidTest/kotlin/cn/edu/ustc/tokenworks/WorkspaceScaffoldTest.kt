@@ -14,6 +14,7 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.platform.LocalConfiguration
@@ -53,10 +54,13 @@ class WorkspaceScaffoldTest {
         var changes = 0
         rule.setContent {
             TokenWorksTheme {
-                WorkspaceScaffold(workspaceLayout(WorkspaceViewport(360, 800), false, true), open,
+                WorkspaceScaffold(
+                    workspaceLayout(WorkspaceViewport(360, 800), false, false, true), open,
                     { open = it; changes++ }, true,
+                    railContent = { Text("rail-entry") },
                     navigationContent = { Text("drawer-entry") },
-                    content = { Button(onClick = { open = true }) { Text("open-navigation") } })
+                    content = { Button(onClick = { open = true }) { Text("open-navigation") } },
+                )
             }
         }
         rule.onNodeWithText("drawer-entry").assertDoesNotExist()
@@ -79,12 +83,16 @@ class WorkspaceScaffoldTest {
         var routeBacks = 0
         rule.setContent {
             TokenWorksTheme {
-                WorkspaceScaffold(workspaceLayout(WorkspaceViewport(600, 960), false, true), open,
+                WorkspaceScaffold(
+                    workspaceLayout(WorkspaceViewport(600, 960), false, false, true), open,
                     { open = it; dismissals++ }, true,
-                    navigationContent = { Text("navigation-owner") }, content = {
+                    railContent = { Text("rail-owner") },
+                    navigationContent = { Text("navigation-owner") },
+                    content = {
                         BackHandler { routeBacks++ }
                         Text("route-owner")
-                    })
+                    },
+                )
             }
         }
         rule.onNodeWithText("navigation-owner").assertIsDisplayed()
@@ -102,43 +110,80 @@ class WorkspaceScaffoldTest {
         rule.setContent {
             TokenWorksTheme {
                 Box(Modifier.fillMaxSize().testTag("fixture-root")) {
-                    WorkspaceScaffold(workspaceLayout(WorkspaceViewport(1280, 800), true, true), true,
-                        {}, chrome, navigationContent = { Text("private-navigation") },
-                        content = { Text("full-width-task") })
+                    WorkspaceScaffold(
+                        workspaceLayout(WorkspaceViewport(1280, 800), true, false, true), true,
+                        {}, chrome,
+                        railContent = { Text("private-rail") },
+                        navigationContent = { Text("private-navigation") },
+                        content = { Text("full-width-task") },
+                    )
                 }
             }
         }
         rule.onNodeWithTag("workspace-navigation").assertDoesNotExist()
+        rule.onNodeWithTag("workspace-rail").assertDoesNotExist()
         rule.onNodeWithTag("workspace-drawer").assertDoesNotExist()
         rule.onNodeWithText("private-navigation").assertDoesNotExist()
         val fullWidth = rule.onNodeWithTag("fixture-root").getUnclippedBoundsInRoot().let { it.right - it.left }
         rule.onNodeWithTag("workspace-content").assertWidthIsEqualTo(fullWidth)
         rule.runOnIdle { chrome = true }
-        rule.onNodeWithTag("workspace-navigation").assertWidthIsEqualTo(304.dp)
+        rule.onNodeWithTag("workspace-navigation").assertWidthIsEqualTo(320.dp)
     }
 
-    @Test fun inspectorRailAndUserCollapseRestoreWithoutLosingThePreference() {
+    @Test fun openingThePanelFoldsTheSidebarToTheRailAndRestoresIt() {
         var details by mutableStateOf(false)
         var expanded by mutableStateOf(true)
         var viewport by mutableStateOf(WorkspaceViewport(960, 800))
         rule.setContent {
             TokenWorksTheme {
-                WorkspaceScaffold(workspaceLayout(viewport, details, expanded), false, {}, true,
-                    navigationContent = { Text("one-directory") }, content = { Text("chat") })
+                WorkspaceScaffold(
+                    workspaceLayout(viewport, true, details, expanded), false, {}, true,
+                    railContent = { Text("rail-directory") },
+                    navigationContent = { Text("one-directory") },
+                    content = { Text("chat") },
+                )
             }
         }
-        rule.onNodeWithTag("workspace-navigation").assertWidthIsEqualTo(304.dp)
+        rule.onNodeWithTag("workspace-navigation").assertWidthIsEqualTo(320.dp)
         rule.runOnIdle { details = true }
-        rule.onNodeWithTag("workspace-navigation").assertWidthIsEqualTo(72.dp)
-        rule.runOnIdle { viewport = WorkspaceViewport(1120, 800) }
-        rule.onNodeWithTag("workspace-navigation").assertWidthIsEqualTo(304.dp)
+        rule.onNodeWithTag("workspace-navigation").assertDoesNotExist()
+        rule.onNodeWithTag("workspace-rail").assertWidthIsEqualTo(68.dp)
+        rule.runOnIdle { viewport = WorkspaceViewport(1440, 800) }
+        rule.onNodeWithTag("workspace-navigation").assertWidthIsEqualTo(320.dp)
+        rule.onNodeWithTag("workspace-rail").assertDoesNotExist()
         rule.runOnIdle { expanded = false; details = false }
-        rule.onNodeWithTag("workspace-navigation").assertWidthIsEqualTo(72.dp)
+        rule.onNodeWithTag("workspace-navigation").assertDoesNotExist()
+        rule.onNodeWithTag("workspace-rail").assertWidthIsEqualTo(68.dp)
         rule.runOnIdle { viewport = WorkspaceViewport(839, 800) }
         rule.onNodeWithText("one-directory").assertDoesNotExist()
+        rule.onNodeWithTag("workspace-rail").assertDoesNotExist()
         rule.runOnIdle { viewport = WorkspaceViewport(1120, 800) }
-        rule.onNodeWithTag("workspace-navigation").assertWidthIsEqualTo(72.dp)
-        rule.onAllNodesWithTag("workspace-navigation").assertCountEquals(1)
+        rule.onNodeWithTag("workspace-rail").assertWidthIsEqualTo(68.dp)
+        rule.onAllNodesWithTag("workspace-rail").assertCountEquals(1)
+    }
+
+    @Test fun exactlyOneNavigationColumnIsMountedPerLayout() {
+        var viewport by mutableStateOf(WorkspaceViewport(1440, 800))
+        var details by mutableStateOf(false)
+        rule.setContent {
+            TokenWorksTheme {
+                WorkspaceScaffold(
+                    workspaceLayout(viewport, true, details, true), false, {}, true,
+                    railContent = { Text("rail-entry") },
+                    navigationContent = { Text("sidebar-entry") },
+                    content = { Text("chat") },
+                )
+            }
+        }
+        rule.onNodeWithText("sidebar-entry").assertIsDisplayed()
+        rule.onNodeWithText("rail-entry").assertDoesNotExist()
+        rule.runOnIdle { viewport = WorkspaceViewport(960, 800); details = true }
+        rule.onNodeWithTag("workspace-navigation").assertDoesNotExist()
+        rule.onNodeWithText("sidebar-entry").assertDoesNotExist()
+        rule.onNodeWithText("rail-entry").assertIsDisplayed()
+        rule.runOnIdle { viewport = WorkspaceViewport(360, 800) }
+        rule.onNodeWithTag("workspace-rail").assertDoesNotExist()
+        rule.onNodeWithTag("workspace-navigation").assertDoesNotExist()
     }
 
     @Test fun activityFreeContextUsesCurrentConfigurationWithoutSubtractingInsetsAgain() {
@@ -168,7 +213,7 @@ class WorkspaceScaffoldTest {
             TokenWorksTheme {
                 Box(Modifier.fillMaxSize().testTag("panel-root")) {
                     AdaptiveSessionPanel(
-                        workspaceLayout(WorkspaceViewport(1280, 800), true, true),
+                        workspaceLayout(WorkspaceViewport(1280, 800), true, true, true),
                         presentation, { dismissals++ },
                         backdrop = { Button(onClick = { backgroundActions++ }) { Text("background-action") } },
                         content = { Text("foreground", Modifier.testTag("panel-foreground")) },
@@ -184,7 +229,7 @@ class WorkspaceScaffoldTest {
         rule.onAllNodesWithTag("panel-foreground").assertCountEquals(1)
         rule.onNodeWithText("background-action").assertDoesNotExist()
         rule.runOnIdle { presentation = TaskPresentation.SIDE_PANEL }
-        rule.onNodeWithTag("workspace-panel-side").assertWidthIsEqualTo(360.dp)
+        rule.onNodeWithTag("workspace-panel-side").assertWidthIsEqualTo(384.dp)
         rule.onAllNodesWithTag("panel-foreground").assertCountEquals(1)
         rule.onNodeWithText("background-action").assertDoesNotExist()
         rule.onNodeWithTag("panel-root").performTouchInput { click(Offset(2f, centerY)) }
@@ -195,8 +240,10 @@ class WorkspaceScaffoldTest {
         var dismissals = 0
         rule.setContent {
             TokenWorksTheme {
-                AdaptiveSessionPanel(workspaceLayout(WorkspaceViewport(360, 800), false, true),
-                    TaskPresentation.PAGE, { dismissals++ }, backdrop = {}, content = { Text("task") })
+                AdaptiveSessionPanel(
+                    workspaceLayout(WorkspaceViewport(360, 800), true, true, true),
+                    TaskPresentation.PAGE, { dismissals++ }, backdrop = {}, content = { Text("task") },
+                )
             }
         }
         rule.runOnIdle { rule.activity.onBackPressedDispatcher.onBackPressed() }
@@ -205,19 +252,24 @@ class WorkspaceScaffoldTest {
 
     @Test fun expandingAnOpenDrawerCannotResurrectItAfterNavigationCollapse() {
         var open by mutableStateOf(false)
-        var layout by mutableStateOf(workspaceLayout(WorkspaceViewport(360, 800), false, true))
-        rule.setContent { TokenWorksTheme {
-            WorkspaceScaffold(layout, open, { open = it }, true,
-                navigationContent = { Button({ open = false }) { Text("close directory") } },
-                content = { Button({ open = true }) { Text("open directory") } })
-        } }
+        var layout by mutableStateOf(workspaceLayout(WorkspaceViewport(360, 800), false, false, true))
+        rule.setContent {
+            TokenWorksTheme {
+                WorkspaceScaffold(
+                    layout, open, { open = it }, true,
+                    railContent = { Text("rail-entry") },
+                    navigationContent = { Button({ open = false }) { Text("close directory") } },
+                    content = { Button({ open = true }) { Text("open directory") } },
+                )
+            }
+        }
         rule.onNodeWithText("open directory").performClick()
         rule.onNodeWithTag("workspace-drawer").assertIsDisplayed()
-        rule.runOnIdle { layout = workspaceLayout(WorkspaceViewport(840, 960), false, true) }
+        rule.runOnIdle { layout = workspaceLayout(WorkspaceViewport(840, 960), true, true, true) }
         rule.onNodeWithTag("workspace-drawer").assertDoesNotExist()
-        rule.runOnIdle { assertEquals(false, open); layout = workspaceLayout(WorkspaceViewport(840, 960), false, false) }
-        rule.onNodeWithTag("workspace-navigation").assertWidthIsEqualTo(72.dp)
-        rule.runOnIdle { layout = workspaceLayout(WorkspaceViewport(360, 800), false, true) }
+        rule.runOnIdle { assertEquals(false, open); layout = workspaceLayout(WorkspaceViewport(840, 960), true, true, false) }
+        rule.onNodeWithTag("workspace-rail").assertWidthIsEqualTo(68.dp)
+        rule.runOnIdle { layout = workspaceLayout(WorkspaceViewport(360, 800), false, false, true) }
         rule.onNodeWithTag("workspace-drawer").assertDoesNotExist()
         rule.onNodeWithText("open directory").assertIsDisplayed()
     }
@@ -226,10 +278,12 @@ class WorkspaceScaffoldTest {
         rule.setContent {
             TokenWorksTheme {
                 Box(Modifier.fillMaxSize().testTag("panel-root")) {
-                    AdaptiveSessionPanel(workspaceLayout(WorkspaceViewport(600, 960), false, true),
+                    AdaptiveSessionPanel(
+                        workspaceLayout(WorkspaceViewport(600, 960), false, false, true),
                         TaskPresentation.SHEET, {}, backdrop = {}, content = {
                             Box(Modifier.fillMaxWidth().height(2000.dp)) { Text("long-task") }
-                        })
+                        },
+                    )
                 }
             }
         }

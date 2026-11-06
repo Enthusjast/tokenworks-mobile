@@ -30,7 +30,7 @@ fun SessionImagesPanel(
     val rows = uploads?.rows.orEmpty().filter { it.stored.intent.image != null }
     val selectedRows = rows.filter { it.stored.intent.requestId in uploads?.selected.orEmpty() }
     val busy = state.preparing || uploads?.busy == true
-    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(io.github.enthusjast.tokenworks.ui.TokenWorksSpacing.page)) {
+    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(io.github.enthusjast.tokenworks.ui.TokenWorksSpacing.lg)) {
             Text(stringResource(R.string.media_panel_title), style = MaterialTheme.typography.titleMedium,
                 modifier = Modifier.semantics { heading() })
             Text(stringResource(R.string.media_panel_hint), style = MaterialTheme.typography.bodySmall)

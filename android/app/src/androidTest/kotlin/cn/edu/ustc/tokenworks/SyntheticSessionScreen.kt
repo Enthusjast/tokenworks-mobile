@@ -47,9 +47,9 @@ internal fun SyntheticSessionScreen(
     Box(if (viewport == null) Modifier.fillMaxSize() else Modifier.requiredSize(viewport.widthDp.dp, viewport.heightDp.dp)) {
         BoxWithConstraints(Modifier.fillMaxSize()) {
             val measured = viewport ?: WorkspaceViewport(maxWidth.value.toInt(), maxHeight.value.toInt())
-            val layout = workspaceLayout(measured, navigation.chatDetail != null, navigation.navigationExpanded)
+            val layout = workspaceLayout(measured, presented.selectedSessionId != null, navigation.chatDetail != null, navigation.navigationExpanded)
             val openNavigation = {
-                if (layout.navigationWidth > 0.dp) navigation.navigationExpanded = !navigation.navigationExpanded
+                if (layout.leftPane != WorkspaceLeftPane.NONE) navigation.navigationExpanded = !navigation.navigationExpanded
                 else navigation.drawerOpen = true
             }
             TokenWorksAppShell(presented, navigation,

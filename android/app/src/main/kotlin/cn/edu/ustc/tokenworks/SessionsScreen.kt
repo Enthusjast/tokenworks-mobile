@@ -4,6 +4,7 @@ import android.net.Uri
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.*
@@ -19,6 +20,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.*
@@ -31,6 +33,7 @@ import io.github.enthusjast.tokenworks.session.*
 import io.github.enthusjast.tokenworks.command.*
 import io.github.enthusjast.tokenworks.protocol.*
 import io.github.enthusjast.tokenworks.ui.TokenWorksSpacing
+import io.github.enthusjast.tokenworks.ui.tokenWorksSurfaces
 import kotlinx.coroutines.launch
 import androidx.compose.foundation.lazy.LazyListState
 import kotlinx.coroutines.flow.first
@@ -55,7 +58,7 @@ private fun captureChatPosition(position: ChatReadingPosition, projection: ChatT
     position.offset = (-visible.offset).coerceAtLeast(0)
 }
 
-@OptIn(ExperimentalLayoutApi::class)
+@OptIn(ExperimentalLayoutApi::class, ExperimentalMaterial3Api::class)
 @Composable
 internal fun SessionsScreen(state: HomeState, onBack: () -> Unit, onRefresh: () -> Unit, onOlder: () -> Unit, onRetry: () -> Unit,
     onSubmit: (MessageSubmission) -> Unit = {}, onSendPending: (String) -> Unit = {}, onQueryCommands: () -> Unit = {}, onCancelSession: (String) -> Unit = {},
@@ -102,7 +105,18 @@ internal fun SessionsScreen(state: HomeState, onBack: () -> Unit, onRefresh: () 
     val position = remember(readingPosition, state.presentationOwner?.fingerprint, state.selectedRuntimeId, opened) {
         readingPosition ?: ChatReadingPosition()
     }
-    val projection = remember(transcript?.items) { projectChatTimeline(transcript?.items.orEmpty()) }
+    val projection = remember(transcript?.items, transcript?.taskRunning) {
+        projectChatTimeline(transcript?.items.orEmpty(), transcript?.taskRunning == true)
+    }
+    val appContext = LocalContext.current.applicationContext
+    val marks = remember(state.appearanceScope().ownerKey) {
+        state.appearanceScope().ownerKey?.let { SessionReadMarks(appContext, it) }
+    }
+    val latestPersisted by rememberUpdatedState(transcript?.persistedThrough ?: 0L)
+    LaunchedEffect(opened, marks, latestPersisted) {
+        if (latestPersisted > 0) marks?.mark(opened, latestPersisted)
+    }
+    DisposableEffect(opened, marks) { onDispose { if (latestPersisted > 0) marks?.mark(opened, latestPersisted) } }
     var expandedSourceIds by position::expandedSourceIds
     val renderedKeys = remember(projection, expandedSourceIds) { projection.renderKeys(expandedSourceIds) }
     var restoringReading by remember(opened) { mutableStateOf(false) }
@@ -178,36 +192,62 @@ internal fun SessionsScreen(state: HomeState, onBack: () -> Unit, onRefresh: () 
     val fileReason = stringResource(if (attachmentBusy) R.string.composer_attachment_busy else R.string.workspace_attachment_file_unavailable)
     val imageReason = stringResource(if (imageBusy) R.string.composer_attachment_busy else R.string.workspace_attachment_image_unavailable)
     val switchEditor: () -> Unit = { attachmentMenuOpen = false; fullEditor = !fullEditor }
-    val attachmentMenu: @Composable () -> Unit = {
-        DropdownMenu(attachmentMenuOpen, { attachmentMenuOpen = false }) {
-            DropdownMenuItem(text = { Column {
-                Text(stringResource(R.string.workspace_attach_file))
-                if (!filesAllowed || attachmentBusy) Text(fileReason, style = MaterialTheme.typography.bodySmall)
-            } }, enabled = filesAllowed && !attachmentBusy,
-                leadingIcon = { Icon(painterResource(R.drawable.ic_attach), null) },
-                onClick = { attachmentMenuOpen = false; onPickFile(null) })
-            DropdownMenuItem(text = { Column {
-                Text(stringResource(R.string.workspace_attach_image))
-                if (!imagesAllowed || imageBusy) Text(imageReason, style = MaterialTheme.typography.bodySmall)
-            } }, enabled = imagesAllowed && !imageBusy,
-                onClick = { attachmentMenuOpen = false; onPickImage() })
-            DropdownMenuItem(text = { Column {
-                Text(stringResource(R.string.workspace_attach_camera))
-                if (!imagesAllowed || imageBusy) Text(imageReason, style = MaterialTheme.typography.bodySmall)
-            } }, enabled = imagesAllowed && !imageBusy,
-                onClick = { attachmentMenuOpen = false; onPickCamera() })
-            HorizontalDivider()
-            DropdownMenuItem(text = { Text(stringResource(if (fullEditor) R.string.chat_editor_compact else R.string.chat_editor_expand)) }, onClick = switchEditor)
-            DropdownMenuItem(text = { Text(stringResource(R.string.chat_view_attachments)) }, onClick = {
-                attachmentMenuOpen = false; fullEditor = false; openDetails(ChatDetailSection.FILES, null)
-            })
-            if (!filesAllowed || !imagesAllowed || attachmentBusy || imageBusy) DropdownMenuItem(
-                text = { Text(stringResource(R.string.composer_attachment_help)) }, onClick = { attachmentMenuOpen = false; attachmentHelp = true })
-            if (canCancel && pendingCancel == null) DropdownMenuItem(text = { Text(stringResource(R.string.workspace_stop_task)) },
-                onClick = { attachmentMenuOpen = false; cancelConfirmEpoch = cancelEpoch })
-            if (pendingCancel != null) DropdownMenuItem(text = { Text(stringResource(R.string.chat_view_cancel_original)) }, onClick = {
-                attachmentMenuOpen = false; fullEditor = false; openDetails(ChatDetailSection.COMMANDS, pendingCancel.intent.requestId)
-            })
+    val attachmentPanel: @Composable () -> Unit = {
+        if (attachmentMenuOpen) ModalBottomSheet(
+            onDismissRequest = { attachmentMenuOpen = false },
+            sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+            sheetMaxWidth = TokenWorksSpacing.readingWidth,
+            containerColor = MaterialTheme.colorScheme.surface,
+        ) {
+            Column(Modifier.fillMaxWidth().padding(bottom = TokenWorksSpacing.lg)) {
+                Row(
+                    Modifier.fillMaxWidth().padding(start = TokenWorksSpacing.lg, end = TokenWorksSpacing.sm),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(stringResource(R.string.workspace_attachment_panel_title), Modifier.weight(1f),
+                        style = MaterialTheme.typography.titleLarge)
+                    TextButton({ attachmentMenuOpen = false }, Modifier.heightIn(min = TokenWorksSpacing.minimumTouchTarget)) {
+                        Text(stringResource(R.string.action_close))
+                    }
+                }
+                AttachmentAction(stringResource(R.string.workspace_attach_file),
+                    detail = if (!filesAllowed || attachmentBusy) fileReason else null,
+                    icon = R.drawable.ic_attach, enabled = filesAllowed && !attachmentBusy) {
+                    attachmentMenuOpen = false; onPickFile(null)
+                }
+                AttachmentAction(stringResource(R.string.workspace_attach_image),
+                    detail = if (!imagesAllowed || imageBusy) imageReason else null,
+                    icon = R.drawable.ic_attach, enabled = imagesAllowed && !imageBusy) {
+                    attachmentMenuOpen = false; onPickImage()
+                }
+                AttachmentAction(stringResource(R.string.workspace_attach_camera),
+                    detail = if (!imagesAllowed || imageBusy) imageReason else null,
+                    icon = R.drawable.ic_attach, enabled = imagesAllowed && !imageBusy) {
+                    attachmentMenuOpen = false; onPickCamera()
+                }
+                HorizontalDivider()
+                AttachmentAction(stringResource(if (fullEditor) R.string.chat_editor_compact else R.string.chat_editor_expand),
+                    icon = R.drawable.ic_menu) { switchEditor() }
+                AttachmentAction(stringResource(R.string.chat_view_attachments), icon = R.drawable.ic_attach) {
+                    attachmentMenuOpen = false; fullEditor = false; openDetails(ChatDetailSection.FILES, null)
+                }
+                if (!filesAllowed || !imagesAllowed || attachmentBusy || imageBusy) {
+                    AttachmentAction(stringResource(R.string.composer_attachment_help), icon = R.drawable.ic_info) {
+                        attachmentMenuOpen = false; attachmentHelp = true
+                    }
+                }
+                if (canCancel && pendingCancel == null) {
+                    AttachmentAction(stringResource(R.string.workspace_stop_task), icon = R.drawable.ic_stop) {
+                        attachmentMenuOpen = false; cancelConfirmEpoch = cancelEpoch
+                    }
+                }
+                if (pendingCancel != null) {
+                    AttachmentAction(stringResource(R.string.chat_view_cancel_original), icon = R.drawable.ic_info) {
+                        attachmentMenuOpen = false; fullEditor = false
+                        openDetails(ChatDetailSection.COMMANDS, pendingCancel.intent.requestId)
+                    }
+                }
+            }
         }
     }
     LaunchedEffect(canCancel, cancelEpoch, pendingCancel?.intent?.requestId) {
@@ -580,9 +620,15 @@ internal fun SessionsScreen(state: HomeState, onBack: () -> Unit, onRefresh: () 
         topBar = {
             Box(Modifier.fillMaxWidth().windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal)),
                 contentAlignment = Alignment.TopCenter) {
-                Box(Modifier.widthIn(max = TokenWorksSpacing.chatMaxWidth).fillMaxWidth()) {
+                Box(Modifier.widthIn(max = TokenWorksSpacing.readingWidth).fillMaxWidth()) {
                     SessionHeader(sessionTitle,
                         stringResource(R.string.workspace_host_status, runtime?.hostAlias ?: stringResource(R.string.chat_authorized_computer), connectionStatus),
+                        connection = when (read.phase) {
+                            SessionReadPhase.READY -> HeaderConnection.LIVE
+                            SessionReadPhase.CONNECTING, SessionReadPhase.SYNCING -> HeaderConnection.PENDING
+                            SessionReadPhase.BACKOFF, SessionReadPhase.OFFLINE, SessionReadPhase.CLOSED -> HeaderConnection.DEGRADED
+                            SessionReadPhase.AUTH_REQUIRED, SessionReadPhase.REVOKED, SessionReadPhase.ERROR -> HeaderConnection.ERROR
+                        },
                         modelsEnabled = onModels != null && state.modelCatalog != null,
                         createEnabled = runtime?.access?.creationScope() != null,
                         onNavigation = onOpenNavigation, onHosts = onOpenHosts,
@@ -623,13 +669,13 @@ internal fun SessionsScreen(state: HomeState, onBack: () -> Unit, onRefresh: () 
                 } },
                 onMessageAction = onMessageAction.takeIf { state.messageActions?.canPreview == true },
                 onPreviewMedia = onPreviewMedia.takeIf { read.phase == SessionReadPhase.READY && runtime?.access?.scope?.actions?.contains("file.download") == true },
-                modifier = Modifier.widthIn(max = TokenWorksSpacing.chatMaxWidth).fillMaxWidth().weight(1f).testTag("chat-list"))
-            Column(Modifier.widthIn(max = TokenWorksSpacing.chatMaxWidth).fillMaxWidth()) {
+                modifier = Modifier.widthIn(max = TokenWorksSpacing.readingWidth).fillMaxWidth().weight(1f).testTag("chat-list"))
+            Column(Modifier.widthIn(max = TokenWorksSpacing.readingWidth).fillMaxWidth()) {
                 // Measure the composer first; long status prose may scroll, never cover Send.
                 Column(Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState())) {
                 if (initialized && (!followLatest || newMessages)) {
                     Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.TopCenter) {
-                        Box(Modifier.widthIn(max = TokenWorksSpacing.chatMaxWidth).fillMaxWidth().padding(horizontal = 16.dp)) {
+                        Box(Modifier.widthIn(max = TokenWorksSpacing.readingWidth).fillMaxWidth().padding(horizontal = 16.dp)) {
                             FilledTonalButton(
                                 onClick = {
                                     followLatest = true
@@ -680,7 +726,7 @@ internal fun SessionsScreen(state: HomeState, onBack: () -> Unit, onRefresh: () 
                     onAttach = { attachmentMenuOpen = true }, onRemove = onToggleFile,
                     onViewAttachments = { attachmentMenuOpen = false; openDetails(ChatDetailSection.FILES, null) }, onExpand = switchEditor,
                     onResolveFailure = onResolveFailedInput, canCancel = canCancel && pendingCancel == null,
-                    onCancel = { if (canCancel && pendingCancel == null) cancelConfirmEpoch = cancelEpoch }, attachmentMenu = attachmentMenu) }
+                    onCancel = { if (canCancel && pendingCancel == null) cancelConfirmEpoch = cancelEpoch }) }
             }
         }
     }
@@ -696,10 +742,11 @@ internal fun SessionsScreen(state: HomeState, onBack: () -> Unit, onRefresh: () 
                     { attachmentMenuOpen = false; fullEditor = false; openDetails(ChatDetailSection.FILES, null) },
                     expanded = true, onExpand = switchEditor, onResolveFailure = onResolveFailedInput,
                     canCancel = canCancel && pendingCancel == null,
-                    onCancel = { if (canCancel && pendingCancel == null) cancelConfirmEpoch = cancelEpoch }, attachmentMenu = attachmentMenu)
+                    onCancel = { if (canCancel && pendingCancel == null) cancelConfirmEpoch = cancelEpoch })
             }
         }
     }
+    attachmentPanel()
     if (attachmentHelp) AlertDialog(onDismissRequest = { attachmentHelp = false },
         title = { Text(stringResource(R.string.composer_attachment_help)) },
         text = { Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -724,7 +771,7 @@ internal fun SessionsScreen(state: HomeState, onBack: () -> Unit, onRefresh: () 
 @Composable
 internal fun ReadOnlySessionBackdrop(state: HomeState, position: ChatReadingPosition?) {
     val window = state.reader?.window
-    val projection = remember(window?.items) { projectChatTimeline(window?.items.orEmpty()) }
+    val projection = remember(window?.items) { projectChatTimeline(window?.items.orEmpty(), running = false) }
     val expanded = position?.expandedSourceIds.orEmpty()
     val keys = remember(projection, expanded) { projection.renderKeys(expanded) }
     val anchor = position?.key?.let { projection.renderKeyForSource(it, expanded) }
@@ -736,7 +783,7 @@ internal fun ReadOnlySessionBackdrop(state: HomeState, position: ChatReadingPosi
             ChatTranscript(projection, listState, expanded, interactive = false,
                 leadingContent = {}, trailingContent = {}, onProcessExpansion = { _, _ -> },
                 onQuote = null, onMessageAction = null, onPreviewMedia = null,
-                modifier = Modifier.widthIn(max = TokenWorksSpacing.chatMaxWidth).fillMaxSize())
+                modifier = Modifier.widthIn(max = TokenWorksSpacing.readingWidth).fillMaxSize())
         }
     }
 }
@@ -797,4 +844,23 @@ private fun commandErrorText(code: String): String {
     "command.cancel_unconfirmed" -> R.string.composer_error_command_cancel_unconfirmed
         else -> R.string.composer_error_operation
     })
+}
+
+/** A sheet row for one attachment action; the reason text explains a disabled row without color. */
+@Composable
+private fun AttachmentAction(
+    title: String,
+    @androidx.annotation.DrawableRes icon: Int,
+    detail: String? = null,
+    enabled: Boolean = true,
+    onClick: () -> Unit,
+) {
+    ListItem(
+        headlineContent = { Text(title, style = MaterialTheme.typography.bodyMedium) },
+        supportingContent = detail?.let { text -> { Text(text, style = MaterialTheme.typography.bodySmall, color = tokenWorksSurfaces().textTertiary) } },
+        leadingContent = { Icon(painterResource(icon), null, Modifier.size(TokenWorksSpacing.iconSize)) },
+        modifier = Modifier.fillMaxWidth().heightIn(min = TokenWorksSpacing.minimumTouchTarget)
+            .clickable(enabled = enabled, role = Role.Button, onClick = onClick)
+            .then(if (enabled) Modifier else Modifier.semantics { disabled() }),
+    )
 }

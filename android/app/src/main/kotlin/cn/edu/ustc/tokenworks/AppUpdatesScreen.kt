@@ -31,7 +31,7 @@ internal fun AppUpdatesScreen(state: AppUpdateUiState, check: () -> Unit, downlo
         )
     }) { insets ->
         Box(Modifier.fillMaxSize().padding(insets), contentAlignment = Alignment.TopCenter) {
-            LazyColumn(Modifier.widthIn(max = 720.dp).fillMaxWidth(), contentPadding = PaddingValues(io.github.enthusjast.tokenworks.ui.TokenWorksSpacing.page), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+            LazyColumn(Modifier.widthIn(max = 720.dp).fillMaxWidth(), contentPadding = PaddingValues(io.github.enthusjast.tokenworks.ui.TokenWorksSpacing.lg), verticalArrangement = Arrangement.spacedBy(16.dp)) {
                 item("stage") {
                     Text(stringResource(when (state.phase) {
                         AppUpdatePhase.AVAILABLE, AppUpdatePhase.DOWNLOADING, AppUpdatePhase.VERIFYING, AppUpdatePhase.REPREPARE -> R.string.flow_update_step_prepare

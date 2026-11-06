@@ -13,7 +13,7 @@ import io.github.enthusjast.tokenworks.protocol.*
 @Composable
 internal fun ExportsPanel(state: SessionExportState, browse: (ExportSource?, Boolean) -> Unit, request: (ExportSource) -> Unit,
     query: () -> Unit, cancel: (String) -> Unit, remove: (String) -> Unit, save: (String) -> Unit = {}, saving: Boolean = false) {
-    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(io.github.enthusjast.tokenworks.ui.TokenWorksSpacing.page)) {
+    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(io.github.enthusjast.tokenworks.ui.TokenWorksSpacing.lg)) {
             Text(stringResource(R.string.file_ux_export_title), style = MaterialTheme.typography.titleMedium, modifier = Modifier.semantics { heading() })
             if (state.preparing) {
                 Text(stringResource(R.string.conversation_transfer_preparation), style = MaterialTheme.typography.labelLarge, modifier = Modifier.semantics { heading() })
