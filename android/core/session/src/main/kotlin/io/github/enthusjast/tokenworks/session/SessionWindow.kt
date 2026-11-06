@@ -5,7 +5,7 @@ import java.util.Collections
 import java.util.TreeMap
 
 enum class ConversationRole { USER, ASSISTANT, TOOL, NOTICE }
-class ConversationItem(val id: String, val role: ConversationRole, val blocks: List<DisplayBlock>, val live: Boolean, val persisted: Boolean, val interrupted: Boolean = false) {
+class ConversationItem(val id: String, val role: ConversationRole, val blocks: List<DisplayBlock>, val live: Boolean, val persisted: Boolean, val interrupted: Boolean = false, val hasError: Boolean = false) {
     override fun toString() = "ConversationItem($role, live=$live)"
 }
 class SessionRecord private constructor(val seq: Long, val type: String, val data: JsonObject, val raw: JsonObject, val blocks: List<DisplayBlock>, val replacement: Boolean,
@@ -295,5 +295,6 @@ internal fun SessionRecord.conversationItem(persisted: Long): ConversationItem? 
         else -> return null
     }
     return ConversationItem("event:$seq", role, blocks, false, seq <= persisted,
-        type == "assistant/attempt" || data.fields["interrupted"] == JsonBoolean(true))
+        type == "assistant/attempt" || data.fields["interrupted"] == JsonBoolean(true),
+        (type == "assistant/message" || type == "tool/result") && data.obj("message").fields["isError"] == JsonBoolean(true))
 }
