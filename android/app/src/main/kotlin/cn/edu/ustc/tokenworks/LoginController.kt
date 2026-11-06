@@ -28,7 +28,7 @@ import javax.inject.Singleton
 
 enum class HomePhase { LOADING, UNCONFIGURED, INVALID_CONFIGURATION, SIGNED_OUT, RECOVERING, RECOVERY_ERROR, REAUTHENTICATE, RENEWING, CLEARING, STARTING, BROWSER, EXCHANGING, ENROLL, PREPARING, AUTHENTICATING, REGISTERING, RECONCILING, REGISTRATION_UNKNOWN, READY }
 class BrowserLaunch(val id: Long, val uri: Uri)
-class BiometricLaunch(val id: Long, val operation: AuthenticatedKeyOperation<*>, val title: String = "确认登记此设备", val subtitle: String = "将这部手机的独立密钥登记到学校账号")
+class BiometricLaunch(val id: Long, val operation: AuthenticatedKeyOperation<*>, val title: String = "确认登记此设备", val subtitle: String = "将这部手机的独立密钥登记到当前账号")
 class DocumentPickLaunch(val id: String, val purpose: DocumentPickPurpose = DocumentPickPurpose.FILE, val output: Uri? = null)
 class ExportSaveLaunch(val id: String, val name: String) { override fun toString() = "ExportSaveLaunch" }
 enum class ApprovalUiStage { IDLE, PREPARING, AUTHENTICATING, SENDING }

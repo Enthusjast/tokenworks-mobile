@@ -28,12 +28,27 @@ fun SessionImagesPanel(
     onReselect: ((String) -> Unit)? = null,
 ) {
     val rows = uploads?.rows.orEmpty().filter { it.stored.intent.image != null }
+    val selectedRows = rows.filter { it.stored.intent.requestId in uploads?.selected.orEmpty() }
     val busy = state.preparing || uploads?.busy == true
-    OutlinedCard(Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(io.github.enthusjast.tokenworks.ui.TokenWorksSpacing.page)) {
             Text(stringResource(R.string.media_panel_title), style = MaterialTheme.typography.titleMedium,
                 modifier = Modifier.semantics { heading() })
             Text(stringResource(R.string.media_panel_hint), style = MaterialTheme.typography.bodySmall)
+            Text(stringResource(R.string.conversation_image_selection), style = MaterialTheme.typography.titleSmall, modifier = Modifier.semantics { heading() })
+            Text(stringResource(R.string.media_selected, selectedRows.size))
+            selectedRows.forEach { row -> key("selected", row.stored.intent.requestId) {
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text(row.stored.intent.manifest.name, style = MaterialTheme.typography.bodyLarge)
+                    Text(fileSizeText(row.stored.intent.manifest.sizeBytes), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    if (!row.ready()) Text(stringResource(R.string.media_selected_stale), color = MaterialTheme.colorScheme.error)
+                    val removeSelection = stringResource(R.string.conversation_image_tray_remove, row.stored.intent.manifest.name)
+                    TextButton({ onToggle(row.stored.intent.requestId) }, modifier = Modifier.heightIn(min = 48.dp).semantics { contentDescription = removeSelection }) {
+                        Text(stringResource(R.string.file_ux_unselect))
+                    }
+                }
+            } }
+            HorizontalDivider()
+            Text(stringResource(R.string.conversation_image_source), style = MaterialTheme.typography.titleSmall, modifier = Modifier.semantics { heading() })
             if (!canAttachImages) Text(stringResource(R.string.media_unsupported), style = MaterialTheme.typography.bodyMedium)
             Button(onGallery, enabled = canAttachImages && !busy,
                 modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)) {
@@ -44,20 +59,18 @@ fun SessionImagesPanel(
                 Text(stringResource(R.string.media_camera))
             }
             if (state.preparing || uploads?.hashing == true) {
+                Text(stringResource(R.string.conversation_transfer_preparation), style = MaterialTheme.typography.labelLarge, modifier = Modifier.semantics { heading() })
                 LinearProgressIndicator(Modifier.fillMaxWidth())
                 Text(stringResource(R.string.media_preparing), modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite })
             }
             if (busy) OutlinedButton(onCancel, Modifier.heightIn(min = 48.dp)) { Text(stringResource(R.string.media_cancel)) }
-            state.error?.let { Text(stringResource(imageErrorResource(it)), color = MaterialTheme.colorScheme.error,
-                modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite }) }
+            state.error?.let { io.github.enthusjast.tokenworks.ui.TokenWorksStatusNotice(stringResource(imageErrorResource(it)), isError = true) }
             uploads?.error?.takeIf { it != state.error }?.let {
-                Text(fileErrorText(it), color = MaterialTheme.colorScheme.error,
-                    modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite })
+                io.github.enthusjast.tokenworks.ui.TokenWorksStatusNotice(fileErrorText(it), isError = true)
             }
             HorizontalDivider()
             Text(stringResource(R.string.media_records), style = MaterialTheme.typography.titleSmall,
                 modifier = Modifier.semantics { heading() })
-            Text(stringResource(R.string.media_selected, rows.count { it.stored.intent.requestId in uploads?.selected.orEmpty() }))
             if (rows.isEmpty()) Text(stringResource(R.string.media_empty), style = MaterialTheme.typography.bodySmall)
             rows.forEach { row -> key(row.stored.intent.requestId) {
                 val id = row.stored.intent.requestId
@@ -86,7 +99,7 @@ fun SessionImagesPanel(
                         }, modifier = Modifier.fillMaxWidth())
                         Text(stringResource(R.string.file_ux_uploading, fileSizeText(row.bytes), fileSizeText(row.stored.intent.manifest.sizeBytes)))
                     }
-                    row.error?.let { Text(fileErrorText(it), color = MaterialTheme.colorScheme.error) }
+                    row.error?.let { io.github.enthusjast.tokenworks.ui.TokenWorksStatusNotice(fileErrorText(it), isError = true) }
                     if (selected && !row.ready()) Text(stringResource(R.string.media_selected_stale), color = MaterialTheme.colorScheme.error)
                     if (row.ready() || selected) {
                         val action = stringResource(if (selected) R.string.media_unselect_action else R.string.media_select_action, name)
@@ -130,7 +143,6 @@ fun SessionImagesPanel(
                 HorizontalDivider()
             } }
         }
-    }
 }
 
 @StringRes

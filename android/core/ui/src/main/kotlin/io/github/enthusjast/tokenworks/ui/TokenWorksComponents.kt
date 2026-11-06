@@ -1,6 +1,7 @@
 package io.github.enthusjast.tokenworks.ui
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
@@ -19,6 +20,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.error
 import androidx.compose.ui.semantics.heading
@@ -39,7 +41,7 @@ fun TokenWorksTopBar(
 ) {
     Surface(
         modifier = modifier.fillMaxWidth(),
-        color = MaterialTheme.colorScheme.surface,
+        color = MaterialTheme.colorScheme.background,
         contentColor = MaterialTheme.colorScheme.onSurface,
     ) {
         Column(
@@ -47,27 +49,44 @@ fun TokenWorksTopBar(
                 .windowInsetsPadding(WindowInsets.statusBars.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal)),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            Column(Modifier.widthIn(max = contentMaxWidth).fillMaxWidth()) {
-                Row(
-                    Modifier.fillMaxWidth().heightIn(min = 56.dp).padding(horizontal = TokenWorksSpacing.page),
-                    horizontalArrangement = Arrangement.spacedBy(TokenWorksSpacing.small),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    navigationIcon()
-                    Text(
-                        text = title,
-                        style = MaterialTheme.typography.titleMedium,
-                        modifier = Modifier.weight(1f).semantics { heading() },
-                    )
-                    actions()
-                }
-                if (!subtitle.isNullOrEmpty()) {
-                    Text(
-                        text = subtitle,
-                        modifier = Modifier.fillMaxWidth().padding(horizontal = TokenWorksSpacing.page).padding(bottom = TokenWorksSpacing.small),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
+            BoxWithConstraints(Modifier.widthIn(max = contentMaxWidth).fillMaxWidth()) {
+                val stackedActions = maxWidth < 360.dp || LocalDensity.current.fontScale >= 1.5f
+                Column(Modifier.fillMaxWidth().padding(vertical = TokenWorksSpacing.extraSmall)) {
+                    Row(
+                        Modifier.fillMaxWidth()
+                            .heightIn(min = TokenWorksSpacing.minimumTouchTarget)
+                            .padding(horizontal = TokenWorksSpacing.page),
+                        horizontalArrangement = Arrangement.spacedBy(TokenWorksSpacing.small),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        navigationIcon()
+                        Text(
+                            text = title,
+                            style = MaterialTheme.typography.titleMedium,
+                            modifier = Modifier.weight(1f)
+                                .padding(vertical = TokenWorksSpacing.small)
+                                .semantics { heading() },
+                        )
+                        if (!stackedActions) actions()
+                    }
+                    if (!subtitle.isNullOrEmpty()) {
+                        Text(
+                            text = subtitle,
+                            modifier = Modifier.fillMaxWidth()
+                                .padding(horizontal = TokenWorksSpacing.page)
+                                .padding(bottom = TokenWorksSpacing.small),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    if (stackedActions) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth().padding(horizontal = TokenWorksSpacing.page),
+                            horizontalArrangement = Arrangement.End,
+                            verticalAlignment = Alignment.CenterVertically,
+                            content = actions,
+                        )
+                    }
                 }
             }
         }
@@ -89,13 +108,13 @@ fun TokenWorksStatusNotice(
                 if (isError) error(text)
             },
         shape = MaterialTheme.shapes.small,
-        color = if (isError) MaterialTheme.colorScheme.errorContainer else MaterialTheme.colorScheme.surfaceContainer,
-        contentColor = if (isError) MaterialTheme.colorScheme.onErrorContainer else MaterialTheme.colorScheme.onSurface,
+        color = if (isError) MaterialTheme.colorScheme.errorContainer else MaterialTheme.colorScheme.surfaceContainerLow,
+        contentColor = if (isError) MaterialTheme.colorScheme.onErrorContainer else MaterialTheme.colorScheme.onSurfaceVariant,
     ) {
         Text(
             text = text,
             modifier = Modifier.padding(horizontal = TokenWorksSpacing.medium, vertical = TokenWorksSpacing.small),
-            style = MaterialTheme.typography.bodyMedium,
+            style = MaterialTheme.typography.bodySmall,
         )
     }
 }

@@ -48,6 +48,15 @@ private fun safeWebTarget(value: String): Boolean = runCatching {
 
 private data class PreparedMessage(val document: MessageMarkdownDocument, val links: Map<MessageTextRange, String>, val excessLinks: Boolean)
 
+/** One formatting generation per continuous append stream, scoped to this composition identity. */
+private class MessageFormattingContinuity(var source: String, var generation: Int = 0) {
+    fun update(next: String) {
+        if (next == source) return
+        if (!next.startsWith(source)) generation++
+        source = next
+    }
+}
+
 private fun MessageMarkdownDocument.forEachSpan(action: (MessageInline) -> Unit) {
     for (block in blocks) when (block) {
         is MessageMarkdownBlock.Paragraph -> block.spans.forEach(action)
@@ -64,14 +73,17 @@ private fun MessageMarkdownDocument.forEachSpan(action: (MessageInline) -> Unit)
 
 /** Presentation only. No HTML, remote resources, automatic launches or generated intents. */
 @Composable
-internal fun RichMessageText(text: String, initial: Int = 16 * 1024) {
+internal fun RichMessageText(text: String, initial: Int = 16 * 1024, interactive: Boolean = true) {
+    val continuity = remember { MessageFormattingContinuity(text) }
+    continuity.update(text)
     var limit by remember { mutableIntStateOf(initial.coerceAtLeast(1)) }
-    var raw by remember { mutableStateOf(false) }
-    var requestedLink by remember(text) { mutableStateOf<String?>(null) }
-    var linkFailed by remember { mutableStateOf(false) }
+    var raw by remember(continuity.generation) { mutableStateOf(false) }
+    var requestedLink by remember(text, interactive) { mutableStateOf<String?>(null) }
+    var linkFailed by remember(interactive) { mutableStateOf(false) }
     val end = minOf(limit, text.length).let { if (it in 1 until text.length && text[it - 1].isHighSurrogate() && text[it].isLowSurrogate()) it - 1 else it }
-    val prepared by produceState<PreparedMessage?>(null, text, end) {
-        value = withContext(Dispatchers.Default) {
+    var prepared by remember(continuity.generation) { mutableStateOf<PreparedMessage?>(null) }
+    LaunchedEffect(text, end, continuity.generation) {
+        prepared = withContext(Dispatchers.Default) {
             val document = parseMessageMarkdown(text, end)
             val links = linkedMapOf<MessageTextRange, String>()
             var excess = false
@@ -86,61 +98,70 @@ internal fun RichMessageText(text: String, initial: Int = 16 * 1024) {
             PreparedMessage(document, links, excess)
         }
     }
-    val current = prepared?.takeIf { it.document.source === text && it.document.visibleEnd == end }
+    // An append may retain the single last formatted projection until the new one is ready.
+    // Replacement/shortening starts a new generation and cannot retain old links or content.
+    val current = prepared?.takeIf { (it.document.source === text || text.startsWith(it.document.source)) && it.document.visibleEnd <= end }
     val uriHandler = LocalUriHandler.current
-    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+    Column(Modifier.then(if (interactive) Modifier else Modifier.clearAndSetSemantics { }),
+        verticalArrangement = Arrangement.spacedBy(12.dp)) {
         if (current == null || raw) {
-            SelectionContainer { Text(text.substring(0, end), style = readingBodyStyle()) }
+            MessageSelection(interactive) { Text(text.substring(0, end), style = readingBodyStyle()) }
         } else for (block in current.document.blocks) key(block.range.start) {
             when (block) {
-                is MessageMarkdownBlock.Paragraph -> MessageInlineText(current, block.spans, onLink = { requestedLink = it })
-                is MessageMarkdownBlock.Plain -> SelectionContainer { Text(block.range.text(text), style = readingBodyStyle()) }
+                is MessageMarkdownBlock.Paragraph -> MessageInlineText(current, block.spans, interactive = interactive, onLink = { requestedLink = it })
+                is MessageMarkdownBlock.Plain -> MessageSelection(interactive) { Text(block.range.text(current.document.source), style = readingBodyStyle()) }
                 is MessageMarkdownBlock.Heading -> MessageInlineText(current, block.spans,
                     Modifier.semantics { heading() }, when (block.level) {
                         1 -> MaterialTheme.typography.titleLarge
                         2 -> MaterialTheme.typography.titleMedium
                         else -> MaterialTheme.typography.titleSmall
-                    }, onLink = { requestedLink = it })
+                    }, interactive = interactive, onLink = { requestedLink = it })
                 is MessageMarkdownBlock.ListItem -> Row(Modifier.padding(start = (block.depth * 12).dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text(block.marker, style = readingBodyStyle())
-                    MessageInlineText(current, block.spans, Modifier.weight(1f), onLink = { requestedLink = it })
+                    MessageInlineText(current, block.spans, Modifier.weight(1f), interactive = interactive, onLink = { requestedLink = it })
                 }
                 is MessageMarkdownBlock.Quote -> {
                     val color = MaterialTheme.colorScheme.outlineVariant
                     MessageInlineText(current, block.spans, Modifier.drawBehind {
                         drawLine(color, Offset.Zero, Offset(0f, size.height), 2.dp.toPx())
-                    }.padding(start = 12.dp), onLink = { requestedLink = it })
+                    }.padding(start = 12.dp), interactive = interactive, onLink = { requestedLink = it })
                 }
-                is MessageMarkdownBlock.Code -> MessageCode(text, block, end < text.length)
-                is MessageMarkdownBlock.Table -> MessageTable(current, block) { requestedLink = it }
+                is MessageMarkdownBlock.Code -> MessageCode(current.document.source, block,
+                    current.document.visibleEnd < current.document.source.length, text, end, interactive)
+                is MessageMarkdownBlock.Table -> MessageTable(current, block, interactive) { requestedLink = it }
             }
         }
         if (current?.excessLinks == true && !raw) Text(stringResource(R.string.chat_link_limit), style = MaterialTheme.typography.bodySmall)
-        if (current?.document?.formatted == true) TextButton({ raw = !raw }, Modifier.heightIn(min = 48.dp)) {
+        if (interactive && current?.document?.formatted == true) TextButton({ raw = !raw }, Modifier.heightIn(min = 48.dp)) {
             Text(stringResource(if (raw) R.string.chat_formatted else R.string.chat_raw))
         }
-        if (end < text.length) TextButton({ limit = (limit.toLong() + 16 * 1024).coerceAtMost(Int.MAX_VALUE.toLong()).toInt() }, Modifier.heightIn(min = 48.dp)) {
+        if (interactive && end < text.length) TextButton({ limit = (limit.toLong() + 16 * 1024).coerceAtMost(Int.MAX_VALUE.toLong()).toInt() }, Modifier.heightIn(min = 48.dp)) {
             Text(stringResource(R.string.chat_show_more))
         }
     }
-    requestedLink?.let { target ->
+    if (interactive) requestedLink?.let { target ->
         AlertDialog(onDismissRequest = { requestedLink = null }, title = { Text(stringResource(R.string.chat_link_title)) },
             text = { SelectionContainer { Text(target) } },
             confirmButton = { TextButton({ requestedLink = null; linkFailed = !safeWebTarget(target) || runCatching { uriHandler.openUri(target) }.isFailure }, Modifier.heightIn(min = 48.dp)) { Text(stringResource(R.string.chat_link_open)) } },
             dismissButton = { TextButton({ requestedLink = null }, Modifier.heightIn(min = 48.dp)) { Text(stringResource(R.string.chat_link_cancel)) } })
     }
-    if (linkFailed) AlertDialog(onDismissRequest = { linkFailed = false }, title = { Text(stringResource(R.string.chat_link_failed)) },
+    if (interactive && linkFailed) AlertDialog(onDismissRequest = { linkFailed = false }, title = { Text(stringResource(R.string.chat_link_failed)) },
         confirmButton = { TextButton({ linkFailed = false }, Modifier.heightIn(min = 48.dp)) { Text(stringResource(R.string.chat_link_cancel)) } })
 }
 
 @Composable
+private fun MessageSelection(interactive: Boolean, content: @Composable () -> Unit) {
+    if (interactive) SelectionContainer(content = content) else content()
+}
+
+@Composable
 private fun MessageInlineText(message: PreparedMessage, spans: List<MessageInline>, modifier: Modifier = Modifier,
-    style: TextStyle = MaterialTheme.typography.bodyLarge, onLink: (String) -> Unit) {
+    style: TextStyle = MaterialTheme.typography.bodyLarge, interactive: Boolean, onLink: (String) -> Unit) {
     val color = MaterialTheme.colorScheme.primary
     val context = LocalContext.current
     val latestLink by rememberUpdatedState(onLink)
     val reading = LocalTokenWorksReadingStyle.current
-    val formatted = remember(message, spans, color, reading.codeScale, style.fontSize) {
+    val formatted = remember(message, spans, color, reading.codeScale, style.fontSize, interactive) {
         buildAnnotatedString {
             spans.forEach { span ->
                 val start = length
@@ -149,29 +170,35 @@ private fun MessageInlineText(message: PreparedMessage, spans: List<MessageInlin
                 if (span.style and MESSAGE_ITALIC != 0) addStyle(SpanStyle(fontStyle = FontStyle.Italic), start, length)
                 if (span.style and MESSAGE_CODE != 0) addStyle(SpanStyle(fontFamily = FontFamily.Monospace, fontSize = style.fontSize * reading.codeScale), start, length)
                 message.links[span.link]?.let { target ->
-                    addLink(LinkAnnotation.Clickable(target,
+                    if (interactive) addLink(LinkAnnotation.Clickable(target,
                         TextLinkStyles(SpanStyle(color = color, textDecoration = TextDecoration.Underline)),
                         LinkInteractionListener { latestLink(target) }), start, length)
+                    else addStyle(SpanStyle(color = color, textDecoration = TextDecoration.Underline), start, length)
                 }
             }
         }
     }
-    val actions = remember(message, spans, context) {
-        spans.mapNotNull { message.links[it.link] }.distinct().map { target ->
+    val actions = remember(message, spans, context, interactive) {
+        if (!interactive) emptyList() else spans.mapNotNull { message.links[it.link] }.distinct().map { target ->
             CustomAccessibilityAction(context.getString(R.string.chat_link_accessibility, target)) { latestLink(target); true }
         }
     }
-    SelectionContainer { Text(formatted, modifier.semantics { customActions = actions }, style = readingBodyStyle(style)) }
+    MessageSelection(interactive) {
+        Text(formatted, modifier.then(if (interactive) Modifier.semantics { customActions = actions } else Modifier), style = readingBodyStyle(style))
+    }
 }
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun MessageCode(source: String, block: MessageMarkdownBlock.Code, truncated: Boolean) {
+private fun MessageCode(source: String, block: MessageMarkdownBlock.Code, truncated: Boolean,
+    latestSource: String, latestEnd: Int, interactive: Boolean) {
     val clipboard = LocalClipboardManager.current
     val reading = LocalTokenWorksReadingStyle.current
     val content = remember(source, block.content) { block.content.text(source) }
     var copied by remember(content) { mutableStateOf(false) }
     var copyFailed by remember(content) { mutableStateOf(false) }
+    val currentSource by rememberUpdatedState(latestSource)
+    val currentEnd by rememberUpdatedState(latestEnd)
     LaunchedEffect(copied) { if (copied) { delay(2000); copied = false } }
     val complete = block.closed || !truncated
     Surface(color = MaterialTheme.colorScheme.surfaceContainerHigh, shape = MaterialTheme.shapes.small) {
@@ -179,17 +206,27 @@ private fun MessageCode(source: String, block: MessageMarkdownBlock.Code, trunca
             FlowRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text(block.language?.text(source) ?: stringResource(R.string.chat_code), Modifier.align(Alignment.CenterVertically),
                     style = MaterialTheme.typography.labelMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                TextButton({
+                if (interactive) TextButton({
                     copied = false
-                    try { clipboard.setText(AnnotatedString(content)); copyFailed = false; copied = true }
+                    try {
+                        val currentBlock = if (currentSource == source) block else
+                            parseMessageMarkdown(currentSource, currentEnd).blocks.firstOrNull {
+                                it is MessageMarkdownBlock.Code && it.range.start == block.range.start
+                            } as? MessageMarkdownBlock.Code
+                        if (currentBlock != null && (currentBlock.closed || currentEnd == currentSource.length)) {
+                            clipboard.setText(AnnotatedString(currentBlock.content.text(currentSource)))
+                            copyFailed = false
+                            copied = true
+                        } else copyFailed = true
+                    }
                     catch (cancelled: CancellationException) { throw cancelled }
                     catch (_: Exception) { copyFailed = true }
-                }, enabled = complete,
+                }, enabled = complete && latestSource == source,
                     modifier = Modifier.heightIn(min = 48.dp).semantics { liveRegion = LiveRegionMode.Polite }) {
                     Text(stringResource(if (copied) R.string.chat_copied else if (block.closed) R.string.chat_copy_code else R.string.chat_copy_visible_code))
                 }
             }
-            SelectionContainer { Text(content, if (reading.wrapCode) Modifier.fillMaxWidth() else Modifier.horizontalScroll(rememberScrollState()),
+            MessageSelection(interactive) { Text(content, if (reading.wrapCode) Modifier.fillMaxWidth() else Modifier.horizontalScroll(rememberScrollState(), enabled = interactive),
                 fontFamily = FontFamily.Monospace, style = MaterialTheme.typography.bodySmall.let { it.copy(fontSize = it.fontSize * reading.codeScale, lineHeight = it.lineHeight * reading.codeScale) }, softWrap = reading.wrapCode) }
             if (!complete) Text(stringResource(R.string.chat_code_incomplete), style = MaterialTheme.typography.bodySmall)
             if (copyFailed) Text(stringResource(R.string.chat_copy_failed), style = MaterialTheme.typography.bodySmall,
@@ -199,17 +236,17 @@ private fun MessageCode(source: String, block: MessageMarkdownBlock.Code, trunca
 }
 
 @Composable
-private fun MessageTable(message: PreparedMessage, block: MessageMarkdownBlock.Table, onLink: (String) -> Unit) {
+private fun MessageTable(message: PreparedMessage, block: MessageMarkdownBlock.Table, interactive: Boolean, onLink: (String) -> Unit) {
     if (block.headers.isEmpty()) {
-        SelectionContainer { Text(block.range.text(message.document.source), style = readingBodyStyle()) }
+        MessageSelection(interactive) { Text(block.range.text(message.document.source), style = readingBodyStyle()) }
         return
     }
     BoxWithConstraints(Modifier.fillMaxWidth()) {
         val cellWidth = if (constraints.hasBoundedWidth) (maxWidth / block.headers.size).coerceIn(120.dp, 180.dp) else 180.dp
         Box(Modifier.border(1.dp, MaterialTheme.colorScheme.outlineVariant)) {
-            Column(Modifier.horizontalScroll(rememberScrollState())) {
-                MessageTableRow(message, block.headers, true, cellWidth, 0, onLink)
-                block.rows.forEachIndexed { index, row -> MessageTableRow(message, row, false, cellWidth, index + 1, onLink) }
+            Column(Modifier.horizontalScroll(rememberScrollState(), enabled = interactive)) {
+                MessageTableRow(message, block.headers, true, cellWidth, 0, interactive, onLink)
+                block.rows.forEachIndexed { index, row -> MessageTableRow(message, row, false, cellWidth, index + 1, interactive, onLink) }
             }
         }
     }
@@ -217,7 +254,7 @@ private fun MessageTable(message: PreparedMessage, block: MessageMarkdownBlock.T
 
 @Composable
 private fun MessageTableRow(message: PreparedMessage, cells: List<List<MessageInline>>, header: Boolean,
-    cellWidth: Dp, rowIndex: Int, onLink: (String) -> Unit) {
+    cellWidth: Dp, rowIndex: Int, interactive: Boolean, onLink: (String) -> Unit) {
     val border = MaterialTheme.colorScheme.outlineVariant
     val rtl = LocalLayoutDirection.current == LayoutDirection.Rtl
     Row(Modifier.height(IntrinsicSize.Min).drawWithContent {
@@ -233,7 +270,7 @@ private fun MessageTableRow(message: PreparedMessage, cells: List<List<MessageIn
                 }
             }, color = if (header) MaterialTheme.colorScheme.surfaceContainer else MaterialTheme.colorScheme.surface) {
                 MessageInlineText(message, spans, Modifier.fillMaxWidth().padding(12.dp),
-                    if (header) MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.SemiBold) else MaterialTheme.typography.bodyLarge, onLink)
+                    if (header) MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.SemiBold) else MaterialTheme.typography.bodyLarge, interactive, onLink)
             }
         }
     }

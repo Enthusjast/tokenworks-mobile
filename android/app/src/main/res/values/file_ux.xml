@@ -75,4 +75,8 @@
     <string name="file_ux_save_action">保存到文档：%1$s</string>
     <string name="file_ux_expand_action">查看文件详情：%1$s</string>
     <string name="file_ux_collapse_action">收起文件详情：%1$s</string>
+    <string name="conversation_upload_source">添加文件来源</string>
+    <string name="conversation_transfer_preparation">准备与传输</string>
+    <string name="conversation_export_source_step">浏览来源，再为指定文件准备导出</string>
+    <string name="conversation_export_save_boundary">安全检查通过后仍需选择保存位置；仅在下载校验与目标文档回读通过后确认保存结果。</string>
 </resources>

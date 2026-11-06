@@ -3,7 +3,6 @@
     <string name="conversation_message_role_assistant">助手</string>
     <string name="conversation_message_role_tool">工具</string>
     <string name="conversation_message_role_notice">状态</string>
-    <string name="conversation_message_more">更多</string>
     <string name="conversation_message_more_description">更多消息操作</string>
     <string name="conversation_message_copy">复制消息原文</string>
     <string name="conversation_message_quote">引用到本地草稿</string>
@@ -17,4 +16,9 @@
     <string name="conversation_message_receiving">正在接收消息…</string>
     <string name="conversation_message_interrupted">此次回复未完成。</string>
     <string name="conversation_message_unconfirmed">尚未确认保存</string>
+    <string name="conversation_message_copy_short">复制</string>
+    <string name="conversation_message_tool_error">工具返回错误</string>
+    <string name="conversation_message_reply_error">回复异常</string>
+    <string name="conversation_message_preparing">正在准备回复</string>
+    <string name="conversation_process_count">过程 · %1$d项</string>
 </resources>

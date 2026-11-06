@@ -101,6 +101,12 @@ object TokenWorksSpacing {
     val page = 16.dp
     val large = 24.dp
     val extraLarge = 32.dp
+    val minimumTouchTarget = 48.dp
+    val navigationWidth = 304.dp
+    val chatMaxWidth = 760.dp
+    val inspectorWidth = 360.dp
+    val pillRadius = 28.dp
+    val iconSize = 20.dp
 }
 
 private val typography = Typography(
@@ -155,14 +161,14 @@ private val typography = Typography(
     labelMedium = TextStyle(
         fontFamily = FontFamily.Default,
         fontWeight = FontWeight.Medium,
-        fontSize = 13.sp,
+        fontSize = 12.sp,
         lineHeight = 18.sp,
     ),
     labelSmall = TextStyle(
         fontFamily = FontFamily.Default,
         fontWeight = FontWeight.Medium,
         fontSize = 12.sp,
-        lineHeight = 16.sp,
+        lineHeight = 18.sp,
     ),
 )
 

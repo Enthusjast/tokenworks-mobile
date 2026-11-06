@@ -131,16 +131,16 @@ fun ApprovalReviewScreen(state: HomeState, onBack: () -> Unit, onDetails: (Strin
                     if (body != null) Text(stringResource(R.string.approval_ux_progress, reviewed.size, parts.size), style = MaterialTheme.typography.bodySmall,
                         modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite })
                     if (original == null) {
+                        OutlinedButton({
+                            if (ready && body?.current(System.currentTimeMillis()) == true) handle?.let { onDecide(it, ApprovalChoice.REJECT) }
+                        }, enabled = ready, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)) {
+                            Text(stringResource(R.string.approval_ux_reject))
+                        }
                         Button({
                             if (ready && allReviewed && acknowledged && body?.current(System.currentTimeMillis()) == true)
                                 handle?.let { onDecide(it, ApprovalChoice.ALLOW_ONCE) }
                         }, enabled = ready && allReviewed && acknowledged, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)) {
                             Text(stringResource(R.string.approval_ux_allow))
-                        }
-                        OutlinedButton({
-                            if (ready && body?.current(System.currentTimeMillis()) == true) handle?.let { onDecide(it, ApprovalChoice.REJECT) }
-                        }, enabled = ready, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)) {
-                            Text(stringResource(R.string.approval_ux_reject))
                         }
                     } else {
                         val mayTransfer = original.delivery in setOf(ApprovalDecisionDelivery.PENDING, ApprovalDecisionDelivery.RECONCILE) && original.intent.current(System.currentTimeMillis())
@@ -155,11 +155,9 @@ fun ApprovalReviewScreen(state: HomeState, onBack: () -> Unit, onDetails: (Strin
                 BoxWithConstraints(Modifier.widthIn(max = 800.dp).fillMaxSize()) {
                     val rowPaging = maxWidth - 32.dp >= 400.dp && LocalDensity.current.fontScale <= 1.3f
                     Column(Modifier.fillMaxSize().verticalScroll(scroll).padding(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                Text(approvalVisibleText(runtime?.hostAlias ?: stringResource(R.string.approval_ux_current_host)), style = MaterialTheme.typography.titleMedium)
-                SelectionContainer {
-                    Text(stringResource(R.string.approval_ux_source, runtime?.hostId.orEmpty(), state.selectedRuntimeId.orEmpty(), state.selectedSessionId.orEmpty()), style = MaterialTheme.typography.bodySmall)
-                }
-                Text(stringResource(R.string.approval_ux_intro))
+                Text(stringResource(R.string.conversation_approval_summary), style = MaterialTheme.typography.labelLarge, modifier = Modifier.semantics { heading() })
+                if (body != null) Text(stringResource(R.string.approval_ux_tool, approvalVisibleText(body.root.string("tool"))), style = MaterialTheme.typography.titleLarge)
+                Text(stringResource(R.string.approval_ux_intro), style = MaterialTheme.typography.bodyMedium)
                 if (!authorized) Text(stringResource(R.string.approval_ux_no_authority), color = MaterialTheme.colorScheme.error)
                 Text(when (state.approvalStage) {
                     ApprovalUiStage.PREPARING -> stringResource(R.string.approval_ux_preparing)
@@ -182,7 +180,8 @@ fun ApprovalReviewScreen(state: HomeState, onBack: () -> Unit, onDetails: (Strin
                     Text(stringResource(R.string.approval_ux_projecting), modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite })
                 }
                 if (body != null && parts.isNotEmpty()) {
-                    Text(stringResource(R.string.approval_ux_tool, approvalVisibleText(body.root.string("tool"))), style = MaterialTheme.typography.titleMedium)
+                    HorizontalDivider()
+                    Text(stringResource(R.string.conversation_approval_reading), style = MaterialTheme.typography.titleMedium, modifier = Modifier.semantics { heading() })
                     Text(stringResource(if (rawView) R.string.approval_ux_raw else R.string.approval_ux_structured))
                     OutlinedButton({
                         rawView = !rawView; reviewed = emptySet(); acknowledged = false; retry = false; page = 0
@@ -201,8 +200,11 @@ fun ApprovalReviewScreen(state: HomeState, onBack: () -> Unit, onDetails: (Strin
                         }
                     }
                     Text(stringResource(R.string.approval_ux_escapes), style = MaterialTheme.typography.bodySmall)
-                    SelectionContainer {
-                        Text(parts[page], fontFamily = FontFamily.Monospace, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.testTag("approval-reading-page"))
+                    Surface(color = MaterialTheme.colorScheme.surfaceContainerLow, shape = MaterialTheme.shapes.medium) {
+                        SelectionContainer {
+                            Text(parts[page], fontFamily = FontFamily.Monospace, style = MaterialTheme.typography.bodyMedium,
+                                modifier = Modifier.fillMaxWidth().padding(16.dp).testTag("approval-reading-page"))
+                        }
                     }
                     Button({ reviewed = reviewed + page }, enabled = ready, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)) {
                         Text(stringResource(if (page in reviewed) R.string.approval_ux_page_reviewed else R.string.approval_ux_acknowledge_page))
@@ -225,6 +227,11 @@ fun ApprovalReviewScreen(state: HomeState, onBack: () -> Unit, onDetails: (Strin
                 original?.let {
                     if (!it.intent.current(System.currentTimeMillis())) Text(stringResource(R.string.approval_ux_original_expired), style = MaterialTheme.typography.bodySmall)
                     if (it.attempts == 0L) TextButton({ discard = true }, enabled = !busy && client?.connected == true, modifier = Modifier.heightIn(min = 48.dp)) { Text(stringResource(R.string.approval_ux_discard)) }
+                }
+                HorizontalDivider()
+                Text(stringResource(R.string.conversation_approval_identity), style = MaterialTheme.typography.titleSmall, modifier = Modifier.semantics { heading() })
+                SelectionContainer {
+                    Text(stringResource(R.string.approval_ux_source, runtime?.hostId.orEmpty(), state.selectedRuntimeId.orEmpty(), state.selectedSessionId.orEmpty()), style = MaterialTheme.typography.bodySmall)
                 }
                 OutlinedButton({
                     reviewed = emptySet(); acknowledged = false; retry = false; retired = true; onDetails(id)
@@ -283,14 +290,15 @@ internal fun approvalRecordLabel(row: PendingApprovalDecision): String = when {
     row.attempts > 0 -> "原决定结果待确认，不会自动重复转交"
     else -> "本机已保存原决定，尚未转交"
 }
-internal fun approvalErrorText(code: String): String = when (code) {
-    "approval.assurance_required" -> "学校认证尚未满足本次策略要求。请重新登录后核对原决定；本机身份确认不能替代学校认证。"
-    "approval.authentication_cancelled" -> "本机身份确认已取消，未因此转交新的决定。"
-    "approval.authentication_expired", "approval.expired", "approval.signature_unavailable" -> "本机确认或签名已过期、不可用，请重新核对当前详情。原请求结果仍需单独确认。"
-    "approval.stale", "approval.resync_required", "approval.conflict" -> "审批状态已更新，请重新获取当前详情并核对原决定。"
-    "approval.unsupported" -> "电脑尚未开放签名审批，请在电脑处理。"
-    "approval.reconcile_required", "approval.status_unavailable", "approval.delivery_unconfirmed" -> "尚未核对原决定结果，请先查询原请求。不会自动换用新的决定。"
-    "device.key_invalidated", "device.key_missing", "device.wrong_key" -> "本机审批密钥已失效或不可用，请恢复设备登记后再处理。"
-    "data.unavailable", "data.corrupt", "data.closed", "data.outbox_limit" -> "本机加密记录暂不可用，当前不能可靠转交新的决定。"
-    else -> "暂时无法处理审批，请核对当前详情与原请求结果。"
-}
+@Composable
+internal fun approvalErrorText(code: String): String = stringResource(when (code) {
+    "approval.assurance_required" -> R.string.conversation_approval_error_assurance
+    "approval.authentication_cancelled" -> R.string.conversation_approval_error_cancelled
+    "approval.authentication_expired", "approval.expired", "approval.signature_unavailable" -> R.string.conversation_approval_error_expired
+    "approval.stale", "approval.resync_required", "approval.conflict" -> R.string.conversation_approval_error_stale
+    "approval.unsupported" -> R.string.conversation_approval_error_unsupported
+    "approval.reconcile_required", "approval.status_unavailable", "approval.delivery_unconfirmed" -> R.string.conversation_approval_error_reconcile
+    "device.key_invalidated", "device.key_missing", "device.wrong_key" -> R.string.conversation_approval_error_key
+    "data.unavailable", "data.corrupt", "data.closed", "data.outbox_limit" -> R.string.conversation_approval_error_storage
+    else -> R.string.conversation_approval_error_generic
+})

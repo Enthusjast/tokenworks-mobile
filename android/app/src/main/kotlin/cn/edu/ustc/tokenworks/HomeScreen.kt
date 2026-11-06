@@ -14,6 +14,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.LiveRegionMode
@@ -25,11 +27,12 @@ import io.github.enthusjast.tokenworks.command.CommandKind
 import io.github.enthusjast.tokenworks.command.RemoteCommandState
 
 @Composable
-fun HomeRoute(model: HomeViewModel, onSecuritySettings: () -> Unit, onCancel: () -> Unit) {
+internal fun HomeRoute(model: HomeViewModel, onSecuritySettings: () -> Unit,
+    viewport: WorkspaceViewport = rememberWorkspaceViewport(), onCancel: () -> Unit) {
     val state by model.state.collectAsStateWithLifecycle()
     if (state.phase == HomePhase.READY) {
         key(model, state.presentationOwner?.fingerprint) {
-            ReadyHomeRoute(state, model, onCancel)
+            ReadyHomeRoute(state, model, viewport, onCancel)
         }
     } else {
         HomeScreen(state, model::login, model::register, onSecuritySettings, onCancel)
@@ -38,18 +41,27 @@ fun HomeRoute(model: HomeViewModel, onSecuritySettings: () -> Unit, onCancel: ()
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun ReadyHomeRoute(state: HomeState, model: HomeViewModel, onCancel: () -> Unit) {
+private fun ReadyHomeRoute(state: HomeState, model: HomeViewModel, viewport: WorkspaceViewport, onCancel: () -> Unit) {
     // Only presentation state survives child pages. Leaving READY disposes this scope.
     val navigation = remember { HomeNavigation() }
     // Positions are scoped to this READY identity and contain only stable message keys and offsets.
-    val readingPositions = remember { LinkedHashMap<Pair<String, String>, ChatReadingPosition>() }
+    val readingPositions = remember { LinkedHashMap<Triple<String?, String, String>, ChatReadingPosition>() }
     var appearanceSettings by remember(state.presentationOwner?.fingerprint) { mutableStateOf(false) }
     val bindingState = state.binding
     val shellVisible = !appearanceSettings && !state.appUpdateSettings && !state.notificationSettings &&
         state.reviewingApprovalId == null && bindingState == null && state.creation == null && state.selectedSessionId == null
+    val chromeVisible = !appearanceSettings && !state.appUpdateSettings && !state.notificationSettings &&
+        state.reviewingApprovalId == null && bindingState == null && state.creation == null
+    val layout = workspaceLayout(viewport, navigation.chatDetail != null || state.modelSelectionOpen || state.changesOpen || state.messageActionsOpen,
+        navigation.navigationExpanded)
+        .let { if (state.knownTarget != null) it.copy(navigationWidth = 0.dp) else it }
     val keyboard = LocalSoftwareKeyboardController.current
     val imeVisible = WindowInsets.isImeVisible
-    val back: () -> Unit = { if (imeVisible) keyboard?.hide() else model.back() }
+    val back: () -> Unit = {
+        if (imeVisible) keyboard?.hide()
+        else if (navigation.chatDetail != null) navigation.closeChatDetail()
+        else model.back()
+    }
     LaunchedEffect(state.selectedRuntimeId, state.selectedSessionId, state.reader?.phase, state.knownTarget) {
         navigation.recordVisited(state)
     }
@@ -79,20 +91,72 @@ private fun ReadyHomeRoute(state: HomeState, model: HomeViewModel, onCancel: () 
             }
         }
     }
+    val closeChild: () -> Unit = {
+        if (model.state.value.messageActionsOpen) model.dismissMessageActions()
+        if (model.state.value.changesOpen) model.closeChanges()
+        if (model.state.value.modelSelectionOpen) model.closeModelSelection()
+        navigation.closeChatDetail()
+    }
     val selectDestination: (HomeDestination) -> Unit = { destination ->
-        if (destination != navigation.destination) {
-            // This handler exists only on main pages; back retires the current directory context.
-            if (state.selectedRuntimeId != null) model.back()
-            navigation.directoryFromComputer = false
-            navigation.destination = destination
+        navigation.closePresentationPanels()
+        if (state.knownTarget != null) model.back()
+        else {
+            closeChild()
+            if (destination != navigation.destination || destination != HomeDestination.SESSIONS) {
+                // The shortcut follows the same child -> chat -> directory retirement as Back.
+                if (model.state.value.selectedSessionId != null) model.back()
+                if (model.state.value.selectedRuntimeId != null) model.back()
+                navigation.directoryFromComputer = false
+                navigation.destination = destination
+            }
         }
     }
-    val backToComputers: () -> Unit = {
-        model.back()
-        navigation.directoryFromComputer = false
-        navigation.destination = HomeDestination.COMPUTERS
+    val backToComputers: () -> Unit = { selectDestination(HomeDestination.COMPUTERS) }
+    val openNavigation: () -> Unit = {
+        if (layout.navigationWidth >= io.github.enthusjast.tokenworks.ui.TokenWorksSpacing.navigationWidth) navigation.navigationExpanded = false
+        else if (layout.navigationWidth > 0.dp) {
+            closeChild()
+            navigation.navigationExpanded = true
+        } else navigation.drawerOpen = true
+    }
+    val selectRuntime: (String) -> Unit = { id ->
+        navigation.closePresentationPanels()
+        navigation.directoryFromComputer = navigation.destination == HomeDestination.COMPUTERS
+        navigation.destination = HomeDestination.SESSIONS
+        navigation.selectRuntime(id)
+        if (id != model.state.value.selectedRuntimeId) model.openRuntime(id)
+    }
+    val selectSession: (String) -> Unit = { id ->
+        navigation.drawerOpen = false
+        if (id != model.state.value.selectedSessionId) {
+            navigation.closePresentationPanels()
+            model.openSession(id)
+        }
+    }
+    val sourceOwner = state.presentationOwner?.fingerprint
+    val sourceHost = state.runtimeRow(state.selectedRuntimeId)?.hostId
+    val readingResource = remember(sourceHost, state.selectedRuntimeId, state.selectedSessionId) {
+        state.selectedRuntimeId?.let { runtimeId -> state.selectedSessionId?.let { sessionId -> Triple(sourceHost, runtimeId, sessionId) } }
+    }
+    val changeDetail: (ChatDetailTarget?) -> Unit = { target ->
+        val current = model.state.value
+        if (current.presentationOwner?.fingerprint == sourceOwner &&
+            current.selectedRuntimeId == state.selectedRuntimeId && current.selectedSessionId == state.selectedSessionId &&
+            current.runtimeRow(current.selectedRuntimeId)?.hostId == sourceHost) navigation.setChatDetail(current, target)
+    }
+    SideEffect {
+        navigation.reconcileChatDetail(state)
+        if (!chromeVisible) navigation.closePresentationPanels()
+        if (state.modelSelectionOpen || state.changesOpen || state.messageActionsOpen || state.reviewingApprovalId != null) {
+            readingResource?.let { readingPositions[it] }?.retainExpandedSources(state.reader?.window?.items.orEmpty())
+        }
     }
 
+    val hasRoute = appearanceSettings && state.presentationOwner != null || state.appUpdateSettings || state.notificationSettings ||
+        state.reviewingApprovalId != null || bindingState != null || state.creation != null ||
+        state.changesOpen && state.changes != null || state.modelSelectionOpen || state.messageActionsOpen && state.messageActions != null || state.selectedSessionId != null
+    val backdropPosition = readingResource?.let { readingPositions[it] }
+    val routeContent: (@Composable () -> Unit)? = if (!hasRoute) null else { {
     if (appearanceSettings && state.presentationOwner != null) {
         BackHandler { appearanceSettings = false }
         AppearanceSettingsScreen(state.presentationOwner) { appearanceSettings = false }
@@ -120,27 +184,73 @@ private fun ReadyHomeRoute(state: HomeState, model: HomeViewModel, onCancel: () 
     } else if (state.creation != null) {
         BackHandler(onBack = back)
         SessionCreationScreen(state, model::createSession, model::refreshCreationOptions, model::queryCreation, model::sendPendingCreation, model::openCreatedSession, back)
+    } else if (state.messageActionsOpen && state.messageActions != null) {
+        val actions = state.messageActions
+        val original = actions.originalRequestId?.let { id -> state.outbox?.records?.firstOrNull { it.intent.requestId == id } }
+        val presentation = when {
+            layout.size == WorkspaceSize.EXPANDED -> TaskPresentation.SIDE_PANEL
+            viewport.heightDp >= 480 -> TaskPresentation.SHEET
+            else -> TaskPresentation.PAGE
+        }
+        val dismiss: () -> Unit = { if (imeVisible) keyboard?.hide() else model.dismissMessageActions() }
+        AdaptiveSessionPanel(layout, presentation, dismiss,
+            backdrop = { ReadOnlySessionBackdrop(state, backdropPosition) }) {
+            key(presentation) {
+                SessionMessageActionPreview(actions.copy(error = state.sessionActionError ?: actions.error), original,
+                    fork = { actions.preview?.anchor?.let(model::forkMessage) },
+                    share = { actions.preview?.anchor?.let(model::shareMessage) },
+                    queryOriginal = model::queryFork, openChild = model::openForkChild, dismiss = dismiss, embedded = true)
+            }
+        }
     } else if (state.changesOpen && state.changes != null) {
-        BackHandler { if (imeVisible) keyboard?.hide() else model.closeChanges() }
-        SessionChangesScreen(state.changes.copy(error = state.sessionActionError ?: state.changes.error),
-            model::loadChanges, model::loadNextChanges, model::reloadChanges, model::loadChangePatch,
-            model::loadNextChangePatch, model::copyChangePatch, model::closeChanges)
+        val changes = state.changes
+        val uiState = remember(sourceOwner, state.selectedRuntimeId, state.selectedSessionId, changes.contextId) { ChangesPanelUiState() }
+        val patchUiState = remember(sourceOwner, state.selectedRuntimeId, state.selectedSessionId, changes.contextId,
+            changes.patch?.fileId, changes.patch?.version) { ChangePatchUiState() }
+        val presentation = when (layout.size) {
+            WorkspaceSize.COMPACT -> TaskPresentation.PAGE
+            WorkspaceSize.MEDIUM -> TaskPresentation.SHEET
+            WorkspaceSize.EXPANDED -> TaskPresentation.SIDE_PANEL
+        }
+        val dismiss: () -> Unit = { if (imeVisible) keyboard?.hide() else model.closeChanges() }
+        AdaptiveSessionPanel(layout, presentation, dismiss,
+            backdrop = { ReadOnlySessionBackdrop(state, backdropPosition) }) {
+            key(presentation) {
+                SessionChangesScreen(changes.copy(error = state.sessionActionError ?: changes.error),
+                    model::loadChanges, model::loadNextChanges, model::reloadChanges, model::loadChangePatch,
+                    model::loadNextChangePatch, model::copyChangePatch, dismiss,
+                    uiState = uiState, embedded = true, patchUiState = patchUiState)
+            }
+        }
     } else if (state.modelSelectionOpen) {
-        BackHandler { if (imeVisible) keyboard?.hide() else model.closeModelSelection() }
-        val original = state.outbox?.records.orEmpty().filter { it.intent.kind == CommandKind.MODEL_SELECT }
-            .maxWithOrNull(compareBy({ if (it.remote !in setOf(RemoteCommandState.SETTLED, RemoteCommandState.REJECTED)) 1 else 0 }, { it.createdAt }, { it.intent.requestId }))
-        SessionModelsScreen(requireNotNull(state.modelCatalog), original, state.modelBusy,
-            state.modelError ?: state.outbox?.error, model::loadModels, model::loadNextModels, model::reloadModels,
-            model::selectModel, model::queryModelSelection, model::sendPending, model::discardUnsentModelSelection,
-            { if (imeVisible) keyboard?.hide() else model.closeModelSelection() })
+        val catalog = requireNotNull(state.modelCatalog)
+        val uiState = remember(sourceOwner, state.selectedRuntimeId, state.selectedSessionId, catalog.contextId) { ModelPanelUiState() }
+        val original = remember(state.outbox?.records) {
+            state.outbox?.records.orEmpty().filter { it.intent.kind == CommandKind.MODEL_SELECT }
+                .maxWithOrNull(compareBy({ if (it.remote != RemoteCommandState.SETTLED && it.remote != RemoteCommandState.REJECTED) 1 else 0 }, { it.createdAt }, { it.intent.requestId }))
+        }
+        val presentation = when {
+            layout.size == WorkspaceSize.EXPANDED -> TaskPresentation.SIDE_PANEL
+            viewport.heightDp >= 480 -> TaskPresentation.SHEET
+            else -> TaskPresentation.PAGE
+        }
+        val dismiss: () -> Unit = { if (imeVisible) keyboard?.hide() else model.closeModelSelection() }
+        AdaptiveSessionPanel(layout, presentation, dismiss,
+            backdrop = { ReadOnlySessionBackdrop(state, backdropPosition) }) {
+            key(presentation) {
+                SessionModelsScreen(catalog, original, state.modelBusy,
+                    state.modelError ?: state.outbox?.error, model::loadModels, model::loadNextModels, model::reloadModels,
+                    model::selectModel, model::queryModelSelection, model::sendPending, model::discardUnsentModelSelection,
+                    dismiss, uiState = uiState, embedded = true)
+            }
+        }
     } else if (state.selectedSessionId != null) {
-        BackHandler(onBack = back)
         key(state.selectedRuntimeId, state.selectedSessionId) {
-            val position = remember(state.selectedRuntimeId, state.selectedSessionId) {
-                val resource = state.selectedRuntimeId!! to state.selectedSessionId!!
-                readingPositions.remove(resource)?.also { readingPositions[resource] = it } ?: ChatReadingPosition().also {
+            val position = remember(readingResource) {
+                if (readingResource == null) ChatReadingPosition()
+                else readingPositions.remove(readingResource)?.also { readingPositions[readingResource] = it } ?: ChatReadingPosition().also {
                     if (readingPositions.size >= 16) readingPositions.remove(readingPositions.keys.first())
-                    readingPositions[resource] = it
+                    readingPositions[readingResource] = it
                 }
             }
             SessionsScreen(state, back, model::refreshSessions, model::loadOlder, model::retryRead,
@@ -153,159 +263,193 @@ private fun ReadyHomeRoute(state: HomeState, model: HomeViewModel, onCancel: () 
                 onChanges = model::openChanges, onMessageAction = model::previewMessage,
                 onPickImage = { model.pickImage() }, onPickCamera = model::pickCamera, onPreviewMedia = model::previewImage,
                 onDismissImagePreview = model::dismissImagePreview, onCancelImage = model::cancelImage,
-                onReselectImage = { model.pickImage(it) }, onResolveFailedInput = model::resolveFailedInput)
+                onReselectImage = { model.pickImage(it) }, onResolveFailedInput = model::resolveFailedInput,
+                layout = layout, detailTarget = navigation.chatDetail, onDetailsChange = changeDetail,
+                onOpenNavigation = openNavigation,
+                onOpenHosts = { if (state.knownTarget == null) navigation.hostSwitcherOpen = true else navigation.openChatDetail(state, ChatDetailSection.INFO) },
+                onCreateSession = { state.selectedRuntimeId?.let(model::openCreation) })
         }
-    } else {
-        BackHandler(enabled = navigation.destination != HomeDestination.SESSIONS || navigation.directoryFromComputer) {
-            if (navigation.directoryFromComputer) backToComputers() else selectDestination(HomeDestination.SESSIONS)
-        }
-        TokenWorksAppShell(state, navigation, selectDestination,
-            onRuntime = { id ->
-                navigation.directoryFromComputer = navigation.destination == HomeDestination.COMPUTERS
-                navigation.destination = HomeDestination.SESSIONS
-                navigation.selectRuntime(id)
-                model.openRuntime(id)
-            },
-            onSession = model::openSession,
-            onRefresh = model::refresh,
-            onRefreshSessions = model::refreshSessions,
-            onCreate = model::openCreation,
-            onBinding = model::openBinding,
-            onNotifications = model::openNotificationSettings,
-            onAppUpdates = model::openAppUpdates,
-            onAppearance = { if (state.presentationOwner != null) appearanceSettings = true },
-            onExit = onCancel,
-            onBackToComputers = backToComputers,
-        )
     }
-    if (state.messageActionsOpen && state.messageActions != null) {
-        val actions = state.messageActions
-        val original = actions.originalRequestId?.let { id -> state.outbox?.records?.firstOrNull { it.intent.requestId == id } }
-        SessionMessageActionPreview(actions.copy(error = state.sessionActionError ?: actions.error), original,
-            fork = { actions.preview?.anchor?.let(model::forkMessage) },
-            share = { actions.preview?.anchor?.let(model::shareMessage) },
-            queryOriginal = model::queryFork, openChild = model::openForkChild, dismiss = model::dismissMessageActions)
+    } }
+    BackHandler(enabled = shellVisible && (navigation.destination != HomeDestination.SESSIONS || navigation.directoryFromComputer)) {
+        if (imeVisible) keyboard?.hide()
+        else if (navigation.directoryFromComputer) backToComputers()
+        else selectDestination(HomeDestination.SESSIONS)
     }
+    TokenWorksAppShell(state, navigation, selectDestination,
+        onRuntime = selectRuntime, onSession = selectSession,
+        onRefresh = model::refresh, onRefreshSessions = model::refreshSessions,
+        onCreate = { id -> navigation.closePresentationPanels(); model.openCreation(id) },
+        onBinding = { navigation.closePresentationPanels(); model.openBinding() },
+        onNotifications = { navigation.closePresentationPanels(); model.openNotificationSettings() },
+        onAppUpdates = { navigation.closePresentationPanels(); model.openAppUpdates() },
+        onAppearance = { navigation.closePresentationPanels(); if (state.presentationOwner != null) appearanceSettings = true },
+        onExit = onCancel, onBackToComputers = backToComputers,
+        layout = layout, chromeVisible = chromeVisible, onOpenNavigation = openNavigation, content = routeContent)
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun HomeScreen(state: HomeState, onLogin: () -> Unit, onRegister: (String) -> Unit, onSecuritySettings: () -> Unit, onCancel: () -> Unit) {
     var name by rememberSaveable { mutableStateOf("${Build.MANUFACTURER} ${Build.MODEL}".trim()) }
     val displayName = state.deviceName ?: name
     val nameValid = displayName.trim().isNotEmpty() && displayName.trim().toByteArray(Charsets.UTF_8).size <= 160 && displayName.none { it < ' ' || it == '\u007f' }
+    var showSource by remember(state.issuer, state.subject, state.deviceId) { mutableStateOf(false) }
+    val enrolling = when (state.phase) {
+        HomePhase.ENROLL, HomePhase.PREPARING, HomePhase.AUTHENTICATING, HomePhase.REGISTERING,
+        HomePhase.RECONCILING, HomePhase.REGISTRATION_UNKNOWN -> true
+        else -> false
+    }
+    val currentStep = stringResource(R.string.workspace_current_step)
     Scaffold { insets ->
-        Box(Modifier.fillMaxSize().padding(insets).imePadding(), contentAlignment = Alignment.TopCenter) {
-            Column(Modifier.widthIn(max = 600.dp).fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 24.dp, vertical = 32.dp), verticalArrangement = Arrangement.spacedBy(24.dp)) {
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                    Image(painterResource(R.drawable.ic_tokenworks), null, Modifier.size(48.dp))
+        Box(Modifier.fillMaxSize().padding(insets).consumeWindowInsets(insets).imePadding(), contentAlignment = Alignment.TopCenter) {
+            Column(Modifier.widthIn(max = 600.dp).fillMaxWidth().verticalScroll(rememberScrollState())
+                .padding(horizontal = 16.dp, vertical = 24.dp), verticalArrangement = Arrangement.spacedBy(24.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Image(painterResource(R.drawable.ic_tokenworks), null, Modifier.size(40.dp))
                     Column {
-                        Text("TokenWorks Mobile", style = MaterialTheme.typography.headlineSmall, modifier = Modifier.semantics { heading() })
-                        Text("让电脑上的会话，随你继续", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(stringResource(R.string.app_name), style = MaterialTheme.typography.headlineSmall, modifier = Modifier.semantics { heading() })
+                        Text(stringResource(R.string.workspace_account_tagline), style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 }
-                Text(stringResource(R.string.onboarding_steps), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow)) {
-                    Column(Modifier.fillMaxWidth().padding(24.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                        val title = when (state.phase) {
-                            HomePhase.UNCONFIGURED, HomePhase.INVALID_CONFIGURATION -> "学校登录尚未配置"
-                            HomePhase.ENROLL, HomePhase.PREPARING, HomePhase.AUTHENTICATING, HomePhase.REGISTERING, HomePhase.RECONCILING, HomePhase.REGISTRATION_UNKNOWN -> "登记这部手机"
-                            else -> "连接学校账号"
-                        }
-                        Text(title, style = MaterialTheme.typography.titleLarge, modifier = Modifier.semantics { heading() })
-                        when (state.phase) {
-                            HomePhase.READY -> error("READY requires task-focused navigation")
-                            HomePhase.UNCONFIGURED, HomePhase.INVALID_CONFIGURATION -> {
-                                Text("请联系管理员获取配置了学校登录的安装包。", style = MaterialTheme.typography.bodyLarge)
-                            }
-                            HomePhase.SIGNED_OUT -> {
-                                Text("使用学校统一身份认证，在浏览器中完成登录。", style = MaterialTheme.typography.bodyLarge)
-                                var showIssuer by remember { mutableStateOf(false) }
-                                TextButton({ showIssuer = !showIssuer }, Modifier.heightIn(min = 48.dp)) {
-                                    Text(stringResource(if (showIssuer) R.string.onboarding_source_close else R.string.onboarding_source_open))
-                                }
-                                if (showIssuer) SelectionContainer { Text(state.issuer, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant) }
-                                Button(onLogin, Modifier.fillMaxWidth().heightIn(min = 48.dp)) { Text("使用学校账号登录") }
-                            }
-                            HomePhase.REAUTHENTICATE -> {
-                                Text("重新验证学校账号后，继续使用此设备的原有登记。", style = MaterialTheme.typography.bodyLarge)
-                                SelectionContainer { Text(state.subject, color = MaterialTheme.colorScheme.onSurfaceVariant) }
-                                Button(onLogin, Modifier.fillMaxWidth().heightIn(min = 48.dp)) { Text("重新登录此账号") }
-                            }
-                            HomePhase.RECOVERY_ERROR -> {
-                                Text(if (state.error == "account.cleanup_failed") "本机登录尚未清理完成，请重试退出。" else "暂时无法恢复本机登录。请解锁设备并检查网络后重试。", style = MaterialTheme.typography.bodyLarge)
-                                Button(onLogin, Modifier.fillMaxWidth().heightIn(min = 48.dp)) { Text(if (state.error == "account.cleanup_failed") "重试退出" else "重试恢复") }
-                            }
-                            HomePhase.ENROLL -> {
-                                Text("账号已验证。为这部手机登记独立密钥后，即可查看获授权的电脑。", style = MaterialTheme.typography.bodyLarge)
-                                SelectionContainer { Text(state.subject, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant) }
-                                OutlinedTextField(value = displayName, onValueChange = { name = it }, label = { Text("设备名称") },
-                                    supportingText = { Text(if (state.deviceName != null) "继续核对原设备登记" else if (nameValid) "便于在账号中识别这部设备" else "请输入名称，或将名称缩短后重试") },
-                                    enabled = state.deviceName == null, isError = !nameValid, singleLine = true, modifier = Modifier.fillMaxWidth())
-                                Button({ onRegister(displayName) }, enabled = nameValid, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)) { Text("确认并登记设备") }
-                                if (state.securitySetupRequired) OutlinedButton(onSecuritySettings, Modifier.fillMaxWidth().heightIn(min = 48.dp)) { Text("前往安全设置") }
-                            }
-                            HomePhase.REGISTRATION_UNKNOWN -> {
-                                Text("尚未核对设备登记结果。请保持本机登录并检查网络，再查询登记状态。", style = MaterialTheme.typography.bodyLarge)
-                                Button({ onRegister(displayName) }, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)) { Text("核对设备登记") }
-                            }
-                            else -> {
-                                Row(Modifier.semantics { liveRegion = LiveRegionMode.Polite }, verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                                    CircularProgressIndicator(Modifier.size(24.dp), strokeWidth = 2.dp)
-                                    Text(when (state.phase) {
-                                        HomePhase.LOADING -> "正在准备登录"
-                                        HomePhase.RECOVERING -> "正在恢复本机登录"
-                                        HomePhase.RENEWING -> "正在更新登录信息"
-                                        HomePhase.CLEARING -> "正在清理本机登录"
-                                        HomePhase.STARTING -> "正在连接学校认证"
-                                        HomePhase.BROWSER -> "等待浏览器完成登录"
-                                        HomePhase.EXCHANGING -> "正在验证登录信息"
-                                        HomePhase.PREPARING -> "正在准备设备登记"
-                                        HomePhase.AUTHENTICATING -> "等待本机身份确认"
-                                        HomePhase.REGISTERING -> "正在登记设备"
-                                        HomePhase.RECONCILING -> "正在核对设备登记"
-                                    }, style = MaterialTheme.typography.bodyLarge)
-                                }
-                            }
-                        }
-                        state.error?.let { error ->
-                            Text(errorText(error), color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodyMedium,
-                                modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite })
-                            if (error == "vault.lock_required" && state.phase != HomePhase.ENROLL) {
-                                OutlinedButton(onSecuritySettings, Modifier.fillMaxWidth().heightIn(min = 48.dp)) { Text("前往安全设置") }
-                            }
-                        }
-                        if (state.phase !in setOf(HomePhase.LOADING, HomePhase.CLEARING, HomePhase.UNCONFIGURED, HomePhase.INVALID_CONFIGURATION, HomePhase.SIGNED_OUT)) {
-                            TextButton(onCancel, Modifier.fillMaxWidth().heightIn(min = 48.dp)) {
-                                Text(if (state.phase == HomePhase.REAUTHENTICATE) "退出本机登录" else if (state.phase == HomePhase.RECOVERY_ERROR) "清除本机登录" else "取消并退出登录")
-                            }
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    for (step in 0..2) {
+                        val active = step == if (enrolling) 1 else 0
+                        Surface(color = if (active) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceContainerLow,
+                            contentColor = if (active) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant,
+                            shape = MaterialTheme.shapes.extraLarge) {
+                            Text(stringResource(when (step) { 0 -> R.string.workspace_step_account; 1 -> R.string.workspace_step_device; else -> R.string.workspace_step_computer }),
+                                Modifier.padding(horizontal = 12.dp, vertical = 8.dp).semantics { if (active) stateDescription = currentStep },
+                                style = MaterialTheme.typography.bodySmall)
                         }
                     }
                 }
-                Text("TokenWorks Mobile · ${BuildConfig.VERSION_NAME}", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.labelMedium)
+                HorizontalDivider()
+                Column(Modifier.fillMaxWidth().testTag("onboarding-${state.phase.name}"), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                    val title = when (state.phase) {
+                        HomePhase.UNCONFIGURED -> R.string.workspace_account_unconfigured
+                        HomePhase.INVALID_CONFIGURATION -> R.string.workspace_account_invalid
+                        else -> if (enrolling) R.string.workspace_device_title else R.string.workspace_account_title
+                    }
+                    Text(stringResource(title), style = MaterialTheme.typography.titleLarge, modifier = Modifier.semantics { heading() })
+                    when (state.phase) {
+                        HomePhase.READY -> error("READY requires task-focused navigation")
+                        HomePhase.UNCONFIGURED -> Text(stringResource(R.string.workspace_account_configuration_help))
+                        HomePhase.INVALID_CONFIGURATION -> Text(stringResource(R.string.workspace_account_invalid_help))
+                        HomePhase.SIGNED_OUT -> {
+                            Text(stringResource(R.string.workspace_account_browser_description))
+                            Button(onLogin, Modifier.fillMaxWidth().heightIn(min = 48.dp).testTag("onboarding-login")) {
+                                Text(stringResource(R.string.workspace_account_browser_login))
+                            }
+                        }
+                        HomePhase.REAUTHENTICATE -> {
+                            Text(stringResource(R.string.workspace_account_reauthenticate_description))
+                            Button(onLogin, Modifier.fillMaxWidth().heightIn(min = 48.dp).testTag("onboarding-reauthenticate")) {
+                                Text(stringResource(R.string.workspace_account_reauthenticate))
+                            }
+                        }
+                        HomePhase.RECOVERY_ERROR -> {
+                            Text(stringResource(if (state.error == "account.cleanup_failed") R.string.workspace_recovery_cleanup_description else R.string.workspace_recovery_failed))
+                            Button(onLogin, Modifier.fillMaxWidth().heightIn(min = 48.dp).testTag("onboarding-retry")) {
+                                Text(stringResource(if (state.error == "account.cleanup_failed") R.string.workspace_recovery_cleanup_retry else R.string.workspace_recovery_retry))
+                            }
+                        }
+                        HomePhase.ENROLL -> {
+                            Text(stringResource(R.string.workspace_account_registered))
+                            OutlinedTextField(displayName, { name = it }, label = { Text(stringResource(R.string.workspace_device_name)) },
+                                supportingText = { Text(stringResource(if (state.deviceName != null) R.string.workspace_device_original_name
+                                    else if (nameValid) R.string.workspace_device_name_hint else R.string.workspace_device_name_error)) },
+                                enabled = state.deviceName == null, isError = !nameValid, singleLine = true, modifier = Modifier.fillMaxWidth())
+                            Button({ onRegister(displayName) }, enabled = nameValid,
+                                modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp).testTag("onboarding-register")) {
+                                Text(stringResource(R.string.workspace_device_register))
+                            }
+                            if (state.securitySetupRequired) OutlinedButton(onSecuritySettings, Modifier.fillMaxWidth().heightIn(min = 48.dp)) {
+                                Text(stringResource(R.string.workspace_security_settings))
+                            }
+                        }
+                        HomePhase.REGISTRATION_UNKNOWN -> {
+                            Text(stringResource(R.string.workspace_device_unknown_description))
+                            Button({ onRegister(displayName) }, Modifier.fillMaxWidth().heightIn(min = 48.dp).testTag("onboarding-query-registration")) {
+                                Text(stringResource(R.string.workspace_device_query))
+                            }
+                        }
+                        else -> Row(Modifier.semantics { liveRegion = LiveRegionMode.Polite },
+                            verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                            CircularProgressIndicator(Modifier.size(24.dp), strokeWidth = 2.dp)
+                            Text(stringResource(when (state.phase) {
+                                HomePhase.LOADING -> R.string.workspace_account_loading
+                                HomePhase.RECOVERING -> R.string.workspace_account_recovering
+                                HomePhase.RENEWING -> R.string.workspace_account_renewing
+                                HomePhase.CLEARING -> R.string.workspace_account_clearing
+                                HomePhase.STARTING -> R.string.workspace_account_starting
+                                HomePhase.BROWSER -> R.string.workspace_account_browser_waiting
+                                HomePhase.EXCHANGING -> R.string.workspace_account_exchanging
+                                HomePhase.PREPARING -> R.string.workspace_device_preparing
+                                HomePhase.AUTHENTICATING -> R.string.workspace_device_authenticating
+                                HomePhase.REGISTERING -> R.string.workspace_device_registering
+                                HomePhase.RECONCILING -> R.string.workspace_device_reconciling
+                            }), style = MaterialTheme.typography.bodyLarge)
+                        }
+                    }
+                    if (state.issuer.isNotEmpty() || state.subject.isNotEmpty() || state.deviceId.isNotEmpty()) {
+                        TextButton({ showSource = !showSource }, Modifier.heightIn(min = 48.dp).testTag("onboarding-source")) {
+                            Text(stringResource(if (showSource) R.string.onboarding_source_close else R.string.onboarding_source_open))
+                        }
+                        if (showSource) SelectionContainer {
+                            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                if (state.issuer.isNotEmpty()) Text(state.issuer, style = MaterialTheme.typography.bodySmall)
+                                if (state.subject.isNotEmpty()) Text(state.subject, style = MaterialTheme.typography.bodySmall)
+                                if (state.deviceId.isNotEmpty()) Text(state.deviceId, style = MaterialTheme.typography.bodySmall)
+                            }
+                        }
+                    }
+                    state.error?.let { code ->
+                        io.github.enthusjast.tokenworks.ui.TokenWorksStatusNotice(errorText(code), isError = true)
+                        if (code == "vault.lock_required" && state.phase != HomePhase.ENROLL) {
+                            OutlinedButton(onSecuritySettings, Modifier.fillMaxWidth().heightIn(min = 48.dp)) { Text(stringResource(R.string.workspace_security_settings)) }
+                        }
+                    }
+                    val canLeave = when (state.phase) {
+                        HomePhase.LOADING, HomePhase.CLEARING, HomePhase.UNCONFIGURED, HomePhase.INVALID_CONFIGURATION, HomePhase.SIGNED_OUT -> false
+                        else -> true
+                    }
+                    if (canLeave) TextButton(onCancel, Modifier.fillMaxWidth().heightIn(min = 48.dp).testTag("onboarding-cancel")) {
+                        Text(stringResource(when (state.phase) {
+                            HomePhase.REAUTHENTICATE -> R.string.workspace_account_exit
+                            HomePhase.RECOVERY_ERROR -> R.string.workspace_account_clear
+                            else -> R.string.workspace_account_cancel
+                        }))
+                    }
+                }
+                Text(stringResource(R.string.settings_version, BuildConfig.VERSION_NAME),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.labelMedium)
             }
         }
     }
 }
 
-internal fun errorText(code: String): String = when (code) {
-    "login.browser_unavailable" -> "没有找到可用的浏览器，请安装浏览器后重试。"
-    "login.invalid_callback" -> "没有接受此登录返回，请继续原来的登录或重新开始。"
-    "login.expired", "auth.expired", "login.identity" -> "登录信息已失效或未通过验证，请重新登录。"
-    "login.cancelled", "login.authentication_cancelled" -> "本次确认已取消，可以重新操作。"
-    "login.reauthentication", "auth.reauthentication_required" -> "需要重新验证学校账号，原设备密钥会保留。"
-    "login.account_mismatch" -> "请选择原学校账号，或先退出本机登录后切换账号。"
-    "auth.identity_mismatch" -> "账号身份信息已变化，请重新登录并登记。"
-    "login.configuration" -> "安装包配置已变化，无法复用原登录。请核对配置或清除本机登录。"
-    "vault.lock_required" -> "请先设置安全锁屏，再继续保存本机登录。"
-    "vault.locked" -> "请解锁设备后重试恢复。"
-    "vault.key_missing", "vault.corrupt", "vault.unavailable", "vault.conflict" -> "本机登录暂时无法读取或保存，请重试恢复。"
-    "device.lock_required", "device.biometric_required" -> "请先设置安全锁屏和受支持的生物识别，再继续登记。"
-    "device.key_invalidated", "device.key_missing" -> "设备密钥已失效，请退出本机登录后重新登记。"
-    "access.denied", "access.revoked", "device.invalid" -> "当前设备没有访问权限，请检查设备登记和授权。"
-    "access.organization_missing" -> "当前账号不属于此安装包配置的组织，请联系管理员。"
-    "auth.proof_invalid" -> "设备证明未通过验证，请重新确认后重试。"
-    "device.registration_not_found" -> "尚未查到本机登记，可以再次确认后登记。"
-    "device.registration_unknown" -> "暂时无法核对登记结果，请恢复网络后再次查询。"
-    "device.registration_conflict" -> "登记信息与已有设备不一致，请先核对登记状态。"
-    else -> "暂时无法完成操作，请检查网络后重试。"
-}
+@Composable
+internal fun errorText(code: String): String = stringResource(when (code) {
+    "login.browser_unavailable" -> R.string.workspace_error_browser
+    "login.invalid_callback" -> R.string.workspace_error_callback
+    "login.expired", "auth.expired", "login.identity" -> R.string.workspace_error_expired
+    "login.cancelled", "login.authentication_cancelled" -> R.string.workspace_error_cancelled
+    "login.reauthentication", "auth.reauthentication_required" -> R.string.workspace_error_reauthentication
+    "login.account_mismatch" -> R.string.workspace_error_account_mismatch
+    "auth.identity_mismatch" -> R.string.workspace_error_identity_mismatch
+    "login.configuration" -> R.string.workspace_error_configuration
+    "vault.lock_required" -> R.string.workspace_error_lock_required
+    "vault.locked" -> R.string.workspace_error_locked
+    "vault.key_missing", "vault.corrupt", "vault.unavailable", "vault.conflict" -> R.string.workspace_error_vault
+    "device.lock_required", "device.biometric_required" -> R.string.workspace_error_biometric
+    "device.key_invalidated", "device.key_missing" -> R.string.workspace_error_key_invalidated
+    "access.denied", "access.revoked", "device.invalid" -> R.string.workspace_error_access
+    "access.organization_missing" -> R.string.workspace_error_organization
+    "auth.proof_invalid" -> R.string.workspace_error_proof
+    "device.registration_not_found" -> R.string.workspace_error_registration_missing
+    "device.registration_unknown" -> R.string.workspace_error_registration_unknown
+    "device.registration_conflict" -> R.string.workspace_error_registration_conflict
+    else -> R.string.workspace_error_operation
+})

@@ -24,6 +24,7 @@ internal fun SessionMessageActionPreview(
     queryOriginal: () -> Unit,
     openChild: (String) -> Unit,
     dismiss: () -> Unit,
+    embedded: Boolean = false,
 ) {
     val preview = state.preview
     val record = original?.takeIf { it.intent.kind == CommandKind.FORK }
@@ -37,7 +38,7 @@ internal fun SessionMessageActionPreview(
     val mayFork = ready && state.canFork && !state.busy && preview?.complete == true &&
         record == null && state.originalRequestId == null
     val mayShare = ready && !state.busy && preview?.complete == true && preview.shareable && !preview.text.isNullOrEmpty()
-    var confirmingFork by remember(preview?.anchor, record?.intent?.requestId) { mutableStateOf(false) }
+    var confirmingFork by remember(preview?.anchor, record?.intent?.requestId, embedded) { mutableStateOf(false) }
     LaunchedEffect(mayFork) { if (!mayFork) confirmingFork = false }
 
     if (confirmingFork && mayFork) {
@@ -59,14 +60,11 @@ internal fun SessionMessageActionPreview(
                 Text(stringResource(R.string.changes_fork_cancel))
             } },
         )
-        return
     }
 
-    AlertDialog(
-        onDismissRequest = dismiss,
-        title = { Text(stringResource(R.string.changes_fork_message_title)) },
-        text = {
-            LazyColumn(Modifier.fillMaxWidth().heightIn(max = 520.dp),
+    WorkspacePanelFrame(stringResource(R.string.changes_fork_message_title), dismiss, embedded,
+        backLabel = stringResource(R.string.changes_fork_close)) {
+            LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(16.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 item("message-status") {
                     Text(stringResource(messageActionPhaseText(state.phase)),
@@ -122,11 +120,7 @@ internal fun SessionMessageActionPreview(
                         modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite })
                 } }
             }
-        },
-        confirmButton = { TextButton(dismiss, Modifier.heightIn(min = 48.dp)) {
-            Text(stringResource(R.string.changes_fork_close))
-        } },
-    )
+    }
 }
 
 @Composable

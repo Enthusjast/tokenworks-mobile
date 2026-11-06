@@ -13,39 +13,10 @@ import io.github.enthusjast.tokenworks.protocol.*
 @Composable
 internal fun ExportsPanel(state: SessionExportState, browse: (ExportSource?, Boolean) -> Unit, request: (ExportSource) -> Unit,
     query: () -> Unit, cancel: (String) -> Unit, remove: (String) -> Unit, save: (String) -> Unit = {}, saving: Boolean = false) {
-    OutlinedCard(Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(io.github.enthusjast.tokenworks.ui.TokenWorksSpacing.page)) {
             Text(stringResource(R.string.file_ux_export_title), style = MaterialTheme.typography.titleMedium, modifier = Modifier.semantics { heading() })
-            Text(stringResource(R.string.file_ux_sources), style = MaterialTheme.typography.titleSmall, modifier = Modifier.semantics { heading() })
-            Text(stringResource(R.string.file_ux_sources_hint), style = MaterialTheme.typography.bodySmall)
-            OutlinedButton({ browse(null, false) }, enabled = state.connected && !state.listing, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)) {
-                Text(stringResource(if (state.listing) R.string.file_ux_browsing else R.string.file_ux_browse))
-            }
-            if (!state.connected) Text(stringResource(R.string.file_ux_source_offline), style = MaterialTheme.typography.bodySmall)
-            val page = state.page
-            if (page == null && !state.listing) Text(stringResource(R.string.file_ux_sources_unopened), style = MaterialTheme.typography.bodySmall)
-            page?.let {
-                if (page.items.isEmpty()) Text(stringResource(R.string.file_ux_sources_empty))
-                page.items.forEach { source -> key(source.id) {
-                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Text(source.name, style = MaterialTheme.typography.titleSmall)
-                        Text(stringResource(if (source.origin == ExportOrigin.SESSION_ATTACHMENT) R.string.file_ux_attachment_origin else R.string.file_ux_workspace_origin), style = MaterialTheme.typography.bodySmall)
-                        Text(if (source.directory) stringResource(R.string.file_ux_directory) else fileSizeText(source.sizeBytes), style = MaterialTheme.typography.bodySmall)
-                        if (source.unavailable) Text(stringResource(R.string.file_ux_source_limit), color = MaterialTheme.colorScheme.error)
-                        else if (!source.current()) Text(stringResource(R.string.file_ux_source_stale), color = MaterialTheme.colorScheme.error)
-                        OutlinedButton(
-                            { if (source.current() && !source.unavailable) { if (source.directory) browse(source, false) else request(source) } },
-                            enabled = state.connected && !state.listing && !state.preparing && !source.unavailable && source.current(),
-                            modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
-                        ) { Text(stringResource(if (source.directory) R.string.file_ux_open_directory else R.string.file_ux_prepare_export)) }
-                    }
-                    HorizontalDivider()
-                } }
-                if (page.cursor != null) OutlinedButton({ browse(null, true) }, enabled = state.connected && !state.listing, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)) {
-                    Text(stringResource(R.string.file_ux_next_sources))
-                }
-            }
             if (state.preparing) {
+                Text(stringResource(R.string.conversation_transfer_preparation), style = MaterialTheme.typography.labelLarge, modifier = Modifier.semantics { heading() })
                 LinearProgressIndicator(Modifier.fillMaxWidth())
                 Text(stringResource(R.string.file_ux_export_preparing), modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite })
             }
@@ -79,7 +50,7 @@ internal fun ExportsPanel(state: SessionExportState, browse: (ExportSource?, Boo
                         modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp).semantics { contentDescription = saveName },
                     ) { Text(stringResource(R.string.file_ux_save)) }
                     val error = row.error ?: row.status?.error
-                    error?.let { Text(exportReasonText(it), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error) }
+                    error?.let { io.github.enthusjast.tokenworks.ui.TokenWorksStatusNotice(exportReasonText(it), isError = true) }
                     if (row.status?.state in setOf(FileTransferState.UPLOADING, FileTransferState.SCANNING) || row.stored.fileId == null) {
                         TextButton({ cancel(id) }, enabled = state.connected, modifier = Modifier.heightIn(min = 48.dp)) { Text(stringResource(R.string.file_ux_stop_export)) }
                     }
@@ -103,9 +74,40 @@ internal fun ExportsPanel(state: SessionExportState, browse: (ExportSource?, Boo
                 )
                 HorizontalDivider()
             } }
-            state.error?.let { Text(exportReasonText(it), color = MaterialTheme.colorScheme.error) }
+            state.error?.let { io.github.enthusjast.tokenworks.ui.TokenWorksStatusNotice(exportReasonText(it), isError = true) }
+            Text(stringResource(R.string.conversation_export_save_boundary), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            HorizontalDivider()
+            Text(stringResource(R.string.file_ux_sources), style = MaterialTheme.typography.titleSmall, modifier = Modifier.semantics { heading() })
+            Text(stringResource(R.string.conversation_export_source_step), style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(stringResource(R.string.file_ux_sources_hint), style = MaterialTheme.typography.bodySmall)
+            OutlinedButton({ browse(null, false) }, enabled = state.connected && !state.listing, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)) {
+                Text(stringResource(if (state.listing) R.string.file_ux_browsing else R.string.file_ux_browse))
+            }
+            if (!state.connected) Text(stringResource(R.string.file_ux_source_offline), style = MaterialTheme.typography.bodySmall)
+            val page = state.page
+            if (page == null && !state.listing) Text(stringResource(R.string.file_ux_sources_unopened), style = MaterialTheme.typography.bodySmall)
+            page?.let {
+                if (page.items.isEmpty()) Text(stringResource(R.string.file_ux_sources_empty))
+                page.items.forEach { source -> key(source.id) {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text(source.name, style = MaterialTheme.typography.titleSmall)
+                        Text(stringResource(if (source.origin == ExportOrigin.SESSION_ATTACHMENT) R.string.file_ux_attachment_origin else R.string.file_ux_workspace_origin), style = MaterialTheme.typography.bodySmall)
+                        Text(if (source.directory) stringResource(R.string.file_ux_directory) else fileSizeText(source.sizeBytes), style = MaterialTheme.typography.bodySmall)
+                        if (source.unavailable) Text(stringResource(R.string.file_ux_source_limit), color = MaterialTheme.colorScheme.error)
+                        else if (!source.current()) Text(stringResource(R.string.file_ux_source_stale), color = MaterialTheme.colorScheme.error)
+                        OutlinedButton(
+                            { if (source.current() && !source.unavailable) { if (source.directory) browse(source, false) else request(source) } },
+                            enabled = state.connected && !state.listing && !state.preparing && !source.unavailable && source.current(),
+                            modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
+                        ) { Text(stringResource(if (source.directory) R.string.file_ux_open_directory else R.string.file_ux_prepare_export)) }
+                    }
+                    HorizontalDivider()
+                } }
+                if (page.cursor != null) OutlinedButton({ browse(null, true) }, enabled = state.connected && !state.listing, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)) {
+                    Text(stringResource(R.string.file_ux_next_sources))
+                }
+            }
         }
-    }
 }
 
 @Composable

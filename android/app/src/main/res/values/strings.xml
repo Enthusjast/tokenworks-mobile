@@ -45,8 +45,8 @@
     <string name="role_operator">操作员</string>
     <string name="role_viewer">只读用户</string>
     <string name="value_unknown">未提供</string>
-    <string name="settings_account">学校账号与手机</string>
-    <string name="settings_account_source">学校登录来源</string>
+    <string name="settings_account">账号与手机</string>
+    <string name="settings_account_source">登录来源</string>
     <string name="settings_device">本机登记</string>
     <string name="settings_device_registered">本机已登记</string>
     <string name="settings_device_id">设备 ID</string>
@@ -62,7 +62,7 @@
     <string name="action_cancel">取消</string>
     <string name="session_scope_changed">所选电脑的目录授权已变化，请重新选择电脑或刷新核对。</string>
     <string name="session_choose_scope">请选择一台电脑，查看其当前授权范围内的会话。</string>
-    <string name="settings_subject">学校账号标识</string>
+    <string name="settings_subject">账号标识</string>
     <string name="detail_expanded">已展开</string>
     <string name="detail_collapsed">已收起</string>
 </resources>

@@ -1,5 +1,6 @@
 package cn.edu.ustc.tokenworks
 
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -48,6 +49,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.github.enthusjast.tokenworks.command.CommandOwner
 import io.github.enthusjast.tokenworks.ui.TokenWorksSpacing
 import io.github.enthusjast.tokenworks.ui.TokenWorksTopBar
+import io.github.enthusjast.tokenworks.ui.TokenWorksTheme
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 
@@ -122,6 +124,9 @@ internal fun AppearanceSettingsContent(
                         }
                     }
                 }
+                item("chat-preview") {
+                    AppearanceChatPreview(preferences)
+                }
                 item("theme") {
                     AppearanceSection(stringResource(R.string.appearance_theme)) {
                         Column(Modifier.selectableGroup()) {
@@ -162,15 +167,6 @@ internal fun AppearanceSettingsContent(
                             tag = "body",
                             onChange = { onChange(preferences.copy(bodyScale = it)) },
                         )
-                        Text(stringResource(R.string.appearance_body_preview_title), style = MaterialTheme.typography.labelLarge)
-                        Surface(color = MaterialTheme.colorScheme.surfaceContainer, shape = MaterialTheme.shapes.small) {
-                            val style = MaterialTheme.typography.bodyMedium
-                            Text(
-                                stringResource(R.string.appearance_body_preview),
-                                style = style.copy(fontSize = style.fontSize * preferences.bodyScale, lineHeight = style.lineHeight * preferences.bodyScale),
-                                modifier = Modifier.fillMaxWidth().padding(12.dp).testTag("appearance-body-preview"),
-                            )
-                        }
                     }
                 }
                 item("code") {
@@ -198,20 +194,6 @@ internal fun AppearanceSettingsContent(
                             )
                         }
                         Text(stringResource(R.string.appearance_wrap_hint), style = MaterialTheme.typography.bodySmall)
-                        Text(stringResource(R.string.appearance_code_preview_title), style = MaterialTheme.typography.labelLarge)
-                        Surface(color = MaterialTheme.colorScheme.surfaceContainer, shape = MaterialTheme.shapes.small) {
-                            Box(Modifier.fillMaxWidth().padding(12.dp)) {
-                                val style = MaterialTheme.typography.bodySmall
-                                Text(
-                                    stringResource(R.string.appearance_code_preview),
-                                    style = style.copy(fontSize = style.fontSize * preferences.codeScale, lineHeight = style.lineHeight * preferences.codeScale),
-                                    fontFamily = FontFamily.Monospace,
-                                    softWrap = preferences.wrapCode,
-                                    modifier = (if (preferences.wrapCode) Modifier.fillMaxWidth()
-                                        else Modifier.horizontalScroll(rememberScrollState())).testTag("appearance-code-preview"),
-                                )
-                            }
-                        }
                     }
                 }
                 item("reset") {
@@ -228,10 +210,49 @@ internal fun AppearanceSettingsContent(
 
 @Composable
 private fun AppearanceSection(title: String, content: @Composable () -> Unit) {
-    OutlinedCard(Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            Text(title, style = MaterialTheme.typography.titleMedium, modifier = Modifier.semantics { heading() })
-            content()
+    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Text(title, style = MaterialTheme.typography.titleMedium, modifier = Modifier.semantics { heading() })
+        content()
+    }
+}
+
+@Composable
+private fun AppearanceChatPreview(preferences: AppearancePreferences) {
+    val dark = when (preferences.theme) {
+        AppearanceTheme.SYSTEM -> isSystemInDarkTheme()
+        AppearanceTheme.LIGHT -> false
+        AppearanceTheme.DARK -> true
+    }
+    Text(stringResource(R.string.workspace_appearance_chat_preview), style = MaterialTheme.typography.titleMedium,
+        modifier = Modifier.semantics { heading() })
+    TokenWorksTheme(darkTheme = dark) {
+        Surface(color = MaterialTheme.colorScheme.background, shape = MaterialTheme.shapes.medium) {
+            Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                Surface(Modifier.align(Alignment.End).widthIn(max = 280.dp),
+                    color = MaterialTheme.colorScheme.primaryContainer, shape = MaterialTheme.shapes.large) {
+                    val style = MaterialTheme.typography.bodyLarge
+                    Text(stringResource(R.string.workspace_appearance_sample_user), Modifier.padding(12.dp),
+                        color = MaterialTheme.colorScheme.onPrimaryContainer,
+                        style = style.copy(fontSize = style.fontSize * preferences.bodyScale,
+                            lineHeight = style.lineHeight * preferences.bodyScale))
+                }
+                val body = MaterialTheme.typography.bodyLarge
+                Text(stringResource(R.string.appearance_body_preview),
+                    style = body.copy(fontSize = body.fontSize * preferences.bodyScale, lineHeight = body.lineHeight * preferences.bodyScale),
+                    modifier = Modifier.fillMaxWidth().testTag("appearance-body-preview"))
+                Surface(color = MaterialTheme.colorScheme.surfaceContainerLow, shape = MaterialTheme.shapes.small) {
+                    Box(Modifier.fillMaxWidth().padding(12.dp)) {
+                        val code = MaterialTheme.typography.bodyMedium
+                        Text(stringResource(R.string.appearance_code_preview), fontFamily = FontFamily.Monospace,
+                            style = code.copy(fontSize = code.fontSize * preferences.codeScale, lineHeight = code.lineHeight * preferences.codeScale),
+                            softWrap = preferences.wrapCode,
+                            modifier = (if (preferences.wrapCode) Modifier.fillMaxWidth()
+                                else Modifier.horizontalScroll(rememberScrollState())).testTag("appearance-code-preview"))
+                    }
+                }
+                Text(stringResource(R.string.workspace_appearance_sample_only), style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
         }
     }
 }

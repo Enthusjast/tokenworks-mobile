@@ -30,7 +30,8 @@ class MainActivity : FragmentActivity() {
         val biometrics = BiometricUi(this, model::promptOpened, model::authenticated, model::authenticationCancelled)
         biometrics.update(model.state.value.authenticationId, null)
         setContent {
-            AppearanceHost(model.state) { HomeRoute(model, onSecuritySettings = ::securitySettings) { biometrics.cancel(); model.cancel() } }
+            AppearanceHost(model.state) { HomeRoute(model = model, onSecuritySettings = ::securitySettings,
+                onCancel = { biometrics.cancel(); model.cancel() }) }
         }
         NotificationOpen.parse(intent)?.let { model.openNotification(it.bindingId, it.notificationId) }
         lifecycleScope.launch {

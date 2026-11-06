@@ -18,31 +18,18 @@ fun UploadsPanel(state: SessionUploadState, online: Boolean, onPick: (String?) -
     onRemove: (String) -> Unit, onCancel: () -> Unit) {
     val rows = state.rows.filter { it.stored.intent.image == null }
     val selectedRows = rows.filter { it.stored.intent.requestId in state.selected }
-    OutlinedCard(Modifier.fillMaxWidth()) {
-        Column(
-            Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
+    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(io.github.enthusjast.tokenworks.ui.TokenWorksSpacing.page)) {
             Text(stringResource(R.string.file_ux_upload_title), style = MaterialTheme.typography.titleMedium, modifier = Modifier.semantics { heading() })
             Text(stringResource(R.string.file_ux_upload_hint), style = MaterialTheme.typography.bodySmall)
-            Button({ onPick(null) }, enabled = online && !state.busy, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)) {
-                Text(stringResource(R.string.file_ux_choose))
-            }
-            if (!online) Text(stringResource(R.string.file_ux_offline), style = MaterialTheme.typography.bodySmall)
-            if (state.hashing) {
-                LinearProgressIndicator(Modifier.fillMaxWidth())
-                Text(stringResource(R.string.file_ux_preparing_local), modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite })
-            }
-            if (state.busy) OutlinedButton(onCancel, Modifier.heightIn(min = 48.dp)) { Text(stringResource(R.string.file_ux_stop_upload)) }
-            state.error?.let { Text(fileErrorText(it), color = MaterialTheme.colorScheme.error) }
 
             HorizontalDivider()
             Text(stringResource(R.string.file_ux_selection, selectedRows.size), style = MaterialTheme.typography.titleSmall, modifier = Modifier.semantics { heading() })
             if (selectedRows.isEmpty()) Text(stringResource(R.string.file_ux_selection_empty), style = MaterialTheme.typography.bodySmall)
             selectedRows.forEach { row ->
                 key("selected", row.stored.intent.requestId) {
-                    Column {
-                        Text(row.stored.intent.manifest.name, style = MaterialTheme.typography.bodyMedium)
+                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Text(row.stored.intent.manifest.name, style = MaterialTheme.typography.bodyLarge)
+                        Text(fileSizeText(row.stored.intent.manifest.sizeBytes), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         if (!row.ready()) Text(stringResource(R.string.file_ux_selection_stale), color = MaterialTheme.colorScheme.error)
                         TextButton(
                             { onToggle(row.stored.intent.requestId) },
@@ -52,6 +39,19 @@ fun UploadsPanel(state: SessionUploadState, online: Boolean, onPick: (String?) -
                     }
                 }
             }
+            HorizontalDivider()
+            Text(stringResource(R.string.conversation_upload_source), style = MaterialTheme.typography.titleSmall, modifier = Modifier.semantics { heading() })
+            Button({ onPick(null) }, enabled = online && !state.busy, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)) {
+                Text(stringResource(R.string.file_ux_choose))
+            }
+            if (!online) Text(stringResource(R.string.file_ux_offline), style = MaterialTheme.typography.bodySmall)
+            if (state.hashing) {
+                Text(stringResource(R.string.conversation_transfer_preparation), style = MaterialTheme.typography.labelLarge, modifier = Modifier.semantics { heading() })
+                LinearProgressIndicator(Modifier.fillMaxWidth())
+                Text(stringResource(R.string.file_ux_preparing_local), modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite })
+            }
+            if (state.busy) OutlinedButton(onCancel, Modifier.heightIn(min = 48.dp)) { Text(stringResource(R.string.file_ux_stop_upload)) }
+            state.error?.let { io.github.enthusjast.tokenworks.ui.TokenWorksStatusNotice(fileErrorText(it), isError = true) }
             HorizontalDivider()
             Text(stringResource(R.string.file_ux_records), style = MaterialTheme.typography.titleSmall, modifier = Modifier.semantics { heading() })
             if (rows.isEmpty()) Text(stringResource(R.string.file_ux_records_empty), style = MaterialTheme.typography.bodySmall)
@@ -82,7 +82,7 @@ fun UploadsPanel(state: SessionUploadState, online: Boolean, onPick: (String?) -
                         progress = { if (row.stored.intent.manifest.sizeBytes == 0L) 0f else (row.bytes.toDouble() / row.stored.intent.manifest.sizeBytes).toFloat().coerceIn(0f, 1f) },
                         modifier = Modifier.fillMaxWidth(),
                     )
-                    row.error?.let { Text(fileErrorText(it), color = MaterialTheme.colorScheme.error) }
+                    row.error?.let { io.github.enthusjast.tokenworks.ui.TokenWorksStatusNotice(fileErrorText(it), isError = true) }
                     if (row.ready()) Row(
                         Modifier.fillMaxWidth().heightIn(min = 48.dp).toggleable(
                             value = id in state.selected,
@@ -124,7 +124,6 @@ fun UploadsPanel(state: SessionUploadState, online: Boolean, onPick: (String?) -
             } }
             if (rows.isNotEmpty()) Text(stringResource(R.string.file_ux_upload_lifecycle), style = MaterialTheme.typography.bodySmall)
         }
-    }
 }
 
 @Composable

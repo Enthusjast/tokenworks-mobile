@@ -2,6 +2,7 @@ package cn.edu.ustc.tokenworks
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
@@ -21,6 +22,14 @@ import io.github.enthusjast.tokenworks.protocol.SessionModelSelection
 import io.github.enthusjast.tokenworks.ui.TokenWorksSpacing
 import io.github.enthusjast.tokenworks.ui.TokenWorksTopBar
 
+@Stable
+internal class ModelPanelUiState {
+    var query by mutableStateOf("")
+    var choice by mutableStateOf<Pair<String, String>?>(null)
+    var effort by mutableStateOf<String?>(null)
+    val listState = LazyListState()
+}
+
 /** Catalog labels are plain display text. Only the original opaque identifiers form a selection. */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -37,10 +46,12 @@ internal fun SessionModelsScreen(
     sendOriginal: (String) -> Unit,
     discardUnsent: (String) -> Unit,
     back: () -> Unit,
+    uiState: ModelPanelUiState,
+    embedded: Boolean = false,
 ) {
-    var query by remember(state.contextId) { mutableStateOf("") }
-    var choice by remember(state.contextId) { mutableStateOf<Pair<String, String>?>(null) }
-    var effort by remember(state.contextId) { mutableStateOf<String?>(null) }
+    var query by uiState::query
+    var choice by uiState::choice
+    var effort by uiState::effort
     val selected = state.items.firstOrNull { choice == it.provider.id to it.model.id }
     LaunchedEffect(selected?.provider?.id, selected?.model?.id, selected?.reasoningEfforts) {
         if (selected == null || effort != null && selected.reasoningEfforts.none { it.id == effort }) effort = null
@@ -56,15 +67,12 @@ internal fun SessionModelsScreen(
     val unresolved = request != null && request.remote !in setOf(RemoteCommandState.SETTLED, RemoteCommandState.REJECTED)
     val available = state.phase in setOf(SessionModelCatalogPhase.READY, SessionModelCatalogPhase.PARTIAL)
     val loading = state.inFlight > 0 || state.phase == SessionModelCatalogPhase.LOADING
-    Scaffold(topBar = {
-        TokenWorksTopBar(stringResource(R.string.models_title), subtitle = stringResource(R.string.models_not_current),
-            navigationIcon = { IconButton(back, Modifier.size(48.dp)) {
-                Icon(painterResource(R.drawable.ic_back), stringResource(R.string.models_back))
-            } })
-    }) { insets ->
-        Column(Modifier.fillMaxSize().padding(insets).consumeWindowInsets(insets).imePadding(),
+    WorkspacePanelFrame(stringResource(R.string.models_title), back, embedded,
+        subtitle = stringResource(R.string.models_not_current)) {
+        Column(Modifier.fillMaxSize().then(if (embedded) Modifier else Modifier.imePadding()),
             horizontalAlignment = Alignment.CenterHorizontally) {
-            LazyColumn(Modifier.widthIn(max = 800.dp).fillMaxWidth().weight(1f),
+            LazyColumn(Modifier.widthIn(max = TokenWorksSpacing.chatMaxWidth).fillMaxWidth().weight(1f),
+                state = uiState.listState,
                 contentPadding = PaddingValues(TokenWorksSpacing.page), verticalArrangement = Arrangement.spacedBy(TokenWorksSpacing.medium)) {
                 item("catalog-state") {
                     Text(stringResource(when (state.phase) {
@@ -210,3 +218,43 @@ private fun modelActionError(code: String): String = stringResource(when (code) 
     "command.reconcile_required", "command.delivery_unconfirmed" -> R.string.models_unknown
     else -> R.string.models_action_failed
 })
+
+/** Only the outer page owns system insets; adaptive containers supply their own insets. */
+@Composable
+internal fun WorkspacePanelFrame(
+    title: String,
+    onBack: () -> Unit,
+    embedded: Boolean,
+    subtitle: String? = null,
+    backLabel: String = stringResource(R.string.workspace_panel_back),
+    content: @Composable ColumnScope.() -> Unit,
+) {
+    if (embedded) {
+        Column(Modifier.fillMaxSize()) {
+            Surface(color = MaterialTheme.colorScheme.surface) {
+                Row(Modifier.fillMaxWidth().padding(end = TokenWorksSpacing.medium),
+                    verticalAlignment = Alignment.CenterVertically) {
+                    IconButton(onBack, Modifier.size(TokenWorksSpacing.minimumTouchTarget)) {
+                        Icon(painterResource(R.drawable.ic_back), backLabel)
+                    }
+                    Column(Modifier.weight(1f).padding(vertical = TokenWorksSpacing.small)) {
+                        Text(title, style = MaterialTheme.typography.titleMedium, modifier = Modifier.semantics { heading() })
+                        subtitle?.let { Text(it, style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant) }
+                    }
+                }
+            }
+            Column(Modifier.weight(1f).fillMaxWidth(), content = content)
+        }
+    } else {
+        Scaffold(topBar = {
+            TokenWorksTopBar(title, subtitle = subtitle, navigationIcon = {
+                IconButton(onBack, Modifier.size(TokenWorksSpacing.minimumTouchTarget)) {
+                    Icon(painterResource(R.drawable.ic_back), backLabel)
+                }
+            })
+        }) { insets ->
+            Column(Modifier.fillMaxSize().padding(insets).consumeWindowInsets(insets), content = content)
+        }
+    }
+}

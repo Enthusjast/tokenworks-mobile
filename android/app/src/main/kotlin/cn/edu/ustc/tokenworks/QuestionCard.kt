@@ -37,11 +37,12 @@ fun QuestionCard(view: PresentedQuestion, canAnswer: Boolean, submitting: Boolea
     }
     val enabled = canAnswer && view.answerable && !submitting && pending == null
     val plan = batch.prompts.any { it.planApproval != null }
-    OutlinedCard(Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    Surface(Modifier.fillMaxWidth(), color = MaterialTheme.colorScheme.surfaceContainerLow, shape = MaterialTheme.shapes.medium) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text(stringResource(R.string.question_needs_reply), style = MaterialTheme.typography.titleSmall,
                 modifier = Modifier.semantics { heading() })
             QuestionKindLabel(batch)
+            Text(stringResource(R.string.conversation_question_count, batch.prompts.size), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
             Text(batch.prompts.first().question, maxLines = 2, overflow = TextOverflow.Ellipsis,
                 style = MaterialTheme.typography.bodyMedium)
             QuestionStatus(view)
@@ -126,12 +127,21 @@ private fun QuestionForm(view: PresentedQuestion, canAnswer: Boolean, submitting
                     } },
                 )
                 HorizontalDivider()
-                Column(Modifier.weight(1f).fillMaxWidth()
+                Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.TopCenter) {
+                Column(Modifier.widthIn(max = io.github.enthusjast.tokenworks.ui.TokenWorksSpacing.chatMaxWidth).fillMaxWidth()
                     .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal + WindowInsetsSides.Bottom))
                     .imePadding().verticalScroll(rememberScrollState()).padding(io.github.enthusjast.tokenworks.ui.TokenWorksSpacing.page),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    verticalArrangement = Arrangement.spacedBy(16.dp)) {
                     if (plan) Text(stringResource(R.string.question_plan_not_approval), style = MaterialTheme.typography.bodyMedium)
                     QuestionStatus(view)
+                    if (pending != null) {
+                        Text(stringResource(when {
+                            pending.remote == RemoteCommandState.SETTLED -> R.string.question_original_confirmed
+                            pending.everAgentQueued -> R.string.question_original_queued
+                            else -> R.string.question_original_unknown
+                        }), style = MaterialTheme.typography.bodySmall)
+                        OutlinedButton(onQuery, Modifier.fillMaxWidth().heightIn(min = 48.dp)) { Text(stringResource(R.string.question_query_original)) }
+                    }
                     batch.prompts.forEachIndexed { index, prompt -> key(prompt.id) {
                         if (index > 0) HorizontalDivider()
                         Text(stringResource(R.string.question_prompt_position, index + 1, batch.prompts.size),
@@ -166,7 +176,7 @@ private fun QuestionForm(view: PresentedQuestion, canAnswer: Boolean, submitting
                             } else if (label in draft.selected) emptySet() else setOf(label)
                             drafts = drafts + (prompt.id to AnswerDraft(selected, draft.custom))
                         }
-                        Column(if (prompt.multiSelect) Modifier else Modifier.selectableGroup()) {
+                        Column((if (prompt.multiSelect) Modifier else Modifier.selectableGroup()).fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                             for (option in prompt.options) key(option.label) {
                                 val optionEnabled = enabled && (option.label != prompt.planApproval || prompt.id in reviewed)
                                 val selected = option.label in draft.selected
@@ -174,14 +184,17 @@ private fun QuestionForm(view: PresentedQuestion, canAnswer: Boolean, submitting
                                     role = Role.Checkbox, onValueChange = { toggle(option.label) })
                                 else Modifier.selectable(selected, enabled = optionEnabled, role = Role.RadioButton,
                                     onClick = { toggle(option.label) })
-                                Row(Modifier.fillMaxWidth().heightIn(min = 48.dp).then(selection).padding(vertical = 4.dp),
-                                    verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Surface(color = if (selected) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.surfaceContainerLow,
+                                    shape = MaterialTheme.shapes.medium) {
+                                Row(Modifier.fillMaxWidth().heightIn(min = 48.dp).then(selection).padding(8.dp),
+                                    verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                     if (prompt.multiSelect) Checkbox(selected, onCheckedChange = null, enabled = optionEnabled)
                                     else RadioButton(selected, onClick = null, enabled = optionEnabled)
                                     Column(Modifier.weight(1f)) {
                                         Text(option.label)
                                         option.description?.let { QuestionText(it) }
                                     }
+                                }
                                 }
                             }
                         }
@@ -196,14 +209,6 @@ private fun QuestionForm(view: PresentedQuestion, canAnswer: Boolean, submitting
                     if (batch.kind == QuestionKind.TIMED && batch.phase == QuestionPhase.OPEN) {
                         Text(stringResource(R.string.question_timed_late), style = MaterialTheme.typography.bodySmall)
                     }
-                    if (pending != null) {
-                        Text(stringResource(when {
-                            pending.remote == RemoteCommandState.SETTLED -> R.string.question_original_confirmed
-                            pending.everAgentQueued -> R.string.question_original_queued
-                            else -> R.string.question_original_unknown
-                        }), style = MaterialTheme.typography.bodySmall)
-                        OutlinedButton(onQuery, Modifier.fillMaxWidth().heightIn(min = 48.dp)) { Text(stringResource(R.string.question_query_original)) }
-                    }
                     if (reviewing) Text(stringResource(R.string.question_plan_review_first), style = MaterialTheme.typography.bodySmall)
                     Button(onClick = { if (enabled && valid && !reviewing && answers != null) onAnswer(view.handle, answers) },
                         enabled = enabled && valid && !reviewing, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)) {
@@ -217,6 +222,7 @@ private fun QuestionForm(view: PresentedQuestion, canAnswer: Boolean, submitting
                     OutlinedButton(onClose, Modifier.fillMaxWidth().heightIn(min = 48.dp)) { Text(stringResource(R.string.question_not_now)) }
                     Text(stringResource(R.string.question_close_explanation), style = MaterialTheme.typography.bodySmall)
                     TextButton(onRefresh, Modifier.heightIn(min = 48.dp)) { Text(stringResource(R.string.question_refresh)) }
+                }
                 }
             }
         }

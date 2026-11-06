@@ -50,6 +50,7 @@ fun HostBindingScreen(state: HostBindingState, subject: String, onPreview: (Stri
                     else -> R.string.flow_binding_step_result
                 }), style = MaterialTheme.typography.titleMedium, modifier = Modifier.semantics { heading() })
                 if (state.phase == HostBindingPhase.ENTER) key(state.formRevision) {
+                    Text(stringResource(R.string.conversation_binding_request), style = MaterialTheme.typography.titleSmall, modifier = Modifier.semantics { heading() })
                     BindingEntry(state.id, state.error, onPreview, onQuery)
                 } else {
                     BindingStatus(state)
@@ -57,12 +58,17 @@ fun HostBindingScreen(state: HostBindingState, subject: String, onPreview: (Stri
                     when (state.phase) {
                         HostBindingPhase.REVIEW -> {
                             val details = state.details!!
+                            HorizontalDivider()
+                            Text(stringResource(R.string.conversation_binding_both_sides), style = MaterialTheme.typography.titleSmall, modifier = Modifier.semantics { heading() })
+                            BindingFact(stringResource(R.string.flow_binding_phone), stringResource(if (details.confirmedByMe) R.string.flow_binding_confirmed else R.string.flow_binding_unconfirmed))
+                            BindingFact(stringResource(R.string.flow_binding_host), stringResource(if (details.hostConfirmed) R.string.flow_binding_confirmed else R.string.flow_binding_unconfirmed))
+                            Text(stringResource(R.string.conversation_binding_authorization), style = MaterialTheme.typography.titleMedium, modifier = Modifier.semantics { heading() })
                             var checked by remember(details.reviewHash) { mutableStateOf(false) }
-                            Text("绑定完成后，当前账号将获得此运行环境的拥有者权限。")
+                            Text(stringResource(R.string.conversation_binding_owner_notice))
                             Row(Modifier.fillMaxWidth().heightIn(min = 48.dp).toggleable(checked, role = Role.Checkbox, onValueChange = { checked = it }),
                                 verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                                 Checkbox(checked, onCheckedChange = null)
-                                Text("我已在电脑上核对以上信息和完整指纹", Modifier.weight(1f))
+                                Text(stringResource(R.string.conversation_binding_consent), Modifier.weight(1f))
                             }
                             Button(onConfirm, enabled = checked && details.canConfirm(), modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)) { Text("确认绑定这台电脑") }
                         }
@@ -102,7 +108,7 @@ private fun BindingEntry(initialId: String, error: String?, onPreview: (String, 
         keyboardOptions = KeyboardOptions(autoCorrectEnabled = false, keyboardType = KeyboardType.Password),
         trailingIcon = { TextButton({ visible = !visible }, Modifier.heightIn(min = 48.dp)) { Text(if (visible) "隐藏" else "显示") } },
         modifier = Modifier.fillMaxWidth().onFocusChanged { if (!it.isFocused && code.isNotEmpty()) codeTouched = true })
-    error?.let { Text(bindingError(it), color = MaterialTheme.colorScheme.error, modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite }) }
+    error?.let { io.github.enthusjast.tokenworks.ui.TokenWorksStatusNotice(bindingError(it), isError = true) }
     Button({ onPreview(id, code) }, enabled = idValid && codeValid, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)) { Text("核对电脑信息") }
     Text("已在手机确认过的申请，可以只填写申请编号查询结果。", color = MaterialTheme.colorScheme.onSurfaceVariant)
     OutlinedButton({ onQuery(id) }, enabled = idValid, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)) { Text("仅查询已确认申请") }
@@ -112,9 +118,9 @@ private fun BindingEntry(initialId: String, error: String?, onPreview: (String, 
 private fun BindingFacts(details: HostBindingDetails) {
     val clipboard = LocalClipboardManager.current
     var copied by remember(details.reviewHash) { mutableStateOf(false) }
-    OutlinedCard(Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-            Text("请与电脑上的信息逐项核对", style = MaterialTheme.typography.titleMedium)
+    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+            HorizontalDivider()
+            Text(stringResource(R.string.conversation_binding_verify), style = MaterialTheme.typography.titleMedium, modifier = Modifier.semantics { heading() })
             BindingFact("组织", details.organizationName)
             BindingFact("电脑名称", details.hostAlias)
             BindingFact("运行环境", details.profile)
@@ -135,8 +141,8 @@ private fun BindingFacts(details: HostBindingDetails) {
             BindingFact("申请编号", details.id)
             val expiry = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss").withZone(ZoneId.systemDefault()).format(Instant.ofEpochMilli(details.expiresAt))
             Text("申请有效至 $expiry", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            HorizontalDivider()
         }
-    }
 }
 @Composable private fun BindingFact(label: String, value: String) {
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -160,8 +166,7 @@ private fun BindingFacts(details: HostBindingDetails) {
         HostBindingPhase.PAUSED, HostBindingPhase.CLOSED -> "已暂停核对绑定"
         HostBindingPhase.ENTER -> "输入绑定信息"
     }
-    Surface(color = MaterialTheme.colorScheme.surfaceContainerLow, shape = MaterialTheme.shapes.medium) {
-        Column(Modifier.fillMaxWidth().padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 if (busy) CircularProgressIndicator(Modifier.size(24.dp), strokeWidth = 2.dp)
                 Text(title, style = MaterialTheme.typography.titleMedium, modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite })
@@ -176,6 +181,7 @@ private fun BindingFacts(details: HostBindingDetails) {
             if (state.id.isNotEmpty()) BindingFact(stringResource(R.string.flow_binding_public_id), state.id)
             if (state.phase != HostBindingPhase.REVIEW) {
                 if (state.details != null) Text(stringResource(R.string.flow_binding_snapshot), style = MaterialTheme.typography.bodySmall)
+                Text(stringResource(R.string.conversation_binding_both_sides), style = MaterialTheme.typography.titleSmall, modifier = Modifier.semantics { heading() })
                 BindingFact(stringResource(R.string.flow_binding_phone), stringResource(when (state.details?.confirmedByMe) {
                     true -> R.string.flow_binding_confirmed
                     false -> R.string.flow_binding_unconfirmed
@@ -186,15 +192,16 @@ private fun BindingFacts(details: HostBindingDetails) {
                     false -> R.string.flow_binding_unconfirmed
                     null -> R.string.flow_binding_unverified
                 }))
+                HorizontalDivider()
+                Text(stringResource(R.string.conversation_binding_authorization), style = MaterialTheme.typography.titleSmall, modifier = Modifier.semantics { heading() })
                 BindingFact(stringResource(R.string.flow_binding_access), stringResource(when (state.phase) {
                     HostBindingPhase.READY -> R.string.flow_binding_access_ready
                     HostBindingPhase.WAITING_ACCESS -> R.string.flow_binding_access_missing
                     else -> R.string.flow_binding_unverified
                 }))
             }
-            state.error?.let { Text(bindingError(it), color = MaterialTheme.colorScheme.error) }
+            state.error?.let { io.github.enthusjast.tokenworks.ui.TokenWorksStatusNotice(bindingError(it), isError = true) }
         }
-    }
 }
 private fun bindingError(code: String) = when (code) {
     "binding.input_invalid" -> "请填写正确的申请编号和完整绑定码。"

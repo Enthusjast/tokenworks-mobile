@@ -43,4 +43,5 @@
     <string name="question_show_more">继续显示问题详情</string>
     <string name="question_submitted_id">问题 %1$s</string>
     <string name="question_answer_empty">此项留空</string>
+    <string name="conversation_question_count">共 %1$d 个问题 · 打开后查看完整内容</string>
 </resources>

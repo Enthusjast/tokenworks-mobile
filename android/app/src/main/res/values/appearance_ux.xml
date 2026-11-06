@@ -16,7 +16,7 @@
     <string name="appearance_smaller_label">减小%1$s</string>
     <string name="appearance_larger_label">增大%1$s</string>
     <string name="appearance_body_preview_title">正文预览</string>
-    <string name="appearance_body_preview">这是聊天正文的阅读预览。中文、English 和数字 0123456789 会一起缩放。你可以分别调整正文与代码，让长段内容更容易阅读。</string>
+    <string name="appearance_body_preview">这段代码先把文字放入变量，再将它输出。中文、English 和数字 0123456789 使用相同的正文大小；下方代码可以独立调整字号。</string>
     <string name="appearance_code_preview_title">代码预览</string>
     <string name="appearance_code_preview">val message = \"中文与 English preview 0123456789 — a longer line for checking code wrapping\"\nprintln(message)</string>
     <string name="appearance_wrap_code">代码自动换行</string>

@@ -61,4 +61,13 @@
     <string name="flow_notifications_back">返回设置</string>
     <string name="flow_update_back">返回设置</string>
     <string name="flow_update_current_version">当前版本 %1$s（%2$s）</string>
+    <string name="conversation_binding_request">申请信息</string>
+    <string name="conversation_binding_verify">核对电脑与完整指纹</string>
+    <string name="conversation_binding_both_sides">双方独立确认</string>
+    <string name="conversation_binding_authorization">账号授权</string>
+    <string name="conversation_binding_owner_notice">绑定完成后，当前账号将获得此运行环境的拥有者权限。</string>
+    <string name="conversation_binding_consent">我已在电脑上核对以上信息和完整指纹</string>
+    <string name="conversation_creation_options">新会话选项</string>
+    <string name="conversation_creation_results">先核对已有创建请求</string>
+    <string name="conversation_creation_results_help">结果不明时先核对原请求；连接恢复后不会自动重复创建。</string>
 </resources>

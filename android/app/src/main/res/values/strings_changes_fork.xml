@@ -32,7 +32,7 @@
     <string name="changes_fork_patch_title">所选文件补丁</string>
     <string name="changes_fork_patch_complete">完整补丁已通过当前协调器校验，可使用下方完整复制按钮。</string>
     <string name="changes_fork_patch_partial">当前仅为片段，或尚无可完整复制的证明；不能当作完整补丁。</string>
-    <string name="changes_fork_selection_partial">文字选择仅复制当前可见的所选片段，不保证完整。代码按屏幕宽度换行，换行显示不改变完整复制的原始文本。</string>
+    <string name="changes_fork_selection_partial">文字选择仅复制当前可见的所选片段，不保证完整。可切换代码自动换行；关闭时每行可横向滚动，显示方式不改变完整复制的原始文本。</string>
     <string name="changes_fork_no_final_newline">包含“文件末尾没有换行”的标记；该标记不是补丁新增内容。</string>
     <string name="changes_fork_patch_unavailable">没有可安全展示的完整 UTF-8 补丁文本。二进制或特殊内容不会被转换成虚假的文本补丁。</string>
     <string name="changes_fork_patch_next">加载下一段补丁</string>

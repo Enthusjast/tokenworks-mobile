@@ -43,4 +43,7 @@
     <string name="media_uploading">正在上传图片；尚未交给模型。</string>
     <string name="media_reselect">重新选择原图片继续</string>
     <string name="media_reselect_action">重新选择原图片继续：%1$s</string>
+    <string name="conversation_image_selection">本次消息的图片</string>
+    <string name="conversation_image_source">添加图片来源</string>
+    <string name="conversation_image_tray_remove">从已选托盘移出图片：%1$s</string>
 </resources>
