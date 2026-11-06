@@ -5,10 +5,12 @@ import java.util.Collections
 import java.util.TreeMap
 
 enum class ConversationRole { USER, ASSISTANT, TOOL, NOTICE }
-class ConversationItem(val id: String, val role: ConversationRole, val blocks: List<DisplayBlock>, val live: Boolean, val persisted: Boolean, val interrupted: Boolean = false, val hasError: Boolean = false) {
+class ConversationItem(val id: String, val role: ConversationRole, val blocks: List<DisplayBlock>, val live: Boolean, val persisted: Boolean, val interrupted: Boolean = false, val hasError: Boolean = false,
+    /** Native record sequence; -1 for the streaming attempt that has no committed record yet. */
+    val seq: Long = -1, val turn: Long? = null, val step: Long? = null, val time: Long? = null) {
     override fun toString() = "ConversationItem($role, live=$live)"
 }
-class SessionRecord private constructor(val seq: Long, val type: String, val data: JsonObject, val raw: JsonObject, val blocks: List<DisplayBlock>, val replacement: Boolean,
+class SessionRecord private constructor(val seq: Long, val type: String, val data: JsonObject, val raw: JsonObject, val blocks: List<DisplayBlock>, val replacement: Boolean, val time: Long,
     private val versionRoot: JsonObject, initialVersion: String?) {
     val weight = SessionJson.weight(raw)
     private var cachedVersion = initialVersion
@@ -84,7 +86,7 @@ class SessionRecord private constructor(val seq: Long, val type: String, val dat
                 version = mediaEventSha256(SessionJson.encode(ordinary))
                 if (references.any { it.eventVersionSha256 != version }) throw SessionDataException()
             }
-            return SessionRecord(seq, type, data, root, Collections.unmodifiableList(blocks), replacement, ordinary, version)
+            return SessionRecord(seq, type, data, root, Collections.unmodifiableList(blocks), replacement, time.toLong(), ordinary, version)
         }
     }
 }
@@ -273,7 +275,15 @@ class SessionWindow(private val subscribeRequest: String, private val mediaRefs:
         val live = if (durableOnly) null else active
         val items = arrayListOf<ConversationItem>()
         var liveAdded = false
-        fun addLive() { live?.let { items += ConversationItem("live:${it.id}", ConversationRole.ASSISTANT, it.blocks.snapshot(), true, false) }; liveAdded = true }
+        fun addLive() {
+            live?.let {
+                items += ConversationItem(
+                    "live:${it.id}", ConversationRole.ASSISTANT, it.blocks.snapshot(), true, false,
+                    turn = it.turn, step = it.step,
+                )
+            }
+            liveAdded = true
+        }
         for (record in entries) {
             if (!liveAdded && live != null && record.seq > live.after) addLive()
             if (record.seq != held?.seq) record.conversationItem(persisted)?.let(items::add)
@@ -296,5 +306,13 @@ internal fun SessionRecord.conversationItem(persisted: Long): ConversationItem? 
     }
     return ConversationItem("event:$seq", role, blocks, false, seq <= persisted,
         type == "assistant/attempt" || data.fields["interrupted"] == JsonBoolean(true),
-        (type == "assistant/message" || type == "tool/result") && data.obj("message").fields["isError"] == JsonBoolean(true))
+        (type == "assistant/message" || type == "tool/result") && data.obj("message").fields["isError"] == JsonBoolean(true),
+        seq = seq,
+        turn = data.number("turn"),
+        step = data.number("step"),
+        time = time,
+    )
 }
+
+/** `turn` and `step` are optional on the record; absent means the event carries no position. */
+private fun JsonObject.number(key: String): Long? = (fields[key] as? JsonNumber)?.value?.toLong()

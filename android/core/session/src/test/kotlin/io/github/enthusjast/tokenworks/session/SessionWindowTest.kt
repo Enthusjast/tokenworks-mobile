@@ -107,6 +107,31 @@ class SessionWindowTest {
         assertEquals(6L, window.snapshot().cursor); assertEquals(7, window.snapshot().records.size); assertFalse(window.snapshot().hasMore)
         assertFalse(window.accept(content("session.page.result", jsonObject(), page)))
     }
+    @Test fun conversationItemsCarryTurnStepAndTimeForTheRowModel() {
+        val call = record(2, "tool/call", jsonObject("callId" to "call-1".json(), "name" to "shell".json(),
+            "arguments" to jsonObject(), "turn" to 1L.json(), "step" to 2L.json()), "append".json())
+        val window = SessionWindow(request)
+        window.accept(snapshot(listOf(record(0), user(1), call, assistant(3)), 3))
+        val items = window.snapshot().items
+        assertEquals(listOf(ConversationRole.USER, ConversationRole.TOOL, ConversationRole.ASSISTANT), items.map { it.role })
+        assertEquals(listOf(1L, 2L, 3L), items.map { it.seq })
+        // user/message has no turn or step on the wire; the record time is always present.
+        assertEquals(listOf(null, 1L, 1L), items.map { it.turn })
+        assertEquals(listOf(null, 2L, 1L), items.map { it.step })
+        assertEquals(listOf(1000L, 1000L, 1000L), items.map { it.time })
+    }
+
+    @Test fun liveAttemptsReportTheirTurnWithoutClaimingASequence() {
+        val window = SessionWindow(request)
+        window.accept(snapshot()); window.accept(started()); window.accept(chunk(2, 0, "partial"))
+        val live = window.snapshot().items.last()
+        assertTrue(live.live)
+        assertEquals(-1L, live.seq)
+        assertEquals(1L, live.turn)
+        assertEquals(1L, live.step)
+        assertNull(live.time)
+    }
+
     @Test fun modelReplacementCopiesDoNotEraseOrDuplicateHumanHistory() {
         val replacement = assistant(3, "model-only").with("surface_op" to jsonObject("op" to "replace".json(), "startSeq" to 0L.json(), "endSeq" to 1L.json()))
         val window = SessionWindow(request); window.accept(snapshot(listOf(user(0), assistant(1), record(2), replacement), 3))
