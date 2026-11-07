@@ -19,6 +19,10 @@ Host 复用当前 dsh 的会话与模型服务；中转负责身份、授权、�
 | [tools](tools/) | 本机开发、定向联调、发行构建和校验 |
 | [docs](docs/README.md) | 按主题分类的操作指南、协议说明与验证证据 |
 
+原生 API 绑定固定使用 dsh `0.2.1-rc.5`：`npm run contracts:typert` 从已安装依赖生成
+`contracts/typert/native-api.json` 和 Android `DshNativeTypes.kt`；`npm run contracts:typert:check`
+只检查产物是否过期。这些文件是构建期类型快照，不是新的业务协议或服务端握手。
+
 ## 本机开发
 
 Linux 开发环境需要 Node.js `>=24.15.0 <25`、npm、已安装的 dsh `0.2.1-rc.5`、

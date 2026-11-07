@@ -12,6 +12,8 @@
     "build": "npm run build --workspaces",
     "contracts": "tsx tools/generate-m0-contract.ts && tsx tools/generate-approval-contract.ts && tsx tools/generate-file-contract.ts && tsx tools/generate-export-contract.ts && tsx tools/generate-push-contract.ts && tsx tools/generate-native-observation-contract.ts",
     "contracts:check": "tsx tools/generate-m0-contract.ts --check && tsx tools/generate-approval-contract.ts --check && tsx tools/generate-file-contract.ts --check && tsx tools/generate-export-contract.ts --check && tsx tools/generate-push-contract.ts --check && tsx tools/generate-native-observation-contract.ts --check",
+    "contracts:typert": "tsx tools/generate-typert-contract.ts",
+    "contracts:typert:check": "tsx tools/generate-typert-contract.ts --check",
     "contracts:signatures": "tsx tools/generate-approval-signatures.ts",
     "contracts:identity-vectors": "tsx tools/generate-identity-vectors.ts",
     "check": "tsc --noEmit -p tsconfig.json",
