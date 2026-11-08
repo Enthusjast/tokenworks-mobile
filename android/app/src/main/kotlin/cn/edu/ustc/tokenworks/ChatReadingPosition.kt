@@ -3,7 +3,6 @@ package cn.edu.ustc.tokenworks
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
-import io.github.enthusjast.tokenworks.session.ConversationItem
 
 /** Presentation position only; callers must revalidate the resource and the message key before restoring. */
 class ChatReadingPosition {

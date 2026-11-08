@@ -3,8 +3,6 @@ package cn.edu.ustc.tokenworks
 import android.content.Context
 import android.net.Uri
 import android.provider.DocumentsContract
-import io.github.enthusjast.tokenworks.network.*
-import io.github.enthusjast.tokenworks.protocol.RemoteExportStatus
 import kotlinx.coroutines.*
 import java.io.Closeable
 import java.io.File
@@ -35,7 +33,7 @@ internal suspend fun saveStagedExportDocument(context: Context, uri: Uri, file: 
             val required = DocumentsContract.Document.FLAG_SUPPORTS_WRITE or DocumentsContract.Document.FLAG_SUPPORTS_DELETE or DocumentsContract.Document.FLAG_SUPPORTS_RENAME
             if (metadata.first and required.toLong() != required.toLong()) throw RemoteRequestException("file.destination_unsupported")
             finalName = if (metadata.second == exportSuggestedName(file.manifest.name)) file.manifest.name else metadata.second.removeSuffix(".tokenworks-mobile-partial")
-            io.github.enthusjast.tokenworks.protocol.FileManifest(finalName, 0, file.manifest.sha256)
+            cn.edu.ustc.tokenworks.FileManifest(finalName, 0, file.manifest.sha256)
             // A process death during copying leaves an explicitly incomplete name.
             document = DocumentsContract.renameDocument(resolver, document, "TokenWorks-Mobile-incomplete-${java.util.UUID.randomUUID()}.tokenworks-mobile-partial") ?: throw RemoteRequestException("file.destination_unsupported")
         }

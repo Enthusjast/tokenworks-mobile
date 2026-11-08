@@ -23,8 +23,6 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.activity.compose.BackHandler
-import io.github.enthusjast.tokenworks.command.CommandKind
-import io.github.enthusjast.tokenworks.command.RemoteCommandState
 
 @Composable
 internal fun HomeRoute(model: HomeViewModel, onSecuritySettings: () -> Unit,
@@ -414,7 +412,7 @@ fun HomeScreen(state: HomeState, onLogin: () -> Unit, onRegister: (String) -> Un
                         }
                     }
                     state.error?.let { code ->
-                        io.github.enthusjast.tokenworks.ui.TokenWorksStatusNotice(errorText(code), isError = true)
+                        cn.edu.ustc.tokenworks.TokenWorksStatusNotice(errorText(code), isError = true)
                         if (code == "vault.lock_required" && state.phase != HomePhase.ENROLL) {
                             OutlinedButton(onSecuritySettings, Modifier.fillMaxWidth().heightIn(min = 48.dp)) { Text(stringResource(R.string.workspace_security_settings)) }
                         }

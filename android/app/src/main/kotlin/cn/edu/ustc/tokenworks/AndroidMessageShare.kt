@@ -2,8 +2,6 @@ package cn.edu.ustc.tokenworks
 
 import android.content.Context
 import android.content.Intent
-import io.github.enthusjast.tokenworks.command.CommandDataException
-import io.github.enthusjast.tokenworks.network.AuthorizedMessageShare
 
 /** Only a freshly confirmed, still-current message handle may leave the app. */
 internal fun launchAuthorizedMessageShare(context: Context, share: AuthorizedMessageShare) {

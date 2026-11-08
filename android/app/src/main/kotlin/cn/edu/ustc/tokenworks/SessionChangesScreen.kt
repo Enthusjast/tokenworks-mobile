@@ -17,10 +17,6 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.*
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
-import io.github.enthusjast.tokenworks.network.SessionChangesPhase
-import io.github.enthusjast.tokenworks.network.SessionChangesState
-import io.github.enthusjast.tokenworks.protocol.SessionChangeFile
-import io.github.enthusjast.tokenworks.ui.TokenWorksSpacing
 
 @Stable
 internal class ChangesPanelUiState {

@@ -4,7 +4,7 @@ plugins {
     alias(libs.plugins.kotlin.compose)
 }
 android {
-    namespace = "io.github.enthusjast.tokenworks.ui"
+    namespace = "cn.edu.ustc.tokenworks"
     compileSdk = 36
     buildToolsVersion = "35.0.0"
     defaultConfig { minSdk = 26 }

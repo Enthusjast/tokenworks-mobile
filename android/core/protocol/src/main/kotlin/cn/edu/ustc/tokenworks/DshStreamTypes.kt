@@ -1,6 +1,5 @@
 package cn.edu.ustc.tokenworks
 
-import io.github.enthusjast.tokenworks.protocol.*
 
 const val DSH_MUX_PATH = "/api/remote.mux"
 const val DSH_EVENTS_ENDPOINT = "\$events"

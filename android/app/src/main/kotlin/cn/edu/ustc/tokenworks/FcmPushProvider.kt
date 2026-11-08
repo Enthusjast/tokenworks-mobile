@@ -2,8 +2,6 @@ package cn.edu.ustc.tokenworks
 
 import android.content.Context
 import android.content.Intent
-import io.github.enthusjast.tokenworks.auth.LoginConfiguration
-import io.github.enthusjast.tokenworks.auth.PushDeployment
 import com.google.android.gms.common.GoogleApiAvailabilityLight
 import com.google.android.gms.common.ConnectionResult
 import com.google.android.gms.tasks.Task

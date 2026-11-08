@@ -4,7 +4,7 @@ plugins {
     alias(libs.plugins.ksp)
 }
 android {
-    namespace = "io.github.enthusjast.tokenworks.data"
+    namespace = "cn.edu.ustc.tokenworks"
     compileSdk = 36
     buildToolsVersion = "35.0.0"
     defaultConfig { minSdk = 26; testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner" }

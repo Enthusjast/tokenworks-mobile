@@ -68,8 +68,6 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import io.github.enthusjast.tokenworks.ui.TokenWorksMetrics
-import io.github.enthusjast.tokenworks.ui.TokenWorksSpacing
 import kotlin.math.roundToInt
 
 internal data class WorkspaceViewport(val widthDp: Int, val heightDp: Int)

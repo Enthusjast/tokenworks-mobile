@@ -1,6 +1,5 @@
 package cn.edu.ustc.tokenworks
 
-import io.github.enthusjast.tokenworks.protocol.*
 
 internal const val APPROVAL_READING_PAGE_SIZE = 4096
 

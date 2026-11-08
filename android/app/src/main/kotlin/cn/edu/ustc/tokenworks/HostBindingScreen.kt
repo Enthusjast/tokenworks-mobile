@@ -20,9 +20,6 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.input.*
 import androidx.compose.ui.text.style.TextDirection
 import androidx.compose.ui.unit.dp
-import io.github.enthusjast.tokenworks.auth.HostBindingDetails
-import io.github.enthusjast.tokenworks.network.*
-import io.github.enthusjast.tokenworks.protocol.Contract
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -31,7 +28,7 @@ import java.time.format.DateTimeFormatter
 fun HostBindingScreen(state: HostBindingState, subject: String, onPreview: (String, String) -> Unit, onQuery: (String) -> Unit,
     onConfirm: () -> Unit, onRefresh: () -> Unit, onEnter: () -> Unit, onBack: () -> Unit) {
     Scaffold(topBar = {
-        io.github.enthusjast.tokenworks.ui.TokenWorksTopBar(
+        cn.edu.ustc.tokenworks.TokenWorksTopBar(
             title = stringResource(R.string.flow_binding_title),
             subtitle = stringResource(R.string.flow_binding_account, subject),
             contentMaxWidth = 720.dp,
@@ -41,7 +38,7 @@ fun HostBindingScreen(state: HostBindingState, subject: String, onPreview: (Stri
         )
     }) { insets ->
         Box(Modifier.fillMaxSize().padding(insets).imePadding(), contentAlignment = Alignment.TopCenter) {
-            Column(Modifier.widthIn(max = 720.dp).fillMaxWidth().verticalScroll(rememberScrollState()).padding(io.github.enthusjast.tokenworks.ui.TokenWorksSpacing.lg),
+            Column(Modifier.widthIn(max = 720.dp).fillMaxWidth().verticalScroll(rememberScrollState()).padding(cn.edu.ustc.tokenworks.TokenWorksSpacing.lg),
                 verticalArrangement = Arrangement.spacedBy(16.dp)) {
                 Text(stringResource(when (state.phase) {
                     HostBindingPhase.ENTER -> R.string.flow_binding_step_input
@@ -108,7 +105,7 @@ private fun BindingEntry(initialId: String, error: String?, onPreview: (String, 
         keyboardOptions = KeyboardOptions(autoCorrectEnabled = false, keyboardType = KeyboardType.Password),
         trailingIcon = { TextButton({ visible = !visible }, Modifier.heightIn(min = 48.dp)) { Text(if (visible) "隐藏" else "显示") } },
         modifier = Modifier.fillMaxWidth().onFocusChanged { if (!it.isFocused && code.isNotEmpty()) codeTouched = true })
-    error?.let { io.github.enthusjast.tokenworks.ui.TokenWorksStatusNotice(bindingError(it), isError = true) }
+    error?.let { cn.edu.ustc.tokenworks.TokenWorksStatusNotice(bindingError(it), isError = true) }
     Button({ onPreview(id, code) }, enabled = idValid && codeValid, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)) { Text("核对电脑信息") }
     Text("已在手机确认过的申请，可以只填写申请编号查询结果。", color = MaterialTheme.colorScheme.onSurfaceVariant)
     OutlinedButton({ onQuery(id) }, enabled = idValid, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)) { Text("仅查询已确认申请") }
@@ -200,7 +197,7 @@ private fun BindingFacts(details: HostBindingDetails) {
                     else -> R.string.flow_binding_unverified
                 }))
             }
-            state.error?.let { io.github.enthusjast.tokenworks.ui.TokenWorksStatusNotice(bindingError(it), isError = true) }
+            state.error?.let { cn.edu.ustc.tokenworks.TokenWorksStatusNotice(bindingError(it), isError = true) }
         }
 }
 private fun bindingError(code: String) = when (code) {

@@ -29,12 +29,6 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import io.github.enthusjast.tokenworks.protocol.VisibleMediaReference
-import io.github.enthusjast.tokenworks.session.BlockKind
-import io.github.enthusjast.tokenworks.session.ConversationItem
-import io.github.enthusjast.tokenworks.session.ConversationRole
-import io.github.enthusjast.tokenworks.ui.TokenWorksSpacing
-import io.github.enthusjast.tokenworks.ui.tokenWorksSurfaces
 
 internal sealed interface ChatTimelineRow {
     val key: String

@@ -15,12 +15,6 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.*
 import androidx.compose.ui.unit.dp
-import io.github.enthusjast.tokenworks.command.*
-import io.github.enthusjast.tokenworks.network.SessionModelCatalogPhase
-import io.github.enthusjast.tokenworks.network.SessionModelCatalogState
-import io.github.enthusjast.tokenworks.protocol.SessionModelSelection
-import io.github.enthusjast.tokenworks.ui.TokenWorksSpacing
-import io.github.enthusjast.tokenworks.ui.TokenWorksTopBar
 
 @Stable
 internal class ModelPanelUiState {

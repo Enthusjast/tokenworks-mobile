@@ -7,10 +7,6 @@ import android.content.pm.PackageManager
 import android.content.pm.Signature
 import android.content.pm.SigningInfo
 import android.os.Build
-import io.github.enthusjast.tokenworks.network.PrivateApkCandidate
-import io.github.enthusjast.tokenworks.network.RemoteRequestException
-import io.github.enthusjast.tokenworks.protocol.APP_UPDATE_PROTOCOL
-import io.github.enthusjast.tokenworks.protocol.MAX_SAFE_INTEGER
 import kotlinx.coroutines.CancellationException
 import java.io.File
 import java.nio.file.Files

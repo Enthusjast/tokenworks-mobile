@@ -4,7 +4,7 @@ plugins {
 }
 
 android {
-    namespace = "io.github.enthusjast.tokenworks.keystore"
+    namespace = "cn.edu.ustc.tokenworks"
     compileSdk = 36
     buildToolsVersion = "35.0.0"
     defaultConfig {
@@ -18,7 +18,6 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
     testOptions { animationsDisabled = true }
-    sourceSets.getByName("androidTest").assets.srcDir(rootProject.file("../contracts/security"))
 }
 
 kotlin { jvmToolchain(17) }

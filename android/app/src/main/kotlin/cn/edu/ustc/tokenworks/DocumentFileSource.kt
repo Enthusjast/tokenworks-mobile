@@ -4,8 +4,6 @@ import android.content.Context
 import android.net.Uri
 import android.os.CancellationSignal
 import android.provider.OpenableColumns
-import io.github.enthusjast.tokenworks.network.FileInputSource
-import io.github.enthusjast.tokenworks.network.RemoteRequestException
 import java.io.FilterInputStream
 import java.io.InputStream
 import java.util.concurrent.atomic.AtomicBoolean

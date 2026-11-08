@@ -2,7 +2,6 @@ package cn.edu.ustc.tokenworks
 
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.input.TextFieldValue
-import io.github.enthusjast.tokenworks.command.CommandOwner
 
 /** An accepted local-data owner and the exact remote resource, never an authorization grant. */
 class ConversationResource(val owner: CommandOwner, val hostId: String, val runtimeId: String, val sessionId: String) {

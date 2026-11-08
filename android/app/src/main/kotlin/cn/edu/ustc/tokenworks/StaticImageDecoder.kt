@@ -4,13 +4,6 @@ import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.ColorSpace
 import android.graphics.Matrix
-import io.github.enthusjast.tokenworks.protocol.ImageUploadMetadata
-import io.github.enthusjast.tokenworks.protocol.MAX_IMAGE_BYTES
-import io.github.enthusjast.tokenworks.protocol.MAX_IMAGE_DIMENSION
-import io.github.enthusjast.tokenworks.protocol.MAX_IMAGE_PIXELS
-import io.github.enthusjast.tokenworks.protocol.MAX_PREVIEW_BITMAP_BYTES
-import io.github.enthusjast.tokenworks.protocol.MAX_PREVIEW_EDGE
-import io.github.enthusjast.tokenworks.protocol.MAX_PREVIEW_PIXELS
 
 class DecodedStaticImage(val bitmap: Bitmap, val metadata: ImageUploadMetadata) : AutoCloseable {
     override fun close() { bitmap.recycle() }

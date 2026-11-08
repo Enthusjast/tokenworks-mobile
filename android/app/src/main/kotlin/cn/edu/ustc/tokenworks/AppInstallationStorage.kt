@@ -7,7 +7,6 @@ import android.security.keystore.KeyProperties
 import android.system.Os
 import android.system.OsConstants
 import android.util.AtomicFile
-import io.github.enthusjast.tokenworks.protocol.*
 import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.FileNotFoundException

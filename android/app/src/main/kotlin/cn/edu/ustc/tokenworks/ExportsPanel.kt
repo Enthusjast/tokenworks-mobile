@@ -7,13 +7,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.*
 import androidx.compose.ui.unit.dp
-import io.github.enthusjast.tokenworks.network.*
-import io.github.enthusjast.tokenworks.protocol.*
 
 @Composable
 internal fun ExportsPanel(state: SessionExportState, browse: (ExportSource?, Boolean) -> Unit, request: (ExportSource) -> Unit,
     query: () -> Unit, cancel: (String) -> Unit, remove: (String) -> Unit, save: (String) -> Unit = {}, saving: Boolean = false) {
-    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(io.github.enthusjast.tokenworks.ui.TokenWorksSpacing.lg)) {
+    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(cn.edu.ustc.tokenworks.TokenWorksSpacing.lg)) {
             Text(stringResource(R.string.file_ux_export_title), style = MaterialTheme.typography.titleMedium, modifier = Modifier.semantics { heading() })
             if (state.preparing) {
                 Text(stringResource(R.string.conversation_transfer_preparation), style = MaterialTheme.typography.labelLarge, modifier = Modifier.semantics { heading() })
@@ -50,7 +48,7 @@ internal fun ExportsPanel(state: SessionExportState, browse: (ExportSource?, Boo
                         modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp).semantics { contentDescription = saveName },
                     ) { Text(stringResource(R.string.file_ux_save)) }
                     val error = row.error ?: row.status?.error
-                    error?.let { io.github.enthusjast.tokenworks.ui.TokenWorksStatusNotice(exportReasonText(it), isError = true) }
+                    error?.let { cn.edu.ustc.tokenworks.TokenWorksStatusNotice(exportReasonText(it), isError = true) }
                     if (row.status?.state in setOf(FileTransferState.UPLOADING, FileTransferState.SCANNING) || row.stored.fileId == null) {
                         TextButton({ cancel(id) }, enabled = state.connected, modifier = Modifier.heightIn(min = 48.dp)) { Text(stringResource(R.string.file_ux_stop_export)) }
                     }
@@ -74,7 +72,7 @@ internal fun ExportsPanel(state: SessionExportState, browse: (ExportSource?, Boo
                 )
                 HorizontalDivider()
             } }
-            state.error?.let { io.github.enthusjast.tokenworks.ui.TokenWorksStatusNotice(exportReasonText(it), isError = true) }
+            state.error?.let { cn.edu.ustc.tokenworks.TokenWorksStatusNotice(exportReasonText(it), isError = true) }
             Text(stringResource(R.string.conversation_export_save_boundary), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             HorizontalDivider()
             Text(stringResource(R.string.file_ux_sources), style = MaterialTheme.typography.titleSmall, modifier = Modifier.semantics { heading() })

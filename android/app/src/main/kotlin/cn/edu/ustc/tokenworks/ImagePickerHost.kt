@@ -13,7 +13,6 @@ import androidx.activity.result.contract.ActivityResultContract
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
-import io.github.enthusjast.tokenworks.protocol.MAX_IMAGE_BYTES
 
 /** System camera only; the controller owns the one-time output URI and its cleanup. */
 internal class ImageCaptureContract : ActivityResultContract<Uri, Boolean>() {

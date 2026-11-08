@@ -1,7 +1,5 @@
 package cn.edu.ustc.tokenworks
 
-import io.github.enthusjast.tokenworks.auth.AppUpdateDeployment
-import io.github.enthusjast.tokenworks.protocol.*
 
 internal enum class AppInstallPhase {
     PREPARING, PREPARED, COMMITTING, WAITING_USER, RESULT_REPORTED, INSTALLED, FAILED, RETIRED;

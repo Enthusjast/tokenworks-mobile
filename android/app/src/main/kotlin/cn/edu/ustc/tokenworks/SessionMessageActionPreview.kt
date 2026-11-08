@@ -8,11 +8,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.*
 import androidx.compose.ui.unit.dp
-import io.github.enthusjast.tokenworks.command.CommandKind
-import io.github.enthusjast.tokenworks.command.PendingCommand
-import io.github.enthusjast.tokenworks.command.RemoteCommandState
-import io.github.enthusjast.tokenworks.network.SessionMessageActionPhase
-import io.github.enthusjast.tokenworks.network.SessionMessageActionState
 
 /** Plain persisted visible text only. Share and fork callbacks must revalidate the selected anchor. */
 @Composable

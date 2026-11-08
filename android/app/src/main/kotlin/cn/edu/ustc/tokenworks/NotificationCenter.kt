@@ -10,10 +10,6 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
-import io.github.enthusjast.tokenworks.auth.PushDeployment
-import io.github.enthusjast.tokenworks.crypto.DeviceProofs
-import io.github.enthusjast.tokenworks.network.LoginHttp
-import io.github.enthusjast.tokenworks.protocol.*
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive

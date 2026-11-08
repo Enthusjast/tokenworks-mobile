@@ -16,9 +16,6 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
-import io.github.enthusjast.tokenworks.command.*
-import io.github.enthusjast.tokenworks.protocol.*
-import io.github.enthusjast.tokenworks.session.*
 
 private class AnswerDraft(val selected: Set<String> = emptySet(), val custom: String = "") {
     override fun toString() = "AnswerDraft"
@@ -115,7 +112,7 @@ private fun QuestionForm(view: PresentedQuestion, canAnswer: Boolean, submitting
     Dialog(onDismissRequest = onClose, properties = DialogProperties(usePlatformDefaultWidth = false, dismissOnClickOutside = false)) {
         Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.surface) {
             Column(Modifier.fillMaxSize()) {
-                io.github.enthusjast.tokenworks.ui.TokenWorksTopBar(
+                cn.edu.ustc.tokenworks.TokenWorksTopBar(
                     title = stringResource(when {
                         plan -> R.string.question_kind_plan
                         batch.kind == QuestionKind.TIMED -> R.string.question_kind_timed
@@ -128,9 +125,9 @@ private fun QuestionForm(view: PresentedQuestion, canAnswer: Boolean, submitting
                 )
                 HorizontalDivider()
                 Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.TopCenter) {
-                Column(Modifier.widthIn(max = io.github.enthusjast.tokenworks.ui.TokenWorksSpacing.readingWidth).fillMaxWidth()
+                Column(Modifier.widthIn(max = cn.edu.ustc.tokenworks.TokenWorksSpacing.readingWidth).fillMaxWidth()
                     .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal + WindowInsetsSides.Bottom))
-                    .imePadding().verticalScroll(rememberScrollState()).padding(io.github.enthusjast.tokenworks.ui.TokenWorksSpacing.lg),
+                    .imePadding().verticalScroll(rememberScrollState()).padding(cn.edu.ustc.tokenworks.TokenWorksSpacing.lg),
                     verticalArrangement = Arrangement.spacedBy(16.dp)) {
                     if (plan) Text(stringResource(R.string.question_plan_not_approval), style = MaterialTheme.typography.bodyMedium)
                     QuestionStatus(view)

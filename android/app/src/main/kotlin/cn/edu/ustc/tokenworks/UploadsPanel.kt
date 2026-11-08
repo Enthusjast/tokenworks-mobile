@@ -11,14 +11,13 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.*
 import androidx.compose.ui.unit.dp
-import io.github.enthusjast.tokenworks.network.*
 
 @Composable
 fun UploadsPanel(state: SessionUploadState, online: Boolean, onPick: (String?) -> Unit, onToggle: (String) -> Unit, onQuery: (String) -> Unit,
     onRemove: (String) -> Unit, onCancel: () -> Unit) {
     val rows = state.rows.filter { it.stored.intent.image == null }
     val selectedRows = rows.filter { it.stored.intent.requestId in state.selected }
-    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(io.github.enthusjast.tokenworks.ui.TokenWorksSpacing.lg)) {
+    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(cn.edu.ustc.tokenworks.TokenWorksSpacing.lg)) {
             Text(stringResource(R.string.file_ux_upload_title), style = MaterialTheme.typography.titleMedium, modifier = Modifier.semantics { heading() })
             Text(stringResource(R.string.file_ux_upload_hint), style = MaterialTheme.typography.bodySmall)
 
@@ -51,7 +50,7 @@ fun UploadsPanel(state: SessionUploadState, online: Boolean, onPick: (String?) -
                 Text(stringResource(R.string.file_ux_preparing_local), modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite })
             }
             if (state.busy) OutlinedButton(onCancel, Modifier.heightIn(min = 48.dp)) { Text(stringResource(R.string.file_ux_stop_upload)) }
-            state.error?.let { io.github.enthusjast.tokenworks.ui.TokenWorksStatusNotice(fileErrorText(it), isError = true) }
+            state.error?.let { cn.edu.ustc.tokenworks.TokenWorksStatusNotice(fileErrorText(it), isError = true) }
             HorizontalDivider()
             Text(stringResource(R.string.file_ux_records), style = MaterialTheme.typography.titleSmall, modifier = Modifier.semantics { heading() })
             if (rows.isEmpty()) Text(stringResource(R.string.file_ux_records_empty), style = MaterialTheme.typography.bodySmall)
@@ -82,7 +81,7 @@ fun UploadsPanel(state: SessionUploadState, online: Boolean, onPick: (String?) -
                         progress = { if (row.stored.intent.manifest.sizeBytes == 0L) 0f else (row.bytes.toDouble() / row.stored.intent.manifest.sizeBytes).toFloat().coerceIn(0f, 1f) },
                         modifier = Modifier.fillMaxWidth(),
                     )
-                    row.error?.let { io.github.enthusjast.tokenworks.ui.TokenWorksStatusNotice(fileErrorText(it), isError = true) }
+                    row.error?.let { cn.edu.ustc.tokenworks.TokenWorksStatusNotice(fileErrorText(it), isError = true) }
                     if (row.ready()) Row(
                         Modifier.fillMaxWidth().heightIn(min = 48.dp).toggleable(
                             value = id in state.selected,

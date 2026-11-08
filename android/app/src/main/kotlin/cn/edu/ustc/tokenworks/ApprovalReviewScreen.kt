@@ -19,9 +19,6 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
-import io.github.enthusjast.tokenworks.command.*
-import io.github.enthusjast.tokenworks.protocol.*
-import io.github.enthusjast.tokenworks.session.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -114,7 +111,7 @@ fun ApprovalReviewScreen(state: HomeState, onBack: () -> Unit, onDetails: (Strin
     BoxWithConstraints(Modifier.fillMaxSize()) {
         val actionsHeight = maxHeight * 0.45f
         Scaffold(topBar = {
-            io.github.enthusjast.tokenworks.ui.TokenWorksTopBar(
+            cn.edu.ustc.tokenworks.TokenWorksTopBar(
                 title = stringResource(R.string.approval_ux_title),
                 subtitle = approvalVisibleText(runtime?.hostAlias ?: stringResource(R.string.approval_ux_current_host)),
                 navigationIcon = { IconButton(onBack, Modifier.heightIn(min = 48.dp)) {

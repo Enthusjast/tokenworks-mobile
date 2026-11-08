@@ -29,10 +29,6 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import io.github.enthusjast.tokenworks.ui.TokenWorksMetrics
-import io.github.enthusjast.tokenworks.ui.TokenWorksRadius
-import io.github.enthusjast.tokenworks.ui.TokenWorksSpacing
-import io.github.enthusjast.tokenworks.ui.tokenWorksSquircle
 
 /** Connection health, expressed as a dot plus the existing spelled-out label. */
 internal enum class HeaderConnection { LIVE, PENDING, DEGRADED, ERROR }

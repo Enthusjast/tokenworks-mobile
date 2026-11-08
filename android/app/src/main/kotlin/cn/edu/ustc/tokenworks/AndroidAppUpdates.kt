@@ -8,9 +8,6 @@ import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
 import android.provider.Settings
-import io.github.enthusjast.tokenworks.auth.AppUpdateDeployment
-import io.github.enthusjast.tokenworks.network.*
-import io.github.enthusjast.tokenworks.protocol.*
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.map

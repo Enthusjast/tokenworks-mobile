@@ -10,8 +10,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.*
 import androidx.compose.ui.unit.dp
-import io.github.enthusjast.tokenworks.network.SessionUploadState
-import io.github.enthusjast.tokenworks.network.UploadPhase
 
 @Composable
 fun SessionImagesPanel(
@@ -30,7 +28,7 @@ fun SessionImagesPanel(
     val rows = uploads?.rows.orEmpty().filter { it.stored.intent.image != null }
     val selectedRows = rows.filter { it.stored.intent.requestId in uploads?.selected.orEmpty() }
     val busy = state.preparing || uploads?.busy == true
-    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(io.github.enthusjast.tokenworks.ui.TokenWorksSpacing.lg)) {
+    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(cn.edu.ustc.tokenworks.TokenWorksSpacing.lg)) {
             Text(stringResource(R.string.media_panel_title), style = MaterialTheme.typography.titleMedium,
                 modifier = Modifier.semantics { heading() })
             Text(stringResource(R.string.media_panel_hint), style = MaterialTheme.typography.bodySmall)
@@ -64,9 +62,9 @@ fun SessionImagesPanel(
                 Text(stringResource(R.string.media_preparing), modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite })
             }
             if (busy) OutlinedButton(onCancel, Modifier.heightIn(min = 48.dp)) { Text(stringResource(R.string.media_cancel)) }
-            state.error?.let { io.github.enthusjast.tokenworks.ui.TokenWorksStatusNotice(stringResource(imageErrorResource(it)), isError = true) }
+            state.error?.let { cn.edu.ustc.tokenworks.TokenWorksStatusNotice(stringResource(imageErrorResource(it)), isError = true) }
             uploads?.error?.takeIf { it != state.error }?.let {
-                io.github.enthusjast.tokenworks.ui.TokenWorksStatusNotice(fileErrorText(it), isError = true)
+                cn.edu.ustc.tokenworks.TokenWorksStatusNotice(fileErrorText(it), isError = true)
             }
             HorizontalDivider()
             Text(stringResource(R.string.media_records), style = MaterialTheme.typography.titleSmall,
@@ -99,7 +97,7 @@ fun SessionImagesPanel(
                         }, modifier = Modifier.fillMaxWidth())
                         Text(stringResource(R.string.file_ux_uploading, fileSizeText(row.bytes), fileSizeText(row.stored.intent.manifest.sizeBytes)))
                     }
-                    row.error?.let { io.github.enthusjast.tokenworks.ui.TokenWorksStatusNotice(fileErrorText(it), isError = true) }
+                    row.error?.let { cn.edu.ustc.tokenworks.TokenWorksStatusNotice(fileErrorText(it), isError = true) }
                     if (selected && !row.ready()) Text(stringResource(R.string.media_selected_stale), color = MaterialTheme.colorScheme.error)
                     if (row.ready() || selected) {
                         val action = stringResource(if (selected) R.string.media_unselect_action else R.string.media_select_action, name)

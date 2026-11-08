@@ -11,9 +11,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.*
 import androidx.compose.ui.unit.dp
-import io.github.enthusjast.tokenworks.command.*
-import io.github.enthusjast.tokenworks.network.*
-import io.github.enthusjast.tokenworks.protocol.*
 
 @Composable
 fun SessionCreationScreen(state: HomeState, onCreate: (String,String,String)->Unit, onRefresh: ()->Unit, onQuery: ()->Unit,
@@ -33,7 +30,7 @@ fun SessionCreationScreen(state: HomeState, onCreate: (String,String,String)->Un
     val unresolved=creation.outbox.records.any { it.intent.workspaceId==workspace && it.remote !in setOf(RemoteCommandState.SETTLED,RemoteCommandState.REJECTED) }
     val submit={ val id=workspace; val configuration=preset; val epoch=choices?.epoch; if(valid && id!=null && configuration!=null && epoch!=null) onCreate(id,configuration,epoch) }
     Scaffold(topBar = {
-        io.github.enthusjast.tokenworks.ui.TokenWorksTopBar(
+        cn.edu.ustc.tokenworks.TokenWorksTopBar(
             title = stringResource(R.string.flow_creation_title),
             subtitle = runtime?.hostAlias ?: stringResource(R.string.chat_authorized_computer),
             contentMaxWidth = 720.dp,
@@ -43,9 +40,9 @@ fun SessionCreationScreen(state: HomeState, onCreate: (String,String,String)->Un
         )
     }) { insets ->
         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
-        LazyColumn(Modifier.widthIn(max = 720.dp).fillMaxSize().padding(insets).imePadding(),contentPadding=PaddingValues(io.github.enthusjast.tokenworks.ui.TokenWorksSpacing.lg),verticalArrangement=Arrangement.spacedBy(16.dp)) {
+        LazyColumn(Modifier.widthIn(max = 720.dp).fillMaxSize().padding(insets).imePadding(),contentPadding=PaddingValues(cn.edu.ustc.tokenworks.TokenWorksSpacing.lg),verticalArrangement=Arrangement.spacedBy(16.dp)) {
             val error=state.commandError ?: creation.error ?: creation.outbox.error
-            if(error!=null) item("error") { io.github.enthusjast.tokenworks.ui.TokenWorksStatusNotice(creationError(error), isError=true) }
+            if(error!=null) item("error") { cn.edu.ustc.tokenworks.TokenWorksStatusNotice(creationError(error), isError=true) }
             if(creation.outbox.records.isNotEmpty()) item("records") {
                 Text(stringResource(R.string.conversation_creation_results),style=MaterialTheme.typography.titleMedium,modifier=Modifier.semantics { heading() })
                 Text(stringResource(R.string.conversation_creation_results_help),style=MaterialTheme.typography.bodySmall)
@@ -80,7 +77,7 @@ fun SessionCreationScreen(state: HomeState, onCreate: (String,String,String)->Un
                             if(!readable) Text("当前授权无法读取这个会话。",style=MaterialTheme.typography.bodySmall)
                         }
                         if(choices!=null && record.intent.epoch!=choices.epoch && record.remote !in setOf(RemoteCommandState.SETTLED,RemoteCommandState.REJECTED)) Text("电脑运行环境已更新，原请求不会用于新的运行代次。",style=MaterialTheme.typography.bodySmall)
-                        record.error?.let { io.github.enthusjast.tokenworks.ui.TokenWorksStatusNotice(creationError(it), isError=true) }
+                        record.error?.let { cn.edu.ustc.tokenworks.TokenWorksStatusNotice(creationError(it), isError=true) }
                         HorizontalDivider()
                     }
             }

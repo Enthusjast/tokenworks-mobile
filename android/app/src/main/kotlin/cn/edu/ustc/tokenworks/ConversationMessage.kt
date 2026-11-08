@@ -53,14 +53,6 @@ import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
-import io.github.enthusjast.tokenworks.protocol.VisibleMediaReference
-import io.github.enthusjast.tokenworks.session.BlockKind
-import io.github.enthusjast.tokenworks.session.ConversationItem
-import io.github.enthusjast.tokenworks.session.ConversationRole
-import io.github.enthusjast.tokenworks.session.DisplayBlock
-import io.github.enthusjast.tokenworks.ui.TokenWorksRadius
-import io.github.enthusjast.tokenworks.ui.TokenWorksSpacing
-import io.github.enthusjast.tokenworks.ui.tokenWorksSquircle
 import kotlinx.coroutines.CancellationException
 
 /** Actions use only the current display text; a quote is an editable local draft, not a server relation. */

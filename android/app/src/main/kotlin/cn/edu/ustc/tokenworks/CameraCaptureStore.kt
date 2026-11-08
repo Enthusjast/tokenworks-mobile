@@ -5,7 +5,6 @@ import android.content.Intent
 import android.net.Uri
 import android.os.SystemClock
 import androidx.core.content.FileProvider
-import io.github.enthusjast.tokenworks.protocol.MAX_IMAGE_BYTES
 import java.io.File
 import java.io.IOException
 import java.nio.file.Files

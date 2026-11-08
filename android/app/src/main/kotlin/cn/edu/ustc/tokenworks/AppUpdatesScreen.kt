@@ -21,7 +21,7 @@ internal fun AppUpdatesScreen(state: AppUpdateUiState, check: () -> Unit, downlo
     var showReleaseDetails by remember(state.viewId, state.release) { mutableStateOf(false) }
     val enabled = !state.busy && !state.launchPending
     Scaffold(topBar = {
-        io.github.enthusjast.tokenworks.ui.TokenWorksTopBar(
+        cn.edu.ustc.tokenworks.TokenWorksTopBar(
             title = stringResource(R.string.settings_updates),
             subtitle = if (state.installedVersion == null) stringResource(R.string.flow_update_version_unknown, BuildConfig.VERSION_NAME) else stringResource(R.string.flow_update_current_version, BuildConfig.VERSION_NAME, state.installedVersion.toString()),
             contentMaxWidth = 720.dp,
@@ -31,7 +31,7 @@ internal fun AppUpdatesScreen(state: AppUpdateUiState, check: () -> Unit, downlo
         )
     }) { insets ->
         Box(Modifier.fillMaxSize().padding(insets), contentAlignment = Alignment.TopCenter) {
-            LazyColumn(Modifier.widthIn(max = 720.dp).fillMaxWidth(), contentPadding = PaddingValues(io.github.enthusjast.tokenworks.ui.TokenWorksSpacing.lg), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+            LazyColumn(Modifier.widthIn(max = 720.dp).fillMaxWidth(), contentPadding = PaddingValues(cn.edu.ustc.tokenworks.TokenWorksSpacing.lg), verticalArrangement = Arrangement.spacedBy(16.dp)) {
                 item("stage") {
                     Text(stringResource(when (state.phase) {
                         AppUpdatePhase.AVAILABLE, AppUpdatePhase.DOWNLOADING, AppUpdatePhase.VERIFYING, AppUpdatePhase.REPREPARE -> R.string.flow_update_step_prepare

@@ -12,11 +12,39 @@ Or run `npm run test:android` from the repository root for JVM tests and Android
 
 The default APK at `app/build/outputs/apk/debug/app-debug.apk` disables login without school configuration. Build with `-PdeploymentConfig=/absolute/path/to/verified-public-deployment.json` to supply the exact registered issuer/client/resource/remote service; use `../deploy/android/deployment.example.json` only as a template. Configuration is validated with the same strict public schema before packaging. Unknown fields such as client secrets are rejected; an unconfigured build removes an earlier generated configuration. There is no embedded fallback IdP or model credential. Pending browser state/verifier/code remain in memory. Completed account credentials and enrollment checkpoints use the independent encrypted vault; a pending browser flow still requires a new login after process death.
 
+## Explicit loopback development TLS
+
+Only an explicitly opted-in **debug** build can trust a local development CA. After the local development service has generated its public files, run from `android/`:
+
+```sh
+./gradlew :app:assembleDebug \
+  -PlocalDevCa="$(realpath ../.local/tokenworks-mobile-dev/android/ca.pem)" \
+  -PdeploymentConfig="$(realpath ../.local/tokenworks-mobile-dev/android/deployment.json)"
+```
+
+`localDevCa` accepts exactly one public PEM-encoded X.509 CA certificate, not a server leaf, key, bundle or mixed-content file. The certificate must be currently valid and permit certificate signing if a key-usage extension is present. Private keys remain outside the APK and outside version control. This configuration is development identity only, not school identity acceptance.
+
+`:app:prepareLocalDevTrust` generates `app/build/generated/localDevTrust/res/xml/local_dev_network_security_config.xml` and, only when opted in, `res/raw/local_dev_ca.pem`. The debug manifest references that generated network security configuration. It retains system trust anchors, adds the selected CA only for exact `localhost` and `127.0.0.1` hosts (not subdomains), and continues to prohibit cleartext. It does not trust user-installed CAs globally or change HTTPS/WSS, certificate hostname checks, deployment validation or authentication. The gateway must present a certificate with the appropriate loopback SAN and serve the configured `https://localhost:8443` issuer/relay; device port forwarding is a separate host setup step. Browser authentication uses the browser's separate trust policy, which this APK configuration does not modify.
+
+Without `-PlocalDevCa`, the same task removes any previously generated local CA and emits a system-anchors-only debug configuration. Release builds neither consume the debug manifest/resources nor run this generator, even if the property is supplied; a previous debug build's generated CA is never part of the release source set. To inspect the default and release isolation separately after the opted-in build:
+
+```sh
+./gradlew :app:assembleDebug
+./gradlew :app:assembleRelease \
+  -PlocalDevCa="$(realpath ../.local/tokenworks-mobile-dev/android/ca.pem)"
+```
+
+Inspect the built APKs and merged manifests: the opted-in debug APK should contain the single `local_dev_ca` raw resource and a debug-only `networkSecurityConfig`; the default debug APK should have only the system-anchor configuration and no local CA raw resource; release should have neither the local CA nor that configuration/manifest attribute. Release packaging does not establish production signing or deployment readiness.
+
+## Other Android flows
+
 The optional [notification flow](../docs/android-notifications.md) uses explicitly configured Firebase Messaging 26.0.1/FID enrollment, a separate encrypted routing vault, generic account-fenced notifications and authenticated current-state reads. Approval references open an unsigned review; ordinary/timed question references select a matching fresh native form without claiming or answering it. Supply `-PpushConfig=/absolute/path/to/public-push.json` together with the matching deployment configuration. The default APK does not initialize Firebase or register a push channel. Google delivery, OEM adapters and target-device background acceptance remain gates.
 
 Notifications resolve a [known session](../docs/known-session-access.md) through its exact authenticated resource, independently of host/session enumeration. The temporary resource context is revalidated on foreground and credential refresh. Question answers use their own narrow, original-device status route when generic `command.status` is absent; other command requirements remain unchanged. Returning from this view clears the context and opens reminders.
 
-The [task-focused app shell](../docs/android-ui-navigation.md) starts registered accounts at their current authorized session directory and offers Computers and Settings as separate destinations. Session rows request the existing scoped read; switching destinations retires the current navigation context, and notification-linked known sessions retain their narrower independent authorization path. The document records baseline scenes, lifecycle boundaries, targeted emulator results and outstanding device/production gates.
+The [workspace app shell](../docs/android-ui-navigation.md) starts registered accounts at their authorized session directory and centers ongoing chat inside a drawer/column workspace, with Computers and Settings as logical destinations. Model, diff and resource detail tasks adapt between pages, sheets and an inspector without creating another reader. Session rows still request the original scoped read; changing destinations follows the original retirement path, and notification-linked known sessions keep their narrower authorization. The guide separates current JVM/build evidence, historical device results and the current device-unlock prerequisite.
+
+The [Android interface and interaction acceptance checklist](../docs/android-reference-improvement-plan.md) records this client's workspace, chat, task panels, accessibility, identity isolation and delivery invariants. It separates presentation changes from protocol behavior and lists the evidence required for each existing workflow; unchecked acceptance items are not completion claims.
 
 The [application update page](../docs/android-app-updates.md) connects strict [release metadata](../docs/app-release-metadata.md), independently packaged download origins, [anonymous downloads and platform APK checks](../docs/android-apk-preflight.md), and [durable system installation sessions](../docs/android-apk-installation.md). It rechecks the account and publication before sensitive steps and proves installed bytes independently of callbacks. The [two-phase self-upgrade acceptance](../docs/android-self-upgrade-acceptance.md) uses full executable v1/v2 artifacts and a host issuer that survives actual package replacement. Its recorded result and platform limits remain separate from production release and OEM acceptance.
 

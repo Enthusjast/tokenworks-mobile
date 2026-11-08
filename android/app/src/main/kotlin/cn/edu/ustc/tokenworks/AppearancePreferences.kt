@@ -1,6 +1,5 @@
 package cn.edu.ustc.tokenworks
 
-import io.github.enthusjast.tokenworks.ui.TokenWorksReadingStyle
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow

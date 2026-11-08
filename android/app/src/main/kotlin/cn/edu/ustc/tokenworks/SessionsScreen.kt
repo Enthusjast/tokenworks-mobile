@@ -28,12 +28,6 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.compose.ui.unit.dp
-import io.github.enthusjast.tokenworks.network.*
-import io.github.enthusjast.tokenworks.session.*
-import io.github.enthusjast.tokenworks.command.*
-import io.github.enthusjast.tokenworks.protocol.*
-import io.github.enthusjast.tokenworks.ui.TokenWorksSpacing
-import io.github.enthusjast.tokenworks.ui.tokenWorksSurfaces
 import kotlinx.coroutines.launch
 import androidx.compose.foundation.lazy.LazyListState
 import kotlinx.coroutines.flow.first

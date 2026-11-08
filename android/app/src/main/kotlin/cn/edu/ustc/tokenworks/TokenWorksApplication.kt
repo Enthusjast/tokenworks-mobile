@@ -1,7 +1,6 @@
 package cn.edu.ustc.tokenworks
 
 import android.app.Application
-import io.github.enthusjast.tokenworks.network.LoginHttp
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -9,7 +8,6 @@ import dagger.hilt.android.HiltAndroidApp
 import dagger.hilt.components.SingletonComponent
 import javax.inject.Singleton
 import javax.inject.Inject
-import io.github.enthusjast.tokenworks.auth.LoginConfiguration
 
 @HiltAndroidApp
 class TokenWorksApplication : Application() {
