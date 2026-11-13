@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto'
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http'
 import type { Duplex } from 'node:stream'
 import { Readable } from 'node:stream'
@@ -80,9 +81,34 @@ export class NativeGateway {
     type Stream = { cancel: AbortController; inbox: unknown[]; bytes: number; ended: boolean; wake?: () => void }
     const streams = new Map<string, Stream>()
     let closed = false
+    // F-13: the Android mux parses frames with a 128 KiB budget; a larger item
+    // would close the phone-side connection on every reconnect. Serialize,
+    // check, and fragment oversized payloads into session-fragment items the
+    // phone reassembles via SessionFragments.
+    const sendItem = async (streamId: string, value: unknown): Promise<void> => {
+      const direct = JSON.stringify(value === undefined ? { type: 'item', streamId } : { type: 'item', streamId, value })
+      if (Buffer.byteLength(direct) <= 128 * 1024) { await sendText(direct); return }
+      const encoded = Buffer.from(JSON.stringify(value), 'utf8').toString('base64')
+      const chunkSize = 96 * 1024
+      const count = Math.ceil(encoded.length / chunkSize)
+      if (count > 64) { throw new Error('native frame too large to fragment') }
+      for (let index = 0; index < count; index++) {
+        const fragment = { type: 'session.fragment', fragment_id: randomUUID(), index, count,
+          data: encoded.slice(index * chunkSize, (index + 1) * chunkSize) }
+        await sendText(JSON.stringify({ type: 'item', streamId, value: { type: 'session.fragment', event: { ...fragment } } }))
+      }
+    }
     const send = async (value: unknown): Promise<void> => {
       if (closed || socket.readyState !== socket.OPEN) throw new Error('native mux closed')
-      const text = JSON.stringify(value)
+      if (value && typeof value === 'object' && 'type' in value && (value as { type: string }).type === 'item' && 'streamId' in value) {
+        const { streamId, ...rest } = value as { streamId: string; value?: unknown }
+        await sendItem(streamId, rest.value)
+        return
+      }
+      await sendText(JSON.stringify(value))
+    }
+    const sendText = async (text: string): Promise<void> => {
+      if (closed || socket.readyState !== socket.OPEN) throw new Error('native mux closed')
       if (socket.bufferedAmount + Buffer.byteLength(text) > 4 * 1024 * 1024) { socket.close(1013, 'receiver too slow'); throw new Error('native mux backpressure') }
       const sent = Promise.withResolvers<void>()
       socket.send(text, error => error ? sent.reject(error) : sent.resolve())
