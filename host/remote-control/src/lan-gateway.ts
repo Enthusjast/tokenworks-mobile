@@ -41,6 +41,7 @@ export type LanPhase = 'stopped' | 'listening' | 'closed'
 export class LanGateway {
   readonly #options: LanGatewayOptions
   readonly #access: NativeAccess
+  #fetch: ReturnType<HostConnectionHandle['createSharedFetchHandler']>
   readonly #server: Http2SecureServer
   readonly #websockets = new WebSocketServer({ noServer: true, maxPayload: 2 * 1024 * 1024, perMessageDeflate: false })
   readonly #peers = new WeakMap<object, PeerScope>()
@@ -54,6 +55,8 @@ export class LanGateway {
     this.#access = new NativeAccess(options.connection, options.remoteAccess, options.runtimeId, options.installationId,
       // LAN pairs cannot introspect Relay leases; the paired token is the whole credential.
       async (id, secret) => this.#introspect(id, secret), options.resources, options.peerMode ?? 'owner')
+    // F-12: one shared-fetch handler for the gateway's lifetime; requests reuse it.
+    this.#fetch = options.connection.createSharedFetchHandler('/api')
     this.#server = createSecureServer({ allowHTTP1: true, key: options.certificate.key, cert: options.certificate.cert, settings: { maxConcurrentStreams: 128, maxHeaderListSize: 32 * 1024 } })
     this.#server.on('request', (request, response) => { void this.#request(request as unknown as IncomingMessage, response as unknown as ServerResponse) })
     this.#server.on('session', session => {

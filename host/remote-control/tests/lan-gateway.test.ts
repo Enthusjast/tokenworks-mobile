@@ -12,7 +12,7 @@ function token(): string {
 function options(deviceToken: string | undefined): LanGatewayOptions {
   return {
     host: '127.0.0.1', port: 0, runtimeId: 'aaaaaaaa-1111-4111-8111-111111111111', installationId: 'bbbbbbbb-2222-4222-8222-222222222222',
-    connection: { createPeer: () => { throw new Error('not reached in admission tests') }, createSharedFetchHandler: () => { throw new Error('not reached') } } as never,
+    connection: { createPeer: () => { throw new Error('not reached in admission tests') }, createSharedFetchHandler: () => ({ requestBodyMode: () => 'buffer' as const, fetch: () => Promise.reject(new Error('not reached')) }) } as never,
     remoteAccess: { registerPolicy: () => () => undefined, invalidate: () => undefined } as never,
     gateway: null as unknown as NativeGateway,
     resources: () => ({ sessions: [], workspaces: [] }),
