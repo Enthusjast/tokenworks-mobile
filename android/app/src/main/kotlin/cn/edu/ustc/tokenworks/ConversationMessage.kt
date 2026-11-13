@@ -113,7 +113,6 @@ internal fun ConversationMessage(item: ConversationItem, onQuote: ((String) -> U
                             val label = stringResource(R.string.media_message_preview, reference.manifest.name)
                             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                                 Text(reference.manifest.name, style = MaterialTheme.typography.bodyMedium)
-                                Text(fileSizeText(reference.manifest.sizeBytes), style = MaterialTheme.typography.bodySmall)
                                 if (interactive) TextButton({
                                     if (currentItem.persisted && !currentItem.live && currentItem.blocks.any { it.media === reference }) currentOnPreviewMedia?.invoke(reference)
                                 }, enabled = item.persisted && !item.live && onPreviewMedia != null,

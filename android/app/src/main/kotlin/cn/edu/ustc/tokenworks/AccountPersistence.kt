@@ -23,7 +23,6 @@ internal class PendingKeyLedger(private val context: Context, private val name: 
     }
     @SuppressLint("UseKtx")
     fun delete(reference: ScopeReference) {
-        SqlCommandJournal.eraseAccount(context, reference.account, reference.organization)
         DeviceKeyStore(context).use { owner -> DeviceKeyPurpose.entries.forEach { owner.delete(reference.scope(), it, 1) } }
         val values = entries(); values -= reference.encoded
         check(preferences().edit().putStringSet("scopes", values).commit())
@@ -96,17 +95,6 @@ internal class AccountPersistence(private val context: Context, slot: String, pr
         val clear = checkpoint.authenticatedStorageBytes()
         try { revision = vault.save(checkpoint.accountId, checkpoint.organizationId, checkpoint.session.deploymentFingerprint, clear, revision) }
         finally { clear.fill(0) }
-    }
-    suspend fun commands(owner: CommandOwner, stamp: Long): SqlCommandJournal = transaction(stamp) {
-        SqlCommandJournal.open(context, owner)
-    }
-    suspend fun revokeCommands(owner: CommandOwner, runtime: String, stamp: Long) = transaction(stamp) {
-        SqlCommandJournal.open(context, owner).use { journal -> runBlocking { journal.revokeSessionCommands(runtime) } }
-    }
-    suspend fun retainHistory(owner: CommandOwner, scopes: Map<String, RelayScope>, stamp: Long, approvalRuntimes: Set<String> = emptySet()) = transaction(stamp) {
-        SqlCommandJournal.open(context, owner).use { journal -> runBlocking {
-            journal.retainTranscripts(scopes); journal.retainCreations(scopes); journal.retainApprovals(scopes.filterKeys { it in approvalRuntimes }); journal.retainUploads(scopes); journal.retainExports(scopes)
-        } }
     }
 
     suspend fun clear(stamp: Long, extra: ScopeReference?) = transaction(stamp) {

@@ -130,7 +130,6 @@ dependencies {
     implementation(project(":core:auth"))
     implementation(project(":core:network"))
     implementation(project(":core:keystore"))
-    implementation(project(":core:data"))
     implementation(project(":core:ui"))
     implementation(libs.activity.compose)
     implementation(libs.activity.ktx)
@@ -139,7 +138,6 @@ dependencies {
     implementation(libs.coroutines.android)
     implementation(libs.androidx.browser)
     implementation(libs.appauth)
-    implementation(libs.firebase.messaging)
     implementation(libs.hilt.android)
     kapt(libs.hilt.compiler)
     testImplementation(libs.junit)
@@ -150,6 +148,5 @@ dependencies {
     androidTestImplementation(libs.okhttp.mockwebserver)
     androidTestImplementation(libs.okhttp.tls)
     androidTestImplementation(libs.nimbus.jose)
-    androidTestImplementation(libs.room.runtime)
     debugImplementation(libs.compose.ui.test.manifest)
 }

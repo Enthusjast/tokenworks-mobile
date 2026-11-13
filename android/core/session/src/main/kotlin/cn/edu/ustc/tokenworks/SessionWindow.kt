@@ -15,13 +15,55 @@ class SessionRecord private constructor(val seq: Long, val type: String, val dat
     private var cachedVersion = initialVersion
     val messageVersionSha256: String get() = synchronized(this) { cachedVersion ?: mediaEventSha256(SessionJson.encode(versionRoot)).also { cachedVersion = it } }
     companion object {
+        /** Records larger than this are stored truncated; the raw wire payload never enters the window. */
+        const val MAX_RECORD_WEIGHT = 64L * 1024
+        private const val TRUNCATION_NOTICE = "…[已截断]"
+        private const val PREVIEW_CHARS = 2048
+
+        /**
+         * P1-4: one huge `tool/call.arguments` or `tool/result.message.content` must not
+         * make the whole session unopenable. Oversized payloads are replaced with a
+         * bounded preview plus a truncation notice; the record stays ordinary otherwise.
+         */
+        private fun truncateOversized(type: String, data: JsonObject): JsonObject {
+            if (SessionJson.weight(data) <= MAX_RECORD_WEIGHT) return data
+            val rebuilt = when (type) {
+                "tool/call" -> {
+                    val arguments = data.fields["arguments"]
+                    data.with("arguments" to preview(arguments))
+                }
+                "assistant/message", "tool/result" -> {
+                    val message = data.obj("message")
+                    val rebuiltMessage = message.with("content" to preview(message.fields["content"]))
+                    data.with("message" to rebuiltMessage)
+                }
+                else -> throw SessionDataException("protocol.snapshot_too_large")
+            }
+            if (SessionJson.weight(rebuilt) > MAX_RECORD_WEIGHT) throw SessionDataException("protocol.snapshot_too_large")
+            return rebuilt
+        }
+
+        /** Bounded preview preserving the payload's shape so downstream parsing still applies. */
+        private fun preview(value: JsonValue?): JsonValue {
+            if (value == null || value is JsonNull) return JsonNull
+            return when (value) {
+                is JsonString -> JsonString(value.value.take(PREVIEW_CHARS) + TRUNCATION_NOTICE)
+                is JsonArray -> {
+                    val texts = value.values.mapNotNull { (it as? JsonObject)?.fields?.get("text") as? JsonString }
+                    if (texts.isEmpty()) JsonArray(emptyList())
+                    else JsonArray(listOf(jsonObject("type" to "text".json(), "text" to (texts.joinToString("\n").take(PREVIEW_CHARS) + TRUNCATION_NOTICE).json())))
+                }
+                else -> JsonString(TRUNCATION_NOTICE)
+            }
+        }
+
         fun parse(root: JsonObject, mediaRefs: Boolean = false): SessionRecord {
             SessionJson.fields(root, setOf("seq", "time", "type", "data"), setOf("surfaceOp", "sourceEventSeqs"))
             val seq = root.integer("seq", 0)
             val time = (root["time"] as? JsonNumber)?.value ?: throw SessionDataException()
             if (!time.isFinite() || kotlin.math.abs(time) > MAX_SAFE_INTEGER) throw SessionDataException()
             val type = Contract.boundedText(root.string("type"), 128)
-            val data = root.obj("data")
+            val data = truncateOversized(type, root.obj("data"))
             var replacement = false
             root.fields["surfaceOp"]?.let { operation ->
                 if (operation != "append".json()) {
@@ -94,8 +136,14 @@ class SessionTranscript internal constructor(
     val records: List<SessionRecord>, val cursor: Long, val openingCursor: Long, val hasMore: Boolean,
     val persistedThrough: Long, val checkpoint: String, val items: List<ConversationItem>, val taskRunning: Boolean,
     val durableOnly: Boolean = false,
+    /** One span per `turn/start`..`turn/end`, in transcript order; `endedAt == null` while running. */
+    val turns: List<TurnSpan> = emptyList(),
 ) {
     override fun toString() = "SessionTranscript(records=${records.size})"
+}
+
+class TurnSpan(val turn: Long, val startedAt: Long, var endedAt: Long? = null, var steps: Int = 0, var reason: String? = null) {
+    override fun toString() = "TurnSpan($turn, steps=$steps)"
 }
 class SessionPageRequest(val requestId: String, val payload: JsonObject)
 
@@ -289,9 +337,28 @@ class SessionWindow(private val subscribeRequest: String, private val mediaRefs:
         }
         if (!liveAdded && live != null) addLive()
         val running = entries.lastOrNull { it.type == "turn/start" || it.type == "turn/end" }?.type == "turn/start"
+        val turns = ArrayList<TurnSpan>()
+        var currentTurn: TurnSpan? = null
+        for (record in entries) {
+            when (record.type) {
+                "turn/start" -> {
+                    val number = record.data.number("turn") ?: continue
+                    if (currentTurn?.turn != number) { currentTurn = TurnSpan(number, record.time); turns.add(currentTurn!!) }
+                }
+                "step/start" -> currentTurn?.takeIf { it.turn == record.data.number("turn") }?.let { it.steps++ }
+                "turn/end" -> {
+                    val number = record.data.number("turn")
+                    currentTurn?.takeIf { it.turn == number }?.let {
+                        it.endedAt = record.time
+                        it.reason = (record.data.fields["reason"] as? JsonString)?.value
+                        currentTurn = null
+                    }
+                }
+            }
+        }
         return SessionTranscript(Collections.unmodifiableList(entries), if (durableOnly) entries.lastOrNull()?.seq ?: -1 else cursor,
             if (durableOnly) minOf(opening, entries.lastOrNull()?.seq ?: -1) else opening, more, persisted, checkpoint, Collections.unmodifiableList(items), running,
-            durableOnly && (entries.isNotEmpty() || cursor == -1L && checkpoint == "persisted"))
+            durableOnly && (entries.isNotEmpty() || cursor == -1L && checkpoint == "persisted"), Collections.unmodifiableList(turns))
     }
 }
 

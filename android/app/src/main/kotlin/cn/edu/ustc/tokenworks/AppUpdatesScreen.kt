@@ -24,14 +24,14 @@ internal fun AppUpdatesScreen(state: AppUpdateUiState, check: () -> Unit, downlo
         cn.edu.ustc.tokenworks.TokenWorksTopBar(
             title = stringResource(R.string.settings_updates),
             subtitle = if (state.installedVersion == null) stringResource(R.string.flow_update_version_unknown, BuildConfig.VERSION_NAME) else stringResource(R.string.flow_update_current_version, BuildConfig.VERSION_NAME, state.installedVersion.toString()),
-            contentMaxWidth = 720.dp,
-            navigationIcon = { IconButton(back, Modifier.heightIn(min = 48.dp)) {
+            contentMaxWidth = TokenWorksSpacing.readingWidth,
+            navigationIcon = { IconButton(back, Modifier.heightIn(min = TokenWorksSpacing.minimumTouchTarget)) {
                 Icon(painterResource(R.drawable.ic_back), stringResource(R.string.flow_update_back))
             } },
         )
     }) { insets ->
         Box(Modifier.fillMaxSize().padding(insets), contentAlignment = Alignment.TopCenter) {
-            LazyColumn(Modifier.widthIn(max = 720.dp).fillMaxWidth(), contentPadding = PaddingValues(cn.edu.ustc.tokenworks.TokenWorksSpacing.lg), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+            LazyColumn(Modifier.widthIn(max = TokenWorksSpacing.readingWidth).fillMaxWidth(), contentPadding = PaddingValues(cn.edu.ustc.tokenworks.TokenWorksSpacing.lg), verticalArrangement = Arrangement.spacedBy(TokenWorksSpacing.lg)) {
                 item("stage") {
                     Text(stringResource(when (state.phase) {
                         AppUpdatePhase.AVAILABLE, AppUpdatePhase.DOWNLOADING, AppUpdatePhase.VERIFYING, AppUpdatePhase.REPREPARE -> R.string.flow_update_step_prepare
@@ -41,7 +41,7 @@ internal fun AppUpdatesScreen(state: AppUpdateUiState, check: () -> Unit, downlo
                     }), style = MaterialTheme.typography.titleMedium, modifier = Modifier.semantics { heading() })
                 }
                 item("status") {
-                    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(TokenWorksSpacing.lg)) {
                             Text(updatePhaseTitle(state.phase), style = MaterialTheme.typography.titleMedium, modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite })
                             Text(updatePhaseDescription(state.phase), style = MaterialTheme.typography.bodyMedium)
                             if (state.currentSupported == false) Text(stringResource(R.string.workspace_update_unsupported), color = MaterialTheme.colorScheme.error)
@@ -52,32 +52,32 @@ internal fun AppUpdatesScreen(state: AppUpdateUiState, check: () -> Unit, downlo
                                 Text(stringResource(R.string.workspace_update_download_progress, updateSize(state.downloadedBytes), updateSize(total)), style = MaterialTheme.typography.bodySmall)
                             } else if (state.busy) LinearProgressIndicator(Modifier.fillMaxWidth())
                             when (state.phase) {
-                                AppUpdatePhase.AVAILABLE -> Button(if (state.canInstall) download else permission, enabled = enabled, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)) {
+                                AppUpdatePhase.AVAILABLE -> Button(if (state.canInstall) download else permission, enabled = enabled, modifier = Modifier.fillMaxWidth().heightIn(min = TokenWorksSpacing.minimumTouchTarget)) {
                                     Text(if (state.canInstall) stringResource(R.string.workspace_update_download_verify) else stringResource(R.string.workspace_update_allow_install))
                                 }
-                                AppUpdatePhase.PREPARED, AppUpdatePhase.WAITING_USER -> Button(if (state.canInstall) install else permission, enabled = enabled, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)) {
+                                AppUpdatePhase.PREPARED, AppUpdatePhase.WAITING_USER -> Button(if (state.canInstall) install else permission, enabled = enabled, modifier = Modifier.fillMaxWidth().heightIn(min = TokenWorksSpacing.minimumTouchTarget)) {
                                     Text(if (!state.canInstall) stringResource(R.string.workspace_update_allow_install) else if (state.phase == AppUpdatePhase.PREPARED) stringResource(R.string.workspace_update_open_installer) else stringResource(R.string.workspace_update_continue_install))
                                 }
-                                AppUpdatePhase.IDLE, AppUpdatePhase.CURRENT, AppUpdatePhase.INSTALLED, AppUpdatePhase.FAILED, AppUpdatePhase.ERROR, AppUpdatePhase.REPREPARE, AppUpdatePhase.UNKNOWN -> Button(check, enabled = enabled, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)) {
+                                AppUpdatePhase.IDLE, AppUpdatePhase.CURRENT, AppUpdatePhase.INSTALLED, AppUpdatePhase.FAILED, AppUpdatePhase.ERROR, AppUpdatePhase.REPREPARE, AppUpdatePhase.UNKNOWN -> Button(check, enabled = enabled, modifier = Modifier.fillMaxWidth().heightIn(min = TokenWorksSpacing.minimumTouchTarget)) {
                                     Text(if (state.phase == AppUpdatePhase.UNKNOWN) stringResource(R.string.workspace_update_reconcile) else if (state.phase in setOf(AppUpdatePhase.ERROR, AppUpdatePhase.FAILED, AppUpdatePhase.REPREPARE)) stringResource(R.string.workspace_update_recheck) else stringResource(R.string.workspace_update_check))
                                 }
                                 else -> Unit
                             }
-                            if (state.phase in setOf(AppUpdatePhase.DOWNLOADING, AppUpdatePhase.VERIFYING)) OutlinedButton(cancelDownload, Modifier.fillMaxWidth().heightIn(min = 48.dp)) { Text(stringResource(R.string.workspace_update_cancel_download)) }
-                            if (state.phase in setOf(AppUpdatePhase.AVAILABLE, AppUpdatePhase.PREPARED, AppUpdatePhase.WAITING_USER)) TextButton(check, enabled = enabled, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)) {
+                            if (state.phase in setOf(AppUpdatePhase.DOWNLOADING, AppUpdatePhase.VERIFYING)) OutlinedButton(cancelDownload, Modifier.fillMaxWidth().heightIn(min = TokenWorksSpacing.minimumTouchTarget)) { Text(stringResource(R.string.workspace_update_cancel_download)) }
+                            if (state.phase in setOf(AppUpdatePhase.AVAILABLE, AppUpdatePhase.PREPARED, AppUpdatePhase.WAITING_USER)) TextButton(check, enabled = enabled, modifier = Modifier.fillMaxWidth().heightIn(min = TokenWorksSpacing.minimumTouchTarget)) {
                                 Text(if (state.phase == AppUpdatePhase.AVAILABLE) stringResource(R.string.workspace_update_recheck) else stringResource(R.string.workspace_update_reconcile))
                             }
-                            if (state.canCleanup && state.cleanupToken != null) TextButton({ confirmCleanup = state.cleanupToken }, enabled = enabled, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)) { Text(stringResource(R.string.workspace_update_abandon)) }
+                            if (state.canCleanup && state.cleanupToken != null) TextButton({ confirmCleanup = state.cleanupToken }, enabled = enabled, modifier = Modifier.fillMaxWidth().heightIn(min = TokenWorksSpacing.minimumTouchTarget)) { Text(stringResource(R.string.workspace_update_abandon)) }
                             state.error?.let { Text(appUpdateErrorText(it), color = MaterialTheme.colorScheme.error, modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite }) }
                         }
                 }
                 state.release?.let { release -> item("release") {
-                    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(TokenWorksSpacing.md)) {
                             HorizontalDivider()
                             Text(stringResource(R.string.workspace_update_release_version, release.versionName, release.versionCode.toString()), style = MaterialTheme.typography.titleMedium, modifier = Modifier.semantics { heading() })
                             Text(stringResource(R.string.workspace_update_download_size, updateSize(release.sizeBytes)), color = MaterialTheme.colorScheme.onSurfaceVariant)
                             val expansion = stringResource(if (showReleaseDetails) R.string.detail_expanded else R.string.detail_collapsed)
-                            TextButton({ showReleaseDetails = !showReleaseDetails }, Modifier.heightIn(min = 48.dp).semantics { stateDescription = expansion }) {
+                            TextButton({ showReleaseDetails = !showReleaseDetails }, Modifier.heightIn(min = TokenWorksSpacing.minimumTouchTarget).semantics { stateDescription = expansion }) {
                                 Text(stringResource(if (showReleaseDetails) R.string.workspace_panel_hide_release else R.string.workspace_panel_release))
                             }
                             if (showReleaseDetails) SelectionContainer {
@@ -91,8 +91,8 @@ internal fun AppUpdatesScreen(state: AppUpdateUiState, check: () -> Unit, downlo
     val confirmedContext = confirmCleanup
     if (confirmedContext != null && confirmedContext == state.cleanupToken && state.canCleanup) AlertDialog(onDismissRequest = { confirmCleanup = null }, title = { Text(stringResource(R.string.workspace_update_abandon_title)) },
         text = { Text(stringResource(R.string.workspace_update_abandon_detail)) },
-        confirmButton = { TextButton({ confirmCleanup = null; cleanup(confirmedContext) }, enabled = enabled, modifier = Modifier.heightIn(min = 48.dp)) { Text(stringResource(R.string.workspace_update_abandon_confirm)) } },
-        dismissButton = { TextButton({ confirmCleanup = null }, Modifier.heightIn(min = 48.dp)) { Text(stringResource(R.string.workspace_update_keep)) } })
+        confirmButton = { TextButton({ confirmCleanup = null; cleanup(confirmedContext) }, enabled = enabled, modifier = Modifier.heightIn(min = TokenWorksSpacing.minimumTouchTarget)) { Text(stringResource(R.string.workspace_update_abandon_confirm)) } },
+        dismissButton = { TextButton({ confirmCleanup = null }, Modifier.heightIn(min = TokenWorksSpacing.minimumTouchTarget)) { Text(stringResource(R.string.workspace_update_keep)) } })
 }
 
 private fun updateSize(bytes: Long) = String.format(Locale.ROOT, "%.1f MB", bytes / (1024.0 * 1024.0))

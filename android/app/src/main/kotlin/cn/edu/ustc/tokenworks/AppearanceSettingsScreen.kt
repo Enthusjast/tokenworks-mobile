@@ -78,9 +78,9 @@ internal fun AppearanceSettingsContent(
     Scaffold(topBar = {
         TokenWorksTopBar(
             title = stringResource(R.string.appearance_title),
-            contentMaxWidth = 720.dp,
+            contentMaxWidth = TokenWorksSpacing.readingWidth,
             navigationIcon = {
-                IconButton(onBack, Modifier.sizeIn(minWidth = 48.dp, minHeight = 48.dp)) {
+                IconButton(onBack, Modifier.sizeIn(minWidth = TokenWorksSpacing.minimumTouchTarget, minHeight = TokenWorksSpacing.minimumTouchTarget)) {
                     Icon(painterResource(R.drawable.ic_back), stringResource(R.string.appearance_back))
                 }
             },
@@ -88,13 +88,13 @@ internal fun AppearanceSettingsContent(
     }) { insets ->
         Box(Modifier.fillMaxSize().padding(insets), contentAlignment = Alignment.TopCenter) {
             LazyColumn(
-                modifier = Modifier.widthIn(max = 720.dp).fillMaxWidth().testTag("appearance-settings-list"),
+                modifier = Modifier.widthIn(max = TokenWorksSpacing.readingWidth).fillMaxWidth().testTag("appearance-settings-list"),
                 contentPadding = PaddingValues(TokenWorksSpacing.lg),
                 verticalArrangement = Arrangement.spacedBy(TokenWorksSpacing.lg),
             ) {
                 item("scope") { Text(stringResource(R.string.appearance_scope), style = MaterialTheme.typography.bodyMedium) }
                 item("persistence") {
-                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Column(verticalArrangement = Arrangement.spacedBy(TokenWorksSpacing.sm)) {
                         val status = when (state.persistence) {
                             AppearancePersistence.LOADING -> R.string.appearance_loading
                             AppearancePersistence.READY -> R.string.appearance_ready
@@ -114,7 +114,7 @@ internal fun AppearanceSettingsContent(
                             LinearProgressIndicator(Modifier.fillMaxWidth())
                         }
                         if (failed) {
-                            OutlinedButton(onRetry, Modifier.fillMaxWidth().heightIn(min = 48.dp)) {
+                            OutlinedButton(onRetry, Modifier.fillMaxWidth().heightIn(min = TokenWorksSpacing.minimumTouchTarget)) {
                                 Text(stringResource(if (state.persistence == AppearancePersistence.READ_ERROR) R.string.appearance_retry_read else R.string.appearance_retry_save))
                             }
                         }
@@ -133,16 +133,16 @@ internal fun AppearanceSettingsContent(
                                     AppearanceTheme.DARK -> R.string.appearance_theme_dark
                                 })
                                 Row(
-                                    modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)
+                                    modifier = Modifier.fillMaxWidth().heightIn(min = TokenWorksSpacing.minimumTouchTarget)
                                         .testTag("appearance-theme-${theme.name.lowercase()}")
                                         .selectable(
                                             selected = preferences.theme == theme,
                                             enabled = state.editable,
                                             role = Role.RadioButton,
                                             onClick = { onChange(preferences.copy(theme = theme)) },
-                                        ).padding(vertical = 4.dp),
+                                        ).padding(vertical = TokenWorksSpacing.xs),
                                     verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                                    horizontalArrangement = Arrangement.spacedBy(TokenWorksSpacing.md),
                                 ) {
                                     RadioButton(selected = preferences.theme == theme, onClick = null, enabled = state.editable)
                                     Text(label, Modifier.weight(1f))
@@ -176,16 +176,16 @@ internal fun AppearanceSettingsContent(
                         )
                         val wrapLabel = stringResource(R.string.appearance_wrap_code)
                         Row(
-                            Modifier.fillMaxWidth().heightIn(min = 48.dp),
+                            Modifier.fillMaxWidth().heightIn(min = TokenWorksSpacing.minimumTouchTarget),
                             verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            horizontalArrangement = Arrangement.spacedBy(TokenWorksSpacing.sm),
                         ) {
                             Text(wrapLabel, Modifier.weight(1f))
                             Switch(
                                 checked = preferences.wrapCode,
                                 onCheckedChange = { onChange(preferences.copy(wrapCode = it)) },
                                 enabled = state.editable,
-                                modifier = Modifier.sizeIn(minWidth = 48.dp, minHeight = 48.dp)
+                                modifier = Modifier.sizeIn(minWidth = TokenWorksSpacing.minimumTouchTarget, minHeight = TokenWorksSpacing.minimumTouchTarget)
                                     .testTag("appearance-wrap-code").semantics { contentDescription = wrapLabel },
                             )
                         }
@@ -196,7 +196,7 @@ internal fun AppearanceSettingsContent(
                     OutlinedButton(
                         onClick = { onChange(AppearancePreferences()) },
                         enabled = state.editable,
-                        modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
+                        modifier = Modifier.fillMaxWidth().heightIn(min = TokenWorksSpacing.minimumTouchTarget),
                     ) { Text(stringResource(R.string.appearance_reset)) }
                 }
             }
@@ -206,7 +206,7 @@ internal fun AppearanceSettingsContent(
 
 @Composable
 private fun AppearanceSection(title: String, content: @Composable () -> Unit) {
-    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(TokenWorksSpacing.md)) {
         Text(title, style = MaterialTheme.typography.titleMedium, modifier = Modifier.semantics { heading() })
         content()
     }
@@ -223,11 +223,11 @@ private fun AppearanceChatPreview(preferences: AppearancePreferences) {
         modifier = Modifier.semantics { heading() })
     TokenWorksTheme(darkTheme = dark) {
         Surface(color = MaterialTheme.colorScheme.background, shape = MaterialTheme.shapes.medium) {
-            Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+            Column(Modifier.fillMaxWidth().padding(TokenWorksSpacing.lg), verticalArrangement = Arrangement.spacedBy(TokenWorksSpacing.lg)) {
                 Surface(Modifier.align(Alignment.End).widthIn(max = 280.dp),
                     color = MaterialTheme.colorScheme.primaryContainer, shape = MaterialTheme.shapes.large) {
                     val style = MaterialTheme.typography.bodyLarge
-                    Text(stringResource(R.string.workspace_appearance_sample_user), Modifier.padding(12.dp),
+                    Text(stringResource(R.string.workspace_appearance_sample_user), Modifier.padding(TokenWorksSpacing.md),
                         color = MaterialTheme.colorScheme.onPrimaryContainer,
                         style = style.copy(fontSize = style.fontSize * preferences.bodyScale,
                             lineHeight = style.lineHeight * preferences.bodyScale))
@@ -237,7 +237,7 @@ private fun AppearanceChatPreview(preferences: AppearancePreferences) {
                     style = body.copy(fontSize = body.fontSize * preferences.bodyScale, lineHeight = body.lineHeight * preferences.bodyScale),
                     modifier = Modifier.fillMaxWidth().testTag("appearance-body-preview"))
                 Surface(color = MaterialTheme.colorScheme.surfaceContainerLow, shape = MaterialTheme.shapes.small) {
-                    Box(Modifier.fillMaxWidth().padding(12.dp)) {
+                    Box(Modifier.fillMaxWidth().padding(TokenWorksSpacing.md)) {
                         val code = MaterialTheme.typography.bodyMedium
                         Text(stringResource(R.string.appearance_code_preview), fontFamily = FontFamily.Monospace,
                             style = code.copy(fontSize = code.fontSize * preferences.codeScale, lineHeight = code.lineHeight * preferences.codeScale),
@@ -260,17 +260,17 @@ private fun AppearanceScaleControls(label: String, value: Float, enabled: Boolea
     Text(stringResource(R.string.appearance_scale_range), style = MaterialTheme.typography.bodySmall)
     val smaller = stringResource(R.string.appearance_smaller_label, label)
     val larger = stringResource(R.string.appearance_larger_label, label)
-    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(TokenWorksSpacing.sm)) {
         OutlinedButton(
             onClick = { onChange(boundedReadingScale(((value * 10).roundToInt() - 1) / 10f)) },
             enabled = enabled && value > MIN_READING_SCALE,
-            modifier = Modifier.weight(1f).heightIn(min = 48.dp).testTag("appearance-$tag-smaller")
+            modifier = Modifier.weight(1f).heightIn(min = TokenWorksSpacing.minimumTouchTarget).testTag("appearance-$tag-smaller")
                 .semantics { contentDescription = smaller },
         ) { Text(stringResource(R.string.appearance_smaller)) }
         OutlinedButton(
             onClick = { onChange(boundedReadingScale(((value * 10).roundToInt() + 1) / 10f)) },
             enabled = enabled && value < MAX_READING_SCALE,
-            modifier = Modifier.weight(1f).heightIn(min = 48.dp).testTag("appearance-$tag-larger")
+            modifier = Modifier.weight(1f).heightIn(min = TokenWorksSpacing.minimumTouchTarget).testTag("appearance-$tag-larger")
                 .semantics { contentDescription = larger },
         ) { Text(stringResource(R.string.appearance_larger)) }
     }

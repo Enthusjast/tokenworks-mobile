@@ -174,43 +174,18 @@ private fun measureWorkspaceViewport(context: Context, configuration: Configurat
 @Composable
 internal fun WorkspaceScaffold(
     layout: WorkspaceLayoutSpec,
-    navigationOpen: Boolean,
-    onNavigationOpenChange: (Boolean) -> Unit,
     chromeVisible: Boolean,
-    railContent: @Composable () -> Unit,
-    navigationContent: @Composable () -> Unit,
-    content: @Composable () -> Unit,
+    railContent: @Composable (openNavigation: () -> Unit) -> Unit,
+    navigationContent: @Composable (closeNavigation: () -> Unit) -> Unit,
+    content: @Composable (toggleNavigation: () -> Unit) -> Unit,
 ) {
-    if (!chromeVisible) {
-        Box(Modifier.fillMaxSize().testTag("workspace-content")) { content() }
-        return
-    }
-    if (layout.leftPane != WorkspaceLeftPane.NONE) {
-        LaunchedEffect(navigationOpen) { if (navigationOpen) onNavigationOpenChange(false) }
-        Row(Modifier.fillMaxSize()) {
-            Surface(
-                modifier = Modifier.width(layout.navigationWidth).fillMaxHeight().testTag(
-                    if (layout.leftPane == WorkspaceLeftPane.RAIL) "workspace-rail" else "workspace-navigation",
-                ),
-                color = MaterialTheme.colorScheme.surfaceContainerLow,
-            ) {
-                Box {
-                    Box(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing)) {
-                        if (layout.leftPane == WorkspaceLeftPane.RAIL) railContent() else navigationContent()
-                    }
-                    ColumnDivider(Modifier.align(Alignment.CenterEnd))
-                }
-            }
-            Box(Modifier.weight(1f).fillMaxHeight().testTag("workspace-content")) { content() }
-        }
-        return
-    }
-    val latestOnOpenChange by rememberUpdatedState(onNavigationOpenChange)
-    val latestNavigationOpen by rememberUpdatedState(navigationOpen)
+    var drawerRequested by remember { mutableStateOf(false) }
+    val closeNavigation: () -> Unit = { drawerRequested = false }
+    val toggleNavigation: () -> Unit = { drawerRequested = !drawerRequested }
     val drawerState = rememberDrawerState(
-        initialValue = if (navigationOpen) DrawerValue.Open else DrawerValue.Closed,
+        initialValue = DrawerValue.Closed,
         confirmStateChange = { value ->
-            if (value == DrawerValue.Closed && latestNavigationOpen) latestOnOpenChange(false)
+            if (value == DrawerValue.Closed) drawerRequested = false
             true
         },
     )
@@ -220,8 +195,8 @@ internal fun WorkspaceScaffold(
     val navigationFocus = remember { FocusRequester() }
     val contentFocus = remember { FocusRequester() }
     var openedBefore by remember { mutableStateOf(false) }
-    LaunchedEffect(navigationOpen, drawerState) {
-        if (navigationOpen) {
+    LaunchedEffect(drawerRequested, drawerState) {
+        if (drawerRequested) {
             openedBefore = true
             focusManager.clearFocus(force = true)
             keyboard?.hide()
@@ -236,34 +211,58 @@ internal fun WorkspaceScaffold(
             }
         }
     }
+    // A pane change re-measures the drawer anchors; keep the drawer closed unless someone asked.
+    LaunchedEffect(drawerState.isOpen, drawerRequested) {
+        if (!drawerRequested && drawerState.isOpen) drawerState.close()
+    }
+    val columns: @Composable () -> Unit = {
+        Row(Modifier.fillMaxSize()) {
+            if (chromeVisible && layout.leftPane != WorkspaceLeftPane.NONE) Surface(
+                modifier = Modifier.width(layout.navigationWidth).fillMaxHeight().testTag(
+                    if (layout.leftPane == WorkspaceLeftPane.RAIL) "workspace-rail" else "workspace-navigation",
+                ),
+                color = MaterialTheme.colorScheme.surfaceContainerLow,
+            ) {
+                Box {
+                    Box(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing)) {
+                        if (layout.leftPane == WorkspaceLeftPane.RAIL) railContent(toggleNavigation)
+                        else navigationContent(closeNavigation)
+                    }
+                    ColumnDivider(Modifier.align(Alignment.CenterEnd))
+                }
+            }
+            Box(Modifier.weight(1f).fillMaxHeight().testTag("workspace-content")
+                .focusRequester(contentFocus).focusRestorer().focusGroup()) { content(toggleNavigation) }
+        }
+    }
+    if (!chromeVisible || layout.leftPane == WorkspaceLeftPane.SIDEBAR) {
+        columns()
+        return
+    }
     BoxWithConstraints(Modifier.fillMaxSize()) {
         val drawerWidth = minOf(TokenWorksMetrics.drawerMaxWidth, (maxWidth - TokenWorksSpacing.xxl).coerceAtLeast(0.dp))
         ModalNavigationDrawer(
             drawerState = drawerState,
             // Never steal horizontal code/table gestures to open a closed drawer.
-            gesturesEnabled = navigationOpen,
+            gesturesEnabled = drawerRequested || drawerState.isOpen,
             drawerContent = {
                 ModalDrawerSheet(
                     modifier = Modifier.width(drawerWidth).fillMaxHeight(),
                     drawerContainerColor = MaterialTheme.colorScheme.surfaceContainerLow,
                     windowInsets = WindowInsets.safeDrawing,
                 ) {
-                    // One LazyListState must never be mounted here and in the directory together.
-                    if (navigationOpen) Box(Modifier.fillMaxSize().testTag("workspace-drawer")
-                        .focusRequester(navigationFocus).focusProperties { onExit = { cancelFocusChange() } }.focusGroup()) { navigationContent() }
+                    if (drawerRequested || drawerState.isOpen) Box(Modifier.fillMaxSize().testTag("workspace-drawer")
+                        .focusRequester(navigationFocus).focusProperties { onExit = { cancelFocusChange() } }.focusGroup()) {
+                        navigationContent(closeNavigation)
+                    }
                 }
             },
         ) {
-            Box(
-                Modifier.fillMaxSize().testTag("workspace-content")
-                    .focusRequester(contentFocus).focusRestorer().focusGroup()
-                    .then(if (navigationOpen) blockedBackground() else Modifier),
-            ) { content() }
+            Box(Modifier.fillMaxSize().then(if (drawerRequested || drawerState.isOpen) blockedBackground() else Modifier)) { columns() }
         }
     }
-    // A child route can mount after this scaffold. Re-register when opened so it cannot win Back.
-    key(navigationOpen) {
-        BackHandler(enabled = navigationOpen) { onNavigationOpenChange(false) }
+    key(drawerRequested) {
+        BackHandler(enabled = drawerRequested || drawerState.isOpen, onBack = closeNavigation)
     }
 }
 

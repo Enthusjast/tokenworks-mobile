@@ -1,217 +1,218 @@
 package cn.edu.ustc.tokenworks
 
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
-import androidx.compose.foundation.text.selection.SelectionContainer
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.*
 import androidx.compose.ui.unit.dp
 
-@Stable
-internal class ModelPanelUiState {
-    var query by mutableStateOf("")
-    var choice by mutableStateOf<Pair<String, String>?>(null)
-    var effort by mutableStateOf<String?>(null)
-    val listState = LazyListState()
+/** Catalog identifiers are passed through unchanged; current selection comes from the caller. */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+internal fun SessionModelsScreen(state: HomeState, viewModel: HomeViewModel, currentKey: String?) {
+    if (!state.modelSelectionOpen) return
+    var expandedKey by remember(state.selectedRuntimeId, state.selectedSessionId) { mutableStateOf<String?>(null) }
+    val catalog = state.modelCatalog
+    val defaultKey = catalog?.default?.key
+    val unavailableCount = catalog?.unavailable?.size ?: 0
+
+    ModalBottomSheet(
+        onDismissRequest = viewModel::closeModelSelection,
+        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+        sheetMaxWidth = TokenWorksSpacing.readingWidth,
+        shape = RoundedCornerShape(topStart = TokenWorksRadius.xl, topEnd = TokenWorksRadius.xl),
+        containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
+    ) {
+        Column(Modifier.fillMaxWidth()) {
+            Row(
+                Modifier.fillMaxWidth().padding(horizontal = TokenWorksSpacing.lg),
+                horizontalArrangement = Arrangement.spacedBy(TokenWorksSpacing.sm),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    stringResource(R.string.models_title),
+                    style = MaterialTheme.typography.titleLarge,
+                    modifier = Modifier.weight(1f).semantics { heading() },
+                )
+                TextButton(viewModel::closeModelSelection, Modifier.heightIn(min = TokenWorksSpacing.minimumTouchTarget)) {
+                    Text(stringResource(R.string.action_close))
+                }
+            }
+            if (state.modelBusy) {
+                LinearProgressIndicator(
+                    Modifier.fillMaxWidth().padding(horizontal = TokenWorksSpacing.lg),
+                )
+            }
+            LazyColumn(
+                modifier = Modifier.fillMaxWidth().weight(1f, fill = false),
+                contentPadding = PaddingValues(TokenWorksSpacing.lg),
+                verticalArrangement = Arrangement.spacedBy(TokenWorksSpacing.sm),
+            ) {
+                state.modelError?.let { error ->
+                    item("catalog-error") {
+                        Column(verticalArrangement = Arrangement.spacedBy(TokenWorksSpacing.sm)) {
+                            TokenWorksStatusNotice(stringResource(R.string.models_error), isError = true)
+                            Text(error, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
+                            TextButton(
+                                onClick = viewModel::openModelSelection,
+                                enabled = !state.modelBusy,
+                                modifier = Modifier.heightIn(min = TokenWorksSpacing.minimumTouchTarget),
+                            ) { Text(stringResource(R.string.action_retry)) }
+                        }
+                    }
+                }
+                if (!state.modelBusy && state.modelError == null && catalog?.groups.orEmpty().all { it.models.isEmpty() }) {
+                    item("catalog-empty") {
+                        Text(
+                            stringResource(R.string.models_empty),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = tokenWorksSurfaces().textTertiary,
+                        )
+                    }
+                }
+                catalog?.groups?.forEachIndexed { index, group ->
+                    item("group:$index") {
+                        Text(
+                            group.name,
+                            modifier = Modifier.padding(top = TokenWorksSpacing.sm).semantics { heading() },
+                            style = MaterialTheme.typography.titleSmall,
+                            color = tokenWorksSurfaces().textTertiary,
+                        )
+                    }
+                    items(group.models, key = { "model:$index:${it.key}" }) { option ->
+                        NativeModelRow(
+                            option = option,
+                            current = currentKey == option.key,
+                            default = defaultKey == option.key,
+                            expanded = expandedKey == option.key,
+                            busy = state.modelBusy,
+                            onClick = {
+                                if (option.reasoningEfforts.isEmpty()) viewModel.selectModel(option, null)
+                                else expandedKey = option.key.takeUnless { expandedKey == it }
+                            },
+                            onConfirm = { effort -> viewModel.selectModel(option, effort) },
+                        )
+                    }
+                }
+                if (unavailableCount > 0) {
+                    item("unavailable-models") {
+                        Text(
+                            stringResource(R.string.models_unavailable_count, unavailableCount),
+                            modifier = Modifier.padding(vertical = TokenWorksSpacing.sm),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = tokenWorksSurfaces().textTertiary,
+                        )
+                    }
+                }
+            }
+        }
+    }
 }
 
-/** Catalog labels are plain display text. Only the original opaque identifiers form a selection. */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-internal fun SessionModelsScreen(
-    state: SessionModelCatalogState,
-    original: PendingCommand?,
+private fun NativeModelRow(
+    option: DshModelOption,
+    current: Boolean,
+    default: Boolean,
+    expanded: Boolean,
     busy: Boolean,
-    error: String?,
-    loadInitial: () -> Unit,
-    loadNext: () -> Unit,
-    reload: () -> Unit,
-    select: (SessionModelSelection) -> Unit,
-    queryOriginal: () -> Unit,
-    sendOriginal: (String) -> Unit,
-    discardUnsent: (String) -> Unit,
-    back: () -> Unit,
-    uiState: ModelPanelUiState,
-    embedded: Boolean = false,
+    onClick: () -> Unit,
+    onConfirm: (String?) -> Unit,
 ) {
-    var query by uiState::query
-    var choice by uiState::choice
-    var effort by uiState::effort
-    val selected = state.items.firstOrNull { choice == it.provider.id to it.model.id }
-    LaunchedEffect(selected?.provider?.id, selected?.model?.id, selected?.reasoningEfforts) {
-        if (selected == null || effort != null && selected.reasoningEfforts.none { it.id == effort }) effort = null
+    var effort by remember(option.key, option.defaultReasoningEffort, option.reasoningEfforts) {
+        mutableStateOf(option.defaultReasoningEffort)
     }
-    val groups = remember(state.items, query) {
-        val needle = query.trim()
-        state.items.asSequence().filter { item -> needle.isEmpty() ||
-            item.provider.label.contains(needle, true) || item.provider.id.contains(needle, true) ||
-            item.model.label.contains(needle, true) || item.model.id.contains(needle, true)
-        }.groupBy { it.provider.id }
-    }
-    val request = original?.takeIf { it.intent.kind == CommandKind.MODEL_SELECT }
-    val unresolved = request != null && request.remote !in setOf(RemoteCommandState.SETTLED, RemoteCommandState.REJECTED)
-    val available = state.phase in setOf(SessionModelCatalogPhase.READY, SessionModelCatalogPhase.PARTIAL)
-    val loading = state.inFlight > 0 || state.phase == SessionModelCatalogPhase.LOADING
-    WorkspacePanelFrame(stringResource(R.string.models_title), back, embedded,
-        subtitle = stringResource(R.string.models_not_current)) {
-        Column(Modifier.fillMaxSize().then(if (embedded) Modifier else Modifier.imePadding()),
-            horizontalAlignment = Alignment.CenterHorizontally) {
-            LazyColumn(Modifier.widthIn(max = TokenWorksSpacing.readingWidth).fillMaxWidth().weight(1f),
-                state = uiState.listState,
-                contentPadding = PaddingValues(TokenWorksSpacing.lg), verticalArrangement = Arrangement.spacedBy(TokenWorksSpacing.md)) {
-                item("catalog-state") {
-                    Text(stringResource(when (state.phase) {
-                        SessionModelCatalogPhase.UNAVAILABLE -> R.string.models_unsupported
-                        SessionModelCatalogPhase.SNAPSHOT_REQUIRED -> R.string.models_snapshot_required
-                        SessionModelCatalogPhase.IDLE -> R.string.models_idle
-                        SessionModelCatalogPhase.LOADING -> R.string.models_loading
-                        SessionModelCatalogPhase.READY -> R.string.models_ready
-                        SessionModelCatalogPhase.EMPTY -> R.string.models_empty
-                        SessionModelCatalogPhase.PARTIAL -> R.string.models_partial
-                        SessionModelCatalogPhase.OFFLINE -> R.string.models_offline
-                        SessionModelCatalogPhase.CATALOG_CHANGED -> R.string.models_changed
-                        SessionModelCatalogPhase.DENIED -> R.string.models_denied
-                        SessionModelCatalogPhase.ERROR -> R.string.models_error
-                        SessionModelCatalogPhase.CLOSED -> R.string.models_closed
-                    }), Modifier.semantics { liveRegion = LiveRegionMode.Polite }, style = MaterialTheme.typography.bodyMedium)
-                    if (loading) LinearProgressIndicator(Modifier.fillMaxWidth().padding(top = 8.dp))
-                    if (state.unavailableProviderCount > 0) Text(stringResource(R.string.models_provider_failures, state.unavailableProviderCount),
-                        color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
-                    if (state.phase == SessionModelCatalogPhase.IDLE) TextButton(loadInitial, enabled = !busy && !loading,
-                        modifier = Modifier.heightIn(min = 48.dp)) { Text(stringResource(R.string.models_load)) }
-                    if (state.phase in setOf(SessionModelCatalogPhase.READY, SessionModelCatalogPhase.PARTIAL,
-                            SessionModelCatalogPhase.EMPTY, SessionModelCatalogPhase.CATALOG_CHANGED, SessionModelCatalogPhase.ERROR)) {
-                        TextButton(reload, enabled = !busy && !loading, modifier = Modifier.heightIn(min = 48.dp)) {
-                            Text(stringResource(R.string.models_reload))
+    val expansionLabel = stringResource(if (expanded) R.string.detail_expanded else R.string.detail_collapsed)
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = tokenWorksSquircle(TokenWorksRadius.md),
+        color = if (current) MaterialTheme.colorScheme.surfaceContainerHigh else MaterialTheme.colorScheme.surfaceContainerLow,
+    ) {
+        Column {
+            Row(
+                Modifier.fillMaxWidth()
+                    .heightIn(min = TokenWorksSpacing.minimumTouchTarget)
+                    .selectable(current, enabled = !busy, role = Role.RadioButton, onClick = onClick)
+                    .semantics { if (option.reasoningEfforts.isNotEmpty()) stateDescription = expansionLabel }
+                    .padding(TokenWorksSpacing.md),
+                horizontalArrangement = Arrangement.spacedBy(TokenWorksSpacing.sm),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(TokenWorksSpacing.xs)) {
+                    FlowRow(
+                        horizontalArrangement = Arrangement.spacedBy(TokenWorksSpacing.sm),
+                        verticalArrangement = Arrangement.spacedBy(TokenWorksSpacing.xs),
+                    ) {
+                        Text(option.name, style = MaterialTheme.typography.bodyLarge)
+                        if (default) Surface(
+                            shape = tokenWorksSquircle(TokenWorksRadius.sm),
+                            color = MaterialTheme.colorScheme.secondaryContainer,
+                            contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
+                        ) {
+                            Text(
+                                stringResource(R.string.model_default_badge),
+                                Modifier.padding(horizontal = TokenWorksSpacing.sm, vertical = TokenWorksSpacing.xxs),
+                                style = MaterialTheme.typography.labelMedium,
+                            )
                         }
                     }
-                }
-                if (state.items.isNotEmpty()) item("search") {
-                    OutlinedTextField(query, { query = it }, label = { Text(stringResource(R.string.models_search)) },
-                        supportingText = { Text(stringResource(R.string.models_search_scope)) },
-                        modifier = Modifier.fillMaxWidth(), singleLine = true)
-                }
-                if (request != null) item("original-selection") {
-                    ModelOriginalRequest(request, busy, queryOriginal, sendOriginal, discardUnsent, available && state.canSelect)
-                }
-                if (state.items.isNotEmpty() && groups.isEmpty()) item("no-local-matches") {
-                    Text(stringResource(R.string.models_no_matches), color = MaterialTheme.colorScheme.onSurfaceVariant)
-                }
-                for ((providerId, models) in groups) {
-                    item("provider:$providerId") {
-                        Text(models.first().provider.label, Modifier.semantics { heading() }, style = MaterialTheme.typography.titleSmall)
-                        SelectionContainer { Text(providerId, style = MaterialTheme.typography.bodySmall) }
-                    }
-                    items(models, key = { it.provider.id to it.model.id }) { item ->
-                        val checked = choice == item.provider.id to item.model.id
-                        Row(Modifier.fillMaxWidth().heightIn(min = 64.dp).selectable(checked,
-                            enabled = available && state.canSelect && !busy && !unresolved,
-                            role = Role.RadioButton, onClick = {
-                                if (!checked) { choice = item.provider.id to item.model.id; effort = null }
-                            }).padding(vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                            RadioButton(checked, onClick = null, enabled = available && state.canSelect && !busy && !unresolved)
-                            Column(Modifier.weight(1f).padding(start = 8.dp)) {
-                                Text(item.model.label, style = MaterialTheme.typography.bodyLarge)
-                                Text(item.model.id, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                            }
-                        }
+                    option.description?.takeIf { it.isNotBlank() }?.let {
+                        Text(it, style = MaterialTheme.typography.bodySmall, color = tokenWorksSurfaces().textTertiary)
                     }
                 }
-                if (state.hasMore) item("next-page") {
-                    OutlinedButton(loadNext, enabled = !busy && !loading && available,
-                        modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)) { Text(stringResource(R.string.models_next_page)) }
-                }
-                selected?.let { model -> item("selection-preview") {
-                    HorizontalDivider()
-                    Text(stringResource(R.string.models_selected), style = MaterialTheme.typography.titleSmall)
-                    SelectionContainer { Text("${model.provider.id}\n${model.model.id}", style = MaterialTheme.typography.bodyMedium) }
-                    if (model.reasoningEfforts.isNotEmpty()) {
-                        Text(stringResource(R.string.models_effort), style = MaterialTheme.typography.bodyMedium)
-                        FlowRow(Modifier.fillMaxWidth().selectableGroup(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            FilterChip(effort == null, { effort = null }, enabled = !busy && !unresolved,
-                                label = { Text(stringResource(R.string.models_effort_none)) }, modifier = Modifier.heightIn(min = 48.dp))
-                            model.reasoningEfforts.forEach { option ->
-                                FilterChip(effort == option.id, { effort = option.id }, enabled = !busy && !unresolved,
-                                    label = { Text(option.label) }, modifier = Modifier.heightIn(min = 48.dp))
-                            }
-                        }
-                    } else Text(stringResource(R.string.models_no_effort), style = MaterialTheme.typography.bodySmall)
-                } }
-                if (error != null) item("selection-error") {
-                    Text(modelActionError(error), color = MaterialTheme.colorScheme.error,
-                        modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite })
+                if (current) {
+                    val color = MaterialTheme.colorScheme.primary
+                    Canvas(Modifier.size(TokenWorksSpacing.iconSize)) {
+                        val stroke = size.width / 10f
+                        drawLine(color, Offset(size.width * .15f, size.height * .5f), Offset(size.width * .4f, size.height * .75f), stroke, StrokeCap.Round)
+                        drawLine(color, Offset(size.width * .4f, size.height * .75f), Offset(size.width * .85f, size.height * .25f), stroke, StrokeCap.Round)
+                    }
                 }
             }
-            Surface(Modifier.fillMaxWidth(), tonalElevation = 3.dp) {
-                Column(Modifier.fillMaxWidth().padding(16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                    Button({ selected?.let { select(SessionModelSelection(it.provider.id, it.model.id, effort)) } },
-                        enabled = selected != null && available && state.canSelect && !busy && !unresolved,
-                        modifier = Modifier.widthIn(max = 768.dp).fillMaxWidth().heightIn(min = 48.dp)) {
-                        Text(stringResource(if (busy) R.string.models_saving else R.string.models_apply))
+            if (expanded && option.reasoningEfforts.isNotEmpty()) {
+                Column(
+                    Modifier.fillMaxWidth().padding(horizontal = TokenWorksSpacing.md).padding(bottom = TokenWorksSpacing.md),
+                    verticalArrangement = Arrangement.spacedBy(TokenWorksSpacing.sm),
+                ) {
+                    Text(stringResource(R.string.models_effort), style = MaterialTheme.typography.bodySmall)
+                    FlowRow(
+                        modifier = Modifier.fillMaxWidth().selectableGroup(),
+                        horizontalArrangement = Arrangement.spacedBy(TokenWorksSpacing.sm),
+                    ) {
+                        option.reasoningEfforts.forEach { id ->
+                            FilterChip(
+                                selected = effort == id,
+                                onClick = { effort = id },
+                                enabled = !busy,
+                                label = { Text(id.replaceFirstChar { it.titlecase() }) },
+                                modifier = Modifier.heightIn(min = TokenWorksSpacing.minimumTouchTarget),
+                            )
+                        }
                     }
-                    Text(stringResource(R.string.models_checkpoint_scope), style = MaterialTheme.typography.bodySmall,
-                        modifier = Modifier.widthIn(max = 768.dp).fillMaxWidth())
+                    Button(
+                        onClick = { onConfirm(effort) },
+                        enabled = !busy,
+                        modifier = Modifier.fillMaxWidth().heightIn(min = TokenWorksSpacing.minimumTouchTarget),
+                        shape = RoundedCornerShape(TokenWorksRadius.xl),
+                    ) { Text(stringResource(R.string.models_apply)) }
                 }
             }
         }
     }
 }
-
-@Composable
-private fun ModelOriginalRequest(record: PendingCommand, busy: Boolean, query: () -> Unit, send: (String) -> Unit, discard: (String) -> Unit, selectable: Boolean) {
-    val selection = record.intent.modelSelection() ?: return
-    val unsent = record.delivery == CommandDelivery.PENDING && record.attempts == 0L && record.remote == null && !record.everHostSaved && !record.everAgentQueued
-    var abandoning by remember(record.intent.requestId) { mutableStateOf(false) }
-    LaunchedEffect(unsent) { if (!unsent) abandoning = false }
-    OutlinedCard(Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text(stringResource(if (record.remote == RemoteCommandState.SETTLED) R.string.models_recent_confirmed else R.string.models_original),
-                style = MaterialTheme.typography.titleSmall)
-            Text(stringResource(when (record.remote) {
-                RemoteCommandState.SETTLED -> R.string.models_settled
-                RemoteCommandState.REJECTED -> R.string.models_rejected
-                RemoteCommandState.OUTCOME_UNKNOWN -> R.string.models_unknown
-                RemoteCommandState.RECEIVED -> R.string.models_relay_received
-                RemoteCommandState.HOST_ACCEPTED, RemoteCommandState.DISPATCHING -> R.string.models_host_saved
-                else -> if (record.delivery == CommandDelivery.BLOCKED) R.string.models_blocked
-                    else if (record.attempts == 0L) R.string.models_saved else R.string.models_unknown
-            }), Modifier.semantics { liveRegion = LiveRegionMode.Polite })
-            SelectionContainer { Text("${selection.providerId}\n${selection.modelId}" +
-                (selection.reasoningEffortId?.let { "\n$it" } ?: ""), style = MaterialTheme.typography.bodyMedium) }
-            SelectionContainer { Text(stringResource(R.string.models_request_id, record.intent.requestId), style = MaterialTheme.typography.bodySmall) }
-            if (record.remote !in setOf(RemoteCommandState.SETTLED, RemoteCommandState.REJECTED)) {
-                if (record.attempts > 0L) TextButton(query, enabled = !busy, modifier = Modifier.heightIn(min = 48.dp)) { Text(stringResource(R.string.models_query)) }
-                if (record.delivery == CommandDelivery.PENDING) OutlinedButton({ send(record.intent.requestId) },
-                    enabled = !busy && selectable, modifier = Modifier.heightIn(min = 48.dp)) { Text(stringResource(R.string.models_send_original)) }
-                if (unsent) TextButton({ abandoning = true }, enabled = !busy, modifier = Modifier.heightIn(min = 48.dp)) { Text(stringResource(R.string.models_discard_unsent)) }
-            }
-        }
-    }
-    if (abandoning && unsent) AlertDialog(onDismissRequest = { abandoning = false },
-        title = { Text(stringResource(R.string.models_discard_unsent)) },
-        text = { Text(stringResource(R.string.models_discard_unsent_detail)) },
-        confirmButton = { TextButton({ abandoning = false; discard(record.intent.requestId) }, enabled = !busy,
-            modifier = Modifier.heightIn(min = 48.dp)) { Text(stringResource(R.string.models_confirm_discard)) } },
-        dismissButton = { TextButton({ abandoning = false }, Modifier.heightIn(min = 48.dp)) { Text(stringResource(R.string.action_cancel)) } })
-}
-
-@Composable
-private fun modelActionError(code: String): String = stringResource(when (code) {
-    "access.denied" -> R.string.models_denied
-    "runtime.offline", "client.not_ready" -> R.string.models_offline
-    "protocol.resync_required", "runtime.changed" -> R.string.models_changed
-    "command.reconcile_required", "command.delivery_unconfirmed" -> R.string.models_unknown
-    else -> R.string.models_action_failed
-})
 
 /** Only the outer page owns system insets; adaptive containers supply their own insets. */
 @Composable

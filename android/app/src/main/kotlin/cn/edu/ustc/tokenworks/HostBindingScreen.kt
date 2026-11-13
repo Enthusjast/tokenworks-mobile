@@ -31,15 +31,15 @@ fun HostBindingScreen(state: HostBindingState, subject: String, onPreview: (Stri
         cn.edu.ustc.tokenworks.TokenWorksTopBar(
             title = stringResource(R.string.flow_binding_title),
             subtitle = stringResource(R.string.flow_binding_account, subject),
-            contentMaxWidth = 720.dp,
-            navigationIcon = { IconButton(onBack, Modifier.heightIn(min = 48.dp)) {
+            contentMaxWidth = TokenWorksSpacing.readingWidth,
+            navigationIcon = { IconButton(onBack, Modifier.heightIn(min = TokenWorksSpacing.minimumTouchTarget)) {
                 Icon(painterResource(R.drawable.ic_back), stringResource(R.string.flow_binding_back))
             } },
         )
     }) { insets ->
         Box(Modifier.fillMaxSize().padding(insets).imePadding(), contentAlignment = Alignment.TopCenter) {
-            Column(Modifier.widthIn(max = 720.dp).fillMaxWidth().verticalScroll(rememberScrollState()).padding(cn.edu.ustc.tokenworks.TokenWorksSpacing.lg),
-                verticalArrangement = Arrangement.spacedBy(16.dp)) {
+            Column(Modifier.widthIn(max = TokenWorksSpacing.readingWidth).fillMaxWidth().verticalScroll(rememberScrollState()).padding(cn.edu.ustc.tokenworks.TokenWorksSpacing.lg),
+                verticalArrangement = Arrangement.spacedBy(TokenWorksSpacing.lg)) {
                 Text(stringResource(when (state.phase) {
                     HostBindingPhase.ENTER -> R.string.flow_binding_step_input
                     HostBindingPhase.LOADING, HostBindingPhase.REVIEW -> R.string.flow_binding_step_review
@@ -62,19 +62,19 @@ fun HostBindingScreen(state: HostBindingState, subject: String, onPreview: (Stri
                             Text(stringResource(R.string.conversation_binding_authorization), style = MaterialTheme.typography.titleMedium, modifier = Modifier.semantics { heading() })
                             var checked by remember(details.reviewHash) { mutableStateOf(false) }
                             Text(stringResource(R.string.conversation_binding_owner_notice))
-                            Row(Modifier.fillMaxWidth().heightIn(min = 48.dp).toggleable(checked, role = Role.Checkbox, onValueChange = { checked = it }),
-                                verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                            Row(Modifier.fillMaxWidth().heightIn(min = TokenWorksSpacing.minimumTouchTarget).toggleable(checked, role = Role.Checkbox, onValueChange = { checked = it }),
+                                verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(TokenWorksSpacing.md)) {
                                 Checkbox(checked, onCheckedChange = null)
                                 Text(stringResource(R.string.conversation_binding_consent), Modifier.weight(1f))
                             }
-                            Button(onConfirm, enabled = checked && details.canConfirm(), modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)) { Text("确认绑定这台电脑") }
+                            Button(onConfirm, enabled = checked && details.canConfirm(), modifier = Modifier.fillMaxWidth().heightIn(min = TokenWorksSpacing.minimumTouchTarget)) { Text("确认绑定这台电脑") }
                         }
                         HostBindingPhase.UNKNOWN, HostBindingPhase.WAITING_HOST, HostBindingPhase.WAITING_ACCESS, HostBindingPhase.ERROR -> {
-                            if (state.id.isNotEmpty()) OutlinedButton(onRefresh, Modifier.fillMaxWidth().heightIn(min = 48.dp)) { Text("查询绑定状态") }
-                            TextButton(onEnter, Modifier.fillMaxWidth().heightIn(min = 48.dp)) { Text("重新输入绑定信息") }
+                            if (state.id.isNotEmpty()) OutlinedButton(onRefresh, Modifier.fillMaxWidth().heightIn(min = TokenWorksSpacing.minimumTouchTarget)) { Text("查询绑定状态") }
+                            TextButton(onEnter, Modifier.fillMaxWidth().heightIn(min = TokenWorksSpacing.minimumTouchTarget)) { Text("重新输入绑定信息") }
                         }
-                        HostBindingPhase.UNAVAILABLE -> OutlinedButton(onEnter, Modifier.fillMaxWidth().heightIn(min = 48.dp)) { Text("输入其他绑定申请") }
-                        HostBindingPhase.READY -> Button(onBack, Modifier.fillMaxWidth().heightIn(min = 48.dp)) { Text("查看授权的电脑") }
+                        HostBindingPhase.UNAVAILABLE -> OutlinedButton(onEnter, Modifier.fillMaxWidth().heightIn(min = TokenWorksSpacing.minimumTouchTarget)) { Text("输入其他绑定申请") }
+                        HostBindingPhase.READY -> Button(onBack, Modifier.fillMaxWidth().heightIn(min = TokenWorksSpacing.minimumTouchTarget)) { Text("查看授权的电脑") }
                         else -> Unit
                     }
                     if (state.phase != HostBindingPhase.REVIEW) state.details?.let { BindingFacts(it) }
@@ -103,19 +103,19 @@ private fun BindingEntry(initialId: String, error: String?, onPreview: (String, 
         supportingText = { Text(if (codeTouched && !codeValid) "请复制完整绑定码，保留字母大小写。" else "绑定码仅用于本次申请，请勿转发给他人。") }, isError = codeTouched && !codeValid,
         visualTransformation = if (visible) VisualTransformation.None else PasswordVisualTransformation(),
         keyboardOptions = KeyboardOptions(autoCorrectEnabled = false, keyboardType = KeyboardType.Password),
-        trailingIcon = { TextButton({ visible = !visible }, Modifier.heightIn(min = 48.dp)) { Text(if (visible) "隐藏" else "显示") } },
+        trailingIcon = { TextButton({ visible = !visible }, Modifier.heightIn(min = TokenWorksSpacing.minimumTouchTarget)) { Text(if (visible) "隐藏" else "显示") } },
         modifier = Modifier.fillMaxWidth().onFocusChanged { if (!it.isFocused && code.isNotEmpty()) codeTouched = true })
     error?.let { cn.edu.ustc.tokenworks.TokenWorksStatusNotice(bindingError(it), isError = true) }
-    Button({ onPreview(id, code) }, enabled = idValid && codeValid, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)) { Text("核对电脑信息") }
+    Button({ onPreview(id, code) }, enabled = idValid && codeValid, modifier = Modifier.fillMaxWidth().heightIn(min = TokenWorksSpacing.minimumTouchTarget)) { Text("核对电脑信息") }
     Text("已在手机确认过的申请，可以只填写申请编号查询结果。", color = MaterialTheme.colorScheme.onSurfaceVariant)
-    OutlinedButton({ onQuery(id) }, enabled = idValid, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)) { Text("仅查询已确认申请") }
+    OutlinedButton({ onQuery(id) }, enabled = idValid, modifier = Modifier.fillMaxWidth().heightIn(min = TokenWorksSpacing.minimumTouchTarget)) { Text("仅查询已确认申请") }
 }
 
 @Composable
 private fun BindingFacts(details: HostBindingDetails) {
     val clipboard = LocalClipboardManager.current
     var copied by remember(details.reviewHash) { mutableStateOf(false) }
-    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(TokenWorksSpacing.lg)) {
             HorizontalDivider()
             Text(stringResource(R.string.conversation_binding_verify), style = MaterialTheme.typography.titleMedium, modifier = Modifier.semantics { heading() })
             BindingFact("组织", details.organizationName)
@@ -129,7 +129,7 @@ private fun BindingFacts(details: HostBindingDetails) {
             OutlinedButton({
                 clipboard.setText(AnnotatedString(details.keyThumbprint))
                 copied = true
-            }, Modifier.fillMaxWidth().heightIn(min = 48.dp)) {
+            }, Modifier.fillMaxWidth().heightIn(min = TokenWorksSpacing.minimumTouchTarget)) {
                 Text(stringResource(R.string.flow_binding_copy_fingerprint))
             }
             if (copied) Text(stringResource(R.string.flow_binding_fingerprint_copied), modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite })
@@ -163,8 +163,8 @@ private fun BindingFacts(details: HostBindingDetails) {
         HostBindingPhase.PAUSED, HostBindingPhase.CLOSED -> "已暂停核对绑定"
         HostBindingPhase.ENTER -> "输入绑定信息"
     }
-    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(TokenWorksSpacing.md)) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(TokenWorksSpacing.md)) {
                 if (busy) CircularProgressIndicator(Modifier.size(24.dp), strokeWidth = 2.dp)
                 Text(title, style = MaterialTheme.typography.titleMedium, modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite })
             }

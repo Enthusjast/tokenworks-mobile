@@ -44,6 +44,14 @@ object DshMethods {
     val SessionSearch = DshMethod("session/search", false, DshSessionSearchInput.codec, DshSessionSearchResult.codec)
     val SessionSelectModel = DshMethod("session/selectModel", false, DshSessionSelectModelInput.codec, DshSessionSelectModelResult.codec)
     val SessionUpdateQueue = DshMethod("session/updateQueue", false, DshSessionUpdateQueueInput.codec, DshSessionUpdateQueueResult.codec)
+    val TerminalAttach = DshMethod("terminal/attach", true, DshTerminalAttachInput.codec, DshTerminalAttachResult.codec)
+    val TerminalClose = DshMethod("terminal/close", false, DshTerminalCloseInput.codec, DshCodecs.json)
+    val TerminalCreate = DshMethod("terminal/create", false, DshTerminalCreateInput.codec, DshTerminalCreateResult.codec)
+    val TerminalEnvironment = DshMethod("terminal/environment", false, DshTerminalEnvironmentInput.codec, DshTerminalEnvironmentResult.codec)
+    val TerminalList = DshMethod("terminal/list", false, DshTerminalListInput.codec, DshCodecs.list(DshTerminalListResultItem.codec))
+    val TerminalRename = DshMethod("terminal/rename", false, DshTerminalRenameInput.codec, DshCodecs.json)
+    val TerminalRetain = DshMethod("terminal/retain", true, DshTerminalRetainInput.codec, DshTerminalRetainResult.codec)
+    val TerminalShells = DshMethod("terminal/shells", false, DshTerminalShellsInput.codec, DshCodecs.list(DshTerminalShellsResultItem.codec))
     val UserQuestionsAnswer = DshMethod("userQuestions/answer", false, DshUserQuestionsAnswerInput.codec, DshCodecs.boolean)
     val UserQuestionsAttachWait = DshMethod("userQuestions/attachWait", true, DshUserQuestionsAttachWaitInput.codec, DshUserQuestionsAttachWaitResult.codec)
     val WorkspaceArchiveSession = DshMethod("workspace/archiveSession", false, DshWorkspaceArchiveSessionInput.codec, DshWorkspaceArchiveSessionResult.codec)
@@ -8049,6 +8057,734 @@ data class DshSessionUpdateQueueResult(
             { value ->
                 val fields = linkedMapOf<String, JsonValue>()
                 fields["accepted"] = DshCodecs.booleanLiteral(true).encode(value.`accepted`)
+                JsonObject(fields)
+            },
+        )
+    }
+}
+
+data class DshTerminalAttachInput(
+    val `agentId`: String,
+    val `id`: String,
+) {
+    companion object {
+        val codec: DshCodec<DshTerminalAttachInput> = DshCodec(
+            { value ->
+                val obj = DshCodecs.obj(value)
+                DshTerminalAttachInput(
+                    `agentId` = DshCodecs.string.decode(obj["agentId"]),
+                    `id` = DshCodecs.string.decode(obj["id"]),
+                )
+            },
+            { value ->
+                val fields = linkedMapOf<String, JsonValue>()
+                fields["agentId"] = DshCodecs.string.encode(value.`agentId`)
+                fields["id"] = DshCodecs.string.encode(value.`id`)
+                JsonObject(fields)
+            },
+        )
+    }
+}
+
+data class DshTerminalAttachResultCase1InfoShell(
+    val `path`: String,
+    val `args`: List<String>,
+    val `name`: String,
+) {
+    companion object {
+        val codec: DshCodec<DshTerminalAttachResultCase1InfoShell> = DshCodec(
+            { value ->
+                val obj = DshCodecs.obj(value)
+                DshTerminalAttachResultCase1InfoShell(
+                    `path` = DshCodecs.string.decode(obj["path"]),
+                    `args` = DshCodecs.list(DshCodecs.string).decode(obj["args"]),
+                    `name` = DshCodecs.string.decode(obj["name"]),
+                )
+            },
+            { value ->
+                val fields = linkedMapOf<String, JsonValue>()
+                fields["path"] = DshCodecs.string.encode(value.`path`)
+                fields["args"] = DshCodecs.list(DshCodecs.string).encode(value.`args`)
+                fields["name"] = DshCodecs.string.encode(value.`name`)
+                JsonObject(fields)
+            },
+        )
+    }
+}
+
+data class DshTerminalAttachResultCase1Info(
+    val `id`: String,
+    val `title`: String,
+    val `shell`: DshTerminalAttachResultCase1InfoShell,
+    val `cwd`: String,
+    val `cols`: Double,
+    val `rows`: Double,
+    val `state`: String,
+    val `exitCode`: Double?,
+    val `error`: DshOptional<String> = DshOptional.Missing,
+) {
+    companion object {
+        val codec: DshCodec<DshTerminalAttachResultCase1Info> = DshCodec(
+            { value ->
+                val obj = DshCodecs.obj(value)
+                DshTerminalAttachResultCase1Info(
+                    `id` = DshCodecs.string.decode(obj["id"]),
+                    `title` = DshCodecs.string.decode(obj["title"]),
+                    `shell` = DshTerminalAttachResultCase1InfoShell.codec.decode(obj["shell"]),
+                    `cwd` = DshCodecs.string.decode(obj["cwd"]),
+                    `cols` = DshCodecs.number.decode(obj["cols"]),
+                    `rows` = DshCodecs.number.decode(obj["rows"]),
+                    `state` = DshCodecs.strings(setOf("failed", "running", "exited")).decode(obj["state"]),
+                    `exitCode` = DshCodecs.nullable(DshCodecs.number).decode(obj["exitCode"]),
+                    `error` = DshCodecs.optional(obj, "error", DshCodecs.string),
+                )
+            },
+            { value ->
+                val fields = linkedMapOf<String, JsonValue>()
+                fields["id"] = DshCodecs.string.encode(value.`id`)
+                fields["title"] = DshCodecs.string.encode(value.`title`)
+                fields["shell"] = DshTerminalAttachResultCase1InfoShell.codec.encode(value.`shell`)
+                fields["cwd"] = DshCodecs.string.encode(value.`cwd`)
+                fields["cols"] = DshCodecs.number.encode(value.`cols`)
+                fields["rows"] = DshCodecs.number.encode(value.`rows`)
+                fields["state"] = DshCodecs.strings(setOf("failed", "running", "exited")).encode(value.`state`)
+                fields["exitCode"] = DshCodecs.nullable(DshCodecs.number).encode(value.`exitCode`)
+                DshCodecs.put(fields, "error", value.`error`, DshCodecs.string)
+                JsonObject(fields)
+            },
+        )
+    }
+}
+
+data class DshTerminalAttachResultCase1InputWindow(
+    val `maxBytes`: Double,
+    val `frameOverheadBytes`: Double,
+) {
+    companion object {
+        val codec: DshCodec<DshTerminalAttachResultCase1InputWindow> = DshCodec(
+            { value ->
+                val obj = DshCodecs.obj(value)
+                DshTerminalAttachResultCase1InputWindow(
+                    `maxBytes` = DshCodecs.number.decode(obj["maxBytes"]),
+                    `frameOverheadBytes` = DshCodecs.number.decode(obj["frameOverheadBytes"]),
+                )
+            },
+            { value ->
+                val fields = linkedMapOf<String, JsonValue>()
+                fields["maxBytes"] = DshCodecs.number.encode(value.`maxBytes`)
+                fields["frameOverheadBytes"] = DshCodecs.number.encode(value.`frameOverheadBytes`)
+                JsonObject(fields)
+            },
+        )
+    }
+}
+
+data class DshTerminalAttachResultCase1(
+    val `type`: String,
+    val `sequence`: Double,
+    val `screen`: String,
+    val `info`: DshTerminalAttachResultCase1Info,
+    val `writable`: Boolean,
+    val `inputWindow`: DshOptional<DshTerminalAttachResultCase1InputWindow> = DshOptional.Missing,
+) {
+    companion object {
+        val codec: DshCodec<DshTerminalAttachResultCase1> = DshCodec(
+            { value ->
+                val obj = DshCodecs.obj(value)
+                DshTerminalAttachResultCase1(
+                    `type` = DshCodecs.strings(setOf("snapshot")).decode(obj["type"]),
+                    `sequence` = DshCodecs.number.decode(obj["sequence"]),
+                    `screen` = DshCodecs.string.decode(obj["screen"]),
+                    `info` = DshTerminalAttachResultCase1Info.codec.decode(obj["info"]),
+                    `writable` = DshCodecs.boolean.decode(obj["writable"]),
+                    `inputWindow` = DshCodecs.optional(obj, "inputWindow", DshTerminalAttachResultCase1InputWindow.codec),
+                )
+            },
+            { value ->
+                val fields = linkedMapOf<String, JsonValue>()
+                fields["type"] = DshCodecs.strings(setOf("snapshot")).encode(value.`type`)
+                fields["sequence"] = DshCodecs.number.encode(value.`sequence`)
+                fields["screen"] = DshCodecs.string.encode(value.`screen`)
+                fields["info"] = DshTerminalAttachResultCase1Info.codec.encode(value.`info`)
+                fields["writable"] = DshCodecs.boolean.encode(value.`writable`)
+                DshCodecs.put(fields, "inputWindow", value.`inputWindow`, DshTerminalAttachResultCase1InputWindow.codec)
+                JsonObject(fields)
+            },
+        )
+    }
+}
+
+data class DshTerminalAttachResultCase2(
+    val `type`: String,
+    val `sequence`: Double,
+    val `data`: String,
+) {
+    companion object {
+        val codec: DshCodec<DshTerminalAttachResultCase2> = DshCodec(
+            { value ->
+                val obj = DshCodecs.obj(value)
+                DshTerminalAttachResultCase2(
+                    `type` = DshCodecs.strings(setOf("output")).decode(obj["type"]),
+                    `sequence` = DshCodecs.number.decode(obj["sequence"]),
+                    `data` = DshCodecs.string.decode(obj["data"]),
+                )
+            },
+            { value ->
+                val fields = linkedMapOf<String, JsonValue>()
+                fields["type"] = DshCodecs.strings(setOf("output")).encode(value.`type`)
+                fields["sequence"] = DshCodecs.number.encode(value.`sequence`)
+                fields["data"] = DshCodecs.string.encode(value.`data`)
+                JsonObject(fields)
+            },
+        )
+    }
+}
+
+data class DshTerminalAttachResultCase3InfoShell(
+    val `path`: String,
+    val `args`: List<String>,
+    val `name`: String,
+) {
+    companion object {
+        val codec: DshCodec<DshTerminalAttachResultCase3InfoShell> = DshCodec(
+            { value ->
+                val obj = DshCodecs.obj(value)
+                DshTerminalAttachResultCase3InfoShell(
+                    `path` = DshCodecs.string.decode(obj["path"]),
+                    `args` = DshCodecs.list(DshCodecs.string).decode(obj["args"]),
+                    `name` = DshCodecs.string.decode(obj["name"]),
+                )
+            },
+            { value ->
+                val fields = linkedMapOf<String, JsonValue>()
+                fields["path"] = DshCodecs.string.encode(value.`path`)
+                fields["args"] = DshCodecs.list(DshCodecs.string).encode(value.`args`)
+                fields["name"] = DshCodecs.string.encode(value.`name`)
+                JsonObject(fields)
+            },
+        )
+    }
+}
+
+data class DshTerminalAttachResultCase3Info(
+    val `id`: String,
+    val `title`: String,
+    val `shell`: DshTerminalAttachResultCase3InfoShell,
+    val `cwd`: String,
+    val `cols`: Double,
+    val `rows`: Double,
+    val `state`: String,
+    val `exitCode`: Double?,
+    val `error`: DshOptional<String> = DshOptional.Missing,
+) {
+    companion object {
+        val codec: DshCodec<DshTerminalAttachResultCase3Info> = DshCodec(
+            { value ->
+                val obj = DshCodecs.obj(value)
+                DshTerminalAttachResultCase3Info(
+                    `id` = DshCodecs.string.decode(obj["id"]),
+                    `title` = DshCodecs.string.decode(obj["title"]),
+                    `shell` = DshTerminalAttachResultCase3InfoShell.codec.decode(obj["shell"]),
+                    `cwd` = DshCodecs.string.decode(obj["cwd"]),
+                    `cols` = DshCodecs.number.decode(obj["cols"]),
+                    `rows` = DshCodecs.number.decode(obj["rows"]),
+                    `state` = DshCodecs.strings(setOf("failed", "running", "exited")).decode(obj["state"]),
+                    `exitCode` = DshCodecs.nullable(DshCodecs.number).decode(obj["exitCode"]),
+                    `error` = DshCodecs.optional(obj, "error", DshCodecs.string),
+                )
+            },
+            { value ->
+                val fields = linkedMapOf<String, JsonValue>()
+                fields["id"] = DshCodecs.string.encode(value.`id`)
+                fields["title"] = DshCodecs.string.encode(value.`title`)
+                fields["shell"] = DshTerminalAttachResultCase3InfoShell.codec.encode(value.`shell`)
+                fields["cwd"] = DshCodecs.string.encode(value.`cwd`)
+                fields["cols"] = DshCodecs.number.encode(value.`cols`)
+                fields["rows"] = DshCodecs.number.encode(value.`rows`)
+                fields["state"] = DshCodecs.strings(setOf("failed", "running", "exited")).encode(value.`state`)
+                fields["exitCode"] = DshCodecs.nullable(DshCodecs.number).encode(value.`exitCode`)
+                DshCodecs.put(fields, "error", value.`error`, DshCodecs.string)
+                JsonObject(fields)
+            },
+        )
+    }
+}
+
+data class DshTerminalAttachResultCase3(
+    val `type`: String,
+    val `info`: DshTerminalAttachResultCase3Info,
+    val `writable`: Boolean,
+) {
+    companion object {
+        val codec: DshCodec<DshTerminalAttachResultCase3> = DshCodec(
+            { value ->
+                val obj = DshCodecs.obj(value)
+                DshTerminalAttachResultCase3(
+                    `type` = DshCodecs.strings(setOf("state")).decode(obj["type"]),
+                    `info` = DshTerminalAttachResultCase3Info.codec.decode(obj["info"]),
+                    `writable` = DshCodecs.boolean.decode(obj["writable"]),
+                )
+            },
+            { value ->
+                val fields = linkedMapOf<String, JsonValue>()
+                fields["type"] = DshCodecs.strings(setOf("state")).encode(value.`type`)
+                fields["info"] = DshTerminalAttachResultCase3Info.codec.encode(value.`info`)
+                fields["writable"] = DshCodecs.boolean.encode(value.`writable`)
+                JsonObject(fields)
+            },
+        )
+    }
+}
+
+data class DshTerminalAttachResultCase4(
+    val `type`: String,
+    val `sequence`: Double,
+    val `refusal`: DshOptional<String> = DshOptional.Missing,
+) {
+    companion object {
+        val codec: DshCodec<DshTerminalAttachResultCase4> = DshCodec(
+            { value ->
+                val obj = DshCodecs.obj(value)
+                DshTerminalAttachResultCase4(
+                    `type` = DshCodecs.strings(setOf("ack")).decode(obj["type"]),
+                    `sequence` = DshCodecs.number.decode(obj["sequence"]),
+                    `refusal` = DshCodecs.optional(obj, "refusal", DshCodecs.strings(setOf("read-only", "not-running"))),
+                )
+            },
+            { value ->
+                val fields = linkedMapOf<String, JsonValue>()
+                fields["type"] = DshCodecs.strings(setOf("ack")).encode(value.`type`)
+                fields["sequence"] = DshCodecs.number.encode(value.`sequence`)
+                DshCodecs.put(fields, "refusal", value.`refusal`, DshCodecs.strings(setOf("read-only", "not-running")))
+                JsonObject(fields)
+            },
+        )
+    }
+}
+
+sealed interface DshTerminalAttachResult {
+    data class Case1(val value: DshTerminalAttachResultCase1) : DshTerminalAttachResult
+    data class Case2(val value: DshTerminalAttachResultCase2) : DshTerminalAttachResult
+    data class Case3(val value: DshTerminalAttachResultCase3) : DshTerminalAttachResult
+    data class Case4(val value: DshTerminalAttachResultCase4) : DshTerminalAttachResult
+    companion object {
+        val codec: DshCodec<DshTerminalAttachResult> = DshCodec(
+            { value ->
+                try { return@DshCodec Case1(DshTerminalAttachResultCase1.codec.decode(value)) } catch (_: ProtocolException) { }
+                try { return@DshCodec Case2(DshTerminalAttachResultCase2.codec.decode(value)) } catch (_: ProtocolException) { }
+                try { return@DshCodec Case3(DshTerminalAttachResultCase3.codec.decode(value)) } catch (_: ProtocolException) { }
+                try { return@DshCodec Case4(DshTerminalAttachResultCase4.codec.decode(value)) } catch (_: ProtocolException) { }
+                throw ProtocolException("native: unsupported union")
+            },
+            { value -> when (value) {
+                is Case1 -> DshTerminalAttachResultCase1.codec.encode(value.value)
+                is Case2 -> DshTerminalAttachResultCase2.codec.encode(value.value)
+                is Case3 -> DshTerminalAttachResultCase3.codec.encode(value.value)
+                is Case4 -> DshTerminalAttachResultCase4.codec.encode(value.value)
+            } },
+        )
+    }
+}
+
+data class DshTerminalCloseInput(
+    val `agentId`: String,
+    val `id`: String,
+) {
+    companion object {
+        val codec: DshCodec<DshTerminalCloseInput> = DshCodec(
+            { value ->
+                val obj = DshCodecs.obj(value)
+                DshTerminalCloseInput(
+                    `agentId` = DshCodecs.string.decode(obj["agentId"]),
+                    `id` = DshCodecs.string.decode(obj["id"]),
+                )
+            },
+            { value ->
+                val fields = linkedMapOf<String, JsonValue>()
+                fields["agentId"] = DshCodecs.string.encode(value.`agentId`)
+                fields["id"] = DshCodecs.string.encode(value.`id`)
+                JsonObject(fields)
+            },
+        )
+    }
+}
+
+data class DshTerminalCreateInputRequest(
+    val `shellPath`: DshOptional<String> = DshOptional.Missing,
+    val `id`: String,
+    val `cols`: Double,
+    val `rows`: Double,
+) {
+    companion object {
+        val codec: DshCodec<DshTerminalCreateInputRequest> = DshCodec(
+            { value ->
+                val obj = DshCodecs.obj(value)
+                DshTerminalCreateInputRequest(
+                    `shellPath` = DshCodecs.optional(obj, "shellPath", DshCodecs.string),
+                    `id` = DshCodecs.string.decode(obj["id"]),
+                    `cols` = DshCodecs.number.decode(obj["cols"]),
+                    `rows` = DshCodecs.number.decode(obj["rows"]),
+                )
+            },
+            { value ->
+                val fields = linkedMapOf<String, JsonValue>()
+                DshCodecs.put(fields, "shellPath", value.`shellPath`, DshCodecs.string)
+                fields["id"] = DshCodecs.string.encode(value.`id`)
+                fields["cols"] = DshCodecs.number.encode(value.`cols`)
+                fields["rows"] = DshCodecs.number.encode(value.`rows`)
+                JsonObject(fields)
+            },
+        )
+    }
+}
+
+data class DshTerminalCreateInput(
+    val `agentId`: String,
+    val `request`: DshTerminalCreateInputRequest,
+) {
+    companion object {
+        val codec: DshCodec<DshTerminalCreateInput> = DshCodec(
+            { value ->
+                val obj = DshCodecs.obj(value)
+                DshTerminalCreateInput(
+                    `agentId` = DshCodecs.string.decode(obj["agentId"]),
+                    `request` = DshTerminalCreateInputRequest.codec.decode(obj["request"]),
+                )
+            },
+            { value ->
+                val fields = linkedMapOf<String, JsonValue>()
+                fields["agentId"] = DshCodecs.string.encode(value.`agentId`)
+                fields["request"] = DshTerminalCreateInputRequest.codec.encode(value.`request`)
+                JsonObject(fields)
+            },
+        )
+    }
+}
+
+data class DshTerminalCreateResultShell(
+    val `path`: String,
+    val `args`: List<String>,
+    val `name`: String,
+) {
+    companion object {
+        val codec: DshCodec<DshTerminalCreateResultShell> = DshCodec(
+            { value ->
+                val obj = DshCodecs.obj(value)
+                DshTerminalCreateResultShell(
+                    `path` = DshCodecs.string.decode(obj["path"]),
+                    `args` = DshCodecs.list(DshCodecs.string).decode(obj["args"]),
+                    `name` = DshCodecs.string.decode(obj["name"]),
+                )
+            },
+            { value ->
+                val fields = linkedMapOf<String, JsonValue>()
+                fields["path"] = DshCodecs.string.encode(value.`path`)
+                fields["args"] = DshCodecs.list(DshCodecs.string).encode(value.`args`)
+                fields["name"] = DshCodecs.string.encode(value.`name`)
+                JsonObject(fields)
+            },
+        )
+    }
+}
+
+data class DshTerminalCreateResult(
+    val `id`: String,
+    val `title`: String,
+    val `shell`: DshTerminalCreateResultShell,
+    val `cwd`: String,
+    val `cols`: Double,
+    val `rows`: Double,
+    val `state`: String,
+    val `exitCode`: Double?,
+    val `error`: DshOptional<String> = DshOptional.Missing,
+) {
+    companion object {
+        val codec: DshCodec<DshTerminalCreateResult> = DshCodec(
+            { value ->
+                val obj = DshCodecs.obj(value)
+                DshTerminalCreateResult(
+                    `id` = DshCodecs.string.decode(obj["id"]),
+                    `title` = DshCodecs.string.decode(obj["title"]),
+                    `shell` = DshTerminalCreateResultShell.codec.decode(obj["shell"]),
+                    `cwd` = DshCodecs.string.decode(obj["cwd"]),
+                    `cols` = DshCodecs.number.decode(obj["cols"]),
+                    `rows` = DshCodecs.number.decode(obj["rows"]),
+                    `state` = DshCodecs.strings(setOf("failed", "running", "exited")).decode(obj["state"]),
+                    `exitCode` = DshCodecs.nullable(DshCodecs.number).decode(obj["exitCode"]),
+                    `error` = DshCodecs.optional(obj, "error", DshCodecs.string),
+                )
+            },
+            { value ->
+                val fields = linkedMapOf<String, JsonValue>()
+                fields["id"] = DshCodecs.string.encode(value.`id`)
+                fields["title"] = DshCodecs.string.encode(value.`title`)
+                fields["shell"] = DshTerminalCreateResultShell.codec.encode(value.`shell`)
+                fields["cwd"] = DshCodecs.string.encode(value.`cwd`)
+                fields["cols"] = DshCodecs.number.encode(value.`cols`)
+                fields["rows"] = DshCodecs.number.encode(value.`rows`)
+                fields["state"] = DshCodecs.strings(setOf("failed", "running", "exited")).encode(value.`state`)
+                fields["exitCode"] = DshCodecs.nullable(DshCodecs.number).encode(value.`exitCode`)
+                DshCodecs.put(fields, "error", value.`error`, DshCodecs.string)
+                JsonObject(fields)
+            },
+        )
+    }
+}
+
+data class DshTerminalEnvironmentInput(
+    val `agentId`: String,
+) {
+    companion object {
+        val codec: DshCodec<DshTerminalEnvironmentInput> = DshCodec(
+            { value ->
+                val obj = DshCodecs.obj(value)
+                DshTerminalEnvironmentInput(
+                    `agentId` = DshCodecs.string.decode(obj["agentId"]),
+                )
+            },
+            { value ->
+                val fields = linkedMapOf<String, JsonValue>()
+                fields["agentId"] = DshCodecs.string.encode(value.`agentId`)
+                JsonObject(fields)
+            },
+        )
+    }
+}
+
+data class DshTerminalEnvironmentResult(
+    val `cwd`: String,
+    val `maxInputBytes`: Double,
+    val `maxBufferedBytes`: Double,
+    val `maxCols`: Double,
+    val `maxRows`: Double,
+    val `scrollback`: Double,
+) {
+    companion object {
+        val codec: DshCodec<DshTerminalEnvironmentResult> = DshCodec(
+            { value ->
+                val obj = DshCodecs.obj(value)
+                DshTerminalEnvironmentResult(
+                    `cwd` = DshCodecs.string.decode(obj["cwd"]),
+                    `maxInputBytes` = DshCodecs.number.decode(obj["maxInputBytes"]),
+                    `maxBufferedBytes` = DshCodecs.number.decode(obj["maxBufferedBytes"]),
+                    `maxCols` = DshCodecs.number.decode(obj["maxCols"]),
+                    `maxRows` = DshCodecs.number.decode(obj["maxRows"]),
+                    `scrollback` = DshCodecs.number.decode(obj["scrollback"]),
+                )
+            },
+            { value ->
+                val fields = linkedMapOf<String, JsonValue>()
+                fields["cwd"] = DshCodecs.string.encode(value.`cwd`)
+                fields["maxInputBytes"] = DshCodecs.number.encode(value.`maxInputBytes`)
+                fields["maxBufferedBytes"] = DshCodecs.number.encode(value.`maxBufferedBytes`)
+                fields["maxCols"] = DshCodecs.number.encode(value.`maxCols`)
+                fields["maxRows"] = DshCodecs.number.encode(value.`maxRows`)
+                fields["scrollback"] = DshCodecs.number.encode(value.`scrollback`)
+                JsonObject(fields)
+            },
+        )
+    }
+}
+
+data class DshTerminalListInput(
+    val `sessionId`: String,
+) {
+    companion object {
+        val codec: DshCodec<DshTerminalListInput> = DshCodec(
+            { value ->
+                val obj = DshCodecs.obj(value)
+                DshTerminalListInput(
+                    `sessionId` = DshCodecs.string.decode(obj["sessionId"]),
+                )
+            },
+            { value ->
+                val fields = linkedMapOf<String, JsonValue>()
+                fields["sessionId"] = DshCodecs.string.encode(value.`sessionId`)
+                JsonObject(fields)
+            },
+        )
+    }
+}
+
+data class DshTerminalListResultItemShell(
+    val `path`: String,
+    val `args`: List<String>,
+    val `name`: String,
+) {
+    companion object {
+        val codec: DshCodec<DshTerminalListResultItemShell> = DshCodec(
+            { value ->
+                val obj = DshCodecs.obj(value)
+                DshTerminalListResultItemShell(
+                    `path` = DshCodecs.string.decode(obj["path"]),
+                    `args` = DshCodecs.list(DshCodecs.string).decode(obj["args"]),
+                    `name` = DshCodecs.string.decode(obj["name"]),
+                )
+            },
+            { value ->
+                val fields = linkedMapOf<String, JsonValue>()
+                fields["path"] = DshCodecs.string.encode(value.`path`)
+                fields["args"] = DshCodecs.list(DshCodecs.string).encode(value.`args`)
+                fields["name"] = DshCodecs.string.encode(value.`name`)
+                JsonObject(fields)
+            },
+        )
+    }
+}
+
+data class DshTerminalListResultItem(
+    val `id`: String,
+    val `title`: String,
+    val `shell`: DshTerminalListResultItemShell,
+    val `cwd`: String,
+    val `cols`: Double,
+    val `rows`: Double,
+    val `state`: String,
+    val `exitCode`: Double?,
+    val `error`: DshOptional<String> = DshOptional.Missing,
+) {
+    companion object {
+        val codec: DshCodec<DshTerminalListResultItem> = DshCodec(
+            { value ->
+                val obj = DshCodecs.obj(value)
+                DshTerminalListResultItem(
+                    `id` = DshCodecs.string.decode(obj["id"]),
+                    `title` = DshCodecs.string.decode(obj["title"]),
+                    `shell` = DshTerminalListResultItemShell.codec.decode(obj["shell"]),
+                    `cwd` = DshCodecs.string.decode(obj["cwd"]),
+                    `cols` = DshCodecs.number.decode(obj["cols"]),
+                    `rows` = DshCodecs.number.decode(obj["rows"]),
+                    `state` = DshCodecs.strings(setOf("failed", "running", "exited")).decode(obj["state"]),
+                    `exitCode` = DshCodecs.nullable(DshCodecs.number).decode(obj["exitCode"]),
+                    `error` = DshCodecs.optional(obj, "error", DshCodecs.string),
+                )
+            },
+            { value ->
+                val fields = linkedMapOf<String, JsonValue>()
+                fields["id"] = DshCodecs.string.encode(value.`id`)
+                fields["title"] = DshCodecs.string.encode(value.`title`)
+                fields["shell"] = DshTerminalListResultItemShell.codec.encode(value.`shell`)
+                fields["cwd"] = DshCodecs.string.encode(value.`cwd`)
+                fields["cols"] = DshCodecs.number.encode(value.`cols`)
+                fields["rows"] = DshCodecs.number.encode(value.`rows`)
+                fields["state"] = DshCodecs.strings(setOf("failed", "running", "exited")).encode(value.`state`)
+                fields["exitCode"] = DshCodecs.nullable(DshCodecs.number).encode(value.`exitCode`)
+                DshCodecs.put(fields, "error", value.`error`, DshCodecs.string)
+                JsonObject(fields)
+            },
+        )
+    }
+}
+
+data class DshTerminalRenameInput(
+    val `agentId`: String,
+    val `id`: String,
+    val `title`: String,
+) {
+    companion object {
+        val codec: DshCodec<DshTerminalRenameInput> = DshCodec(
+            { value ->
+                val obj = DshCodecs.obj(value)
+                DshTerminalRenameInput(
+                    `agentId` = DshCodecs.string.decode(obj["agentId"]),
+                    `id` = DshCodecs.string.decode(obj["id"]),
+                    `title` = DshCodecs.string.decode(obj["title"]),
+                )
+            },
+            { value ->
+                val fields = linkedMapOf<String, JsonValue>()
+                fields["agentId"] = DshCodecs.string.encode(value.`agentId`)
+                fields["id"] = DshCodecs.string.encode(value.`id`)
+                fields["title"] = DshCodecs.string.encode(value.`title`)
+                JsonObject(fields)
+            },
+        )
+    }
+}
+
+data class DshTerminalRetainInput(
+    val `sessionId`: String,
+    val `id`: String,
+) {
+    companion object {
+        val codec: DshCodec<DshTerminalRetainInput> = DshCodec(
+            { value ->
+                val obj = DshCodecs.obj(value)
+                DshTerminalRetainInput(
+                    `sessionId` = DshCodecs.string.decode(obj["sessionId"]),
+                    `id` = DshCodecs.string.decode(obj["id"]),
+                )
+            },
+            { value ->
+                val fields = linkedMapOf<String, JsonValue>()
+                fields["sessionId"] = DshCodecs.string.encode(value.`sessionId`)
+                fields["id"] = DshCodecs.string.encode(value.`id`)
+                JsonObject(fields)
+            },
+        )
+    }
+}
+
+data class DshTerminalRetainResult(
+    val `type`: String,
+) {
+    companion object {
+        val codec: DshCodec<DshTerminalRetainResult> = DshCodec(
+            { value ->
+                val obj = DshCodecs.obj(value)
+                DshTerminalRetainResult(
+                    `type` = DshCodecs.strings(setOf("retained")).decode(obj["type"]),
+                )
+            },
+            { value ->
+                val fields = linkedMapOf<String, JsonValue>()
+                fields["type"] = DshCodecs.strings(setOf("retained")).encode(value.`type`)
+                JsonObject(fields)
+            },
+        )
+    }
+}
+
+data class DshTerminalShellsInput(
+    val `agentId`: String,
+) {
+    companion object {
+        val codec: DshCodec<DshTerminalShellsInput> = DshCodec(
+            { value ->
+                val obj = DshCodecs.obj(value)
+                DshTerminalShellsInput(
+                    `agentId` = DshCodecs.string.decode(obj["agentId"]),
+                )
+            },
+            { value ->
+                val fields = linkedMapOf<String, JsonValue>()
+                fields["agentId"] = DshCodecs.string.encode(value.`agentId`)
+                JsonObject(fields)
+            },
+        )
+    }
+}
+
+data class DshTerminalShellsResultItem(
+    val `path`: String,
+    val `args`: List<String>,
+    val `name`: String,
+) {
+    companion object {
+        val codec: DshCodec<DshTerminalShellsResultItem> = DshCodec(
+            { value ->
+                val obj = DshCodecs.obj(value)
+                DshTerminalShellsResultItem(
+                    `path` = DshCodecs.string.decode(obj["path"]),
+                    `args` = DshCodecs.list(DshCodecs.string).decode(obj["args"]),
+                    `name` = DshCodecs.string.decode(obj["name"]),
+                )
+            },
+            { value ->
+                val fields = linkedMapOf<String, JsonValue>()
+                fields["path"] = DshCodecs.string.encode(value.`path`)
+                fields["args"] = DshCodecs.list(DshCodecs.string).encode(value.`args`)
+                fields["name"] = DshCodecs.string.encode(value.`name`)
                 JsonObject(fields)
             },
         )

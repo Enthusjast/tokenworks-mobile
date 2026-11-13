@@ -1,5 +1,7 @@
 package cn.edu.ustc.tokenworks
 
+import androidx.compose.ui.text.TextRange
+import androidx.compose.ui.text.input.TextFieldValue
 import android.content.Context
 import android.net.Uri
 import androidx.core.net.toUri
@@ -34,26 +36,20 @@ data class HomeState(
     val selectedRuntimeId: String? = null, val selectedSessionId: String? = null,
     val sessions: List<SessionDirectoryEntry> = emptyList(), val loadingSessions: Boolean = false, val sessionError: String? = null,
     val reader: SessionReadState? = null,
-    val modelCatalog: SessionModelCatalogState? = null, val modelSelectionOpen: Boolean = false,
-    val modelBusy: Boolean = false, val modelError: String? = null,
-    val changes: SessionChangesState? = null, val changesOpen: Boolean = false,
-    val messageActions: SessionMessageActionState? = null, val messageActionsOpen: Boolean = false, val sessionActionError: String? = null,
-    val knownTarget: SessionTarget? = null,
-    val notifications: NotificationUiState? = null, val notificationSettings: Boolean = false, val notificationNote: String? = null, val notificationQuestion: QuestionHandle? = null,
+    val modelCatalog: DshModelCatalog? = null, val modelSelectionOpen: Boolean = false, val modelBusy: Boolean = false, val modelError: String? = null,
+    val sessionActionError: String? = null, val submitting: Boolean = false,
     val appUpdates: AppUpdateUiState? = null, val appUpdateSettings: Boolean = false,
-    val exports: SessionExportState? = null, val exportSavePicker: ExportSaveLaunch? = null, val exportSaving: Boolean = false, val exportSaved: Boolean = false, val exportSaveError: String? = null, val exportBytes: Long = 0,
-    val uploads: SessionUploadState? = null, val documentPicker: DocumentPickLaunch? = null, val composer: MessageComposerState? = null,
-    val images: SessionImageState? = null,
-    val failedInput: MessageComposerState? = null,
     val binding: HostBindingState? = null, val pendingBindingId: String? = null,
-    val outbox: CommandOutboxState? = null, val commandError: String? = null, val submitting: Boolean = false,
     val creation: SessionCreationState? = null,
-    val approvals: ApprovalClientState? = null, val reviewingApprovalId: String? = null, val approvalStage: ApprovalUiStage = ApprovalUiStage.IDLE, val approvalError: String? = null,
+    val composer: MessageComposerState? = null,
 )
 
-internal fun HomeState.runtimeRow(id: String?): RuntimeRow? = knownTarget?.runtime?.takeIf { it.id == id }?.let {
-    RuntimeRow(it.id, it.hostId, it.dshVersion, "已授权的电脑", it)
-} ?: runtimes.firstOrNull { it.id == id }
+internal fun HomeState.runtimeRow(id: String?): RuntimeRow? = runtimes.firstOrNull { it.id == id }
+
+/** Creation is one native call; `CREATING` only covers the round trip. */
+enum class SessionCreationPhase { READY, CREATING, FAILED }
+data class SessionCreationState(val phase: SessionCreationPhase = SessionCreationPhase.READY, val error: String? = null)
+
 
 internal class LoginEnvironment(
     val configuration: () -> ByteArray,
@@ -62,15 +58,13 @@ internal class LoginEnvironment(
     val now: () -> Long = System::currentTimeMillis,
     val refreshLeadMillis: Long = 30_000,
     val minimumValidityMillis: Long = 60_000,
-    val approvalPromptMillis: Long = MAX_DECISION_AGE_MS,
-    val pushProvider: ((NotificationCenter) -> DevicePushProvider)? = null,
     val appUpdateConfiguration: (() -> ByteArray)? = null,
     val appUpdateDiagnosticFailure: ((Exception) -> Unit)? = null,
-) { init { require(approvalPromptMillis in 1..MAX_DECISION_AGE_MS) } }
+)
 
 @Singleton
-class LoginController internal constructor(private val context: Context, private val http: LoginHttp, private val environment: LoginEnvironment, private val notificationCenter: NotificationCenter = NotificationCenter(context, environment.storageSlot), private val installations: AppInstallations = AppInstallations(context)) : AutoCloseable {
-    @Inject internal constructor(@ApplicationContext context: Context, http: LoginHttp, notifications: NotificationCenter, installations: AppInstallations) : this(context, http, LoginEnvironment({ context.assets.open("deployment.json").use { it.readBytes() } }), notifications, installations)
+class LoginController internal constructor(private val context: Context, private val http: LoginHttp, private val environment: LoginEnvironment, private val installations: AppInstallations = AppInstallations(context)) : AutoCloseable {
+    @Inject internal constructor(@ApplicationContext context: Context, http: LoginHttp, installations: AppInstallations) : this(context, http, LoginEnvironment({ context.assets.open("deployment.json").use { it.readBytes() } }), installations)
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private val mutable = MutableStateFlow(HomeState())
@@ -99,54 +93,16 @@ class LoginController internal constructor(private val context: Context, private
     private var navigationGeneration = 0L
     private var navigationJob: Job? = null
     private var readerJob: Job? = null
-    private var reader: SessionReader? = null
-    private val pushProvider by lazy { environment.pushProvider?.invoke(notificationCenter) ?: FcmPushProvider(context) }
-    private var notificationFlow: ForegroundNotifications? = null
-    private var notificationCollector: Job? = null
-    private var pendingNotificationOpen: NotificationOpen? = null
-    private var pendingNotificationReference: NotificationReference? = null
-    private var notificationDeadline: Job? = null
+    private var reader: DshSessionReader? = null
+    private var readMarks: SessionReadMarks? = null
     private var appUpdateFlow: AppUpdateFlow? = null
     private var appUpdateCollector: Job? = null
     private var appUpdateEventCollector: Job? = null
     private var desired: Pair<String, String?>? = null
     private var knownSelection = false
-    private var creationDesired: String? = null
-    private var creationReturnsToRuntime = false
-    private var creationFlow: SessionCreationFlow? = null
-    private var creationCollector: Job? = null
-    private var commandJournal: SqlCommandJournal? = null
     private var commandCollector: Job? = null
-    private var modelCollector: Job? = null
-    private var modelJob: Job? = null
     private var changesCollector: Job? = null
-    private var messageActionsCollector: Job? = null
-    private var sessionActionJob: Job? = null
-    private var uploads: SessionUploads? = null
-    private var uploadCollector: Job? = null
-    private var images: SessionImageCoordinator? = null
-    private var imageCollector: Job? = null
-    private var exportCollector: Job? = null
-    private var exportSaveJob: Job? = null
-    private class PendingExportSave(val id: String, val generation: Long, val runtime: String, val session: String, val request: String, val file: RemoteExportStatus) { var result: Uri? = null }
-    private var pendingExportSave: PendingExportSave? = null
-    private val abandonedSavePickers = linkedSetOf<String>()
-    private class PendingDocument(val id: String, val generation: Long, val runtime: String, val session: String, val resume: String?, val draft: MessageComposerState,
-        val purpose: DocumentPickPurpose = DocumentPickPurpose.FILE, val camera: CameraCapture? = null) { var result: Uri? = null }
-    private var pendingDocument: PendingDocument? = null
-    private var cameraPreparation: Job? = null
     private var commandJob: Job? = null
-    private var questionScope: CoroutineScope?=null
-    private var approvalCollector: Job? = null
-    private var approvalActionJob: Job? = null
-    private var approvalTimeout: Job? = null
-    private var approvalJournal: ApprovalDecisionJournal? = null
-    private var approvalPreparingHandle: ApprovalReviewHandle? = null
-    private var approvalPrepared: PreparedApprovalSignature? = null
-    private var approvalActionGeneration = 0L
-    private class ApprovalAuthentication(val id: Long, val stamp: Long, val view: Long, val action: Long, val client: SessionApprovalClient, val handle: ApprovalReviewHandle,
-        val prepared: PreparedApprovalSignature, val operation: ApprovalKeyOperation)
-    private var approvalAuthentication: ApprovalAuthentication? = null
     private var binding: HostBindingFlow? = null
     private var bindingCollector: Job? = null
     private var bindingGeneration = 0L
@@ -341,6 +297,7 @@ class LoginController internal constructor(private val context: Context, private
                 persist(saved.deviceAccepted(device.deviceId, device.keyVersion, now()), stamp)
                 val accepted = checkpoint!!
                 val presentationOwner = CommandOwner(accepted.accountId, accepted.organizationId, configuration!!.fingerprint, accepted.userId, accepted.deviceId!!)
+                readMarks = SessionReadMarks(context, presentationOwner.fingerprint)
                 mutable.value = HomeState(HomePhase.READY, session!!.issuer, subject = session!!.subject, deviceId = device.deviceId, presentationOwner = presentationOwner)
                 scheduleRenewal(stamp, session!!)
                 fetchDirectory(stamp)
@@ -400,7 +357,6 @@ class LoginController internal constructor(private val context: Context, private
 
     fun promptOpened(id: Long) { if (mutable.value.biometric?.id == id) mutable.value = mutable.value.copy(biometric = null) }
     fun authenticated(id: Long, result: BiometricPrompt.AuthenticationResult) {
-        approvalAuthentication?.takeIf { it.id == id }?.let { authenticatedApproval(it, result); return }
         if (mutable.value.authenticationId != id) return
         val active = operation ?: return
         val request = registration ?: return
@@ -440,7 +396,6 @@ class LoginController internal constructor(private val context: Context, private
     }
 
     fun authenticationCancelled(id: Long) {
-        if (approvalAuthentication?.id == id) { abortApprovalAuthentication("approval.authentication_cancelled"); return }
         if (mutable.value.authenticationId != id) return
         discardRegistration()
         if (mutable.value.phase == HomePhase.AUTHENTICATING) showEnrollment("login.authentication_cancelled")
@@ -495,8 +450,7 @@ class LoginController internal constructor(private val context: Context, private
         current(stamp); showReauthentication(error)
     }
     private fun showReauthentication(error: String?) {
-        closeNotificationFlow()
-        retireNavigation(false)
+        retireSession(true)
         retireBinding(false)
         deadline?.cancel(); pending?.cancel(); pending = null; discardRegistration()
         session = null; api = null
@@ -538,919 +492,309 @@ class LoginController internal constructor(private val context: Context, private
                 if (access.organizationId != null && access.organizationId != configuration!!.organizationId) return@mapNotNull null
                 RuntimeRow(access.id, access.hostId, access.dshVersion, names[access.hostId] ?: "已授权的电脑", access)
             }
-            val selectedContext = creationDesired ?: desired?.first
-            val oldAccess = mutable.value.runtimeRow(selectedContext)?.access
-            val known = if (knownSelection && desired?.second != null) {
-                val selection = desired!!
-                val view = navigationGeneration
-                fun targetCurrent() {
-                    current(stamp)
-                    if (navigationGeneration != view || !knownSelection || desired != selection) throw CancellationException()
-                }
-                try { resource.sessionTarget(selection.first, selection.second!!, ::targetCurrent).also { targetCurrent() } }
-                catch (error: CancellationException) { throw error }
-                catch (error: RemoteRequestException) {
-                    targetCurrent()
-                    if (error.code != "access.denied") throw error
-                    retireNavigation(false)
-                    mutable.value = mutable.value.copy(knownTarget = null, selectedRuntimeId = null, selectedSessionId = null, reader = null, notificationNote = "当前授权无法读取此会话。")
-                    null
-                }
-            } else null
-            val contexts = items.mapNotNull { row -> row.access?.let { row.id to it } }.toMap().toMutableMap()
-            known?.let { contexts[it.runtime.id] = it.runtime }
-            val removedRead = mutable.value.runtimes.filter { old ->
-                old.access?.scope?.actions?.contains("session.read") == true && contexts[old.id]?.scope?.actions?.contains("session.read") != true
-            }.map { it.id }
-            val retiredDraftRuntimes = mutable.value.runtimes.filter { old ->
-                val previous = old.access
-                val next = contexts[old.id]
-                previous != null && (next == null || next.role != previous.role || next.grantVersion != previous.grantVersion ||
-                    next.expiresAt?.let { it <= now() } == true || next.scope?.let { previous.scope?.same(it) } != true)
-            }.map { it.id }
-            retiredDraftRuntimes.forEach(drafts::revokeRuntime)
-            if (pendingDocument?.runtime in retiredDraftRuntimes) clearPendingDocument()
-            mutable.value = mutable.value.copy(runtimes = items, knownTarget = known, error = null,
-                sessions = if (contexts[mutable.value.selectedRuntimeId]?.canReadMetadata() == true) mutable.value.sessions
-                    else mutable.value.sessions.map { it.withoutMetadata() })
-            val activeAccess = contexts[selectedContext]
-            if (oldAccess != null && activeAccess != null && (oldAccess.role != activeAccess.role || oldAccess.grantVersion != activeAccess.grantVersion || activeAccess.scope?.let { oldAccess.scope?.same(it) } != true)) {
-                drafts.revokeRuntime(oldAccess.id)
-                clearPendingDocument()
-                mutable.value = mutable.value.copy(composer = null, documentPicker = null)
-                retireNavigation(true)
+            val visible = items.mapTo(HashSet()) { it.id }
+            for (old in mutable.value.runtimes) {
+                val next = items.firstOrNull { it.id == old.id }?.access
+                if (old.id !in visible || next == null || next.grantVersion != old.access?.grantVersion || next.role != old.access?.role) drafts.revokeRuntime(old.id)
             }
-            if (removedRead.isNotEmpty()) {
-                val saved = checkpoint!!
-                val owner = CommandOwner(saved.accountId, saved.organizationId, configuration!!.fingerprint, saved.userId, saved.deviceId!!)
-                removedRead.forEach(drafts::revokeRuntime)
-                if (mutable.value.selectedRuntimeId in removedRead) {
-                    retireNavigation(false)
-                    mutable.value = mutable.value.copy(selectedRuntimeId = null, selectedSessionId = null, reader = null, outbox = null, commandError = null, submitting = false)
-                }
-                for (runtime in removedRead) persistence.revokeCommands(owner, runtime, stamp)
-                current(stamp)
+            val selected = mutable.value.selectedRuntimeId?.takeIf { it in visible }
+            mutable.value = mutable.value.copy(runtimes = items, error = null, selectedRuntimeId = selected, pendingBindingId = pendingBindingId)
+            if (selected == null) {
+                retireSession(true)
+                mutable.value = mutable.value.copy(selectedSessionId = null, sessions = emptyList(), sessionError = null, loadingSessions = false)
+            } else if (foreground) {
+                loadSessions(selected, stamp)
+                val resumed = desired?.takeIf { it.first == selected }?.second
+                if (resumed != null) follow(selected, resumed, stamp, reopen = true)
             }
-            val dataOwner = checkpoint!!.let { CommandOwner(it.accountId, it.organizationId, configuration!!.fingerprint, it.userId, it.deviceId!!) }
-            try {
-                val scopes = contexts.mapNotNull { (id, access) -> access.takeIf { it.protocolVersion==1L && it.expiresAt?.let { expiry -> expiry>now() }!=false }?.scope?.let { id to it } }.toMap()
-                val approvalRuntimes = contexts.filterValues { it.role == "owner" }.keys
-                persistence.retainHistory(dataOwner, scopes, stamp, approvalRuntimes)
-                current(stamp)
-            } catch (error: CancellationException) { throw error }
-            catch (_: CommandDataException) { current(stamp) /* Online reading remains available if local data cannot open. */ }
-            val pendingCreation=creationDesired
-            val selection = desired
-            if(pendingCreation!=null) {
-                val entry=items.firstOrNull { it.id==pendingCreation }?.access
-                if(entry?.creationScope()==null || entry.organizationId!=configuration!!.organizationId) {
-                    retireNavigation(false)
-                    mutable.value=mutable.value.copy(selectedRuntimeId=null,selectedSessionId=null,sessions=emptyList(),reader=null,creation=null)
-                } else if(foreground && creationFlow==null) openCreationInternal(pendingCreation,true)
-            } else if (selection != null) {
-                val entry = contexts[selection.first]
-                val available = if (knownSelection) known != null && entry?.canRead() == true else entry?.canList() == true
-                if (!available || entry?.organizationId != configuration!!.organizationId) {
-                    retireNavigation(false)
-                    mutable.value = mutable.value.copy(selectedRuntimeId = null, selectedSessionId = null, sessions = emptyList(), reader = null, loadingSessions = false, sessionError = "access.denied")
-                } else if (foreground && (reader == null || mutable.value.selectedRuntimeId == null || oldAccess?.grantVersion != entry.grantVersion || oldAccess?.scope?.same(entry.scope!!) != true)) {
-                    if (knownSelection && known != null) installKnownTarget(known) else navigateRuntime(selection.first, selection.second)
-                }
+        } catch (error: CancellationException) {
+            throw error
+        } catch (error: Exception) {
+            current(stamp)
+            if (authorityLost(error)) requireReauthentication(stamp, code(error)) else mutable.value = mutable.value.copy(error = code(error))
+        } finally {
+            if (generation == stamp) {
+                mutable.value = mutable.value.copy(refreshing = false)
+                resumeBindingOrDirectory()
+                attachAppUpdates()
             }
-            mutable.value = mutable.value.copy(pendingBindingId = pendingBindingId)
-            if (foreground && resumeBindingView && binding == null) {
-                resumeBindingView = false
-                pendingBindingId?.let(::openBinding)
-            }
-        } finally { if (generation == stamp) { mutable.value = mutable.value.copy(refreshing = false); attachNotifications(); attachAppUpdates() } }
+        }
     }
 
-    private fun retireNavigation(keepDesired: Boolean) {
-        retireAppUpdates(keepDesired)
-        pendingNotificationReference?.let { ref -> if (!keepDesired || desired != (ref.runtimeId to ref.sessionId)) dismissNotificationNavigation() }
-        navigationGeneration++; navigationJob?.cancel(); navigationJob = null; readerJob?.cancel(); readerJob = null
-        cameraPreparation?.cancel(); cameraPreparation = null
-        commandJob?.cancel(); commandJob = null; commandCollector?.cancel(); commandCollector = null
-        modelJob?.cancel(); modelJob = null; modelCollector?.cancel(); modelCollector = null
-        mutable.value = mutable.value.copy(modelCatalog = null, modelSelectionOpen = false, modelBusy = false, modelError = null)
-        sessionActionJob?.cancel(); sessionActionJob = null
-        changesCollector?.cancel(); changesCollector = null; messageActionsCollector?.cancel(); messageActionsCollector = null
-        mutable.value = mutable.value.copy(changes = null, changesOpen = false, messageActions = null, messageActionsOpen = false, sessionActionError = null)
-        imageCollector?.cancel(); imageCollector = null; images?.close(); images = null
-        mutable.value = mutable.value.copy(images = null)
-        uploadCollector?.cancel(); uploadCollector = null; uploads?.close(); uploads = null
-        exportCollector?.cancel(); exportCollector = null; exportSaveJob?.cancel(); exportSaveJob = null
-        if (!keepDesired || pendingExportSave?.let { it.generation != generation || desired != (it.runtime to it.session) } == true) {
-            pendingExportSave?.let { pending ->
-                if (pending.result == null) { abandonedSavePickers += pending.id; while (abandonedSavePickers.size > 32) abandonedSavePickers.remove(abandonedSavePickers.first()) }
-                else pending.result?.let { uri -> scope.launch(Dispatchers.IO) { discardExportDocument(context, uri) } }
-            }
-            pendingExportSave = null
-        }
-        if (!keepDesired || pendingDocument?.let { it.runtime != desired?.first || it.session != desired?.second } == true) clearPendingDocument()
-        mutable.value = mutable.value.copy(composer = null, failedInput = null)
-        abortApprovalAuthentication(null)
-        approvalCollector?.cancel(); approvalCollector = null; approvalActionJob?.cancel(); approvalActionJob = null
-        questionScope?.cancel();questionScope=null
-        reader?.close(); reader = null
-        approvalJournal?.close(); approvalJournal = null
-        creationCollector?.cancel(); creationCollector=null; creationFlow?.close(); creationFlow=null
-        commandJournal?.close(); commandJournal = null
-        mutable.value = mutable.value.copy(outbox = null, uploads = null, exports = null, exportSaving = false, exportSaved = false, exportSaveError = null, exportBytes = 0, exportSavePicker = mutable.value.exportSavePicker.takeIf { pendingExportSave != null }, documentPicker = if (pendingDocument == null) null else mutable.value.documentPicker, commandError = null, submitting = false, creation=null, approvals=null, reviewingApprovalId=null, approvalError=null, approvalStage=ApprovalUiStage.IDLE, notificationQuestion=null)
-        if (!keepDesired) { desired = null; creationDesired=null; knownSelection=false }
-        if (!knownSelection) mutable.value = mutable.value.copy(knownTarget = null)
+    private fun resumeBindingOrDirectory() {
+        if (!foreground || mutable.value.phase != HomePhase.READY || binding != null || mutable.value.appUpdateSettings) return
+        if (resumeBindingView) { resumeBindingView = false; pendingBindingId?.let(::openBinding) }
     }
+
+    /** Directory rows for one runtime; a failing call keeps the previous rows and reports the error. */
+    private suspend fun loadSessions(runtime: String, stamp: Long) {
+        val client = DshSessionClient(api!!)
+        try {
+            mutable.value = mutable.value.copy(loadingSessions = true, sessionError = null)
+            val page = client.sessions(runtime)
+            current(stamp)
+            val access = mutable.value.runtimes.firstOrNull { it.id == runtime }?.access
+            val rows = page.items.filter { access == null || it.viewScope(access, now()) }
+            mutable.value = mutable.value.copy(sessions = rows, loadingSessions = false)
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (error: Exception) {
+            current(stamp)
+            mutable.value = mutable.value.copy(loadingSessions = false, sessionError = code(error))
+        } finally {
+            client.close()
+        }
+    }
+
+    /** Local-only convenience mark; it never implies server-side read state. */
+    fun isUnread(entry: SessionDirectoryEntry): Boolean = readMarks?.isUnread(entry.id, entry.updatedAt) == true
+
+    fun refreshSessions() {
+        val runtime = mutable.value.selectedRuntimeId ?: return
+        if (!foreground || mutable.value.refreshing) return
+        val stamp = generation
+        navigation { try { loadSessions(runtime, stamp) } catch (error: CancellationException) { throw error } catch (error: Exception) { if (generation == stamp) mutable.value = mutable.value.copy(sessionError = code(error)) } }
+    }
+
+    private fun navigation(block: suspend CoroutineScope.() -> Unit) {
+        val task = scope.launch(start = CoroutineStart.LAZY, block = block); navigationJob = task; task.start()
+    }
+
+    /** Selecting a runtime replaces any followed session; the reader is torn down first. */
+    fun openRuntime(id: String) {
+        if (!foreground || mutable.value.phase != HomePhase.READY || binding != null) return
+        val row = mutable.value.runtimes.firstOrNull { it.id == id } ?: return
+        if (mutable.value.selectedRuntimeId == id && mutable.value.sessions.isNotEmpty()) return
+        desired = id to null
+        retireSession(false)
+        mutable.value = mutable.value.copy(selectedRuntimeId = id, selectedSessionId = null, sessions = emptyList(), sessionError = null, loadingSessions = true)
+        val stamp = generation
+        navigation { try { loadSessions(id, stamp) } catch (error: CancellationException) { throw error } catch (error: Exception) { if (generation == stamp) mutable.value = mutable.value.copy(loadingSessions = false, sessionError = code(error)) } }
+    }
+
+    /** Opens one session with one reader; a second call for the same session is a no-op. */
+    fun openSession(id: String) {
+        val runtime = mutable.value.selectedRuntimeId ?: return
+        desired = runtime to id
+        follow(runtime, id, generation, reopen = reader?.sessionId != id)
+    }
+
+    fun closeSession() {
+        desired = mutable.value.selectedRuntimeId?.let { it to null }
+        retireSession(false)
+        mutable.value = mutable.value.copy(selectedSessionId = null)
+    }
+
+    private fun retireSession(clearDesired: Boolean) {
+        readerJob?.cancel(); readerJob = null
+        reader?.close(); reader = null
+        if (clearDesired) desired = null
+        mutable.value = mutable.value.copy(reader = null, loadingSessions = false, submitting = false, modelSelectionOpen = false, modelBusy = false, composer = null)
+    }
+
+    private fun follow(runtime: String, session: String, stamp: Long, reopen: Boolean) {
+        if (reopen) {
+            readerJob?.cancel(); readerJob = null
+            reader?.close(); reader = null
+            mutable.value = mutable.value.copy(selectedRuntimeId = runtime, selectedSessionId = session, sessionError = null, sessionActionError = null, reader = null, composer = draftResource(runtime, session)?.let { drafts.open(it) })
+            val next = DshSessionReader(api!!, runtime, session, scope)
+            reader = next
+            readerJob = scope.launch {
+                next.state.collect { state ->
+                    if (generation != stamp || reader !== next) return@collect
+                    mutable.value = mutable.value.copy(reader = state)
+                    if (state.phase == SessionReadPhase.READY) mutable.value.sessions.firstOrNull { it.id == session }?.let { readMarks?.mark(session, it.updatedAt) }
+                }
+            }
+        } else {
+            mutable.value = mutable.value.copy(selectedRuntimeId = runtime, selectedSessionId = session, composer = draftResource(runtime, session)?.let { drafts.open(it) })
+        }
+    }
+
+    private fun draftResource(runtime: String, session: String): ConversationResource? {
+        val owner = mutable.value.presentationOwner ?: return null
+        val host = mutable.value.runtimes.firstOrNull { it.id == runtime }?.hostId ?: return null
+        return ConversationResource(owner, host, runtime, session)
+    }
+
+    /** Draft text stays in foreground memory only; it is never persisted. */
+    fun editDraft(value: TextFieldValue) {
+        val owner = mutable.value.presentationOwner ?: return
+        val runtime = mutable.value.selectedRuntimeId ?: return
+        val session = mutable.value.selectedSessionId ?: return
+        val host = mutable.value.runtimes.firstOrNull { it.id == runtime }?.hostId ?: return
+        val resource = ConversationResource(owner, host, runtime, session)
+        val currentDraft = mutable.value.composer ?: drafts.open(resource)
+        drafts.edit(currentDraft.copy(value = value))?.let { mutable.value = mutable.value.copy(composer = it) }
+    }
+
+    /** Sends the composer draft once; the text is restored if the call fails. */
+    fun sendDraft() {
+        val draft = mutable.value.composer ?: return
+        val text = draft.value.text
+        if (text.isBlank() || mutable.value.submitting) return
+        prompt(text)
+        mutable.value = mutable.value.copy(composer = drafts.saved(draft) ?: draft.copy(value = TextFieldValue()))
+    }
+
+    private fun restoreDraft(text: String) {
+        val draft = mutable.value.composer ?: return
+        val merged = text + draft.value.text
+        mutable.value = mutable.value.copy(composer = draft.copy(value = TextFieldValue(merged, TextRange(merged.length))))
+    }
+
+    fun loadOlder() {
+        val current = reader ?: return
+        if (current.state.value.loadingOlder) return
+        navigation { try { current.loadOlder() } catch (error: CancellationException) { throw error } catch (_: Exception) { } }
+    }
+
+    fun prompt(text: String) {
+        val current = reader ?: return
+        val body = text.trim()
+        if (body.isEmpty() || mutable.value.submitting) return
+        val stamp = generation
+        mutable.value = mutable.value.copy(submitting = true, sessionActionError = null)
+        navigation {
+            try {
+                current(stamp)
+                current.prompt(body)
+                current(stamp)
+                mutable.value = mutable.value.copy(submitting = false)
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (error: Exception) {
+                if (generation == stamp) {
+                    mutable.value = mutable.value.copy(submitting = false, sessionActionError = code(error))
+                    restoreDraft(body)
+                }
+            }
+        }
+    }
+
+    fun cancelSession() = sessionAction { it.cancel() }
+
+    fun renameSession(title: String) {
+        val next = title.trim()
+        if (next.isEmpty()) return
+        sessionAction { it.rename(next) }
+    }
+
+    fun archiveSession() = sessionAction { it.archive() }
+
+    fun forkSession() {
+        val runtime = mutable.value.selectedRuntimeId
+        sessionAction { reader ->
+            val fork = reader.fork()
+            mutable.value = mutable.value.copy(selectedSessionId = fork)
+            val stamp = generation
+            if (runtime != null) loadSessions(runtime, stamp)
+            follow(runtime ?: return@sessionAction, fork, stamp, reopen = true)
+        }
+    }
+
+    private fun sessionAction(block: suspend (DshSessionReader) -> Unit) {
+        val current = reader ?: return
+        val stamp = generation
+        mutable.value = mutable.value.copy(sessionActionError = null)
+        navigation {
+            try {
+                current(stamp)
+                block(current)
+                current(stamp)
+                mutable.value.selectedRuntimeId?.let { loadSessions(it, stamp) }
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (error: Exception) {
+                if (generation == stamp) mutable.value = mutable.value.copy(sessionActionError = code(error))
+            }
+        }
+    }
+
+    fun openModelSelection() {
+        val runtime = mutable.value.selectedRuntimeId ?: return
+        mutable.value = mutable.value.copy(modelSelectionOpen = true, modelBusy = true, modelError = null)
+        val stamp = generation
+        navigation {
+            val client = DshSessionClient(api!!)
+            try {
+                val catalog = client.modelCatalog(runtime)
+                current(stamp)
+                mutable.value = mutable.value.copy(modelCatalog = catalog, modelBusy = false)
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (error: Exception) {
+                if (generation == stamp) mutable.value = mutable.value.copy(modelBusy = false, modelError = code(error))
+            } finally {
+                client.close()
+            }
+        }
+    }
+
+    fun closeModelSelection() { mutable.value = mutable.value.copy(modelSelectionOpen = false, modelError = null) }
+
+    fun selectModel(option: DshModelOption, reasoningEffort: String? = null) {
+        closeModelSelection()
+        sessionAction { it.selectModel(option.provider, option.model, reasoningEffort) }
+    }
+
+    fun openCreation() { mutable.value = mutable.value.copy(creation = SessionCreationState()) }
+    fun closeCreation() { mutable.value = mutable.value.copy(creation = null) }
+
+    /** Creates a session and follows it. Omitted fields leave dsh defaults in place. */
+    fun createSession(workspaceId: String? = null, agentPreset: String? = null) {
+        val runtime = mutable.value.selectedRuntimeId ?: return
+        if (mutable.value.submitting) return
+        val stamp = generation
+        mutable.value = mutable.value.copy(submitting = true, creation = SessionCreationState(SessionCreationPhase.CREATING))
+        navigation {
+            val client = DshSessionClient(api!!)
+            try {
+                val created = client.createSession(runtime, workspaceId?.takeIf { it.isNotBlank() }?.trim(), null, agentPreset?.takeIf { it.isNotBlank() }?.trim())
+                current(stamp)
+                loadSessions(runtime, stamp)
+                mutable.value = mutable.value.copy(submitting = false, creation = null)
+                follow(runtime, created, stamp, reopen = true)
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (error: Exception) {
+                if (generation == stamp) mutable.value = mutable.value.copy(submitting = false, creation = SessionCreationState(SessionCreationPhase.FAILED, code(error)))
+            } finally {
+                client.close()
+            }
+        }
+    }
+
+    /** Back moves one level: model sheet, creation, chat, then the runtime list. */
+    fun back() {
+        val current = mutable.value
+        when {
+            current.modelSelectionOpen -> closeModelSelection()
+            current.creation != null -> closeCreation()
+            current.selectedSessionId != null -> closeSession()
+            current.selectedRuntimeId != null -> { retireSession(true); mutable.value = mutable.value.copy(selectedRuntimeId = null, selectedSessionId = null, sessions = emptyList(), sessionError = null) }
+        }
+    }
+
     fun foreground(active: Boolean) {
         if (foreground == active) return
         foreground = active
         binding?.foreground(active)
         if (!active) {
-            pendingNotificationReference = null; notificationDeadline?.cancel()
-            closeNotificationFlow()
-            val exception = pendingDocument?.takeIf { it.generation == generation && desired == (it.runtime to it.session) && it.draft.resource.owner.fingerprint == mutable.value.presentationOwner?.fingerprint }?.draft
-            drafts.clear(exception)
-            retireNavigation(true)
-            mutable.value = mutable.value.copy(reader = mutable.value.reader?.copy(phase = SessionReadPhase.CLOSED, window = null, questions = SessionQuestionState()), loadingSessions = false, binding = binding?.state?.value,
-                outbox = null, commandError = null, submitting = false, composer = null)
+            drafts.clear(null)
+            readerJob?.cancel(); readerJob = null
+            reader?.close(); reader = null
+            mutable.value = mutable.value.copy(reader = null, loadingSessions = false, submitting = false, binding = binding?.state?.value)
         } else if (mutable.value.phase == HomePhase.READY) {
-            attachNotifications()
-            if (mutable.value.appUpdateSettings) attachAppUpdates()
-            else if (binding == null) {
+            if (mutable.value.appUpdateSettings) { attachAppUpdates(); return }
+            if (binding == null) {
                 if (resumeBindingView) { resumeBindingView = false; pendingBindingId?.let(::openBinding) }
-                else if(creationDesired!=null) openCreationInternal(creationDesired!!,true)
-                else desired?.let { if (knownSelection && it.second != null) navigateKnownSession(it.first, it.second!!) else navigateRuntime(it.first, it.second) }
-            }
-        }
-    }
-    private fun navigation(block: suspend CoroutineScope.() -> Unit) {
-        val task = scope.launch(start = CoroutineStart.LAZY, block = block); navigationJob = task; task.start()
-    }
-    fun openRuntime(id: String) { dismissNotificationNavigation(); creationDesired=null; navigateRuntime(id, null) }
-    fun openCreation(id: String) { dismissNotificationNavigation(); openCreationInternal(id,false) }
-    private fun openCreationInternal(id: String, restoring: Boolean) {
-        if(!foreground || mutable.value.phase!=HomePhase.READY || binding!=null) return
-        val row=mutable.value.runtimes.firstOrNull { it.id==id }?.access ?: return
-        val allowed=row.creationScope() ?: return
-        if(row.organizationId!=configuration!!.organizationId) return
-        if(!restoring) creationReturnsToRuntime=mutable.value.selectedRuntimeId==id && mutable.value.selectedSessionId==null
-        creationDesired=id; desired=null
-        if(session!!.accessExpiresAt-now()<=environment.minimumValidityMillis) { renew(); return }
-        retireNavigation(true)
-        val stamp=generation; val view=navigationGeneration; val resource=api!!; val saved=checkpoint!!
-        val dataOwner=CommandOwner(saved.accountId,saved.organizationId,configuration!!.fingerprint,saved.userId,saved.deviceId!!)
-        mutable.value=mutable.value.copy(selectedRuntimeId=id,selectedSessionId=null,sessions=emptyList(),loadingSessions=false,sessionError=null,reader=null,creation=SessionCreationState())
-        navigation {
-            var database: SqlCommandJournal?=null
-            try {
-                withContext(NonCancellable) { database=persistence.commands(dataOwner,stamp) }
-                current(stamp); if(view!=navigationGeneration) return@navigation
-                val opened=resource.sessionCreator(saved.deviceId!!,id,allowed,database!!,scope)
-                commandJournal=database; database=null; creationFlow=opened
-                creationCollector=scope.launch {
-                    opened.state.collect { next ->
-                        if(generation!=stamp || navigationGeneration!=view || creationFlow!==opened || !foreground) return@collect
-                        mutable.value=mutable.value.copy(creation=next)
-                        if(next.phase==SessionCreationPhase.AUTH_REQUIRED && mutable.value.phase==HomePhase.READY) renew()
-                        else if(next.phase==SessionCreationPhase.REVOKED && mutable.value.phase==HomePhase.READY) refresh()
-                    }
-                }
-            } catch(error: CancellationException) { throw error }
-            catch(error: Exception) { if(generation==stamp && view==navigationGeneration) mutable.value=mutable.value.copy(creation=SessionCreationState(SessionCreationPhase.ERROR,error=code(error))) }
-            finally { database?.close() }
-        }
-    }
-    fun createSession(workspace: String,preset: String,epoch: String) {
-        if(!foreground || mutable.value.phase!=HomePhase.READY || mutable.value.submitting) return
-        val opened=creationFlow ?: return
-        val stamp=generation; val view=navigationGeneration
-        mutable.value=mutable.value.copy(submitting=true,commandError=null)
-        commandJob=scope.launch {
-            try { opened.create(workspace,preset,epoch); current(stamp); if(view==navigationGeneration) mutable.value=mutable.value.copy(creation=opened.state.value) }
-            catch(error: CancellationException) { throw error }
-            catch(error: Exception) { if(generation==stamp && view==navigationGeneration) mutable.value=mutable.value.copy(commandError=code(error)) }
-            finally { if(generation==stamp && view==navigationGeneration) mutable.value=mutable.value.copy(submitting=false) }
-        }
-    }
-    fun refreshCreationOptions() = creationFlow?.refreshOptions()
-    fun queryCreation() = creationFlow?.query()
-    fun sendPendingCreation(id: String) = creationFlow?.sendPending(id)
-    fun openCreatedSession(request: String) {
-        val runtime=mutable.value.selectedRuntimeId ?: return
-        val record=mutable.value.creation?.outbox?.records?.firstOrNull { it.intent.requestId==request && it.remote==RemoteCommandState.SETTLED } ?: return
-        val result=record.createdSessionId ?: return
-        if(mutable.value.runtimes.firstOrNull { it.id==runtime }?.access?.canList()!=true) return
-        retireNavigation(false); navigateRuntime(runtime,result)
-    }
-    private fun navigateRuntime(id: String, resumeSession: String?) {
-        if (!foreground || mutable.value.phase != HomePhase.READY || binding != null) return
-        val row = mutable.value.runtimes.firstOrNull { it.id == id } ?: return
-        if (row.access?.organizationId != configuration!!.organizationId || !row.access.canList()) return
-        knownSelection = false
-        desired = id to resumeSession
-        if (session!!.accessExpiresAt - now() <= environment.minimumValidityMillis) { renew(); return }
-        val retained = mutable.value.sessions.takeIf { mutable.value.selectedRuntimeId == id && mutable.value.knownTarget == null }.orEmpty()
-        retireNavigation(true)
-        val stamp = generation; val view = navigationGeneration; val resource = api!!
-        mutable.value = mutable.value.copy(selectedRuntimeId = id, selectedSessionId = null, sessions = retained, loadingSessions = true, sessionError = null, reader = null)
-        navigation {
-            try {
-                val entries = resource.directorySessions(id, row.access.canReadMetadata()) {
-                    current(stamp)
-                    if (view != navigationGeneration || !foreground) throw CancellationException()
-                }
-                current(stamp); if (view != navigationGeneration) return@navigation
-                mutable.value = mutable.value.copy(sessions = entries, loadingSessions = false)
-                if (resumeSession != null && entries.any { it.id == resumeSession }) { navigationJob = null; openSessionInternal(resumeSession) }
-            } catch (error: CancellationException) { throw error }
-            catch (error: Exception) {
-                if (generation == stamp && view == navigationGeneration) {
-                    mutable.value = mutable.value.copy(loadingSessions = false, sessionError = code(error))
-                    if (authorityLost(error)) refresh()
+                else desired?.let { (runtime, session) ->
+                    mutable.value = mutable.value.copy(selectedRuntimeId = runtime, selectedSessionId = session)
+                    if (session != null) follow(runtime, session, generation, reopen = true) else openRuntime(runtime)
                 }
             }
         }
-    }
-    private fun navigateKnownSession(runtime: String, id: String) {
-        if (!foreground || mutable.value.phase != HomePhase.READY || binding != null) return
-        desired = runtime to id; knownSelection = true
-        if (session!!.accessExpiresAt - now() <= environment.minimumValidityMillis) { renew(); return }
-        retireNavigation(true)
-        val stamp = generation; val view = navigationGeneration; val resource = api!!
-        mutable.value = mutable.value.copy(knownTarget = null, selectedRuntimeId = runtime, selectedSessionId = id, sessions = emptyList(), loadingSessions = true,
-            sessionError = null, reader = SessionReadState(SessionReadPhase.CONNECTING))
-        navigation {
-            try {
-                val target = resource.sessionTarget(runtime, id) { current(stamp); if (view != navigationGeneration || !foreground) throw CancellationException() }
-                current(stamp); if (view != navigationGeneration || !foreground) return@navigation
-                navigationJob = null; installKnownTarget(target)
-            } catch (error: CancellationException) { throw error }
-            catch (error: Exception) {
-                if (generation == stamp && view == navigationGeneration) mutable.value = mutable.value.copy(loadingSessions = false, sessionError = code(error),
-                    reader = SessionReadState(if (error is RemoteRequestException && error.code == "access.denied") SessionReadPhase.REVOKED else SessionReadPhase.ERROR, error = code(error)))
-            }
-        }
-    }
-    private fun installKnownTarget(target: SessionTarget) {
-        if (!foreground || mutable.value.phase != HomePhase.READY || !knownSelection || desired != (target.runtime.id to target.session.id)) return
-        mutable.value = mutable.value.copy(knownTarget = target, selectedRuntimeId = target.runtime.id, selectedSessionId = target.session.id, sessions = listOf(target.session), loadingSessions = false)
-        openSessionInternal(target.session.id)
-    }
-    fun openSession(id: String) {
-        if (mutable.value.loadingSessions || mutable.value.refreshing) return
-        dismissNotificationNavigation(); openSessionInternal(id)
-    }
-    private fun openSessionInternal(id: String) {
-        if (!foreground || mutable.value.phase != HomePhase.READY) return
-        if (mutable.value.loadingSessions) return
-        val runtimeId = mutable.value.selectedRuntimeId ?: return
-        val runtime = mutable.value.runtimeRow(runtimeId)?.access ?: return
-        val selected = mutable.value.sessions.firstOrNull { it.id == id } ?: return
-        val allowed = selected.viewScope(runtime, includeApprovals = approval != null) ?: return
-        desired = runtimeId to id
-        if (session!!.accessExpiresAt - now() <= environment.minimumValidityMillis) { renew(); return }
-        retireNavigation(true)
-        val stamp = generation; val view = navigationGeneration
-        val resource = api!!
-        val saved = checkpoint!!
-        val owner = CommandOwner(saved.accountId, saved.organizationId, configuration!!.fingerprint, saved.userId, saved.deviceId!!)
-        val composer = drafts.open(ConversationResource(owner, runtime.hostId, runtimeId, id))
-        mutable.value = mutable.value.copy(selectedSessionId = id, reader = SessionReadState(SessionReadPhase.CONNECTING), sessionError = null, outbox = null, commandError = null, submitting = false, composer = composer, failedInput = drafts.recoverable(composer.resource))
-        navigation {
-            var database: SqlCommandJournal? = null
-            try {
-                try { withContext(NonCancellable) { database = persistence.commands(owner, stamp) } }
-                catch (error: Exception) {
-                    current(stamp); if (view != navigationGeneration) return@navigation
-                    mutable.value = mutable.value.copy(commandError = if (error is CommandDataException) error.code else "data.unavailable")
-                }
-                current(stamp); if (view != navigationGeneration) return@navigation
-                val approvalAccount = if (database != null && "approval.decide" in allowed.actions) {
-                    val local = approval ?: throw DeviceCryptoException(DeviceCryptoFailure.KEY_MISSING)
-                    if (local.thumbprint != saved.approvalKeyJkt) throw DeviceCryptoException(DeviceCryptoFailure.WRONG_KEY)
-                    val key = RegisteredApprovalKey.parse(jsonObject("user_id" to saved.userId.json(), "device_id" to saved.deviceId!!.json(), "key_version" to 1L.json(),
-                        "active" to JsonBoolean(true), "public_jwk" to local.publicJwk, "approval_key_jkt" to local.thumbprint.json()))
-                    val decisions = database!!.approvalDecisions(key)
-                    approvalJournal = decisions
-                    SessionApprovalAccount(runtime.hostId, key, decisions)
-                } else null
-                val opened = if (database != null) resource.chatReader(saved.deviceId!!, runtimeId, id, allowed, database!!, scope, transcripts = database, workspaceId = selected.workspaceId, approvalAccount = approvalAccount, exportJournal = database.takeIf { "file.download" in allowed.actions })
-                    else resource.reader(saved.deviceId!!, runtimeId, id, runtime.scope!!.readSession(id, selected.workspaceId), scope)
-                commandJournal = database; database = null; reader = opened
-                val imageFlow = SessionImageCoordinator(context, scope)
-                images = imageFlow
-                imageCollector = scope.launch {
-                    imageFlow.state.collect { value ->
-                        if (generation == stamp && navigationGeneration == view && reader === opened && foreground)
-                            mutable.value = mutable.value.copy(images = value)
-                    }
-                }
-                if (commandJournal != null && selected.state != "archived" && runtime.role in setOf("operator", "owner") && runtime.scope?.actions?.contains("file.upload") == true) {
-                    val files = resource.fileUploads(runtimeId, id, selected.workspaceId, runtime.scope!!, commandJournal!!, scope)
-                    uploads = files
-                    uploadCollector = scope.launch { files.state.collect { value -> if (generation == stamp && navigationGeneration == view && foreground) mutable.value = mutable.value.copy(uploads = value) } }
-                    drainDocument()
-                } else { clearPendingDocument(); mutable.value = mutable.value.copy(uploads = null, documentPicker = null) }
-                drainExportSave()
-                opened.exports?.let { exports -> exportCollector = scope.launch {
-                    exports.state.collect { value -> if (generation == stamp && navigationGeneration == view && foreground) mutable.value = mutable.value.copy(exports = value) }
-                } }
-                questionScope=CoroutineScope(SupervisorJob(scope.coroutineContext[Job])+Dispatchers.Main.immediate)
-                opened.approvals?.let { client -> approvalCollector = scope.launch {
-                    client.state.collect {
-                        if (generation != stamp || navigationGeneration != view || !foreground) return@collect
-                        val next = client.state.value
-                        mutable.value = mutable.value.copy(approvals = next)
-                        deliverNotificationReference()
-                        val handle = approvalPreparingHandle ?: approvalAuthentication?.handle
-                        if (handle != null && (!next.connected || !next.contentReady || next.view.items.none { it.handle == handle } ||
-                                approvalAuthentication != null && !next.signing)) abortApprovalAuthentication("approval.stale")
-                    }
-                } }
-                opened.commands?.let { commands -> commandCollector = scope.launch {
-                    commands.state.collect { outbox ->
-                        if (generation == stamp && navigationGeneration == view && foreground) {
-                            mutable.value = mutable.value.copy(outbox = outbox)
-                            if (outbox.connected) drainDocument()
-                        }
-                    }
-                } }
-                modelCollector = scope.launch {
-                    opened.models.state.collect { catalog ->
-                        if (generation == stamp && navigationGeneration == view && reader === opened && foreground)
-                            mutable.value = mutable.value.copy(modelCatalog = catalog)
-                    }
-                }
-                changesCollector = scope.launch {
-                    opened.changes.state.collect { value ->
-                        if (generation == stamp && navigationGeneration == view && reader === opened && foreground)
-                            mutable.value = mutable.value.copy(changes = value)
-                    }
-                }
-                messageActionsCollector = scope.launch {
-                    opened.messageActions.state.collect { value ->
-                        if (generation == stamp && navigationGeneration == view && reader === opened && foreground)
-                            mutable.value = mutable.value.copy(messageActions = value)
-                    }
-                }
-                readerJob = scope.launch {
-            opened.state.collect { state ->
-                if (generation != stamp || view != navigationGeneration || !foreground) return@collect
-                mutable.value = mutable.value.copy(reader = state)
-                if (state.phase == SessionReadPhase.READY) drainDocument()
-                if (state.phase in setOf(SessionReadPhase.AUTH_REQUIRED, SessionReadPhase.REVOKED)) {
-                    drafts.revokeRuntime(runtimeId)
-                    clearPendingDocument()
-                    images?.foreground(false)
-                    mutable.value = mutable.value.copy(composer = null, documentPicker = null, failedInput = null)
-                }
-                deliverNotificationReference()
-                if (state.phase == SessionReadPhase.AUTH_REQUIRED && mutable.value.phase == HomePhase.READY) renew()
-                else if (state.phase == SessionReadPhase.REVOKED && mutable.value.phase == HomePhase.READY) refresh()
-            }
-                }
-            } catch (error: CancellationException) { throw error }
-            catch (error: Exception) {
-                if (generation == stamp && navigationGeneration == view) mutable.value = mutable.value.copy(reader = SessionReadState(SessionReadPhase.ERROR, error = code(error)))
-            } finally { database?.close() }
-        }
-    }
-    fun openChanges() {
-        val opened = reader ?: return
-        if (!foreground || mutable.value.phase != HomePhase.READY) return
-        mutable.value = mutable.value.copy(changesOpen = true, changes = opened.changes.state.value, sessionActionError = null)
-        loadChanges()
-    }
-    fun closeChanges() { mutable.value = mutable.value.copy(changesOpen = false, sessionActionError = null) }
-    fun loadChanges() = sessionAction { it.changes.loadInitial() }
-    fun loadNextChanges() = sessionAction { it.changes.loadNext() }
-    fun reloadChanges() = sessionAction { it.changes.reload() }
-    fun loadChangePatch(id: String) = sessionAction { it.changes.loadPatch(id) }
-    fun loadNextChangePatch() = sessionAction { it.changes.loadNextPatch() }
-    fun copyChangePatch() {
-        if (!foreground || mutable.value.phase != HomePhase.READY) return
-        val text = reader?.changes?.completePatch() ?: return
-        try {
-            val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
-            clipboard.setPrimaryClip(android.content.ClipData.newPlainText("patch", text))
-            android.widget.Toast.makeText(context, R.string.session_actions_patch_copied, android.widget.Toast.LENGTH_SHORT).show()
-        } catch (error: Exception) { mutable.value = mutable.value.copy(sessionActionError = code(error)) }
-    }
-    fun previewMessage(id: String) {
-        val opened = reader ?: return
-        if (!foreground || mutable.value.phase != HomePhase.READY || !opened.messageActions.canPreview) return
-        mutable.value = mutable.value.copy(messageActionsOpen = true, messageActions = opened.messageActions.state.value, sessionActionError = null)
-        sessionAction { it.messageActions.previewMessage(id) }
-    }
-    fun dismissMessageActions() {
-        sessionActionJob?.cancel(); sessionActionJob = null
-        reader?.messageActions?.dismiss()
-        mutable.value = mutable.value.copy(messageActionsOpen = false, sessionActionError = null)
-    }
-    fun forkMessage(anchor: SessionForkAnchor) = sessionAction { it.messageActions.fork(anchor) }
-    fun shareMessage(anchor: SessionForkAnchor) = sessionAction { opened ->
-        val share = opened.messageActions.confirmShare(anchor)
-        if (foreground && reader === opened && share.current()) launchAuthorizedMessageShare(context, share)
-    }
-    fun queryFork() = sessionAction { it.messageActions.queryFork() }
-    fun openForkChild(childId: String) {
-        val state = mutable.value
-        if (!foreground || state.phase != HomePhase.READY) return
-        val runtimeId = state.selectedRuntimeId ?: return
-        if (state.outbox?.records?.none { it.intent.kind == CommandKind.FORK && it.createdSessionId == childId } != false) return
-        if (state.runtimeRow(runtimeId)?.access?.canList() == true) navigateRuntime(runtimeId, childId)
-        else navigateKnownSession(runtimeId, childId)
-    }
-    private fun sessionAction(action: suspend (SessionReader) -> Unit) {
-        if (!foreground || mutable.value.phase != HomePhase.READY || sessionActionJob?.isActive == true) return
-        val opened = reader ?: return
-        val stamp = generation; val view = navigationGeneration
-        mutable.value = mutable.value.copy(sessionActionError = null)
-        sessionActionJob = scope.launch {
-            try { action(opened) }
-            catch (error: CancellationException) { throw error }
-            catch (error: Exception) {
-                if (generation == stamp && navigationGeneration == view && reader === opened && foreground)
-                    mutable.value = mutable.value.copy(sessionActionError = code(error))
-            }
-        }
-    }
-    fun openModelSelection() {
-        if (!foreground || mutable.value.phase != HomePhase.READY || mutable.value.selectedSessionId == null) return
-        val opened = reader ?: return
-        mutable.value = mutable.value.copy(modelSelectionOpen = true, modelCatalog = opened.models.state.value, modelError = null)
-        modelWork { it.models.loadInitial() }
-    }
-    fun closeModelSelection() {
-        // Closing a view is not cancellation of an already persisted selection.
-        mutable.value = mutable.value.copy(modelSelectionOpen = false, modelError = null)
-    }
-    fun loadModels() = modelWork { it.models.loadInitial() }
-    fun loadNextModels() = modelWork { it.models.loadNext() }
-    fun reloadModels() = modelWork { it.models.reload() }
-    fun selectModel(selection: SessionModelSelection) = modelWork { opened ->
-        val unresolved = opened.commands?.state?.value?.records?.any { record ->
-            record.intent.kind == CommandKind.MODEL_SELECT && record.remote !in setOf(RemoteCommandState.SETTLED, RemoteCommandState.REJECTED)
-        } == true
-        if (unresolved) throw CommandDataException("command.reconcile_required")
-        opened.models.select(selection.providerId, selection.modelId, selection.reasoningEffortId)
-    }
-    fun queryModelSelection() = modelWork { it.models.querySelection() }
-    fun discardUnsentModelSelection(id: String) = modelWork { opened ->
-        val commands = opened.commands ?: throw CommandDataException("command.not_found")
-        val record = commands.state.value.records.firstOrNull { it.intent.requestId == id }
-            ?: throw CommandDataException("command.not_found")
-        if (record.intent.kind != CommandKind.MODEL_SELECT || record.attempts != 0L || record.remote != null ||
-            record.delivery != CommandDelivery.PENDING || record.everHostSaved || record.everAgentQueued)
-            throw CommandDataException("command.reconcile_required")
-        commands.discard(id)
-    }
-    private fun modelWork(action: suspend (SessionReader) -> Unit) {
-        if (!foreground || mutable.value.phase != HomePhase.READY || !mutable.value.modelSelectionOpen || mutable.value.modelBusy) return
-        val opened = reader ?: return
-        val stamp = generation; val view = navigationGeneration
-        mutable.value = mutable.value.copy(modelBusy = true, modelError = null)
-        val next = scope.launch(start = CoroutineStart.LAZY) {
-            try {
-                action(opened)
-                current(stamp)
-                if (navigationGeneration == view && reader === opened && foreground)
-                    mutable.value = mutable.value.copy(modelCatalog = opened.models.state.value, outbox = opened.commands?.state?.value)
-            } catch (error: CancellationException) { throw error }
-            catch (error: Exception) {
-                if (generation == stamp && navigationGeneration == view && reader === opened && foreground)
-                    mutable.value = mutable.value.copy(modelError = code(error))
-            } finally {
-                if (generation == stamp && navigationGeneration == view && reader === opened)
-                    mutable.value = mutable.value.copy(modelBusy = false)
-            }
-        }
-        modelJob = next; next.start()
-    }
-    fun editComposer(candidate: MessageComposerState) {
-        if (!foreground || mutable.value.phase != HomePhase.READY || mutable.value.composer?.resource != candidate.resource) return
-        drafts.edit(candidate)?.let { mutable.value = mutable.value.copy(composer = it) }
-    }
-    fun resolveFailedInput(original: MessageComposerState, restore: Boolean) {
-        val state = mutable.value
-        if (!foreground || state.phase != HomePhase.READY || state.submitting || state.failedInput !== original || state.composer?.resource != original.resource) return
-        val authority = state.runtimeRow(original.resource.runtimeId)?.access ?: return
-        val selected = state.sessions.firstOrNull { it.id == original.resource.sessionId } ?: return
-        if (selected.viewScope(authority) == null || selected.state == "archived") return
-        drafts.resolveFailure(original, restore)?.let { mutable.value = state.copy(composer = it, failedInput = null) }
-    }
-    fun submitMessage(submission: MessageSubmission) {
-        val original = submission.draft
-        val state = mutable.value
-        val currentDraft = state.composer ?: return
-        if (!foreground || state.phase != HomePhase.READY || state.submitting || currentDraft != original) return
-        if (state.presentationOwner?.fingerprint != original.resource.owner.fingerprint || state.selectedRuntimeId != original.resource.runtimeId || state.selectedSessionId != original.resource.sessionId) return
-        if (state.sessions.firstOrNull { it.id == state.selectedSessionId }?.state == "archived") return
-        val opened = reader ?: return
-        if (opened.state.value.phase in setOf(SessionReadPhase.AUTH_REQUIRED, SessionReadPhase.REVOKED, SessionReadPhase.CLOSED)) return
-        val commands = opened.commands ?: return
-        val files = uploads
-        val selected = state.uploads?.selected?.toSet()
-        val attachments = try { files?.selectedFiles()?.toList() ?: emptyList() }
-        catch (error: Exception) { mutable.value = state.copy(commandError = code(error)); return }
-        val imageAttachments = try { files?.selectedImages()?.toList() ?: emptyList() }
-        catch (error: Exception) { mutable.value = state.copy(commandError = code(error)); return }
-        val stamp = generation; val view = navigationGeneration
-        drafts.dismissFailure()
-        mutable.value = state.copy(submitting = true, commandError = null, failedInput = null)
-        commandJob = scope.launch {
-            var persisted = false
-            try {
-                // Do not lose the persistence completion to a navigation cancellation.
-                // This never revives a draft cleared by background, logout, or authority loss.
-                val id = withContext(NonCancellable) {
-                    val request = commands.submit(original.mode, original.value.text, false, attachments, imageFileIds = imageAttachments)
-                    persisted = true
-                    if (generation == stamp && mutable.value.presentationOwner?.fingerprint == original.resource.owner.fingerprint) {
-                        val cleared = drafts.saved(original)
-                        if (cleared != null && mutable.value.composer?.resource == original.resource && mutable.value.composer?.revision == original.revision) mutable.value = mutable.value.copy(composer = cleared)
-                        if (cleared != null && uploads === files && mutable.value.uploads?.selected == selected) files?.messageSaved()
-                    }
-                    request
-                }
-                current(stamp)
-                if (foreground && view == navigationGeneration && reader === opened && submission.sendNow) commands.sendPending(id)
-            } catch (error: CancellationException) { throw error }
-            catch (error: Exception) {
-                if (generation == stamp && view == navigationGeneration && foreground) {
-                    val recovery = if (!persisted) drafts.retainFailed(original) else null
-                    mutable.value = mutable.value.copy(commandError = if (error is CommandDataException) error.code else "command.invalid", failedInput = recovery)
-                }
-            }
-            finally { if (generation == stamp && view == navigationGeneration) mutable.value = mutable.value.copy(submitting = false) }
-        }
-    }
-    fun sendPending(id: String) { reader?.commands?.sendPending(id) }
-    private fun clearPendingDocument() {
-        val capture = pendingDocument?.camera
-        pendingDocument = null
-        cameraPreparation?.cancel(); cameraPreparation = null
-        if (capture != null) scope.launch(NonCancellable + Dispatchers.IO) { capture.close() }
-    }
-    fun pickDocument(resume: String?) = prepareDocument(resume, DocumentPickPurpose.FILE)
-    fun pickImage(resume: String? = null) = prepareDocument(resume, DocumentPickPurpose.IMAGE)
-    fun pickCamera() = prepareDocument(null, DocumentPickPurpose.CAMERA)
-    private fun prepareDocument(resume: String?, purpose: DocumentPickPurpose) {
-        val state = mutable.value
-        if (!foreground || state.phase != HomePhase.READY || uploads == null || state.uploads?.busy == true || pendingDocument != null) return
-        val draft = state.composer ?: return
-        if (purpose != DocumentPickPurpose.FILE && state.outbox?.canAttachImages != true) {
-            mutable.value = state.copy(commandError = "protocol.unsupported"); return
-        }
-        val runtime = state.selectedRuntimeId ?: return; val selected = state.selectedSessionId ?: return
-        val token = UUID.randomUUID().toString()
-        val pending = PendingDocument(token, generation, runtime, selected, resume, draft, purpose)
-        pendingDocument = pending
-        if (purpose != DocumentPickPurpose.CAMERA) {
-            mutable.value = state.copy(documentPicker = DocumentPickLaunch(token, purpose))
-            return
-        }
-        cameraPreparation = scope.launch {
-            var capture: CameraCapture? = null
-            var attached = false
-            try {
-                withContext(NonCancellable + Dispatchers.IO) { capture = CameraCaptureStore(context).create(token) }
-                ensureActive()
-                if (pendingDocument !== pending || !foreground || generation != pending.generation || desired != (runtime to selected)) return@launch
-                pendingDocument = PendingDocument(token, pending.generation, runtime, selected, resume, draft, purpose, capture)
-                mutable.value = mutable.value.copy(documentPicker = DocumentPickLaunch(token, purpose, capture!!.uri))
-                attached = true
-            } catch (error: CancellationException) { throw error }
-            catch (error: Exception) { if (pendingDocument === pending) mutable.value = mutable.value.copy(commandError = code(error)) }
-            finally {
-                if (!attached) {
-                    if (pendingDocument === pending) pendingDocument = null
-                    withContext(NonCancellable + Dispatchers.IO) { capture?.close() }
-                }
-            }
-        }
-    }
-    fun documentPicked(token: String, uri: Uri?) {
-        val pending = pendingDocument ?: return
-        if (pending.id != token || pending.generation != generation || desired != (pending.runtime to pending.session)) return
-        mutable.value = mutable.value.copy(documentPicker = null)
-        if (uri == null) { clearPendingDocument(); return }
-        if (pending.purpose == DocumentPickPurpose.CAMERA && (uri != pending.camera?.uri || pending.camera?.current() != true)) { clearPendingDocument(); return }
-        pending.result = uri
-        drainDocument()
-    }
-    private fun drainDocument() {
-        val pending = pendingDocument ?: return
-        val source = pending.result ?: return
-        val files = uploads ?: return
-        if (!foreground || pending.generation != generation || desired != (pending.runtime to pending.session)) return
-        if (pending.purpose != DocumentPickPurpose.FILE) {
-            if (reader?.state?.value?.phase != SessionReadPhase.READY || mutable.value.outbox?.connected != true) return
-            if (mutable.value.outbox?.canAttachImages != true) {
-                clearPendingDocument()
-                mutable.value = mutable.value.copy(commandError = "protocol.unsupported")
-                return
-            }
-        }
-        pendingDocument = null
-        if (pending.purpose == DocumentPickPurpose.FILE) {
-            try { files.select(DocumentFileSource(context, source), pending.resume) }
-            catch (error: Exception) { mutable.value = mutable.value.copy(commandError = code(error)) }
-        } else {
-            val opened = reader
-            val imageFlow = images
-            if (opened == null || imageFlow == null) { pending.camera?.close(); return }
-            val view = navigationGeneration
-            imageFlow.select(source, files, pending.resume, current = {
-                foreground && generation == pending.generation && navigationGeneration == view && reader === opened && uploads === files &&
-                    desired == (pending.runtime to pending.session) && mutable.value.composer?.resource == pending.draft.resource &&
-                    mutable.value.composer?.revision == pending.draft.revision && mutable.value.outbox?.canAttachImages == true &&
-                    (pending.camera?.current() != false)
-            }, finished = { pending.camera?.close() })
-        }
-    }
-    fun previewImage(reference: VisibleMediaReference) {
-        if (!foreground || mutable.value.phase != HomePhase.READY) return
-        val opened = reader ?: return
-        val stamp = generation; val view = navigationGeneration
-        images?.open(reference, opened) {
-            foreground && generation == stamp && navigationGeneration == view && reader === opened && mutable.value.phase == HomePhase.READY
-        }
-    }
-    fun dismissImagePreview() { images?.dismissPreview() }
-    fun cancelImage() { images?.cancel(); uploads?.cancelTransfer() }
-    fun toggleUpload(id: String) = uploads?.toggle(id)
-    fun queryUpload(id: String) = uploads?.query(id)
-    fun removeUpload(id: String) = uploads?.remove(id)
-    fun cancelUpload() = uploads?.cancelTransfer()
-    fun chooseExportDestination(id: String) {
-        if (!foreground || mutable.value.phase != HomePhase.READY || mutable.value.exportSaving || pendingExportSave != null) return
-        val row = reader?.exports?.state?.value?.rows?.firstOrNull { it.stored.intent.requestId == id } ?: return
-        val file = row.status?.takeIf { it.downloadable() && row.stored.manifest?.same(it.manifest) == true } ?: return
-        val token = UUID.randomUUID().toString()
-        pendingExportSave = PendingExportSave(token, generation, file.runtimeId, file.sessionId, id, file)
-        mutable.value = mutable.value.copy(exportSavePicker = ExportSaveLaunch(token, file.manifest.name), exportSaved = false, exportSaveError = null)
-    }
-    fun exportDestinationPicked(token: String, uri: Uri?) {
-        val pending = pendingExportSave
-        if (pending == null || pending.id != token || pending.generation != generation || desired != (pending.runtime to pending.session)) {
-            if (abandonedSavePickers.remove(token)) uri?.let { scope.launch(Dispatchers.IO) { discardExportDocument(context, it) } }; return
-        }
-        mutable.value = mutable.value.copy(exportSavePicker = null)
-        if (uri == null) { pendingExportSave = null; return }
-        pending.result = uri; drainExportSave()
-    }
-    private fun drainExportSave() {
-        val pending = pendingExportSave ?: return
-        val uri = pending.result ?: return
-        val journal = commandJournal ?: return
-        val resource = api ?: return
-        if (!foreground || pending.generation != generation || desired != (pending.runtime to pending.session)) return
-        pendingExportSave = null
-        val stamp = generation; val view = navigationGeneration
-        mutable.value = mutable.value.copy(exportSaving = true, exportSaved = false, exportSaveError = null, exportBytes = 0)
-        exportSaveJob = scope.launch {
-            var savedSuccessfully = false
-            try {
-                val original = journal.exports(pending.runtime, pending.session).firstOrNull { it.intent.requestId == pending.request } ?: throw RemoteRequestException("file.export_reconcile")
-                if (original.fileId != pending.file.id || original.manifest?.same(pending.file.manifest) != true) throw RemoteRequestException("file.request_conflict")
-                val lifetime = currentCoroutineContext()
-                val lastProgress = java.util.concurrent.atomic.AtomicLong()
-                saveExportDocument(context, uri, resource, pending.file, {
-                    lifetime.ensureActive(); session?.accessTokenForRequest(System.currentTimeMillis()) ?: throw RemoteRequestException("auth.expired")
-                    if (!foreground || generation != stamp || navigationGeneration != view || desired != (pending.runtime to pending.session) ||
-                        mutable.value.phase != HomePhase.READY || mutable.value.reader?.phase in setOf(SessionReadPhase.REVOKED, SessionReadPhase.AUTH_REQUIRED)) throw RemoteRequestException("file.export_stale")
-                    if (!pending.file.downloadable()) throw RemoteRequestException("file.expired")
-                }) { bytes ->
-                    val tick = System.nanoTime(); val previous = lastProgress.get()
-                    if ((tick - previous >= 250_000_000 || bytes == pending.file.manifest.sizeBytes) && lastProgress.compareAndSet(previous, tick))
-                        scope.launch { if (generation == stamp && navigationGeneration == view) mutable.value = mutable.value.copy(exportBytes = bytes) }
-                }
-                current(stamp)
-                savedSuccessfully = true
-                if (view == navigationGeneration) mutable.value = mutable.value.copy(exportSaved = true)
-            } catch (error: CancellationException) { throw error }
-            catch (error: Exception) {
-                if (generation == stamp && navigationGeneration == view) mutable.value = mutable.value.copy(exportSaveError = code(error))
-            } finally {
-                withContext(NonCancellable + Dispatchers.IO) { if (!savedSuccessfully) discardExportDocument(context, uri) }
-                if (generation == stamp && navigationGeneration == view) mutable.value = mutable.value.copy(exportSaving = false)
-            }
-        }
-    }
-    fun cancelExportSave() { mutable.value = mutable.value.copy(exportSaveError = "file.save_cancelled"); exportSaveJob?.cancel() }
-    fun browseExports(source: ExportSource? = null, more: Boolean = false) = reader?.exports?.browse(source, more)
-    fun requestExport(source: ExportSource) = reader?.exports?.request(source)
-    fun queryExports() = reader?.exports?.query()
-    fun cancelExport(id: String) = reader?.exports?.cancel(id)
-    fun removeExport(id: String) = reader?.exports?.remove(id)
-    fun queryCommands() { reader?.commands?.query() }
-    fun refreshQuestions() {reader?.refreshQuestions()}
-    fun reviewApproval(id: String) {
-        if (!foreground || mutable.value.phase != HomePhase.READY || mutable.value.approvalStage != ApprovalUiStage.IDLE) return
-        val client = reader?.approvals ?: return
-        Contract.uuid(id)
-        mutable.value = mutable.value.copy(reviewingApprovalId = id, approvalError = null)
-        approvalWork { client.requestDetails(id) }
-    }
-    fun closeApprovalReview() {
-        abortApprovalAuthentication(null)
-        mutable.value = mutable.value.copy(reviewingApprovalId = null, approvalError = null)
-        approvalWork { it.dismissReview() }
-    }
-    fun queryApprovals() { reader?.approvals?.query() }
-    fun refreshApprovals() { closeApprovalReview(); reader?.refreshQuestions() }
-    fun discardUnsentApproval(id: String) = approvalWork { it.discardUnsent(id) }
-    private fun approvalWork(action: suspend (SessionApprovalClient) -> Unit) {
-        if (!foreground || mutable.value.phase != HomePhase.READY) return
-        val client = reader?.approvals ?: return; val work = questionScope ?: return
-        val stamp = generation; val view = navigationGeneration; val selection = mutable.value.reviewingApprovalId
-        work.launch {
-            try { action(client) }
-            catch (error: CancellationException) { throw error }
-            catch (error: Exception) { if (generation == stamp && view == navigationGeneration && mutable.value.reviewingApprovalId == selection && reader?.approvals === client) mutable.value = mutable.value.copy(approvalError = code(error)) }
-        }
-    }
-    private fun approvalCurrent(stamp: Long, view: Long, client: SessionApprovalClient, handle: ApprovalReviewHandle) {
-        current(stamp)
-        val authority = mutable.value.runtimeRow(handle.runtimeId)?.access
-        if (!foreground || navigationGeneration != view || mutable.value.phase != HomePhase.READY || reader?.approvals !== client ||
-            authority?.role != "owner" || authority.scope?.actions?.containsAll(setOf("session.read", "approval.decide")) != true || authority.expiresAt?.let { it <= now() } == true ||
-            mutable.value.selectedRuntimeId != handle.runtimeId || mutable.value.selectedSessionId != handle.sessionId ||
-            mutable.value.reviewingApprovalId != handle.approvalId || !client.state.value.connected || !client.state.value.contentReady ||
-            client.state.value.view.items.none { it.handle == handle && it.context?.current(System.currentTimeMillis()) == true }) throw ApprovalStateException("approval.stale")
-    }
-    fun decideApproval(handle: ApprovalReviewHandle, choice: ApprovalChoice) {
-        if (!foreground || mutable.value.phase != HomePhase.READY || mutable.value.approvalStage != ApprovalUiStage.IDLE || mutable.value.reviewingApprovalId != handle.approvalId) return
-        val client = reader?.approvals ?: return; val work = questionScope ?: return
-        val local = approval ?: return
-        val stamp = generation; val view = navigationGeneration; val began = System.nanoTime(); val action = ++approvalActionGeneration
-        approvalPreparingHandle = handle
-        mutable.value = mutable.value.copy(approvalStage = ApprovalUiStage.PREPARING, approvalError = null)
-        approvalActionJob = work.launch {
-            var opened: ApprovalKeyOperation? = null
-            try {
-                approvalCurrent(stamp, view, client, handle)
-                val prepared = client.prepareSignature(handle, choice)
-                approvalPrepared = prepared
-                opened = beginKeyOperation(stamp) { local.beginApproval(prepared) }
-                approvalCurrent(stamp, view, client, handle)
-                if (!client.state.value.signing) throw ApprovalStateException("approval.stale")
-                if ((System.nanoTime() - began) / 1_000_000 >= environment.approvalPromptMillis) throw ApprovalStateException("approval.authentication_expired")
-                val id = ++nextAuthenticationId
-                val active = ApprovalAuthentication(id, stamp, view, action, client, handle, prepared, opened!!)
-                approvalAuthentication = active; opened = null; approvalPreparingHandle = null; approvalPrepared = null
-                mutable.value = mutable.value.copy(approvalStage = ApprovalUiStage.AUTHENTICATING, authenticationId = id,
-                    biometric = BiometricLaunch(id, active.operation, if (choice == ApprovalChoice.ALLOW_ONCE) "仅本次允许此工具" else "确认拒绝此工具", "签署当前电脑会话中的这一次决定"))
-                approvalTimeout = work.launch {
-                    delay((environment.approvalPromptMillis - (System.nanoTime() - began) / 1_000_000).coerceAtLeast(1))
-                    if (approvalAuthentication === active) abortApprovalAuthentication("approval.authentication_expired")
-                }
-            } catch (error: CancellationException) { throw error }
-            catch (error: Exception) {
-                if (generation == stamp && navigationGeneration == view && approvalActionGeneration == action) abortApprovalAuthentication(code(error))
-            } finally { opened?.close() }
-        }
-    }
-    private fun abortApprovalAuthentication(error: String?) {
-        val active = approvalAuthentication
-        val prepared = active?.prepared ?: approvalPrepared
-        approvalActionGeneration++
-        approvalAuthentication = null; approvalPreparingHandle = null; approvalPrepared = null
-        approvalTimeout?.cancel(); approvalTimeout = null
-        approvalActionJob?.cancel(); approvalActionJob = null
-        active?.operation?.close()
-        val ownsPrompt = active != null && mutable.value.authenticationId == active.id
-        mutable.value = mutable.value.copy(approvalStage = ApprovalUiStage.IDLE, approvalError = error,
-            authenticationId = if (ownsPrompt) null else mutable.value.authenticationId,
-            biometric = if (ownsPrompt) null else mutable.value.biometric)
-        val client = active?.client ?: reader?.approvals
-        if (prepared != null) questionScope?.launch { client?.cancelSignature(prepared) }
-    }
-    private fun authenticatedApproval(active: ApprovalAuthentication, result: BiometricPrompt.AuthenticationResult) {
-        if (runCatching { result.cryptoObject?.signature === active.operation.cryptoObject.signature }.getOrDefault(false).not()) return
-        val work = questionScope ?: return
-        try { approvalCurrent(active.stamp, active.view, active.client, active.handle) }
-        catch (_: Exception) { abortApprovalAuthentication("approval.stale"); return }
-        approvalAuthentication = null; approvalTimeout?.cancel(); approvalTimeout = null
-        mutable.value = mutable.value.copy(approvalStage = ApprovalUiStage.SENDING, authenticationId = null, biometric = null, approvalError = null)
-        approvalActionJob = work.launch {
-            try {
-                val signed = withContext(Dispatchers.Default) { active.operation.finish(result) }
-                approvalCurrent(active.stamp, active.view, active.client, active.handle)
-                active.client.submit(active.handle, signed)
-            } catch (error: CancellationException) { throw error }
-            catch (error: Exception) { if (generation == active.stamp && navigationGeneration == active.view && approvalActionGeneration == active.action) mutable.value = mutable.value.copy(approvalError = code(error)) }
-            finally {
-                active.operation.close()
-                withContext(NonCancellable) { active.client.cancelSignature(active.prepared) }
-                if (generation == active.stamp && navigationGeneration == active.view && approvalActionGeneration == active.action) mutable.value = mutable.value.copy(approvalStage = ApprovalUiStage.IDLE)
-            }
-        }
-    }
-    fun sendOriginalApproval(handle: ApprovalReviewHandle, id: String) {
-        if (!foreground || mutable.value.phase != HomePhase.READY || mutable.value.approvalStage != ApprovalUiStage.IDLE) return
-        val client = reader?.approvals ?: return; val work = questionScope ?: return
-        val stamp = generation; val view = navigationGeneration; val action = ++approvalActionGeneration
-        mutable.value = mutable.value.copy(approvalStage = ApprovalUiStage.SENDING, approvalError = null)
-        approvalActionJob = work.launch {
-            try { approvalCurrent(stamp, view, client, handle); client.sendPending(handle, id) }
-            catch (error: CancellationException) { throw error }
-            catch (error: Exception) { if (generation == stamp && navigationGeneration == view && approvalActionGeneration == action) mutable.value = mutable.value.copy(approvalError = code(error)) }
-            finally { if (generation == stamp && navigationGeneration == view && approvalActionGeneration == action) mutable.value = mutable.value.copy(approvalStage = ApprovalUiStage.IDLE) }
-        }
-    }
-    fun reauthenticateApproval() {
-        if (mutable.value.phase != HomePhase.READY || mutable.value.approvalError != "approval.assurance_required" && mutable.value.approvals?.error != "approval.assurance_required") return
-        val stamp = fence(closeKeys = false)
-        mutable.value = HomeState(HomePhase.RENEWING, configuration!!.issuer)
-        work { try { requireReauthentication(stamp, "approval.assurance_required") } catch (error: CancellationException) { throw error } catch (error: Exception) { handle(error, stamp) } }
-    }
-    fun answerQuestion(handle: QuestionHandle,answers: QuestionAnswers) {
-        if(!foreground || mutable.value.phase!=HomePhase.READY || mutable.value.submitting) return
-        val opened=reader ?: return
-        val work=questionScope ?: return
-        val stamp=generation;val view=navigationGeneration
-        mutable.value=mutable.value.copy(submitting=true,commandError=null)
-        commandJob=work.launch {
-            try {
-                opened.answerQuestion(handle,answers);current(stamp)
-                if(view==navigationGeneration) mutable.value=mutable.value.copy(outbox=opened.commands?.state?.value)
-            } catch(error: CancellationException) {throw error}
-            catch(error: Exception) {if(generation==stamp && view==navigationGeneration) mutable.value=mutable.value.copy(commandError=code(error))}
-            finally {if(generation==stamp && view==navigationGeneration) mutable.value=mutable.value.copy(submitting=false)}
-        }
-    }
-    fun claimQuestion(handle: QuestionHandle) = questionWork(handle,true)
-    fun releaseQuestion(handle: QuestionHandle) = questionWork(handle,false)
-    private fun questionWork(handle: QuestionHandle,claim: Boolean) {
-        if(!foreground || mutable.value.phase!=HomePhase.READY) return
-        val opened=reader ?: return;val work=questionScope ?: return
-        val stamp=generation;val view=navigationGeneration
-        work.launch {
-            try {if(claim) opened.claimQuestion(handle) else opened.releaseQuestion(handle)}
-            catch(error: CancellationException) {throw error}
-            catch(error: Exception) {if(generation==stamp && view==navigationGeneration) mutable.value=mutable.value.copy(commandError=code(error))}
-        }
-    }
-    fun cancelSession(expectedEpoch: String) {
-        if (!foreground || mutable.value.phase != HomePhase.READY || mutable.value.submitting) return
-        val commands = reader?.commands ?: return
-        if (reader?.state?.value?.runtimeEpoch != expectedEpoch) return
-        val stamp = generation; val view = navigationGeneration
-        // The fence covers the window before the original intent is durably saved.
-        mutable.value = mutable.value.copy(submitting = true, commandError = null)
-        commandJob = scope.launch {
-            try { commands.cancel(expectedEpoch) }
-            catch (error: CancellationException) { throw error }
-            catch (_: Exception) {
-                if (generation == stamp && view == navigationGeneration) mutable.value = mutable.value.copy(commandError = "command.cancel_unconfirmed")
-            } finally {
-                if (generation == stamp && view == navigationGeneration) mutable.value = mutable.value.copy(submitting = false)
-            }
-        }
-    }
-    fun archiveSession(expectedEpoch: String, archived: Boolean, stopActivity: Boolean) {
-        if (!foreground || mutable.value.phase != HomePhase.READY || mutable.value.submitting) return
-        val opened = reader ?: return
-        val commands = opened.commands ?: return
-        val runtimeId = mutable.value.selectedRuntimeId ?: return
-        val sessionId = mutable.value.selectedSessionId ?: return
-        if (opened.state.value.phase != SessionReadPhase.READY || opened.state.value.runtimeEpoch != expectedEpoch) return
-        val stamp = generation; val view = navigationGeneration
-        val resource = api ?: return
-        mutable.value = mutable.value.copy(submitting = true, commandError = null)
-        commandJob = scope.launch {
-            try {
-                val id = commands.archive(archived, stopActivity, expectedEpoch)
-                val result = withTimeoutOrNull(15_000) { commands.state.first { outbox -> outbox.records.any { row -> row.intent.requestId == id &&
-                    row.remote in setOf(RemoteCommandState.SETTLED, RemoteCommandState.REJECTED, RemoteCommandState.OUTCOME_UNKNOWN) } } }
-                current(stamp); if (view != navigationGeneration) return@launch
-                if (result?.records?.firstOrNull { it.intent.requestId == id }?.remote == RemoteCommandState.SETTLED) {
-                    // Receipts prove the historical command. Only a fresh Host
-                    // catalog determines current state; desktop actions can race.
-                    var pollsRemaining = 20
-                    do {
-                        val names = mutable.value.runtimeRow(runtimeId)?.access?.canReadMetadata() == true
-                        val rows = resource.directorySessions(runtimeId, names) {
-                            current(stamp)
-                            if (view != navigationGeneration || !foreground) throw CancellationException()
-                        }
-                        current(stamp); if (view != navigationGeneration) return@launch
-                        mutable.value = mutable.value.copy(sessions = rows)
-                        if (rows.firstOrNull { it.id == sessionId }?.state.let { if (archived) it == "archived" else it in setOf("available", "running") } || --pollsRemaining <= 0) break
-                        delay(250)
-                    } while (true)
-                    if (mutable.value.sessions.any { it.id == sessionId }) openSession(sessionId)
-                    else navigateRuntime(runtimeId, null)
-                }
-            } catch (error: CancellationException) { throw error }
-            catch (error: Exception) { if (generation == stamp && view == navigationGeneration) mutable.value = mutable.value.copy(commandError = code(error)) }
-            finally { if (generation == stamp && view == navigationGeneration) mutable.value = mutable.value.copy(submitting = false) }
-        }
-    }
-    private fun closeNotificationFlow() {
-        notificationCollector?.cancel(); notificationCollector = null
-        notificationFlow?.close(); notificationFlow = null
     }
     private fun retireAppUpdates(keepPage: Boolean = false) {
         appUpdateCollector?.cancel(); appUpdateCollector = null
@@ -1461,8 +805,8 @@ class LoginController internal constructor(private val context: Context, private
     fun openAppUpdates() {
         if (!foreground || mutable.value.phase != HomePhase.READY) return
         if (session!!.accessExpiresAt - now() <= environment.minimumValidityMillis) { renew(); return }
-        dismissNotificationNavigation(); closeBinding(); resumeBindingView = false; retireNavigation(false)
-        mutable.value = mutable.value.copy(appUpdateSettings = true, notificationSettings = false, selectedRuntimeId = null, selectedSessionId = null,
+        closeBinding(); resumeBindingView = false; retireSession(false)
+        mutable.value = mutable.value.copy(appUpdateSettings = true, selectedRuntimeId = null, selectedSessionId = null,
             sessions = emptyList(), reader = null, loadingSessions = false, sessionError = null)
         attachAppUpdates()
     }
@@ -1516,139 +860,18 @@ class LoginController internal constructor(private val context: Context, private
         return appUpdateFlow?.consume(event)
     }
     fun appUpdateLaunchFailed(event: AppUpdateLaunch) = appUpdateFlow?.launchFailed(event)
-    private fun dismissNotificationNavigation() {
-        notificationFlow?.cancelRead()
-        pendingNotificationReference = null; notificationDeadline?.cancel(); notificationDeadline = null
-        mutable.value = mutable.value.copy(notificationQuestion = null, notificationNote = null)
-    }
-    private fun attachNotifications() {
-        if (!foreground || mutable.value.phase != HomePhase.READY || notificationFlow != null) return
-        val resource = api ?: return; val saved = checkpoint ?: return; val device = saved.deviceId ?: return; val config = configuration ?: return
-        val stamp = generation
-        val owner = CommandOwner(saved.accountId, saved.organizationId, config.fingerprint, saved.userId, device)
-        val flow = ForegroundNotifications(resource, http, notificationCenter, pushProvider, owner, config.remoteOrigin, scope, {
-            if (!foreground || generation != stamp || api !== resource || mutable.value.phase != HomePhase.READY) throw CancellationException()
-        }, ::navigateNotificationReference)
-        notificationFlow = flow
-        notificationCollector = scope.launch { flow.state.collect { value -> if (foreground && generation == stamp && notificationFlow === flow) mutable.value = mutable.value.copy(notifications = value) } }
-        val pending = pendingNotificationOpen
-        if (pending != null) {
-            pendingNotificationOpen = null
-            val route = runCatching { notificationCenter.snapshot().route }.getOrNull()
-            if (route?.owner == owner.fingerprint && route.id == pending.bindingId) {
-                enterNotificationSettings()
-                flow.open(pending.bindingId, pending.notificationId)
-            }
-        }
-    }
-    fun openNotificationSettings() {
-        if (!foreground || mutable.value.phase != HomePhase.READY) return
-        enterNotificationSettings(); attachNotifications()
-    }
-    private fun enterNotificationSettings() {
-        dismissNotificationNavigation()
-        closeBinding(); resumeBindingView = false; retireNavigation(false)
-        mutable.value = mutable.value.copy(selectedRuntimeId = null, selectedSessionId = null, sessions = emptyList(), loadingSessions = false, sessionError = null,
-            reader = null, notificationSettings = true, notificationNote = null)
-    }
-    fun closeNotificationSettings() { dismissNotificationNavigation(); mutable.value = mutable.value.copy(notificationSettings = false) }
-    fun refreshNotifications() { attachNotifications(); notificationFlow?.refresh() }
-    fun enableNotifications() { attachNotifications(); notificationFlow?.enable() }
-    fun disableNotifications() = notificationFlow?.disable()
-    fun renewNotifications() = notificationFlow?.renew()
-    fun notificationInbox(more: Boolean = false) = notificationFlow?.inbox(more)
-    fun openNotification(binding: String, id: String?) {
-        if (!runCatching { Contract.uuid(binding); id?.let(Contract::uuid); true }.getOrDefault(false)) return
-        val route = runCatching { notificationCenter.snapshot().route }.getOrNull() ?: return
-        if (!route.active || route.id != binding || route.expires <= now()) return
-        pendingNotificationOpen = NotificationOpen(binding, id)
-        if (foreground && mutable.value.phase == HomePhase.READY) {
-            val saved = checkpoint ?: return
-            val owner = CommandOwner(saved.accountId, saved.organizationId, configuration!!.fingerprint, saved.userId, saved.deviceId!!)
-            if (route.owner != owner.fingerprint) { pendingNotificationOpen = null; return }
-            pendingNotificationOpen = null
-            enterNotificationSettings(); attachNotifications()
-            notificationFlow?.open(binding, id)
-        }
-    }
-    private fun navigateNotificationReference(ref: NotificationReference) {
-        if (!foreground || mutable.value.phase != HomePhase.READY || !ref.actionable()) return
-        pendingNotificationReference = ref
-        mutable.value = mutable.value.copy(notificationSettings = false, notificationNote = null)
-        navigateKnownSession(ref.runtimeId, ref.sessionId)
-        notificationDeadline?.cancel(); notificationDeadline = scope.launch { delay(20_000); if (pendingNotificationReference === ref) { pendingNotificationReference = null; mutable.value = mutable.value.copy(notificationNote = "暂时无法核对提醒，请在线刷新当前会话。") } }
-    }
-    private fun deliverNotificationReference() {
-        val ref = pendingNotificationReference ?: return
-        val state = mutable.value
-        if (state.selectedRuntimeId != ref.runtimeId || state.selectedSessionId != ref.sessionId) return
-        if (state.reader?.phase == SessionReadPhase.OFFLINE) { pendingNotificationReference = null; mutable.value = state.copy(notificationNote = "主机离线，无法核对当前详情。"); return }
-        if (state.reader?.phase != SessionReadPhase.READY) return
-        if (state.reader.runtimeEpoch != ref.epoch || ref.expiresAt <= now()) {
-            pendingNotificationReference = null; mutable.value = state.copy(notificationNote = "提醒对应的运行代次或有效期已结束。"); return
-        }
-        if (ref.kind == "question" || ref.kind == "timed_question") {
-            val questions = state.reader.questions
-            val kind = if (ref.kind == "question") QuestionKind.BLOCKING else QuestionKind.TIMED
-            if (!(if (kind == QuestionKind.BLOCKING) questions.blockingLoaded else questions.timedLoaded)) return
-            pendingNotificationReference = null; notificationDeadline?.cancel()
-            val question = questions.items.firstOrNull { it.batch.id == ref.referenceId && it.handle.kind == kind && it.handle.epoch == ref.epoch &&
-                it.handle.runtimeId == ref.runtimeId && it.handle.sessionId == ref.sessionId && it.answerable }
-            mutable.value = if (question != null && questions.canAnswer) state.copy(notificationQuestion = question.handle,
-                notificationNote = if (question.batch.phase == QuestionPhase.CONTINUED) "任务已继续，请核对当前提问后补充回答。" else "已核对当前提问，请在下方卡片中查看并回答。")
-            else state.copy(notificationQuestion = null, notificationNote = "提醒已结束，或当前账号无法处理此交互。")
-            return
-        }
-        val approvals = state.approvals ?: return
-        if (!approvals.view.loaded) return
-        pendingNotificationReference = null; notificationDeadline?.cancel()
-        if (ref.kind == "approval" && approvals.view.items.any { it.status.id == ref.referenceId && it.status.epoch == ref.epoch && it.canReview }) reviewApproval(ref.referenceId)
-        else mutable.value = state.copy(notificationNote = "提醒已结束，或当前账号无法处理此交互。")
-    }
 
-    fun loadOlder() = reader?.loadOlder()
-    fun retryRead() = reader?.retry()
-    fun refreshSessions() { desired?.let { if (knownSelection && it.second != null) navigateKnownSession(it.first, it.second!!) else navigateRuntime(it.first, it.second) } }
-    fun back() {
-        if (mutable.value.messageActionsOpen) { dismissMessageActions(); return }
-        if (mutable.value.changesOpen) { closeChanges(); return }
-        if (mutable.value.modelSelectionOpen) { closeModelSelection(); return }
-        if (mutable.value.appUpdateSettings) { closeAppUpdates(); return }
-        dismissNotificationNavigation()
-        if (mutable.value.notificationSettings) { closeNotificationSettings(); return }
-        if (knownSelection) { enterNotificationSettings(); return }
-        if (binding != null) { closeBinding(); return }
-        if(creationDesired!=null || mutable.value.creation!=null) {
-            val target=creationDesired ?: mutable.value.selectedRuntimeId
-            val directory=creationReturnsToRuntime
-            retireNavigation(false)
-            mutable.value=mutable.value.copy(selectedRuntimeId=null,selectedSessionId=null,creation=null)
-            if(directory && target!=null) navigateRuntime(target,null)
-            return
-        }
-        val runtime = mutable.value.selectedRuntimeId ?: return
-        if (mutable.value.selectedSessionId != null) {
-            retireNavigation(false); desired = runtime to null
-            mutable.value = mutable.value.copy(selectedSessionId = null, reader = null, outbox = null, commandError = null, submitting = false)
-        } else {
-            retireNavigation(false)
-            mutable.value = mutable.value.copy(selectedRuntimeId = null, selectedSessionId = null, sessions = emptyList(), reader = null, loadingSessions = false, sessionError = null)
-        }
-    }
     private fun fence(closeKeys: Boolean, preserveSelection: Boolean = false): Long {
-        closeNotificationFlow(); pendingNotificationReference = null; notificationDeadline?.cancel()
-        clearPendingDocument()
         drafts.clear()
-        mutable.value = mutable.value.copy(documentPicker = null, composer = null, presentationOwner = null)
-        retireNavigation(preserveSelection)
+        retireSession(!preserveSelection)
         retireBinding(preserveSelection)
         generation++; job?.cancel(); deadline?.cancel(); pending?.cancel(); pending = null; discardRegistration()
-        if (closeKeys) { owner?.close(); owner = null; proof = null; approval = null; api = null; session = null }
+        if (closeKeys) { owner?.close(); owner = null; proof = null; approval = null; api = null; session = null; readMarks = null }
+        mutable.value = mutable.value.copy(presentationOwner = null)
         return generation
     }
     fun cancel() { clearAccount(null) }
     private fun clearAccount(error: String?) {
-        pendingNotificationOpen = null; notificationCenter.retire()
         val old = reference
         val stamp = fence(closeKeys = true)
         cleanupPending = true
@@ -1665,9 +888,8 @@ class LoginController internal constructor(private val context: Context, private
     }
     private fun handle(error: Exception, stamp: Long) {
         if (generation != stamp) return
-        closeNotificationFlow()
         deadline?.cancel()
-        retireNavigation(false)
+        retireSession(true)
         retireBinding(false)
         if (authorityLost(error)) clearAccount(code(error))
         else { session = null; api = null; discardRegistration(); mutable.value = HomeState(HomePhase.RECOVERY_ERROR, configuration?.issuer ?: "", code(error)) }
@@ -1683,11 +905,10 @@ class LoginController internal constructor(private val context: Context, private
     }
     fun openBinding(resumeId: String? = pendingBindingId) {
         if (!foreground || mutable.value.phase != HomePhase.READY) return
-        dismissNotificationNavigation()
         if (session!!.accessExpiresAt - now() <= environment.minimumValidityMillis) {
             pendingBindingId = resumeId; renew(); resumeBindingView = resumeId != null; return
         }
-        retireNavigation(false); retireBinding(false)
+        retireSession(false); retireBinding(false)
         val stamp = generation; val view = bindingGeneration
         pendingBindingId = resumeId
         val opened = api!!.hostBinding(scope, resumeId, onAuthorityFailure = { code ->
@@ -1722,9 +943,6 @@ class LoginController internal constructor(private val context: Context, private
     }
     private fun code(error: Exception): String = when (error) {
         is CommandDataException -> error.code
-        is QuestionStateException -> error.code
-        is ApprovalStateException -> error.code
-        is ApprovalSignatureException -> "approval.signature_unavailable"
         is LoginException -> "login.${error.failure.name.lowercase()}"
         is RemoteRequestException -> error.code
         is DeviceCryptoException -> "device.${error.failure.name.lowercase()}"
@@ -1752,89 +970,28 @@ class HomeViewModel @Inject constructor(private val login: LoginController) : Vi
     fun appUpdateLaunchFailed(event: AppUpdateLaunch) = login.appUpdateLaunchFailed(event)
     fun login() = login.login()
     fun register(name: String) = login.register(name)
-    fun cancel() = login.cancel()
+    fun cancelAccount() = login.cancel()
     fun refresh() = login.refresh()
     fun foreground(active: Boolean) = login.foreground(active)
     fun openRuntime(id: String) = login.openRuntime(id)
     fun openSession(id: String) = login.openSession(id)
-    fun openCreation(id: String) = login.openCreation(id)
-    fun createSession(workspace: String,preset: String,epoch: String) = login.createSession(workspace,preset,epoch)
-    fun refreshCreationOptions() = login.refreshCreationOptions()
-    fun queryCreation() = login.queryCreation()
-    fun sendPendingCreation(id: String) = login.sendPendingCreation(id)
-    fun openCreatedSession(id: String) = login.openCreatedSession(id)
-    fun openNotificationSettings() = login.openNotificationSettings()
-    fun closeNotificationSettings() = login.closeNotificationSettings()
-    fun refreshNotifications() = login.refreshNotifications()
-    fun enableNotifications() = login.enableNotifications()
-    fun disableNotifications() = login.disableNotifications()
-    fun renewNotifications() = login.renewNotifications()
-    fun notificationInbox(more: Boolean = false) = login.notificationInbox(more)
-    fun openNotification(binding: String, id: String?) = login.openNotification(binding, id)
+    fun closeSession() = login.closeSession()
+    fun openCreation() = login.openCreation()
+    fun closeCreation() = login.closeCreation()
+    fun createSession(workspaceId: String?, agentPreset: String?) = login.createSession(workspaceId, agentPreset)
     fun loadOlder() = login.loadOlder()
-    fun retryRead() = login.retryRead()
     fun refreshSessions() = login.refreshSessions()
+    fun isUnread(entry: SessionDirectoryEntry) = login.isUnread(entry)
+    fun editDraft(value: TextFieldValue) = login.editDraft(value)
+    fun sendDraft() = login.sendDraft()
     fun back() = login.back()
     fun openModelSelection() = login.openModelSelection()
     fun closeModelSelection() = login.closeModelSelection()
-    fun loadModels() = login.loadModels()
-    fun loadNextModels() = login.loadNextModels()
-    fun reloadModels() = login.reloadModels()
-    fun selectModel(selection: SessionModelSelection) = login.selectModel(selection)
-    fun queryModelSelection() = login.queryModelSelection()
-    fun discardUnsentModelSelection(id: String) = login.discardUnsentModelSelection(id)
-    fun openChanges() = login.openChanges()
-    fun closeChanges() = login.closeChanges()
-    fun loadChanges() = login.loadChanges()
-    fun loadNextChanges() = login.loadNextChanges()
-    fun reloadChanges() = login.reloadChanges()
-    fun loadChangePatch(id: String) = login.loadChangePatch(id)
-    fun loadNextChangePatch() = login.loadNextChangePatch()
-    fun copyChangePatch() = login.copyChangePatch()
-    fun previewMessage(id: String) = login.previewMessage(id)
-    fun dismissMessageActions() = login.dismissMessageActions()
-    fun forkMessage(anchor: SessionForkAnchor) = login.forkMessage(anchor)
-    fun shareMessage(anchor: SessionForkAnchor) = login.shareMessage(anchor)
-    fun queryFork() = login.queryFork()
-    fun openForkChild(id: String) = login.openForkChild(id)
-    fun editComposer(candidate: MessageComposerState) = login.editComposer(candidate)
-    fun resolveFailedInput(original: MessageComposerState, restore: Boolean) = login.resolveFailedInput(original, restore)
-    fun submitMessage(submission: MessageSubmission) = login.submitMessage(submission)
-    fun sendPending(id: String) = login.sendPending(id)
-    fun pickDocument(resume: String?) = login.pickDocument(resume)
-    fun pickImage(resume: String? = null) = login.pickImage(resume)
-    fun pickCamera() = login.pickCamera()
-    fun previewImage(reference: VisibleMediaReference) = login.previewImage(reference)
-    fun dismissImagePreview() = login.dismissImagePreview()
-    fun cancelImage() = login.cancelImage()
-    fun documentPicked(token: String, uri: Uri?) = login.documentPicked(token, uri)
-    fun toggleUpload(id: String) = login.toggleUpload(id)
-    fun queryUpload(id: String) = login.queryUpload(id)
-    fun removeUpload(id: String) = login.removeUpload(id)
-    fun cancelUpload() = login.cancelUpload()
-    fun chooseExportDestination(id: String) = login.chooseExportDestination(id)
-    fun exportDestinationPicked(token: String, uri: Uri?) = login.exportDestinationPicked(token, uri)
-    fun cancelExportSave() = login.cancelExportSave()
-    fun browseExports(source: ExportSource?, more: Boolean) = login.browseExports(source, more)
-    fun requestExport(source: ExportSource) = login.requestExport(source)
-    fun queryExports() = login.queryExports()
-    fun cancelExport(id: String) = login.cancelExport(id)
-    fun removeExport(id: String) = login.removeExport(id)
-    fun queryCommands() = login.queryCommands()
-    fun answerQuestion(handle: QuestionHandle,answers: QuestionAnswers) = login.answerQuestion(handle,answers)
-    fun claimQuestion(handle: QuestionHandle) = login.claimQuestion(handle)
-    fun releaseQuestion(handle: QuestionHandle) = login.releaseQuestion(handle)
-    fun refreshQuestions() = login.refreshQuestions()
-    fun reviewApproval(id: String) = login.reviewApproval(id)
-    fun closeApprovalReview() = login.closeApprovalReview()
-    fun decideApproval(handle: ApprovalReviewHandle, choice: ApprovalChoice) = login.decideApproval(handle, choice)
-    fun sendOriginalApproval(handle: ApprovalReviewHandle, id: String) = login.sendOriginalApproval(handle, id)
-    fun queryApprovals() = login.queryApprovals()
-    fun refreshApprovals() = login.refreshApprovals()
-    fun discardUnsentApproval(id: String) = login.discardUnsentApproval(id)
-    fun reauthenticateApproval() = login.reauthenticateApproval()
-    fun cancelSession(epoch: String) = login.cancelSession(epoch)
-    fun archiveSession(epoch: String, archived: Boolean, stopActivity: Boolean) = login.archiveSession(epoch, archived, stopActivity)
+    fun selectModel(option: DshModelOption, reasoningEffort: String? = null) = login.selectModel(option, reasoningEffort)
+    fun cancelSession() = login.cancelSession()
+    fun renameSession(title: String) = login.renameSession(title)
+    fun archiveSession() = login.archiveSession()
+    fun forkSession() = login.forkSession()
     fun openBinding() = login.openBinding()
     fun previewBinding(id: String, code: String) = login.previewBinding(id, code)
     fun confirmBinding() = login.confirmBinding()

@@ -65,4 +65,21 @@
     <string name="settings_subject">账号标识</string>
     <string name="detail_expanded">已展开</string>
     <string name="detail_collapsed">已收起</string>
+    <string name="session_untitled">未命名会话</string>
+    <string name="session_rename">重命名</string>
+    <string name="session_title_label">会话标题</string>
+    <string name="session_fork">创建分支</string>
+    <string name="session_actions_title">会话操作</string>
+    <string name="session_action_error">会话操作未完成：%1$s</string>
+    <string name="action_confirm">确认</string>
+    <string name="action_retry">重试</string>
+    <string name="workspace_relative_yesterday">昨天</string>
+    <string name="chat_sending">正在发送…</string>
+    <string name="model_default_badge">默认</string>
+    <string name="models_unavailable_count">%1$d 个模型不可用</string>
+    <string name="creation_workspace_directory">工作区目录</string>
+    <string name="creation_agent_preset">代理预设</string>
+    <string name="creation_default_help">留空则使用电脑端默认值</string>
+    <string name="creation_creating">正在创建…</string>
+    <string name="workspace_start_session">选择会话来开始</string>
 </resources>

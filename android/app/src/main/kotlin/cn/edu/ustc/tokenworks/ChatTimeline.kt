@@ -234,7 +234,7 @@ internal fun ChatTranscript(
             }
         }
     LazyColumn(
-        modifier = modifier.then(background),
+        modifier = modifier.then(background).testTag("chat-list"),
         state = listState,
         userScrollEnabled = interactive,
         contentPadding = PaddingValues(horizontal = TokenWorksSpacing.gutter, vertical = TokenWorksSpacing.sm),

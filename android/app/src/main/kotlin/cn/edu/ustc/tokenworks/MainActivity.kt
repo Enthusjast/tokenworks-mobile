@@ -31,9 +31,8 @@ class MainActivity : FragmentActivity() {
         biometrics.update(model.state.value.authenticationId, null)
         setContent {
             AppearanceHost(model.state) { HomeRoute(model = model, onSecuritySettings = ::securitySettings,
-                onCancel = { biometrics.cancel(); model.cancel() }) }
+                onCancel = { biometrics.cancel(); model.cancelAccount() }) }
         }
-        NotificationOpen.parse(intent)?.let { model.openNotification(it.bindingId, it.notificationId) }
         lifecycleScope.launch {
             repeatOnLifecycle(Lifecycle.State.STARTED) {
                 launch {
@@ -55,10 +54,6 @@ class MainActivity : FragmentActivity() {
         }
     }
 
-    override fun onNewIntent(intent: Intent) {
-        super.onNewIntent(intent)
-        NotificationOpen.parse(intent)?.let { model.openNotification(it.bindingId, it.notificationId) }
-    }
 
     private fun securitySettings() {
         val intent = if (Build.VERSION.SDK_INT >= 30) Intent(Settings.ACTION_BIOMETRIC_ENROLL)

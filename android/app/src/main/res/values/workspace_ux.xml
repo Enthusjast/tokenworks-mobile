@@ -4,6 +4,7 @@
     <string name="workspace_close_navigation">关闭会话导航</string>
     <string name="workspace_collapse_navigation">收起会话导航</string>
     <string name="workspace_title">TokenWorks Mobile</string>
+    <string name="conversation_jump_latest">回到最新</string>
     <string name="workspace_choose_session">选择会话，继续工作</string>
     <string name="workspace_choose_session_detail">从会话导航中打开已获授权的会话，或在当前电脑新建。</string>
     <string name="workspace_return_sessions">返回会话</string>

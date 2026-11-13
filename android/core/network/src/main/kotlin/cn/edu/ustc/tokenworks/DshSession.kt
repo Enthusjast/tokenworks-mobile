@@ -29,7 +29,7 @@ class DshSessionReader(
 
     init {
         Contract.uuid(runtimeId)
-        Contract.uuid(sessionId)
+        Contract.boundedText(sessionId, 128)
         scope.launch { follow() }
         scope.coroutineContext[Job]!!.invokeOnCompletion { close() }
     }

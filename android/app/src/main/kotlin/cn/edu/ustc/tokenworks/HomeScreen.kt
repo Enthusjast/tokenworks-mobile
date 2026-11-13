@@ -11,6 +11,8 @@ import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.TextRange
+import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
@@ -23,6 +25,8 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.activity.compose.BackHandler
+import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.launch
 
 @Composable
 internal fun HomeRoute(model: HomeViewModel, onSecuritySettings: () -> Unit,
@@ -37,261 +41,274 @@ internal fun HomeRoute(model: HomeViewModel, onSecuritySettings: () -> Unit,
     }
 }
 
-@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun ReadyHomeRoute(state: HomeState, model: HomeViewModel, viewport: WorkspaceViewport, onCancel: () -> Unit) {
-    // Only presentation state survives child pages. Leaving READY disposes this scope.
-    val navigation = remember { HomeNavigation() }
-    // Positions are scoped to this READY identity and contain only stable message keys and offsets.
-    val readingPositions = remember { LinkedHashMap<Triple<String?, String, String>, ChatReadingPosition>() }
-    var appearanceSettings by remember(state.presentationOwner?.fingerprint) { mutableStateOf(false) }
-    val bindingState = state.binding
-    val shellVisible = !appearanceSettings && !state.appUpdateSettings && !state.notificationSettings &&
-        state.reviewingApprovalId == null && bindingState == null && state.creation == null && state.selectedSessionId == null
-    val chromeVisible = !appearanceSettings && !state.appUpdateSettings && !state.notificationSettings &&
-        state.reviewingApprovalId == null && bindingState == null && state.creation == null
-    val layout = workspaceLayout(
-        viewport = viewport,
-        hasSession = state.selectedSessionId != null,
-        panelRequested = navigation.chatDetail != null || state.modelSelectionOpen || state.changesOpen || state.messageActionsOpen,
-        navigationExpanded = navigation.navigationExpanded,
-    ).let {
-        if (state.knownTarget != null) it.copy(leftPane = WorkspaceLeftPane.NONE, navigationWidth = 0.dp) else it
-    }
-    val keyboard = LocalSoftwareKeyboardController.current
-    val imeVisible = WindowInsets.isImeVisible
-    val back: () -> Unit = {
-        if (imeVisible) keyboard?.hide()
-        else if (navigation.chatDetail != null) navigation.closeChatDetail()
-        else model.back()
-    }
-    LaunchedEffect(state.selectedRuntimeId, state.selectedSessionId, state.reader?.phase, state.knownTarget) {
-        navigation.recordVisited(state)
-    }
-
-    // Controller-driven entries (including creation results) share the same directory position.
-    // A known-session notification remains on its exact-resource path, outside this shell.
-    LaunchedEffect(state.selectedRuntimeId, state.creation, state.notificationSettings, state.appUpdateSettings) {
-        if (state.notificationSettings || state.appUpdateSettings) {
-            navigation.destination = HomeDestination.SETTINGS
-        } else if (state.creation == null && state.knownTarget == null) {
-            state.runtimes.firstOrNull { it.id == state.selectedRuntimeId }?.let {
-                navigation.selectRuntime(it.id)
-                navigation.destination = HomeDestination.SESSIONS
+    var navigationExpanded by remember { mutableStateOf(true) }
+    var appearanceSettings by remember { mutableStateOf(false) }
+    var settingsOpen by remember { mutableStateOf(false) }
+    var hostsOpen by remember { mutableStateOf(false) }
+    val positions = remember { LinkedHashMap<Pair<String, String>, ChatReadingPosition>() }
+    val snackbar = remember { SnackbarHostState() }
+    val actionError = state.sessionActionError?.let { stringResource(R.string.session_action_error, it) }
+    val homeError = state.error?.let { errorText(it) }
+    LaunchedEffect(actionError) { actionError?.let { snackbar.showSnackbar(it) } }
+    LaunchedEffect(homeError) { homeError?.let { snackbar.showSnackbar(it) } }
+    val layout = workspaceLayout(viewport, state.selectedSessionId != null, state.modelSelectionOpen, navigationExpanded)
+    val overlay = appearanceSettings || settingsOpen || state.appUpdateSettings || state.binding != null || state.creation != null
+    BackHandler { model.back() }
+    Box(Modifier.fillMaxSize()) {
+        WorkspaceScaffold(
+            layout = layout,
+            chromeVisible = !overlay,
+            railContent = { openNavigation -> WorkspaceRail(openNavigation, { hostsOpen = true }, { settingsOpen = true }) },
+            navigationContent = { closeNavigation ->
+                TokenWorksAppShell(state, model, onHosts = { closeNavigation(); hostsOpen = true },
+                    onSettings = { closeNavigation(); settingsOpen = true },
+                    onCloseNavigation = { if (layout.leftPane == WorkspaceLeftPane.SIDEBAR) navigationExpanded = false else closeNavigation() })
+            },
+        ) { toggleNavigation ->
+            val openNavigation: () -> Unit = {
+                if (layout.leftPane == WorkspaceLeftPane.SIDEBAR) navigationExpanded = false else toggleNavigation()
             }
-        }
-    }
-    LaunchedEffect(shellVisible, navigation.destination, navigation.directoryRuntimeId, state.runtimes,
-        state.selectedRuntimeId, state.refreshing, state.sessionError) {
-        if (shellVisible && navigation.destination == HomeDestination.SESSIONS && state.selectedRuntimeId == null &&
-            !state.refreshing && state.sessionError == null) {
-            val eligible = state.runtimes.filter { it.access?.organizationId != null && it.access.canList() }
-            val initial = if (navigation.directoryRuntimeId == null) eligible.firstOrNull()
-                else eligible.firstOrNull { it.id == navigation.directoryRuntimeId }
-            initial?.let {
-                navigation.selectRuntime(it.id)
-                model.openRuntime(it.id)
-            }
-        }
-    }
-    val closeChild: () -> Unit = {
-        if (model.state.value.messageActionsOpen) model.dismissMessageActions()
-        if (model.state.value.changesOpen) model.closeChanges()
-        if (model.state.value.modelSelectionOpen) model.closeModelSelection()
-        navigation.closeChatDetail()
-    }
-    val selectDestination: (HomeDestination) -> Unit = { destination ->
-        navigation.closePresentationPanels()
-        if (state.knownTarget != null) model.back()
-        else {
-            closeChild()
-            if (destination != navigation.destination || destination != HomeDestination.SESSIONS) {
-                // The shortcut follows the same child -> chat -> directory retirement as Back.
-                if (model.state.value.selectedSessionId != null) model.back()
-                if (model.state.value.selectedRuntimeId != null) model.back()
-                navigation.directoryFromComputer = false
-                navigation.destination = destination
-            }
-        }
-    }
-    val backToComputers: () -> Unit = { selectDestination(HomeDestination.COMPUTERS) }
-    val openNavigation: () -> Unit = {
-        when (layout.leftPane) {
-            WorkspaceLeftPane.SIDEBAR -> navigation.navigationExpanded = false
-            WorkspaceLeftPane.RAIL -> {
-                closeChild()
-                navigation.navigationExpanded = true
-            }
-            WorkspaceLeftPane.NONE -> navigation.drawerOpen = true
-        }
-    }
-    val selectRuntime: (String) -> Unit = { id ->
-        navigation.closePresentationPanels()
-        navigation.directoryFromComputer = navigation.destination == HomeDestination.COMPUTERS
-        navigation.destination = HomeDestination.SESSIONS
-        navigation.selectRuntime(id)
-        if (id != model.state.value.selectedRuntimeId) model.openRuntime(id)
-    }
-    val selectSession: (String) -> Unit = { id ->
-        navigation.drawerOpen = false
-        if (id != model.state.value.selectedSessionId) {
-            navigation.closePresentationPanels()
-            model.openSession(id)
-        }
-    }
-    val sourceOwner = state.presentationOwner?.fingerprint
-    val sourceHost = state.runtimeRow(state.selectedRuntimeId)?.hostId
-    val readingResource = remember(sourceHost, state.selectedRuntimeId, state.selectedSessionId) {
-        state.selectedRuntimeId?.let { runtimeId -> state.selectedSessionId?.let { sessionId -> Triple(sourceHost, runtimeId, sessionId) } }
-    }
-    val changeDetail: (ChatDetailTarget?) -> Unit = { target ->
-        val current = model.state.value
-        if (current.presentationOwner?.fingerprint == sourceOwner &&
-            current.selectedRuntimeId == state.selectedRuntimeId && current.selectedSessionId == state.selectedSessionId &&
-            current.runtimeRow(current.selectedRuntimeId)?.hostId == sourceHost) navigation.setChatDetail(current, target)
-    }
-    SideEffect {
-        navigation.reconcileChatDetail(state)
-        if (!chromeVisible) navigation.closePresentationPanels()
-        if (state.modelSelectionOpen || state.changesOpen || state.messageActionsOpen || state.reviewingApprovalId != null) {
-            readingResource?.let { readingPositions[it] }?.retainExpandedSources(state.reader?.window?.items.orEmpty())
-        }
-    }
-
-    val hasRoute = appearanceSettings && state.presentationOwner != null || state.appUpdateSettings || state.notificationSettings ||
-        state.reviewingApprovalId != null || bindingState != null || state.creation != null ||
-        state.changesOpen && state.changes != null || state.modelSelectionOpen || state.messageActionsOpen && state.messageActions != null || state.selectedSessionId != null
-    val backdropPosition = readingResource?.let { readingPositions[it] }
-    val routeContent: (@Composable () -> Unit)? = if (!hasRoute) null else { {
-    if (appearanceSettings && state.presentationOwner != null) {
-        BackHandler { appearanceSettings = false }
-        AppearanceSettingsScreen(state.presentationOwner) { appearanceSettings = false }
-    } else if (state.appUpdateSettings) {
-        BackHandler { model.closeAppUpdates() }
-        val update = state.appUpdates ?: AppUpdateUiState()
-        AppUpdatesScreen(update, { model.checkAppUpdates(update.viewId) },
-            { model.downloadAppUpdate(update.viewId, update.release?.document?.sha256()) },
-            { model.installAppUpdate(update.viewId, update.attemptId, update.release?.document?.sha256()) },
-            { model.requestAppInstallPermission(update.viewId) }, { token -> model.cleanupAppUpdate(update.viewId, token) },
-            { model.cancelAppUpdateDownload(update.viewId) }, model::closeAppUpdates)
-    } else if (state.notificationSettings) {
-        BackHandler { model.closeNotificationSettings() }
-        val notifications = state.notifications ?: NotificationUiState()
-        NotificationsScreen(notifications.copy(note = state.notificationNote ?: notifications.note), model::refreshNotifications, model::enableNotifications, model::disableNotifications, model::renewNotifications,
-            { model.notificationInbox(false) }, { model.notificationInbox(true) }, model::openNotification, model::closeNotificationSettings)
-    } else if (state.reviewingApprovalId != null) {
-        BackHandler { model.closeApprovalReview() }
-        ApprovalReviewScreen(state, model::closeApprovalReview, model::reviewApproval, model::decideApproval, model::sendOriginalApproval,
-            model::queryApprovals, model::discardUnsentApproval, model::refreshApprovals, model::reauthenticateApproval)
-    } else if (bindingState != null) {
-        BackHandler(onBack = { if (imeVisible) keyboard?.hide() else model.closeBinding() })
-        HostBindingScreen(bindingState, state.subject, model::previewBinding, model::queryBinding, model::confirmBinding, model::refreshBinding, model::enterAnotherBinding,
-            { if (imeVisible) keyboard?.hide() else model.closeBinding() })
-    } else if (state.creation != null) {
-        BackHandler(onBack = back)
-        SessionCreationScreen(state, model::createSession, model::refreshCreationOptions, model::queryCreation, model::sendPendingCreation, model::openCreatedSession, back)
-    } else if (state.messageActionsOpen && state.messageActions != null) {
-        val actions = state.messageActions
-        val original = actions.originalRequestId?.let { id -> state.outbox?.records?.firstOrNull { it.intent.requestId == id } }
-        val presentation = when {
-            layout.size == WorkspaceSize.EXPANDED -> TaskPresentation.SIDE_PANEL
-            viewport.heightDp >= 480 -> TaskPresentation.SHEET
-            else -> TaskPresentation.PAGE
-        }
-        val dismiss: () -> Unit = { if (imeVisible) keyboard?.hide() else model.dismissMessageActions() }
-        AdaptiveSessionPanel(layout, presentation, dismiss,
-            backdrop = { ReadOnlySessionBackdrop(state, backdropPosition) }) {
-            key(presentation) {
-                SessionMessageActionPreview(actions.copy(error = state.sessionActionError ?: actions.error), original,
-                    fork = { actions.preview?.anchor?.let(model::forkMessage) },
-                    share = { actions.preview?.anchor?.let(model::shareMessage) },
-                    queryOriginal = model::queryFork, openChild = model::openForkChild, dismiss = dismiss, embedded = true)
-            }
-        }
-    } else if (state.changesOpen && state.changes != null) {
-        val changes = state.changes
-        val uiState = remember(sourceOwner, state.selectedRuntimeId, state.selectedSessionId, changes.contextId) { ChangesPanelUiState() }
-        val patchUiState = remember(sourceOwner, state.selectedRuntimeId, state.selectedSessionId, changes.contextId,
-            changes.patch?.fileId, changes.patch?.version) { ChangePatchUiState() }
-        val presentation = when (layout.size) {
-            WorkspaceSize.COMPACT -> TaskPresentation.PAGE
-            WorkspaceSize.MEDIUM -> TaskPresentation.SHEET
-            WorkspaceSize.EXPANDED -> TaskPresentation.SIDE_PANEL
-        }
-        val dismiss: () -> Unit = { if (imeVisible) keyboard?.hide() else model.closeChanges() }
-        AdaptiveSessionPanel(layout, presentation, dismiss,
-            backdrop = { ReadOnlySessionBackdrop(state, backdropPosition) }) {
-            key(presentation) {
-                SessionChangesScreen(changes.copy(error = state.sessionActionError ?: changes.error),
-                    model::loadChanges, model::loadNextChanges, model::reloadChanges, model::loadChangePatch,
-                    model::loadNextChangePatch, model::copyChangePatch, dismiss,
-                    uiState = uiState, embedded = true, patchUiState = patchUiState)
-            }
-        }
-    } else if (state.modelSelectionOpen) {
-        val catalog = requireNotNull(state.modelCatalog)
-        val uiState = remember(sourceOwner, state.selectedRuntimeId, state.selectedSessionId, catalog.contextId) { ModelPanelUiState() }
-        val original = remember(state.outbox?.records) {
-            state.outbox?.records.orEmpty().filter { it.intent.kind == CommandKind.MODEL_SELECT }
-                .maxWithOrNull(compareBy({ if (it.remote != RemoteCommandState.SETTLED && it.remote != RemoteCommandState.REJECTED) 1 else 0 }, { it.createdAt }, { it.intent.requestId }))
-        }
-        val presentation = when {
-            layout.size == WorkspaceSize.EXPANDED -> TaskPresentation.SIDE_PANEL
-            viewport.heightDp >= 480 -> TaskPresentation.SHEET
-            else -> TaskPresentation.PAGE
-        }
-        val dismiss: () -> Unit = { if (imeVisible) keyboard?.hide() else model.closeModelSelection() }
-        AdaptiveSessionPanel(layout, presentation, dismiss,
-            backdrop = { ReadOnlySessionBackdrop(state, backdropPosition) }) {
-            key(presentation) {
-                SessionModelsScreen(catalog, original, state.modelBusy,
-                    state.modelError ?: state.outbox?.error, model::loadModels, model::loadNextModels, model::reloadModels,
-                    model::selectModel, model::queryModelSelection, model::sendPending, model::discardUnsentModelSelection,
-                    dismiss, uiState = uiState, embedded = true)
-            }
-        }
-    } else if (state.selectedSessionId != null) {
-        key(state.selectedRuntimeId, state.selectedSessionId) {
-            val position = remember(readingResource) {
-                if (readingResource == null) ChatReadingPosition()
-                else readingPositions.remove(readingResource)?.also { readingPositions[readingResource] = it } ?: ChatReadingPosition().also {
-                    if (readingPositions.size >= 16) readingPositions.remove(readingPositions.keys.first())
-                    readingPositions[readingResource] = it
+            when {
+                appearanceSettings && state.presentationOwner != null -> {
+                    BackHandler { appearanceSettings = false }
+                    AppearanceSettingsScreen(state.presentationOwner) { appearanceSettings = false }
+                }
+                state.appUpdateSettings -> {
+                    BackHandler { model.closeAppUpdates() }
+                    val update = state.appUpdates ?: AppUpdateUiState()
+                    AppUpdatesScreen(update, { model.checkAppUpdates(update.viewId) },
+                        { model.downloadAppUpdate(update.viewId, update.release?.document?.sha256()) },
+                        { model.installAppUpdate(update.viewId, update.attemptId, update.release?.document?.sha256()) },
+                        { model.requestAppInstallPermission(update.viewId) }, { token -> model.cleanupAppUpdate(update.viewId, token) },
+                        { model.cancelAppUpdateDownload(update.viewId) }, model::closeAppUpdates)
+                }
+                state.binding != null -> {
+                    BackHandler { model.closeBinding() }
+                    HostBindingScreen(state.binding, state.subject, model::previewBinding, model::queryBinding, model::confirmBinding,
+                        model::refreshBinding, model::enterAnotherBinding, model::closeBinding)
+                }
+                state.creation != null -> SessionCreationScreen(state, model)
+                settingsOpen -> {
+                    BackHandler { settingsOpen = false }
+                    WorkspaceSettings(state, onAppearance = { appearanceSettings = true }, onAppUpdates = model::openAppUpdates,
+                        onExit = onCancel, onBack = { settingsOpen = false })
+                }
+                state.selectedSessionId != null -> key(state.selectedRuntimeId, state.selectedSessionId) {
+                    val resource = state.selectedRuntimeId.orEmpty() to state.selectedSessionId
+                    val position = remember(resource) {
+                        positions[resource] ?: ChatReadingPosition().also {
+                            if (positions.size >= 16) positions.remove(positions.keys.first())
+                            positions[resource] = it
+                        }
+                    }
+                    NativeSessionContent(state, position, SessionContentActions(model), openNavigation, { hostsOpen = true })
+                }
+                else -> Column(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing)) {
+                    TokenWorksTopBar(stringResource(R.string.nav_sessions), navigationIcon = {
+                        IconButton(openNavigation, Modifier.size(TokenWorksSpacing.minimumTouchTarget)) {
+                            ShellIcon(R.drawable.ic_menu, R.string.workspace_open_navigation)
+                        }
+                    }, actions = {
+                        IconButton({ settingsOpen = true }, Modifier.size(TokenWorksSpacing.minimumTouchTarget)) {
+                            ShellIcon(R.drawable.ic_settings, R.string.nav_settings)
+                        }
+                    })
+                    Column(Modifier.fillMaxWidth().padding(TokenWorksSpacing.xxl), verticalArrangement = Arrangement.spacedBy(TokenWorksSpacing.md)) {
+                        Text(stringResource(R.string.workspace_start_session), style = MaterialTheme.typography.displaySmall,
+                            modifier = Modifier.semantics { heading() })
+                        Text(stringResource(R.string.workspace_choose_session_detail), style = MaterialTheme.typography.bodyMedium,
+                            color = tokenWorksSurfaces().textTertiary)
+                        Button(openNavigation, Modifier.heightIn(min = TokenWorksSpacing.minimumTouchTarget)) {
+                            Text(stringResource(if (state.selectedRuntimeId == null) R.string.session_select_computer else R.string.action_open_sessions))
+                        }
+                    }
                 }
             }
-            SessionsScreen(state, back, model::refreshSessions, model::loadOlder, model::retryRead,
-                model::submitMessage, model::sendPending, model::queryCommands, model::cancelSession, model::answerQuestion, model::claimQuestion, model::releaseQuestion, model::refreshQuestions,
-                model::reviewApproval, model::queryApprovals, model::archiveSession,
-                model::pickDocument, model::documentPicked, model::toggleUpload, model::queryUpload, model::removeUpload, model::cancelUpload,
-                model::browseExports, model::requestExport, model::queryExports, model::cancelExport, model::removeExport,
-                model::chooseExportDestination, model::exportDestinationPicked, model::cancelExportSave, readingPosition = position,
-                onComposerChange = model::editComposer, onModels = model::openModelSelection,
-                onChanges = model::openChanges, onMessageAction = model::previewMessage,
-                onPickImage = { model.pickImage() }, onPickCamera = model::pickCamera, onPreviewMedia = model::previewImage,
-                onDismissImagePreview = model::dismissImagePreview, onCancelImage = model::cancelImage,
-                onReselectImage = { model.pickImage(it) }, onResolveFailedInput = model::resolveFailedInput,
-                layout = layout, detailTarget = navigation.chatDetail, onDetailsChange = changeDetail,
-                onOpenNavigation = openNavigation,
-                onOpenHosts = { if (state.knownTarget == null) navigation.hostSwitcherOpen = true else navigation.openChatDetail(state, ChatDetailSection.INFO) },
-                onCreateSession = { state.selectedRuntimeId?.let(model::openCreation) })
+        }
+        SnackbarHost(snackbar, Modifier.align(Alignment.BottomCenter).windowInsetsPadding(WindowInsets.safeDrawing).padding(TokenWorksSpacing.md))
+    }
+    if (hostsOpen && !overlay) {
+        androidx.compose.ui.window.Dialog(onDismissRequest = { hostsOpen = false }) {
+            Surface(shape = tokenWorksSquircle(TokenWorksRadius.xl), color = MaterialTheme.colorScheme.surface) {
+                Column(Modifier.fillMaxWidth().heightIn(max = viewport.heightDp.dp)) {
+                    TextButton({ hostsOpen = false }, Modifier.align(Alignment.End).heightIn(min = TokenWorksSpacing.minimumTouchTarget)) {
+                        Text(stringResource(R.string.action_close))
+                    }
+                    RuntimePicker(state, model, Modifier.weight(1f, fill = false), onRuntime = { hostsOpen = false; model.openRuntime(it) })
+                }
+            }
         }
     }
-    } }
-    BackHandler(enabled = shellVisible && (navigation.destination != HomeDestination.SESSIONS || navigation.directoryFromComputer)) {
-        if (imeVisible) keyboard?.hide()
-        else if (navigation.directoryFromComputer) backToComputers()
-        else selectDestination(HomeDestination.SESSIONS)
+    if (state.modelSelectionOpen && !overlay) {
+        AdaptiveSessionPanel(layout, if (layout.panelShown) TaskPresentation.SIDE_PANEL else TaskPresentation.SHEET,
+            model::closeModelSelection, backdrop = {}) {
+            SessionModelsScreen(state, model, currentKey = null)
+        }
     }
-    TokenWorksAppShell(state, navigation, selectDestination,
-        onRuntime = selectRuntime, onSession = selectSession,
-        onRefresh = model::refresh, onRefreshSessions = model::refreshSessions,
-        onCreate = { id -> navigation.closePresentationPanels(); model.openCreation(id) },
-        onBinding = { navigation.closePresentationPanels(); model.openBinding() },
-        onNotifications = { navigation.closePresentationPanels(); model.openNotificationSettings() },
-        onAppUpdates = { navigation.closePresentationPanels(); model.openAppUpdates() },
-        onAppearance = { navigation.closePresentationPanels(); if (state.presentationOwner != null) appearanceSettings = true },
-        onExit = onCancel, onBackToComputers = backToComputers,
-        layout = layout, chromeVisible = chromeVisible, onOpenNavigation = openNavigation, content = routeContent)
+}
+
+/** Every effect the chat surface can raise, so the production screen can be hosted without a controller. */
+internal class SessionContentActions(
+    val editDraft: (TextFieldValue) -> Unit = {},
+    val send: () -> Unit = {},
+    val cancel: () -> Unit = {},
+    val openModels: () -> Unit = {},
+    val openCreation: () -> Unit = {},
+    val loadOlder: () -> Unit = {},
+    val fork: () -> Unit = {},
+    val archive: () -> Unit = {},
+    val rename: (String) -> Unit = {},
+) {
+    constructor(model: HomeViewModel) : this(model::editDraft, model::sendDraft, model::cancelSession,
+        model::openModelSelection, model::openCreation, model::loadOlder, model::forkSession,
+        model::archiveSession, model::renameSession)
+}
+
+@Composable
+internal fun NativeSessionContent(state: HomeState, position: ChatReadingPosition, actions: SessionContentActions,
+    onNavigation: () -> Unit, onHosts: () -> Unit) {
+    val sessionId = requireNotNull(state.selectedSessionId)
+    val entry = state.sessions.firstOrNull { it.id == sessionId }
+    val runtime = state.runtimeRow(state.selectedRuntimeId)
+    val read = state.reader ?: SessionReadState(SessionReadPhase.CONNECTING)
+    var moreOpen by remember { mutableStateOf(false) }
+    var renameOpen by remember { mutableStateOf(false) }
+    var title by remember { mutableStateOf("") }
+    var selectedMessageId by remember { mutableStateOf<String?>(null) }
+    val connectionLabel = stringResource(when (read.phase) {
+        SessionReadPhase.CONNECTING -> R.string.conversation_connecting
+        SessionReadPhase.SYNCING -> R.string.conversation_syncing
+        SessionReadPhase.READY -> R.string.conversation_live
+        SessionReadPhase.BACKOFF -> R.string.conversation_reconnecting
+        SessionReadPhase.AUTH_REQUIRED -> R.string.conversation_auth_required
+        SessionReadPhase.REVOKED -> R.string.conversation_revoked
+        SessionReadPhase.ERROR -> R.string.conversation_read_error
+        SessionReadPhase.CLOSED -> R.string.conversation_paused
+    })
+    val quote: (String) -> Unit = { text ->
+        val current = state.composer?.value?.text.orEmpty()
+        val combined = buildString {
+            append(current)
+            if (isNotEmpty()) append("\n\n")
+            append(text.lineSequence().joinToString("\n") { "> $it" })
+            append('\n')
+        }
+        actions.editDraft(TextFieldValue(combined, TextRange(combined.length)))
+    }
+    Column(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing).imePadding(), horizontalAlignment = Alignment.CenterHorizontally) {
+        SessionHeader(entry?.metadata?.title?.takeIf { it.isNotBlank() } ?: stringResource(R.string.session_untitled),
+            connectionLabel, when (read.phase) {
+                SessionReadPhase.READY -> HeaderConnection.LIVE
+                SessionReadPhase.CONNECTING, SessionReadPhase.SYNCING -> HeaderConnection.PENDING
+                SessionReadPhase.BACKOFF, SessionReadPhase.CLOSED -> HeaderConnection.DEGRADED
+                else -> HeaderConnection.ERROR
+            }, modelsEnabled = runtime?.access?.canReadModelCatalog() == true && !state.modelBusy,
+            createEnabled = runtime?.access?.canCreate() == true,
+            onNavigation = onNavigation, onHosts = onHosts, onModels = actions.openModels,
+            onCreate = actions.openCreation, onMore = { moreOpen = true })
+        NativeChatTimeline(read, position, actions.loadOlder, quote, { selectedMessageId = it },
+            Modifier.widthIn(max = TokenWorksSpacing.readingWidth).fillMaxWidth().weight(1f))
+        ChatComposer(state, actions.editDraft, actions.send, actions.cancel, actions.openModels,
+            Modifier.widthIn(max = TokenWorksSpacing.readingWidth).fillMaxWidth())
+    }
+    if (moreOpen) AlertDialog(onDismissRequest = { moreOpen = false }, title = { Text(stringResource(R.string.session_actions_title)) },
+        text = {
+            Column {
+                TextButton({ moreOpen = false; title = entry?.metadata?.title.orEmpty(); renameOpen = true },
+                    enabled = runtime?.access?.canRename(sessionId) == true && !state.submitting) { Text(stringResource(R.string.session_rename)) }
+                TextButton({ moreOpen = false; actions.fork() }, enabled = runtime?.access?.canFork(sessionId) == true && !state.submitting) {
+                    Text(stringResource(R.string.session_fork))
+                }
+                TextButton({ moreOpen = false; actions.archive() },
+                    enabled = runtime?.access?.allows("workspace/archiveSession", sessionId, entry?.workspaceId) == true && !state.submitting) {
+                    Text(stringResource(R.string.conversation_archive))
+                }
+            }
+        }, confirmButton = { TextButton({ moreOpen = false }) { Text(stringResource(R.string.action_close)) } })
+    if (renameOpen) AlertDialog(onDismissRequest = { renameOpen = false }, title = { Text(stringResource(R.string.session_rename)) },
+        text = { OutlinedTextField(title, { title = it }, label = { Text(stringResource(R.string.session_title_label)) }, singleLine = true) },
+        confirmButton = { TextButton({ renameOpen = false; actions.rename(title.trim()) }, enabled = title.isNotBlank() && !state.submitting) {
+            Text(stringResource(R.string.action_confirm))
+        } }, dismissButton = { TextButton({ renameOpen = false }) { Text(stringResource(R.string.action_cancel)) } })
+    val message = read.items.firstOrNull { it.id == selectedMessageId }
+    if (message != null) {
+        val text = remember(message) { message.blocks.joinToString("\n\n") { it.text } }
+        AlertDialog(onDismissRequest = { selectedMessageId = null }, title = { Text(stringResource(R.string.conversation_message_more_description)) },
+            text = { SelectionContainer { Text(text, Modifier.heightIn(max = TokenWorksMetrics.panelIdealMin).verticalScroll(rememberScrollState())) } },
+            confirmButton = { TextButton({ selectedMessageId = null; quote(text) }, enabled = state.composer != null && text.isNotBlank()) {
+                Text(stringResource(R.string.conversation_message_quote))
+            } }, dismissButton = { TextButton({ selectedMessageId = null }) { Text(stringResource(R.string.action_close)) } })
+    }
+}
+
+@Composable
+internal fun NativeChatTimeline(read: SessionReadState, position: ChatReadingPosition, onLoadOlder: () -> Unit,
+    onQuote: (String) -> Unit, onMessageAction: (String) -> Unit, modifier: Modifier = Modifier) {
+    val projection = remember(read.items, read.running) { projectChatTimeline(read.items, read.running) }
+    val listState = androidx.compose.foundation.lazy.rememberLazyListState()
+    var showJump by remember { mutableStateOf(false) }
+    val keys = remember(projection, position.expandedSourceIds) { listOf("history") + projection.renderKeys(position.expandedSourceIds) + "read-status" }
+    val latestProjection by rememberUpdatedState(projection)
+    var restored by remember(position) { mutableStateOf(false) }
+    LaunchedEffect(keys, read.items.lastOrNull(), read.window != null) {
+        if (read.window == null) return@LaunchedEffect
+        position.retainExpandedSources(read.items)
+        val source = position.key?.let { projection.renderKeyForSource(it, position.expandedSourceIds) }
+        if (position.following) {
+            if (!listState.isScrollInProgress) listState.scrollToItem(keys.lastIndex)
+        } else if (source != null && !listState.isScrollInProgress) {
+            listState.scrollToItem(keys.indexOf(source).coerceAtLeast(0), position.offset)
+        }
+        restored = true
+    }
+    LaunchedEffect(listState, position) {
+        snapshotFlow { Triple(listState.firstVisibleItemIndex, listState.firstVisibleItemScrollOffset, listState.isScrollInProgress) }.collect { (_, _, scrolling) ->
+            if (!restored) return@collect
+            val first = listState.layoutInfo.visibleItemsInfo.firstOrNull { latestProjection.sourceIdForRenderKey(it.key.toString()) != null }
+            first?.let {
+                position.key = latestProjection.sourceIdForRenderKey(it.key.toString())
+                position.offset = (-it.offset).coerceAtLeast(0)
+            }
+            if (scrolling) position.following = !listState.canScrollForward
+            showJump = !position.following
+        }
+    }
+    val scope = rememberCoroutineScope()
+    Box(modifier) {
+    ChatTranscript(projection, listState, position.expandedSourceIds, interactive = true,
+        leadingContent = {
+            item("history") {
+                Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
+                    if (read.window?.hasMore == true || read.pageError != null) TextButton(onLoadOlder,
+                        enabled = !read.loadingOlder && read.phase == SessionReadPhase.READY) {
+                        Text(stringResource(if (read.loadingOlder) R.string.conversation_history_loading else R.string.conversation_history_older))
+                    }
+                    if (read.pageError != null) TokenWorksStatusNotice(stringResource(R.string.conversation_history_error), isError = true)
+                }
+            }
+        }, trailingContent = {
+            item("read-status") {
+                val failure = read.error
+                when {
+                    failure != null -> TokenWorksStatusNotice(errorText(failure), isError = true)
+                    read.phase == SessionReadPhase.CONNECTING || read.phase == SessionReadPhase.SYNCING -> LinearProgressIndicator(Modifier.fillMaxWidth())
+                    read.items.isEmpty() -> Text(stringResource(R.string.conversation_empty), style = MaterialTheme.typography.bodyMedium)
+                }
+            }
+        }, onProcessExpansion = { ids, expanded ->
+            position.expandedSourceIds = if (expanded) position.expandedSourceIds + ids else position.expandedSourceIds - ids.toSet()
+        }, onQuote = onQuote, onMessageAction = onMessageAction, onPreviewMedia = null, modifier = Modifier.fillMaxSize())
+    if (showJump && !position.following) FilledTonalButton(
+        onClick = {
+            position.following = true; showJump = false
+            scope.launch { listState.animateScrollToItem(keys.lastIndex) }
+        },
+        modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = TokenWorksSpacing.md)) {
+        Text(stringResource(R.string.conversation_jump_latest), style = MaterialTheme.typography.labelMedium)
+    }
+    }
 }
 
 @OptIn(ExperimentalLayoutApi::class)
@@ -396,6 +413,7 @@ fun HomeScreen(state: HomeState, onLogin: () -> Unit, onRegister: (String) -> Un
                                 HomePhase.AUTHENTICATING -> R.string.workspace_device_authenticating
                                 HomePhase.REGISTERING -> R.string.workspace_device_registering
                                 HomePhase.RECONCILING -> R.string.workspace_device_reconciling
+                                else -> error("Unexpected authentication progress phase: ${state.phase}")
                             }), style = MaterialTheme.typography.bodyLarge)
                         }
                     }
