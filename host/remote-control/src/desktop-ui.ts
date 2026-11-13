@@ -4,6 +4,8 @@ import type { IncomingMessage, ServerResponse } from 'node:http'
 export interface DesktopStatus {
   runtimeId: string
   relay: { origin: string; phase: string } | null
+  /** F-03/N-8: experimental LAN direct connection; null when not enabled. */
+  lan?: { host: string; port: number; phase: string } | null
   development: boolean
 }
 

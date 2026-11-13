@@ -35,6 +35,11 @@ export class NativeGateway {
     })
   }
 
+  /** Shared mux entry for both the HTTP-upgrade path and the LAN gateway. */
+  acceptMux(socket: WebSocket, peer: PeerScope): void {
+    this.#mux(socket, peer)
+  }
+
   accept(socket: Duplex, peer: PeerScope): void {
     if (peer.signal.aborted) { socket.destroy(); return }
     this.#peers.set(socket, peer)

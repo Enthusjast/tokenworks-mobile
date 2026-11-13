@@ -6,6 +6,7 @@ import type {} from '@deepseek-ai/dsh-api-remote-access'
 import type {} from '@deepseek-ai/dsh-session'
 import type {} from '@deepseek-ai/dsh-workspace'
 import { NativeGateway } from './native-gateway.js'
+import { LanGateway } from './lan-gateway.js'
 import { RelayTunnel } from './relay-tunnel.js'
 import type { HostCredentialProvider } from './host-connection-credential.js'
 import { HostEnrolledRuntimeError, verifyEnrolledHostRuntime, type HostEnrolledRuntimeOptions } from './host-enrolled-runtime.js'
@@ -50,6 +51,8 @@ export interface Config {
   applicationVersion?: string
   dshVersion?: string
   pluginVersion?: string
+  /** F-03/N-8: experimental LAN direct connection; disabled unless fully configured. */
+  lan?: { host: string; port: number; certificateCert: string; certificateKey: string; deviceToken: string }
 }
 export const Config: z<Config> = z.object({
   enabled: z.boolean().default(false),
@@ -58,6 +61,11 @@ export const Config: z<Config> = z.object({
   applicationVersion: z.string().default(''),
   dshVersion: z.string().default(''),
   pluginVersion: z.string().default(''),
+  lan: z.object({
+    host: z.string(), port: z.number(),
+    certificateCert: z.string(), certificateKey: z.string(),
+    deviceToken: z.string(),
+  }),
 })
 
 export async function apply(ctx: Context, config: Config = {}, credentials?: HostCredentialProvider): Promise<void> {
@@ -67,12 +75,28 @@ export async function apply(ctx: Context, config: Config = {}, credentials?: Hos
   const origin = new URL(options.relayUrl).origin
   const versions = Object.freeze({ dsh: options.dshVersion ?? '', application: options.applicationVersion ?? '', plugin: options.pluginVersion ?? '' })
   if (credentials.origin && credentials.origin !== origin) throw new Error('installation origin changed')
-  const child = ctx.plugin({ name: 'tokenworks-mobile-tunnel', inject, apply(scope: Context) {
+  const child = ctx.plugin({ name: 'tokenworks-mobile-tunnel', inject, async apply(scope: Context) {
     const gateway = new NativeGateway(scope.connection, scope.typertGateway)
     const tunnel = new RelayTunnel({ origin, runtimeId: options.runtimeId!, versions, credentials, connection: scope.connection, remoteAccess: scope.remoteAccess, gateway,
       resources: () => ({ sessions: scope.sessions.list().map(session => session.id), workspaces: scope.workspaceRegistry.list().map(workspace => workspace.id) }) })
-    registerDesktopUI(scope, () => ({ runtimeId: options.runtimeId!, relay: { origin, phase: tunnel.status() }, development: options.applicationVersion === 'local-development-fixture' }))
-    scope.effect(() => async () => { gateway.close(); await tunnel.close() }, 'remote-control.native-tunnel')
+    let lan: LanGateway | undefined
+    if (options.lan) {
+      const lanConfig = options.lan
+      if (!/^[A-Za-z0-9_-]{43}$/.test(lanConfig.deviceToken)) throw new Error('lan deviceToken must be 43 url-safe chars')
+      if (!Number.isInteger(lanConfig.port) || lanConfig.port < 1 || lanConfig.port > 65535) throw new Error('lan port out of range')
+      if (lanConfig.host === '0.0.0.0' || lanConfig.host === '::' || lanConfig.host === '') throw new Error('lan host must be a specific address')
+      lan = new LanGateway({ host: options.lan.host, port: options.lan.port, runtimeId: options.runtimeId!,
+        installationId: (await credentials.acquire(new AbortController().signal)).installationId, connection: scope.connection, remoteAccess: scope.remoteAccess,
+        gateway, resources: () => ({ sessions: scope.sessions.list().map(session => session.id), workspaces: scope.workspaceRegistry.list().map(workspace => workspace.id) }),
+        certificate: { cert: options.lan.certificateCert, key: options.lan.certificateKey },
+        deviceToken: () => options.lan!.deviceToken })
+      void lan.listen().then(() => console.log('lan: listening on', `${options.lan!.host}:${options.lan!.port}`))
+        .catch(error => console.error('lan: listen failed', error))
+    }
+    registerDesktopUI(scope, () => ({ runtimeId: options.runtimeId!, relay: { origin, phase: tunnel.status() },
+      lan: lan ? { host: options.lan!.host, port: options.lan!.port, phase: lan.phase() } : null,
+      development: options.applicationVersion === 'local-development-fixture' }))
+    scope.effect(() => async () => { gateway.close(); await tunnel.close(); await lan?.close() }, 'remote-control.native-tunnel')
   } })
   await child.await()
 }

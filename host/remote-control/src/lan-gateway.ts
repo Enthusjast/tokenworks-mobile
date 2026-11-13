@@ -97,10 +97,30 @@ export class LanGateway {
   async #introspect(id: string, secret: string): Promise<unknown> {
     const token = this.#options.deviceToken()
     if (!token || secret !== token || !/^[0-9a-f-]{36}$/i.test(id)) throw new Error('lan admission refused')
+    // F-03: kind-level bindings (no id) covering the same methods the Relay
+    // matrix grants, in the namespace/method syntax NativeAccess validates.
+    // Owner peers bypass remoteAccess anyway; these bindings only document
+    // the intended surface and satisfy the introspection schema.
+    const sessionActions = ['session/list', 'session/search', 'session/create', 'session/follow', 'session/page',
+      'session/prompt', 'session/cancel', 'session/updateQueue', 'session/selectModel', 'session/fork',
+      'session/rename', 'session/attachment', 'session/projections', 'session/control', 'session/openWorkspacePath',
+      'userQuestions/answer', 'userQuestions/attachWait']
+    const workspaceActions = ['workspace/follow', 'workspace/archiveSession', 'workspace/unarchiveSession',
+      'workspace/rename', 'workspace/delete', 'workspace/insertBefore', 'workspace/insertSessionBefore',
+      'workspace/pinSession', 'workspace/unpinSession']
+    const globalActions = ['remoteAccess/follow', 'session/modelCatalog', 'session/canOpenWorkspacePath',
+      'session/workspacePathApplications', 'session/initializeDefaultModel', 'fileReferences/list', 'skills/list',
+      'fileUploads/upload', 'directoryPicker/list', 'directoryPicker/createDirectory', 'directoryPicker/pick',
+      'workspace/create', 'workspace/initializeDefault', 'terminal/list', 'terminal/create', 'terminal/close',
+      'terminal/environment', 'terminal/rename', 'terminal/shells', 'terminal/retain']
     return {
       active: true, sub: 'lan-paired', aud: this.#options.runtimeId, exp: Math.floor(Date.now() / 1000) + 300,
       client_id: 'tokenworks-lan', device_id: id, runtime_id: this.#options.runtimeId, installation_id: this.#options.installationId,
-      grant_version: 1, bindings: [{ resource: { kind: 'global' }, actions: ['session.list', 'session.read', 'session.create', 'session.prompt', 'session.follow', 'workspace.list', 'workspace.read'] }],
+      grant_version: 1, bindings: [
+        { resource: { kind: 'global' }, actions: globalActions },
+        { resource: { kind: 'session' }, actions: sessionActions },
+        { resource: { kind: 'workspace' }, actions: workspaceActions },
+      ],
     }
   }
 
@@ -111,8 +131,9 @@ export class LanGateway {
   #mux(socket: WebSocket, admission: { peer: PeerScope; release(): void }): void {
     this.#peers.set(socket, admission.peer)
     socket.once('close', admission.release)
-    // The mux protocol itself is owned by NativeGateway; feed it the socket.
-    this.#options.gateway.accept(socket as unknown as Duplex, admission.peer)
+    // F-03: the mux is driven by NativeGateway.acceptMux — the same entry the
+    // HTTP-upgrade path uses — not by feeding the WS into the HTTP server.
+    this.#options.gateway.acceptMux(socket, admission.peer)
   }
 
   async #request(request: IncomingMessage, response: ServerResponse): Promise<void> {
