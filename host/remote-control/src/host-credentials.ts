@@ -3,7 +3,7 @@ import { isIP } from 'node:net'
 import { z } from 'zod'
 import { parseSigningObject } from './canonical.js'
 import { normalizeRestEnvelope, restEnvelopeHeader, restEnvelopeVersion } from './rest-envelope.js'
-import type { HostConnectionCredential, HostCredentialProvider, HostHandshakeSigner } from './relay-client.js'
+import type { HostConnectionCredential, HostCredentialProvider, HostHandshakeSigner, InstallationPublicJwk } from './host-connection-credential.js'
 
 const inspect = Symbol.for('nodejs.util.inspect.custom')
 const audience = 'urn:tokenworks-mobile:host-credential'
@@ -112,7 +112,7 @@ function deadline(expiry: string, maximum: number): () => number {
 class BoundCredential implements HostConnectionCredential {
   #value: string
   #current: () => void
-  constructor(readonly installationId: string, readonly signer: HostHandshakeSigner, value: string, current: () => void) { this.#value = value; this.#current = current }
+  constructor(readonly installationId: string, readonly signer: HostHandshakeSigner, readonly publicJwk: InstallationPublicJwk, value: string, current: () => void) { this.#value = value; this.#current = current }
   get credential(): string { this.#current(); return this.#value }
   toString(): string { return 'HostConnectionCredential' }
   toJSON(): string { return this.toString() }
@@ -231,7 +231,7 @@ export class HostRestCredentialProvider implements HostCredentialProvider {
     const credentialRemaining = deadline(result.expires_at, 300_000)
     const current = () => { this.#current(this.signal); if (credentialRemaining() <= 0) throw error('expired') }
     const signer = Object.freeze({ sign: async (input: Uint8Array) => { current(); const signed = await this.#sign(input, this.signal); current(); return signed } })
-    return { credential: Object.freeze(new BoundCredential(result.installation_id, signer, result.credential, current)), remaining: credentialRemaining }
+    return { credential: Object.freeze(new BoundCredential(result.installation_id, signer, this.#jwk, result.credential, current)), remaining: credentialRemaining }
   }
 
   async #post(path: string, body: object, token: string, signal: AbortSignal): Promise<unknown> {

@@ -1,6 +1,6 @@
 import { createPrivateKey, createPublicKey, sign, timingSafeEqual } from 'node:crypto'
 import { inspect } from 'node:util'
-import type { HostHandshakeSigner } from './relay-client.js'
+import type { HostHandshakeSigner } from './host-connection-credential.js'
 import { decodeSecretBase64 } from './linux-secret-service.js'
 
 export interface InstallationPublicJwk { kty: 'EC'; crv: 'P-256'; x: string; y: string }

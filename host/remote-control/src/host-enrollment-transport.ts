@@ -4,7 +4,7 @@ import { z } from 'zod'
 import { parseSigningObject } from './canonical.js'
 import { normalizeRestEnvelope, restEnvelopeHeader, restEnvelopeVersion } from './rest-envelope.js'
 import { hostEnrollmentOwnerBinding, type HostResourceAccessProvider, type HostResourceIdentity, type HostResourceRequest } from './host-credentials.js'
-import type { HostHandshakeSigner } from './relay-client.js'
+import type { HostHandshakeSigner } from './host-connection-credential.js'
 
 type Code = 'invalid_config' | 'cancelled' | 'identity_changed' | 'expired' | 'proof_invalid' | 'denied' | 'conflict' | 'unavailable' | 'response_invalid' | 'review_required' | 'declined' | 'outcome_unknown' | 'busy'
 export class HostEnrollmentError extends Error {

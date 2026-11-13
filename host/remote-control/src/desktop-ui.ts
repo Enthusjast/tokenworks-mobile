@@ -3,22 +3,12 @@ import type { IncomingMessage, ServerResponse } from 'node:http'
 
 export interface DesktopStatus {
   runtimeId: string
-  epoch: string
   relay: { origin: string; phase: string } | null
-  localSocket: boolean
-  protectedJournal: boolean
   development: boolean
-  workspaces: { id: string; label: string }[]
-  presets: string[]
 }
 
 // Optional Web services: headless and SDK hosts do not need the desktop UI.
 interface WebContext extends Context {
-  connection: {
-    admit(request: IncomingMessage): { rejection: 401 | 403 } | {
-      peer: { principal: { kind: string }; signal: AbortSignal }
-    }
-  }
   webServer: {
     register(route: { kind: 'exact'; path: string; handler(req: IncomingMessage, res: ServerResponse): void }): () => void
   }

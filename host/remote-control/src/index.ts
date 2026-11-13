@@ -1,44 +1,32 @@
 import type { Context } from '@deepseek-ai/cordis'
-import type { Agent } from '@deepseek-ai/dsh-agent'
-import { randomUUID } from 'node:crypto'
 import z from '@deepseek-ai/schemastery'
-import { DshClient, type Workspace } from './dsh-client.js'
-import { defaultCommandJournalPath, PersistentCommandJournal } from './command-journal.js'
-import { DEFAULT_COMMAND_JOURNAL_MAX_BYTES, MIN_COMMAND_JOURNAL_MAX_BYTES, MAX_COMMAND_JOURNAL_MAX_BYTES } from './journal-capacity.js'
-import { InteractionRouter } from './interaction-router.js'
-import { ProbeRuntime } from './runtime.js'
-import { startDebugServer } from './debug-server.js'
-import { startHostRelay, type HostCredentialProvider } from './relay-client.js'
-import { SignedApprovals, type SignedApprovalOptions } from './signed-approvals.js'
-import { RelayApprovals } from './relay-approvals.js'
-import { RelayFiles } from './relay-files.js'
-import { RelayExports } from './relay-exports.js'
-import { PinnedExportSource } from './file-export-source.js'
-import { RelayQuestionReferences } from './relay-question-references.js'
-import type { JournalKeyProtector } from './journal-key-protection.js'
+import type {} from '@deepseek-ai/dsh-client-connection'
+import type {} from '@deepseek-ai/dsh-api-gateway'
+import type {} from '@deepseek-ai/dsh-api-remote-access'
+import type {} from '@deepseek-ai/dsh-session'
+import type {} from '@deepseek-ai/dsh-workspace'
+import { NativeGateway } from './native-gateway.js'
+import { RelayTunnel } from './relay-tunnel.js'
+import type { HostCredentialProvider } from './host-connection-credential.js'
 import { HostEnrolledRuntimeError, verifyEnrolledHostRuntime, type HostEnrolledRuntimeOptions } from './host-enrolled-runtime.js'
 import { registerDesktopUI } from './desktop-ui.js'
-export type { HostConnectionCredential, HostCredentialProvider, HostHandshakeSigner } from './relay-client.js'
+export type { HostConnectionCredential, HostCredentialProvider, HostHandshakeSigner, InstallationPublicJwk } from './host-connection-credential.js'
 export { HostRestCredentialProvider, HostCredentialError } from './host-credentials.js'
 export type { HostResourceIdentity, HostResourceAccess, HostResourceRequest, HostResourceAccessProvider, HostRestCredentialOptions } from './host-credentials.js'
 export { HostResourceJwtProvider, HostResourceJwtError } from './host-resource-jwt.js'
-export { parsePinnedApprovalAuthorityDescription, APPROVAL_AUTHORITY_DESCRIPTION_FORMAT } from './approval-authority.js'
-export type { ApprovalAuthorityDescription } from './approval-authority.js'
 export type { HostResourceJwtOptions, HostResourceTokenSource } from './host-resource-jwt.js'
 export { HostEnrollmentClient } from './host-enrollment.js'
 export { HostEnrollmentError } from './host-enrollment-transport.js'
-export type { HostEnrollmentOptions, HostEnrollmentRequest, HostEnrollmentIntent, HostEnrollmentReceipt, HostEnrollmentDetails, HostEnrollmentReview, HostEnrollmentApprovalReview, HostEnrollmentConfirmation } from './host-enrollment.js'
+export type { HostEnrollmentOptions, HostEnrollmentRequest, HostEnrollmentIntent, HostEnrollmentReceipt, HostEnrollmentDetails, HostEnrollmentReview, HostEnrollmentApprovalReview, HostEnrollmentConfirmation, HostEnrollmentBinding } from './host-enrollment.js'
 export { HostEnrollmentRecoveryStore, HostEnrollmentRecoveryError } from './host-enrollment-recovery.js'
 export type { HostEnrollmentRecoveryOptions } from './host-enrollment-recovery.js'
 export { HostEnrollmentBindingStore, HostEnrollmentBindingError } from './host-enrollment-binding.js'
 export type { HostEnrollmentBindingOptions } from './host-enrollment-binding.js'
-export type { HostEnrollmentBinding } from './host-enrollment.js'
 export type { HostEnrollmentTerminal, HostEnrollmentTerminalCleanup } from './host-enrollment-terminal.js'
 export { HostLocalEnrollmentError, presentHostEnrollmentOnTerminal, approveHostEnrollmentOnTerminal, runHostEnrollmentOnTerminal } from './host-local-enrollment.js'
 export type { HostLocalEnrollmentOptions } from './host-local-enrollment.js'
 export { HostTerminalEnrollmentWorkflow, HostTerminalEnrollmentWorkflowError } from './host-enrollment-workflow.js'
 export type { HostTerminalEnrollmentWorkflowOptions } from './host-enrollment-workflow.js'
-export type { SignedApprovalOptions } from './signed-approvals.js'
 export type { JournalKeyProtector } from './journal-key-protection.js'
 export { MacOSKeychainJournalProtector } from './macos-keychain-journal-protector.js'
 export type { MacOSKeychainJournalOptions } from './macos-keychain-journal-protector.js'
@@ -54,225 +42,56 @@ export { HostEnrolledRuntimeError } from './host-enrolled-runtime.js'
 export type { HostEnrolledRuntimeOptions } from './host-enrolled-runtime.js'
 
 export const name = 'tokenworks-mobile'
-export const inject = ['sessionController', 'sessions', 'agents', 'tools', 'approval', 'userQuestions', 'sessionProjections', 'workspaceRegistry', 'fileUploads', 'attachments', 'fs', 'loader']
-
+export const inject = ['connection', 'typertGateway', 'remoteAccess', 'loader', 'sessions', 'workspaceRegistry']
 export interface Config {
   enabled?: boolean
   runtimeId?: string
-  socketPath?: string
-  workspaces?: Workspace[]
-  presets?: string[]
-  highRiskTools?: string[]
-  interactionTimeoutMs?: number
-  commandJournalPath?: string
-  commandJournalMaxBytes?: number
-  requireProtectedJournalKey?: boolean
   relayUrl?: string
   applicationVersion?: string
+  dshVersion?: string
+  pluginVersion?: string
 }
 export const Config: z<Config> = z.object({
   enabled: z.boolean().default(false),
   runtimeId: z.string().default(''),
-  socketPath: z.string().default(''),
-  workspaces: z.array(z.object({ id: z.string().required(), cwd: z.string().required(), remoteId: z.string(), label: z.string(),
-    exportRoots: z.array(z.object({ id: z.string().required(), directory: z.string().required() })).default([]),
-  })).default([]),
-  presets: z.array(String).default([]),
-  highRiskTools: z.array(String).default(['bash', 'pwsh', 'run_code']),
-  interactionTimeoutMs: z.number().min(100).max(600_000).default(180_000),
-  commandJournalPath: z.string().default(''),
-  commandJournalMaxBytes: z.number().min(MIN_COMMAND_JOURNAL_MAX_BYTES).max(MAX_COMMAND_JOURNAL_MAX_BYTES).default(DEFAULT_COMMAND_JOURNAL_MAX_BYTES),
-  requireProtectedJournalKey: z.boolean().default(false),
   relayUrl: z.string().default(''),
   applicationVersion: z.string().default(''),
+  dshVersion: z.string().default(''),
+  pluginVersion: z.string().default(''),
 })
 
-/** Opt-in M0 integration into the current Cordis profile; no default export. */
-export async function apply(ctx: Context, config: Config = {}, credentials?: HostCredentialProvider, signedOptions?: SignedApprovalOptions, journalKeyProtector?: JournalKeyProtector): Promise<void> {
-  return await applyInternal(ctx, config, credentials, signedOptions, journalKeyProtector)
-}
-
-async function applyInternal(ctx: Context, config: Config, credentials?: HostCredentialProvider, signedOptions?: SignedApprovalOptions,
-  journalKeyProtector?: JournalKeyProtector, enrollment?: HostEnrolledRuntimeOptions): Promise<void> {
-  if (!config.enabled) return
-  if (config.requireProtectedJournalKey && !journalKeyProtector) throw new Error('remote-control requires a journal key protector')
-  // All listener/guard effects need their own fiber, including when the public
-  // apply function is invoked directly in a context that owns the native host.
-  const parentFiber = ctx.fiber
-  let setupError: unknown
-  const scope = ctx.plugin({ name: 'tokenworks-mobile-owner',
-    inject: signedOptions && !signedOptions.workingDirectory ? [...inject, 'workingDirectory'] : inject,
-    apply(owned: Context) {
-      const task = applyOwned(owned, config, parentFiber, credentials, signedOptions, journalKeyProtector, enrollment)
-      void task.catch(error => { setupError = error })
-      return task
-    },
-  })
-  try { await scope.await() }
-  catch (error) { throw setupError ?? error }
-}
-
-async function applyOwned(ctx: Context, config: Config, parentFiber: Context['fiber'], credentials?: HostCredentialProvider, signedOptions?: SignedApprovalOptions,
-  journalKeyProtector?: JournalKeyProtector, enrollment?: HostEnrolledRuntimeOptions): Promise<void> {
+export async function apply(ctx: Context, config: Config = {}, credentials?: HostCredentialProvider): Promise<void> {
   if (!config.enabled) return
   const options = Config(config)
-  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(options.runtimeId!)) {
-    throw new Error('remote-control requires a stable per-profile runtimeId UUID')
-  }
-  // Hold a private snapshot while asynchronous account and key checks run.
-  const workspaces = options.workspaces!.map(workspace => ({ ...workspace,
-    ...(workspace.exportRoots ? { exportRoots: workspace.exportRoots.map(root => ({ ...root })) } : {}) }))
-  const presets = [...options.presets!]
-  if (options.relayUrl && (!credentials || !options.applicationVersion)) {
-    throw new Error('remote-control Relay requires an external host credential provider and applicationVersion')
-  }
-  if (signedOptions && (!options.relayUrl || !credentials)) throw new Error('signed approval requires an authenticated Relay connection')
-  if (options.requireProtectedJournalKey && !journalKeyProtector) throw new Error('remote-control requires a journal key protector')
-  if (!options.socketPath && !options.relayUrl) throw new Error('remote-control requires an explicit local socket or Relay endpoint')
-  const managed = (agent: Agent | undefined): boolean => {
-    const seen = new Set<string>()
-    let session = agent?.session
-    while (session !== undefined) {
-      const current = session
-      if (workspaces.some(workspace => workspace.cwd === current.header.cwd)) return true
-      if (current.header.parentSession === undefined || seen.has(current.id)) return false
-      seen.add(current.id)
-      session = ctx.sessions.get(current.header.parentSession)
-      // Unknown child ancestry must not create an execution-policy escape hatch.
-      if (session === undefined) return workspaces.length > 0
-    }
-    return false
-  }
-  const client = new DshClient(ctx, options.runtimeId!, workspaces, presets)
-  client.observeAgentFlow()
-  const keyOpen = new AbortController()
-  const ownerFiber = ctx.fiber
-  ctx.on('internal/plugin', fiber => { if ((fiber === ownerFiber || fiber === parentFiber) && fiber.uid === null) keyOpen.abort() }, { global: true })
-  if (ownerFiber.uid === null || parentFiber.uid === null) keyOpen.abort()
-  const credentialSignal = credentials?.signal
-  if (credentialSignal) {
-    const cancelled = () => keyOpen.abort()
-    credentialSignal.addEventListener('abort', cancelled, { once: true })
-    try { ctx.effect(() => () => credentialSignal.removeEventListener('abort', cancelled), 'remote-control.key-owner') }
-    catch (error) { credentialSignal.removeEventListener('abort', cancelled); keyOpen.abort(); throw error }
-    if (credentialSignal.aborted) cancelled()
-  }
-  const startup = ctx.effect(async () => {
-    if (enrollment) {
-      if (!signedOptions || !journalKeyProtector) throw new HostEnrolledRuntimeError('host.enrolled_runtime.invalid_config')
-      await verifyEnrolledHostRuntime(enrollment, { runtimeId: options.runtimeId!, workspaces,
-        requireProtectedJournalKey: options.requireProtectedJournalKey === true }, signedOptions, keyOpen.signal)
-      if (keyOpen.signal.aborted) throw new HostEnrolledRuntimeError('host.enrolled_runtime.cancelled')
-    }
-    const journalPath = options.commandJournalPath || defaultCommandJournalPath(options.runtimeId!)
-    const journal = await PersistentCommandJournal.open(journalPath, options.runtimeId!, {
-      maxDatabaseBytes: options.commandJournalMaxBytes!,
-      observations: client.observations,
-      ...(journalKeyProtector ? { protector: journalKeyProtector, signal: keyOpen.signal } : {}),
-    })
-    let runtime: ProbeRuntime | undefined
-    let signed: SignedApprovals | undefined
-    try {
-      if (keyOpen.signal.aborted) throw new Error('remote-control startup cancelled')
-      const epoch = randomUUID()
-      const interactions = new InteractionRouter(ctx, options.runtimeId!, managed, signedOptions ? [] : options.highRiskTools!, options.interactionTimeoutMs!)
-      if (signedOptions) signed = new SignedApprovals(ctx, options.runtimeId!, epoch, journal.approvals(epoch), workspaces, managed, options.interactionTimeoutMs!, signedOptions)
-      runtime = new ProbeRuntime(client, interactions, journal, epoch)
-      const exportSupported=await PinnedExportSource.supported()
-      if (keyOpen.signal.aborted) throw new Error('remote-control startup cancelled')
-      let server: Awaited<ReturnType<typeof startDebugServer>> | undefined
-      let relay: Awaited<ReturnType<typeof startHostRelay>> | undefined
-      try {
-        if (options.socketPath) server = await startDebugServer(options.socketPath, runtime)
-        if (keyOpen.signal.aborted) throw new Error('remote-control startup cancelled')
-        if (options.relayUrl && credentials) relay = startHostRelay({
-          url: options.relayUrl, runtime, credentials,
-          dshVersion: '0.2.1-rc.5', applicationVersion: options.applicationVersion!, pluginVersion: '0.0.1',
-          ...(signed ? { approvals: binding => new RelayApprovals(signed!, binding) } : {}),
-          questionReferences: binding => new RelayQuestionReferences(interactions, binding),
-          files: binding => new RelayFiles(runtime!.files, binding),
-          ...(exportSupported?{exports:binding=>new RelayExports(runtime!.exports,client,epoch,binding,(session,sync)=>runtime!.mediaCurrent(session,sync))}:{}),
-        })
-        registerDesktopUI(ctx, () => ({
-          runtimeId: options.runtimeId!, epoch,
-          relay: options.relayUrl ? { origin: new URL(options.relayUrl).origin, phase: relay?.status() ?? 'stopped' } : null,
-          localSocket: Boolean(server), protectedJournal: Boolean(journalKeyProtector),
-          development: options.applicationVersion === 'local-development-fixture',
-          workspaces: workspaces.map(workspace => ({ id: workspace.id, label: workspace.label || workspace.id })),
-          presets: [...presets],
-        }))
-      } catch (error) {
-        await relay?.close()
-        await server?.close()
-        throw error
-      }
-      return async () => {
-        // Close admission and pending interactions synchronously. Transport and
-        // file cleanup may still need asynchronous work after account retirement.
-        runtime?.close()
-        signed?.close()
-        try { await relay?.close() }
-        finally {
-          try { await server?.close() }
-          finally {
-            try { await runtime?.exports.close() }
-            finally { journal.close() }
-          }
-        }
-      }
-    } catch (error) {
-      runtime?.close()
-      try { await runtime?.exports.close() }
-      finally { signed?.close(); journal.close() }
-      throw error
-    }
-  }, 'remote-control.debug')
-  // This is our dedicated child fiber. Dispose listeners and guards along with
-  // endpoints, without disposing the distribution's parent or native DSH host.
-  const retire = () => {
-    if (ownerFiber.uid !== null) void Promise.resolve().then(() => ownerFiber.dispose()).catch(() => {})
-  }
-  keyOpen.signal.addEventListener('abort', retire, { once: true })
-  try { ctx.effect(() => () => {
-    keyOpen.signal.removeEventListener('abort', retire)
-    keyOpen.abort()
-  }, 'remote-control.key-open') }
-  catch (error) { keyOpen.abort(); throw error }
-  if (keyOpen.signal.aborted) retire()
-  await startup
+  if (!credentials || !options.relayUrl || !options.applicationVersion || !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(options.runtimeId ?? '')) throw new Error('authenticated Relay and stable runtime identity required')
+  const origin = new URL(options.relayUrl).origin
+  const versions = Object.freeze({ dsh: options.dshVersion ?? '', application: options.applicationVersion ?? '', plugin: options.pluginVersion ?? '' })
+  if (credentials.origin && credentials.origin !== origin) throw new Error('installation origin changed')
+  const child = ctx.plugin({ name: 'tokenworks-mobile-tunnel', inject, apply(scope: Context) {
+    const gateway = new NativeGateway(scope.connection, scope.typertGateway)
+    const tunnel = new RelayTunnel({ origin, runtimeId: options.runtimeId!, versions, credentials, connection: scope.connection, remoteAccess: scope.remoteAccess, gateway,
+      resources: () => ({ sessions: scope.sessions.list().map(session => session.id), workspaces: scope.workspaceRegistry.list().map(workspace => workspace.id) }) })
+    registerDesktopUI(scope, () => ({ runtimeId: options.runtimeId!, relay: { origin, phase: tunnel.status() }, development: options.applicationVersion === 'local-development-fixture' }))
+    scope.effect(() => async () => { gateway.close(); await tunnel.close() }, 'remote-control.native-tunnel')
+  } })
+  await child.await()
 }
 
-/** Build a Cordis plugin entry that receives credentials from an OS-backed integration. */
-export function createRemoteControlPlugin(credentials: HostCredentialProvider, signedOptions?: SignedApprovalOptions, journalKeyProtector?: JournalKeyProtector) {
-  return {
-    name,
-    inject: signedOptions && !signedOptions.workingDirectory ? [...inject, 'workingDirectory'] : inject,
-    apply(ctx: Context, config: Config = {}) { return apply(ctx, config, credentials, signedOptions, journalKeyProtector) },
-  }
+/** The distribution supplies installation credentials backed by its protected key owner. */
+export function createRemoteControlPlugin(credentials: HostCredentialProvider) {
+  return { name, inject, apply(ctx: Context, config: Config = {}) { return apply(ctx, config, credentials) } }
 }
 
-/** Build a Relay plugin that rechecks the approved installation and workspace mapping before startup. */
-export function createEnrolledRemoteControlPlugin(enrollment: HostEnrolledRuntimeOptions, signedOptions: SignedApprovalOptions,
-  journalKeyProtector: JournalKeyProtector) {
-  if (!enrollment || !(enrollment.client?.signal instanceof AbortSignal) || !(enrollment.binding?.signal instanceof AbortSignal) ||
-      !(enrollment.credentials?.signal instanceof AbortSignal) || !signedOptions || !Array.isArray(signedOptions.authorities) ||
-      !signedOptions.requiredAssurance || !journalKeyProtector || typeof journalKeyProtector.wrap !== 'function' ||
-      typeof journalKeyProtector.unwrap !== 'function') throw new HostEnrolledRuntimeError('host.enrolled_runtime.invalid_config')
-  const checked = { client: enrollment.client, binding: enrollment.binding, credentials: enrollment.credentials, profileRef: enrollment.profileRef }
-  const signed: SignedApprovalOptions = { ...signedOptions, requiredAssurance: { ...signedOptions.requiredAssurance },
-    authorities: signedOptions.authorities.map(authority => ({ ...authority, public_jwk: { ...authority.public_jwk } })) }
-  const lifetime = AbortSignal.any([checked.client.signal, checked.binding.signal, checked.credentials.signal])
-  const credentials: HostCredentialProvider = Object.freeze({ origin: checked.credentials.origin, signal: lifetime,
-    async acquire(signal: AbortSignal) {
-      if (!(signal instanceof AbortSignal) || signal.aborted || lifetime.aborted) throw new HostEnrolledRuntimeError('host.enrolled_runtime.cancelled')
-      const combined = AbortSignal.any([signal, lifetime])
-      const result = await checked.credentials.acquire(combined)
-      if (combined.aborted) throw new HostEnrolledRuntimeError('host.enrolled_runtime.cancelled')
-      return result
-    } })
-  return {
-    name,
-    inject: signed.workingDirectory ? inject : [...inject, 'workingDirectory'],
-    apply(ctx: Context, config: Config = {}) { return applyInternal(ctx, config, credentials, signed, journalKeyProtector, checked) },
+export function createEnrolledRemoteControlPlugin(enrollment: HostEnrolledRuntimeOptions) {
+  if (!enrollment || !(enrollment.client?.signal instanceof AbortSignal) || !(enrollment.binding?.signal instanceof AbortSignal) || !(enrollment.credentials?.signal instanceof AbortSignal)) throw new HostEnrolledRuntimeError('host.enrolled_runtime.invalid_config')
+  const lifetime = AbortSignal.any([enrollment.client.signal, enrollment.binding.signal, enrollment.credentials.signal])
+  const credentials: HostCredentialProvider = {
+    ...(enrollment.credentials.origin ? { origin: enrollment.credentials.origin } : {}), signal: lifetime,
+    acquire(signal) { return enrollment.credentials.acquire(AbortSignal.any([signal, lifetime])) },
   }
+  return { name, inject, async apply(ctx: Context, config: Config = {}) {
+    if (!config.enabled) return
+    await verifyEnrolledHostRuntime(enrollment, config.runtimeId ?? '', lifetime)
+    return apply(ctx, config, credentials)
+  } }
 }
