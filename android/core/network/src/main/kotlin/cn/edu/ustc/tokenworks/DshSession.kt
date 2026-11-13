@@ -34,9 +34,11 @@ class DshSessionReader(
         scope.coroutineContext[Job]!!.invokeOnCompletion { close() }
     }
 
-    suspend fun prompt(text: String, requestId: String = UUID.randomUUID().toString()) {
+    /** F-05: the caller owns the requestId (outbox); mode is queue or steer. */
+    suspend fun prompt(text: String, requestId: String, mode: String = "queue") {
+        require(mode in setOf("queue", "steer")) { "prompt mode invalid" }
         val part = DshSessionPromptInputRequestContentItem.Case1(DshSessionPromptInputRequestContentItemCase1("text", text))
-        val request = DshSessionPromptInputRequest(requestId, sessionId, "queue", listOf(part))
+        val request = DshSessionPromptInputRequest(requestId, sessionId, mode, listOf(part))
         unit("session/prompt", DshMethods.SessionPrompt.input, DshSessionPromptInput(request))
     }
 

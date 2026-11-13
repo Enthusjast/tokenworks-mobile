@@ -98,6 +98,7 @@ class LoginController internal constructor(private val context: Context, private
     private var reader: DshSessionReader? = null
     private var readMarks: SessionReadMarks? = null
     private var watcher: InteractionWatcher? = null
+    private val outbox = PromptOutbox()
     private var watcherJob: Job? = null
     private var appUpdateFlow: AppUpdateFlow? = null
     private var appUpdateCollector: Job? = null
@@ -671,17 +672,22 @@ class LoginController internal constructor(private val context: Context, private
         navigation { try { current.loadOlder() } catch (error: CancellationException) { throw error } catch (_: Exception) { } }
     }
 
-    fun prompt(text: String) {
+    fun prompt(text: String, mode: String = "queue") {
         val current = reader ?: return
         val body = text.trim()
         if (body.isEmpty() || mutable.value.submitting) return
         val stamp = generation
+        // F-05: the requestId is minted once; a retry of a pending entry reuses
+        // it, so dsh can never see the retry as a new message.
+        val entry = mutable.value.composer?.value?.let { outbox.pending().firstOrNull { p -> p.text == body } }
+            ?: outbox.submit(current.sessionId, body, mode)
         mutable.value = mutable.value.copy(submitting = true, sessionActionError = null)
         navigation {
             try {
                 current(stamp)
-                current.prompt(body)
+                current.prompt(body, entry.requestId, entry.mode)
                 current(stamp)
+                outbox.settle(entry.requestId)
                 mutable.value = mutable.value.copy(submitting = false)
             } catch (cancelled: CancellationException) {
                 throw cancelled
