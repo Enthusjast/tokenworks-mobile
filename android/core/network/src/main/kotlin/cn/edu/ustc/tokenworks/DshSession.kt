@@ -113,13 +113,27 @@ class DshSessionReader(
                 return
             } catch (error: Exception) {
                 if (closed.get()) return
-                publish(SessionReadState(SessionReadPhase.BACKOFF, window.snapshot().takeIf { it.records.isNotEmpty() }, error = safeCode(error)))
+                val code = safeCode(error)
+                // F-10: auth/lease/authority failures are terminal. Retry can
+                // never succeed and would hammer the Relay forever.
+                val phase = phaseFor(code)
+                publish(SessionReadState(phase, window.snapshot().takeIf { it.records.isNotEmpty() }, error = code))
+                if (phase != SessionReadPhase.BACKOFF) return
                 delay(minOf(30_000L, 1_000L shl minOf(attempt++, 5)))
             } finally {
                 runCatching { stream?.close() }; stream = null
                 runCatching { mux?.close() }; mux = null
             }
         }
+    }
+
+    companion object {
+        internal fun phaseFor(code: String): SessionReadPhase = when {
+                    code in setOf("access.revoked", "access.denied", "device.invalid", "device.registration_conflict") -> SessionReadPhase.REVOKED
+                    code.startsWith("auth.") || code.startsWith("lease.") -> SessionReadPhase.AUTH_REQUIRED
+                    code.startsWith("protocol.") || code.startsWith("session.") && code != "session.stream_ended" -> SessionReadPhase.ERROR
+                    else -> SessionReadPhase.BACKOFF
+                }
     }
 
     private fun safeCode(error: Exception): String = when (error) {
