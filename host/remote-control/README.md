@@ -93,6 +93,8 @@ runtime 的受保护文件，并在验证后迁移旧 `.key`。设置 `requirePr
 
 SQLite 使用 Node.js v24 的 `node:sqlite` 同步 API；该 Node 版本将模块标记为 Release Candidate，且同步数据库操作会短暂占用事件循环。单条正文和事务均有界；构建及 DSH CLI 集成验证以仓库锁定的 Node 24 runtime 为准。[Node.js v24 SQLite 文档](https://nodejs.org/download/release/latest-v24.x/docs/api/sqlite.html)。主机 Relay 接受经签名握手后的文本 queue / steer 帧，校验服务端提供的规范化摘要，以验证后的 user_id/device_id 分区写入命令日志，并发送 host_accepted、dispatching、agent_queued 等回执。agent_queued 仍等待 DSH 会话持久化检查点。主机同时通过 `session.catalog.v1` 发布会话目录元数据；目录包含确定性 session UUID、原生 DSH ID、可选控制面 workspace UUID、状态和持久化位置，不包含正文、标题或本机路径。插件在连接建立及会话增删时发布完整快照，运行状态和消息活动变化使用增量更新；离开允许工作区的会话会被标记为不可用并清除 workspace 映射。
 
+上述为旧版目录形状。双方另行协商 `session.metadata.v1` 后，catalog 使用 `metadata_version: 1` 和严格的版本化 `metadata`：会话名称只取原生 summary 的 `projections.values.title`，工作区名称只取通过已配置 `cwd → remoteId` 映射找到的原生 workspace entity 的 `title`。不使用配置 label、目录 basename、首条消息或正文生成替代名称，也不导出路径。名称最多 256 个 UTF-16 单元及 1024 字节 UTF-8；空值、控制字符、双向格式控制或超限值不发布名称。`title_source` / `title_as_of_seq` 保留原生 cached / sequenced 来源；缓存不代表实时现值。原生标题投影变化及工作区记录变更复用现有有界 catalog publisher，手动刷新只重新取得已登记目录，不激活 Agent 或逐个读取冷日志。删除、不可用及旧 Host 替换清除缓存名称；普通 seeded fork 保留独立可见性，真正 `origin=subagent` 仍不能绕过父级隔离。
+
 若授权按 workspace 限定，workspace 配置必须带 `remoteId`，其值为主机登记返回的 workspace UUID；缺少映射时该会话不会匹配 workspace grant。session grant 可按 session UUID 单独限定。
 
 DSH CLI 0.2.1-rc.2 集成测试使用临时 P-256 密钥和本机回环 WSS 协议对端，证明签名握手、命令入队和回执、WSS 快照、固定切点分页、assistant 增量与替换同步代次均使用同一个 DSH Agent；内容帧按共享 JSON Schema 校验。它没有启动 Go Relay、PostgreSQL、学校身份服务或生产密钥库；这些组合仍需单独验收。
