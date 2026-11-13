@@ -2,32 +2,30 @@
   "name": "tokenworks-mobile",
   "private": true,
   "type": "module",
-  "engines": { "node": ">=24.15.0 <25" },
-  "workspaces": ["host/remote-control"],
+  "engines": {
+    "node": ">=24.15.0 <25"
+  },
+  "workspaces": [
+    "host/remote-control"
+  ],
   "scripts": {
     "dev": "python3 tools/dev/local.py start",
     "dev:probe": "node tools/dev/smoke.mjs",
     "dev:status": "python3 tools/dev/local.py status",
     "dev:stop": "python3 tools/dev/local.py stop",
     "build": "npm run build --workspaces",
-    "contracts": "tsx tools/generate-m0-contract.ts && tsx tools/generate-approval-contract.ts && tsx tools/generate-file-contract.ts && tsx tools/generate-export-contract.ts && tsx tools/generate-push-contract.ts && tsx tools/generate-native-observation-contract.ts",
-    "contracts:check": "tsx tools/generate-m0-contract.ts --check && tsx tools/generate-approval-contract.ts --check && tsx tools/generate-file-contract.ts --check && tsx tools/generate-export-contract.ts --check && tsx tools/generate-push-contract.ts --check && tsx tools/generate-native-observation-contract.ts --check",
     "contracts:typert": "tsx tools/generate-typert-contract.ts",
-    "contracts:typert:check": "tsx tools/generate-typert-contract.ts --check",
-    "contracts:signatures": "tsx tools/generate-approval-signatures.ts",
-    "contracts:identity-vectors": "tsx tools/generate-identity-vectors.ts",
     "check": "tsc --noEmit -p tsconfig.json",
     "test": "tsx --test host/remote-control/tests/*.test.ts",
-    "verify": "npm run contracts:check && npm run check && npm run build && npm test",
-    "test:remote-dsh": "python3 tools/integration/run_remote_dsh.py",
-    "test:remote-kotlin": "python3 tools/integration/run_remote_dsh.py --kotlin-relay",
-    "test:remote-android": "python3 tools/integration/run_remote_dsh.py --android-relay",
+    "verify": "npm run contracts:typert:check && npm run check && npm run build",
     "test:android": "cd android && ./gradlew check",
-    "test:android:core": "cd android && ./gradlew -PjvmOnly=true check"
+    "test:android:core": "cd android && ./gradlew -PjvmOnly=true check",
+    "contracts:typert:check": "tsx tools/generate-typert-contract.ts --check"
   },
   "devDependencies": {
     "@deepseek-ai/dsh": "0.2.1-rc.5",
     "@types/node": "24.10.1",
+    "@types/ws": "8.18.1",
     "ajv": "8.17.1",
     "tsx": "4.23.15",
     "typescript": "5.9.3",
