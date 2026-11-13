@@ -12,7 +12,7 @@
 | 首次运行 | [项目首页](../README.md) → [本机持续开发](local-development.md) → [账号与网页](relay-accounts.md) |
 | 接入已经运行的 dsh | [现有 Web profile 接入与 UI](dsh-desktop-plugin.md) → [Host 登记启动](host-enrolled-runtime.md) |
 | 理解项目完成程度 | [当前能力与开放出口](development-status.md) → [对应版本的验证记录](verification-history.md) |
-| 开发服务端 API | [Go 服务入口](../services/remote/README.md) → [OpenAPI](../contracts/openapi/remote.yaml) → 下方身份、Relay 或业务专题 |
+| 开发服务端 API | [Go 服务入口](../services/remote/README.md) → 下方身份与 Relay 专题 |
 | 开发 Host 插件 | [Host 入口](../host/remote-control/README.md) → 下方登记、会话、审批及日志专题 |
 | 部署或恢复 | [受保护配置](trusted-service-configuration.md) → [Go 发行包](go-service-bundle.md) → [数据库恢复隔离](database-recovery.md) |
 | 检查 Android 历史实现 | [Android 工程说明](../android/README.md) → [Android 专题](#android)；本轮不修改或补验 Android |
@@ -309,11 +309,8 @@
 
 | 位置 | 用途 |
 | --- | --- |
-| [contracts/openapi](../contracts/openapi/) | REST API 契约 |
-| [contracts/ws/v1](../contracts/ws/v1/) | Relay 消息 Schema |
 | [contracts/m0](../contracts/m0/) | 本机调试协议；不能当作公网 v1 协议 |
 | [contracts/security](../contracts/security/) | 签名与安全互操作样例 |
-| [contracts/files](../contracts/files/)、[contracts/push](../contracts/push/) | 文件、推送共享契约 |
 | [deploy/sql](../deploy/sql/) | 按编号配对的数据库迁移 |
 | [deploy/files](../deploy/files/)、[deploy/monitoring](../deploy/monitoring/) | 文件服务配置示例和监控规则 |
 | [tools/dev](../tools/dev/) | 本机开发监督、profile 接入和夹具 |

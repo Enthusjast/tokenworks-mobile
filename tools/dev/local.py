@@ -3,12 +3,12 @@
 
 Keeps a private PostgreSQL cluster and fixture authority across restarts. No
 school login, model request, mobile build, vendor push or load probe is started.
+Android opt-in adds a loopback TLS gateway and explicitly local OIDC consent.
 """
 import argparse
 from datetime import datetime, timedelta, timezone
 import fcntl
 import hashlib
-import http.client
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
 import os
@@ -18,6 +18,7 @@ import shutil
 import signal
 import socket
 import subprocess
+import ssl
 import sys
 import threading
 import time
@@ -28,9 +29,49 @@ STATE = ROOT / '.local/tokenworks-mobile-dev'
 STATUS = STATE / 'status.json'
 SECURE_STATE = Path.home() / '.local/state/tokenworks-mobile-development' / hashlib.sha256(str(ROOT).encode()).hexdigest()[:16]
 PG = Path(os.environ.get('REMOTE_DEV_PG_BIN', '/usr/lib/postgresql/18/bin'))
-SOCKET = STATE / 'ipc/probe.sock'
 PORTS = {'relay': 8080, 'issuer': 8082, 'dsh': 3000}
+PLUGIN_VERSION = json.loads((ROOT / 'host/remote-control/package.json').read_text())['version']
 FIXTURE = ROOT / 'tools/dev/fixture-host.mjs'
+GATEWAY = ROOT / 'tools/dev/mobile-gateway.mjs'
+MOBILE_ORIGIN = 'https://localhost:8443'
+
+
+def mobile_assets(command):
+    """Keep the CA identity across restarts; export public assets only."""
+    directory = STATE / 'android'
+    private = SECURE_STATE / 'android'
+    directory.mkdir(mode=0o700, exist_ok=True)
+    private.mkdir(mode=0o700, exist_ok=True)
+    for path in (directory, private):
+        if path.is_symlink() or path.stat().st_uid != os.getuid() or path.stat().st_mode & 0o077:
+            raise RuntimeError('Android development directories must be private and owned by this user')
+    ca, ca_key = directory / 'ca.pem', private / 'ca-key.pem'
+    certificate, server_key = directory / 'server.pem', private / 'server-key.pem'
+    if ca.exists() != ca_key.exists() or certificate.exists() != server_key.exists():
+        raise RuntimeError('incomplete local TLS identity; preserve existing keys and repair explicitly')
+    if not ca.exists():
+        command(['openssl', 'req', '-x509', '-newkey', 'rsa:3072', '-sha256', '-nodes', '-days', '3650',
+                 '-subj', '/CN=TOKENWORKS-MOBILE LOCAL DEVELOPMENT ONLY CA', '-addext', 'basicConstraints=critical,CA:TRUE',
+                 '-addext', 'keyUsage=critical,keyCertSign,cRLSign', '-keyout', str(ca_key), '-out', str(ca)])
+    if not certificate.exists():
+        request, extensions = private / 'server.csr', private / 'server.ext'
+        extensions.write_text('basicConstraints=critical,CA:FALSE\nkeyUsage=critical,digitalSignature,keyEncipherment\nextendedKeyUsage=serverAuth\nsubjectAltName=DNS:localhost,IP:127.0.0.1\n')
+        command(['openssl', 'req', '-new', '-newkey', 'rsa:3072', '-nodes', '-sha256', '-subj', '/CN=localhost',
+                 '-keyout', str(server_key), '-out', str(request)])
+        command(['openssl', 'x509', '-req', '-in', str(request), '-CA', str(ca), '-CAkey', str(ca_key),
+                 '-set_serial', str(uuid.uuid4().int), '-days', '365', '-sha256', '-extfile', str(extensions), '-out', str(certificate)])
+        request.unlink()
+        extensions.unlink()
+    for path in (ca_key, server_key):
+        if path.is_symlink() or path.stat().st_uid != os.getuid() or path.stat().st_mode & 0o777 != 0o600:
+            raise RuntimeError('local TLS private key must remain a private owned file')
+    save(directory / 'deployment.json', {
+        'issuer': MOBILE_ORIGIN + '/issuer', 'client_id': 'local-dev-phone',
+        'redirect_uri': 'cn.edu.ustc.tokenworks:/oauth2redirect', 'resource': 'urn:tokenworks-mobile:local-dev',
+        'audience': 'urn:tokenworks-mobile:local-dev', 'remote_origin': MOBILE_ORIGIN,
+        'organization_id': '3ed32392-2684-448d-83e7-d8b5b977035b',
+        'scopes': ['openid', 'remote.access'], 'endpoint_origins': [MOBILE_ORIGIN], 'signing_algorithms': ['ES256'],
+    })
 
 
 def save(path, value):
@@ -61,32 +102,34 @@ def read_status():
         return {}
 
 
-def health(url):
-    from urllib.request import ProxyHandler, build_opener
+def health(url, ca=None):
+    from urllib.request import HTTPSHandler, ProxyHandler, build_opener
     try:
-        with build_opener(ProxyHandler({})).open(url, timeout=2) as response:
+        handlers = [ProxyHandler({})]
+        if ca:
+            handlers.append(HTTPSHandler(context=ssl.create_default_context(cafile=str(ca))))
+        with build_opener(*handlers).open(url, timeout=2) as response:
             return response.status == 204
     except Exception:
         return False
 
 
-def probe():
-    connection = http.client.HTTPConnection('localhost', timeout=2)
+def runtime_epoch():
+    """The Relay stamps the connection epoch; readiness reads it from the store."""
     try:
-        transport = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-        transport.settimeout(2)
-        transport.connect(str(SOCKET))
-        connection.sock = transport
-        connection.request('GET', '/m0/probe')
-        response = connection.getresponse()
-        body = response.read(65536)
-        if response.status != 200:
-            return None
-        return json.loads(body)['runtime_epoch']
-    except (OSError, ValueError):
+        runtime = json.loads((STATE / 'enrolled-runtime.json').read_text())
+        runtime_id = str(uuid.UUID(runtime['runtimeId']))
+    except (OSError, ValueError, KeyError, TypeError):
         return None
-    finally:
-        connection.close()
+    dsn = f'host={STATE}/pg-socket port=55440 user=dsh_dev dbname=postgres sslmode=disable'
+    try:
+        result = subprocess.run([str(PG / 'psql'), '-X', '--dbname', dsn, '-v', 'ON_ERROR_STOP=1', '-At'],
+                                input=f"select epoch::text from runtimes where id='{runtime_id}' and revoked_at is null",
+                                text=True, capture_output=True, timeout=3)
+    except subprocess.SubprocessError:
+        return None
+    value = result.stdout.strip()
+    return value if result.returncode == 0 and value else None
 
 
 def relay_connected(epoch):
@@ -133,7 +176,7 @@ def terminate(child):
         child.wait(timeout=5)
 
 
-def serve(profile, attach=None):
+def serve(profile, android=False, attach=None):
     STATE.mkdir(mode=0o700, parents=True, exist_ok=True)
     if STATE.is_symlink() or STATE.stat().st_uid != os.getuid() or STATE.stat().st_mode & 0o777 != 0o700:
         raise RuntimeError('development state directory must be private and owned by this user')
@@ -154,18 +197,21 @@ def serve(profile, attach=None):
     dsh_version = subprocess.check_output([dsh, '--version'], text=True).strip()
     if not re.fullmatch(r'0\.2\.1(?:-rc\.[0-9]+)?', dsh_version):
         raise RuntimeError('this development composition requires installed npm dsh 0.2.1')
-    for port in [PORTS['relay'], PORTS['issuer'], *([] if attach else [PORTS['dsh']])]:
+    for port in [PORTS['relay'], PORTS['issuer'], *([] if attach else [PORTS['dsh']]), *([8443] if android else [])]:
         with socket.socket() as check:
             check.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
             check.bind(('127.0.0.1', port))
     state = {'pid': os.getpid(), 'started': identity(os.getpid()), 'state': 'starting', 'profile': profile, 'dsh_version': dsh_version,
              'relay': 'http://127.0.0.1:8080', 'dsh': 'http://127.0.0.1:3000',
-             'socket': str(SOCKET), 'fixture_identity': True, 'relay_plugin_connected': False,
+             'fixture_identity': True, 'relay_plugin_connected': False,
              'go_reloads': 0, 'children': {}}
-    save(STATUS, state)
+    state['android'] = android
     if attach:
         state.update(external_dsh=attach, dsh=attach['url'])
-        save(STATUS, state)
+    if android:
+        state.update(public_origin=MOBILE_ORIGIN, oidc_issuer=MOBILE_ORIGIN + '/issuer',
+                     deployment=str(STATE / 'android/deployment.json'), ca=str(STATE / 'android/ca.pem'))
+    save(STATUS, state)
     children = {}
     database_started = False
     issuer = None
@@ -192,6 +238,22 @@ def serve(profile, attach=None):
     def migrate():
         query('create table if not exists local_dev_migrations(name text primary key,sha256 text not null)')
         applied = dict(line.split('|') for line in query('select name,sha256 from local_dev_migrations order by name').splitlines())
+        # A native-transport database is created from one baseline dump, not
+        # from the retired incremental migrations. Reusing a previous business
+        # schema is refused by the relay, so apply the baseline only when the
+        # database carries no schema_identity yet.
+        baseline = ROOT / 'deploy/sql/baseline.sql'
+        if baseline.exists():
+            digest = hashlib.sha256(baseline.read_bytes()).hexdigest()
+            native = query("select to_regclass('public.schema_identity') is not null") == 't'
+            if not native:
+                if 'baseline.sql' in applied:
+                    raise RuntimeError('recorded baseline.sql is missing from the database; preserve the cluster and recover explicitly')
+                command([str(PG / 'psql'), '-X', '--dbname', dsn, '-v', 'ON_ERROR_STOP=1', '-q', '-f', str(baseline)])
+                query(f"insert into local_dev_migrations values ('baseline.sql','{digest}')")
+                log('applied baseline.sql')
+            elif applied.get('baseline.sql') != digest:
+                raise RuntimeError('baseline.sql changed or was not recorded; create a new development database explicitly')
         for path in sorted((ROOT / 'deploy/sql').glob('*.up.sql')):
             digest = hashlib.sha256(path.read_bytes()).hexdigest()
             if path.name in applied:
@@ -206,7 +268,6 @@ def serve(profile, attach=None):
 
     try:
         (STATE / 'pg-socket').mkdir(mode=0o700, exist_ok=True)
-        (STATE / 'ipc').mkdir(mode=0o700, exist_ok=True)
         (STATE / 'journal').mkdir(mode=0o700, exist_ok=True)
         data = STATE / 'pgdata'
         if not data.exists():
@@ -225,6 +286,18 @@ def serve(profile, attach=None):
         if not key.exists():
             script = "const fs=require('node:fs'),c=require('node:crypto');const k=c.generateKeyPairSync('ec',{namedCurve:'prime256v1'});fs.writeFileSync(process.argv[1],JSON.stringify({private:k.privateKey.export({format:'jwk'}),public:{...k.publicKey.export({format:'jwk'}),kid:'local-dev-only',use:'sig',alg:'ES256'}}),{mode:0o600,flag:'wx'})"
             command([node, '-e', script, str(key)])
+        child_env = os.environ.copy()
+        if android:
+            mobile_assets(command)
+            child_env.update(TOKENWORKS_MOBILE_LOCAL_ANDROID='1', NODE_EXTRA_CA_CERTS=str(STATE / 'android/ca.pem'))
+            launch('gateway', [node, str(GATEWAY)], child_env)
+            deadline = time.monotonic() + 15
+            while not health(MOBILE_ORIGIN + '/issuer/readyz', STATE / 'android/ca.pem'):
+                if children['gateway'].poll() is not None or time.monotonic() > deadline or stopping.wait(0.1):
+                    raise RuntimeError('local TLS gateway did not become ready; inspect gateway.log')
+        else:
+            child_env.pop('TOKENWORKS_MOBILE_LOCAL_ANDROID', None)
+
         class FixtureKeys(BaseHTTPRequestHandler):
             def do_GET(self):
                 if self.path != '/jwks.json':
@@ -245,7 +318,7 @@ def serve(profile, attach=None):
                 pass
 
         command(['npm', 'run', 'build'])
-        command([node, str(FIXTURE), 'prepare', profile])
+        command([node, str(FIXTURE), 'prepare', profile], env=child_env)
         issuer = ThreadingHTTPServer(('127.0.0.1', PORTS['issuer']), FixtureKeys)
         threading.Thread(target=issuer.serve_forever, daemon=True).start()
         remote_env = {name: value for name, value in os.environ.items() if not name.startswith('REMOTE_')}
@@ -256,6 +329,9 @@ def serve(profile, attach=None):
                           REMOTE_DATABASE_URL=dsn, REMOTE_DATABASE_EPOCH=query('select epoch::text from remote_recovery_state where slot=1'),
                           REMOTE_RELAY_NODE_ID='da96f9e7-c59e-484d-a826-3fca09eb18bd',
                           REMOTE_APPROVAL_POLICY_FILE=str(STATE / 'fixture-approval-policy.json'))
+        if android:
+            remote_env.update(REMOTE_ISSUER=MOBILE_ORIGIN + '/issuer', REMOTE_JWKS_URL=MOBILE_ORIGIN + '/issuer/jwks.json',
+                              REMOTE_PUBLIC_ORIGIN=MOBILE_ORIGIN, SSL_CERT_FILE=str(STATE / 'android/ca.pem'))
         remote_env.update(REMOTE_ACCOUNTS_ORIGIN=remote_env['REMOTE_PUBLIC_ORIGIN'],
                           REMOTE_ACCOUNTS_REGISTRATION='true')
 
@@ -290,7 +366,7 @@ def serve(profile, attach=None):
             raise RuntimeError('local fixture identity is invalid')
         # Initialize authority only once. Restarts never revive a suspended user
         # or a revoked installation by reapplying an earlier snapshot.
-        if query("select count(*) from identity_sync_sources where issuer='http://127.0.0.1:8082' and revision>0") == '0':
+        if query(f"select count(*) from identity_sync_sources where issuer='{public['issuer']}' and revision>0") == '0':
             timestamp = datetime.now(timezone.utc)
             stamp = lambda value: value.isoformat(timespec='milliseconds').replace('+00:00', 'Z')
             authority = {'v': 1, 'complete': True, 'operation_id': str(uuid.uuid4()),
@@ -303,35 +379,67 @@ def serve(profile, attach=None):
             authority_file = STATE / 'fixture-initial-authority.json'
             save(authority_file, authority)
             command([str(STATE / 'remote'), 'identities', 'apply', '--authority-file', str(authority_file)], env=remote_env)
-        command([node, str(FIXTURE), 'bootstrap', profile])
+        command([node, str(FIXTURE), 'bootstrap', profile], env=child_env)
         enrolled = json.loads((STATE / 'enrolled-runtime.json').read_text())
         if enrolled.get('purpose') != 'tokenworks-mobile-local-enrolled-runtime/v1' or enrolled.get('profileRef') != profile:
             raise RuntimeError('local fixture enrollment is invalid')
-        # Install the linked package in the actual npm DSH profile. Do not
-        # replace its user patch, credentials, bundles, settings or sessions.
-        command([dsh, 'plugin', '--profile', profile, 'add', 'link:' + str(ROOT / 'host/remote-control')])
+        # The absolute-path development adapter belongs only to our overlay;
+        # no user profile dependency/settings/credentials/session is rewritten.
         runtime = str(uuid.UUID(enrolled['runtimeId']))
+        if android:
+            workspace = str(uuid.UUID(enrolled['workspaces'][0]['workspaceId']))
+            # Mirrors store.OwnerBindings: the supported native endpoint matrix.
+            # Unbound session/workspace bindings cover every resource; the Host's
+            # own remoteAccess policy still decides each call.
+            bindings = [
+                {'resource': {'kind': 'global'}, 'actions': [
+                    'remoteAccess/follow', 'session/modelCatalog', 'session/canOpenWorkspacePath',
+                    'session/workspacePathApplications', 'session/initializeDefaultModel',
+                    'fileReferences/list', 'skills/list', 'fileUploads/upload',
+                    'directoryPicker/list', 'directoryPicker/createDirectory', 'directoryPicker/pick',
+                    'workspace/create', 'workspace/initializeDefault']},
+                {'resource': {'kind': 'session'}, 'actions': [
+                    'session/list', 'session/search', 'session/create', 'session/follow', 'session/page',
+                    'session/prompt', 'session/cancel', 'session/updateQueue', 'session/selectModel',
+                    'session/fork', 'session/rename', 'session/attachment', 'session/projections',
+                    'session/control', 'session/openWorkspacePath',
+                    'userQuestions/answer', 'userQuestions/attachWait']},
+                {'resource': {'kind': 'workspace'}, 'actions': [
+                    'workspace/follow', 'workspace/archiveSession', 'workspace/unarchiveSession',
+                    'workspace/rename', 'workspace/delete', 'workspace/insertBefore',
+                    'workspace/insertSessionBefore', 'workspace/pinSession', 'workspace/unpinSession']},
+            ]
+            granted = json.dumps(bindings)
+            # Explicit local-only grant fixture. Never revive a revoked grant.
+            # No file.* actions: scanner/blob/export services are not configured.
+            query(f"""insert into runtime_grants(runtime_id,user_id,role,bindings,granted_by)
+                select '{runtime}',u.id,'owner','{granted}'::jsonb,u.id from users u
+                join org_memberships m on m.user_id=u.id and m.org_id='{public['organization_id']}'
+                where u.issuer='{public['issuer']}' and u.subject='{public['phone_subject']}' and u.status='active'
+                on conflict(runtime_id,user_id) do update set role=excluded.role,bindings=excluded.bindings,
+                grant_version=runtime_grants.grant_version+1
+                where runtime_grants.revoked_at is null and (runtime_grants.role is distinct from excluded.role
+                or runtime_grants.bindings is distinct from excluded.bindings)""")
+            state.update(organization_id=public['organization_id'], runtime_id=runtime, workspace_id=workspace,
+                         files_configured=False, login_identity='LOCAL DEVELOPMENT ONLY: ' + public['phone_subject'])
+            save(STATUS, state)
         overlay = [
             {'id': 'hmr', 'config': {'base': ROOT.as_uri() + '/', 'root': ['host/remote-control/lib', 'tools/dev/fixture-host.mjs'],
                                     'ignored': ['**/node_modules/**', '**/*.map', '**/*.d.ts'], 'debounce': 500}},
             {'insert': [{'id': 'tokenworks-mobile-dev', 'name': str(ROOT / 'host/remote-control/development.mjs'),
-                         'config': {'enabled': True, 'runtimeId': runtime, 'socketPath': str(SOCKET),
-                                    'commandJournalPath': str(SECURE_STATE / 'relay-journal/commands.sqlite'),
-                                    'requireProtectedJournalKey': True, 'relayUrl': remote_env['REMOTE_PUBLIC_ORIGIN'],
+                         'config': {'enabled': True, 'runtimeId': runtime, 'relayUrl': remote_env['REMOTE_PUBLIC_ORIGIN'],
                                     'applicationVersion': 'local-development-fixture',
-                                    'workspaces': [{'id': 'project', 'label': 'TokenWorks Mobile development', 'cwd': str(ROOT),
-                                                    'remoteId': enrolled['workspaces'][0]['workspaceId']}],
-                                    'presets': []}}]},
+                                    'dshVersion': dsh_version, 'pluginVersion': PLUGIN_VERSION}}]},
         ]
         # JSON is a YAML subset and preserves exact paths without templating.
         save(STATE / 'dsh.patch.yml', overlay)
         launch('typescript', [node, str(ROOT / 'node_modules/typescript/bin/tsc'), '-p', str(ROOT / 'host/remote-control/tsconfig.build.json'),
-                              '--watch', '--preserveWatchOutput', '--noEmitOnError'])
+                              '--watch', '--preserveWatchOutput', '--noEmitOnError'], child_env)
         if attach:
-            command([node, str(ROOT / 'tools/dev/attach-profile.mjs'), profile])
+            command([node, str(ROOT / 'tools/dev/attach-profile.mjs'), profile], env=child_env)
         else:
             launch('dsh', [node, '--expose-internals', str(Path(dsh).resolve()), '--profile', profile,
-                           '--patch', str(STATE / 'dsh.patch.yml'), '--host', '127.0.0.1', '--port', '3000', '--no-open'])
+                           '--patch', str(STATE / 'dsh.patch.yml'), '--host', '127.0.0.1', '--port', '3000', '--no-open'], child_env)
         observed = snapshot()
         deadline = time.monotonic() + 60
         while not stopping.is_set():
@@ -347,7 +455,7 @@ def serve(profile, attach=None):
                             log(message)
                         continue
                     raise RuntimeError(name + ' exited; inspect its development log')
-            epoch = probe()
+            epoch = runtime_epoch()
             connected = relay_connected(epoch)
             if state['relay_plugin_connected'] != connected:
                 state['relay_plugin_connected'] = connected
@@ -373,7 +481,7 @@ def serve(profile, attach=None):
                     log('reload failed; inspect development logs')
             stopping.wait(0.5)
     finally:
-        for name in ('dsh', 'typescript', 'relay'):
+        for name in ('dsh', 'typescript', 'relay', 'gateway'):
             terminate(children.get(name))
         if issuer:
             issuer.shutdown()
@@ -389,6 +497,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('action', choices=['start', 'run', 'status', 'stop'])
     parser.add_argument('--profile', default='web')
+    parser.add_argument('--android', '--mobile', action='store_true', help='opt in to the loopback Android TLS/OIDC composition')
     parser.add_argument('--attach-pid', type=int, help='attach backend/watchers to this existing DSH; never stop or restart it')
     parser.add_argument('--dsh-url', default='http://127.0.0.1:3080', help='existing loopback Web address for --attach-pid')
     args = parser.parse_args()
@@ -415,13 +524,13 @@ def main():
                     raise RuntimeError('external DSH Web is unavailable') from None
         attach = {'pid': args.attach_pid, 'started': started, 'url': args.dsh_url.rstrip('/')}
     if args.action == 'run':
-        serve(args.profile, attach)
+        serve(args.profile, args.android, attach)
         return
     state = read_status()
     if args.action == 'status':
         state['supervisor_alive'] = running(state)
         state['relay_ready'] = health('http://127.0.0.1:8080/readyz')
-        state['plugin_epoch'] = probe()
+        state['plugin_epoch'] = runtime_epoch()
         state['relay_plugin_connected'] = relay_connected(state['plugin_epoch']) if state['supervisor_alive'] else False
         print(json.dumps(state, ensure_ascii=False, indent=2))
         return
@@ -437,7 +546,7 @@ def main():
         print('development stack is not running')
         return
     if running(state):
-        if state.get('profile') != args.profile or state.get('external_dsh') != attach:
+        if bool(state.get('android')) != args.android or state.get('profile') != args.profile or state.get('external_dsh') != attach:
             raise RuntimeError('development stack already running in a different mode/profile; stop explicitly before switching')
         print('development stack already running; use status for live readiness')
         return
@@ -445,13 +554,13 @@ def main():
     with open(STATE / 'supervisor.log', 'ab', buffering=0) as output:
         os.fchmod(output.fileno(), 0o600)
         child = subprocess.Popen([sys.executable, str(Path(__file__).resolve()), 'run', '--profile', args.profile,
-                                  *(['--attach-pid', str(args.attach_pid), '--dsh-url', args.dsh_url] if attach else [])], cwd=ROOT,
+                                  *(['--android'] if args.android else []), *(['--attach-pid', str(args.attach_pid), '--dsh-url', args.dsh_url] if attach else [])], cwd=ROOT,
                                  stdin=subprocess.DEVNULL, stdout=output, stderr=subprocess.STDOUT, start_new_session=True)
     print(f'development supervisor started pid={child.pid}; logs: {STATE}', flush=True)
     for _ in range(120):
         current = read_status()
         if current.get('pid') == child.pid and current.get('state') == 'running':
-            print('ready: relay http://127.0.0.1:8080; dsh ' + current['dsh'] + '; both reloaders enabled')
+            print('ready: relay ' + (MOBILE_ORIGIN if args.android else 'http://127.0.0.1:8080') + '; dsh ' + current['dsh'] + '; both reloaders enabled')
             return
         if child.poll() is not None:
             raise RuntimeError('development startup failed; inspect .local/tokenworks-mobile-dev/supervisor.log')

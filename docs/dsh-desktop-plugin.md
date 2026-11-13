@@ -19,7 +19,8 @@ python3 tools/dev/local.py status
 
 监督进程启动自己的私有 PostgreSQL、本地身份夹具、Go Relay 和 TypeScript watch。
 原 dsh 不进入它的子进程列表，stop 不会关闭或重新启动原 dsh；原 dsh 退出后监督进程清理自己启动的服务。
-附加模式当前使用 HTTP 本地夹具，不支持与 `--mobile` 同时使用。
+附加模式可配合 `--mobile` 启用 `https://localhost:8443` 本地 TLS。开发入口按明确的 Relay URL 选择独立的手机夹具，将受保护的本地 CA 加入该 Node 进程的信任集合；不关闭链或主机名校验，也不修改系统证书库。
+切换 HTTP/手机模式前先停止后端，并移除 profile 中精确的 `tokenworks-mobile-dev` 开发 entry，等待其 IPC 释放，再用目标模式重新附加；无需重启原 dsh。原模型、语言及其它插件配置保留。
 
 `attach-profile.mjs` 校验依赖确实链接这个检出，将原 patch 备份至私有的
 `.local/tokenworks-mobile-dev/profile-backups`，再原子写入独立插件入口和 HMR 配置；已有模型、语言等配置保留。

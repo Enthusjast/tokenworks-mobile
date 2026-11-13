@@ -44,7 +44,7 @@ Kotlin `readyForMessage` 还限制提示的本地有效期最多五秒。没有 
 
 ## 命令与能力
 
-`CommandIntent.message` 可组合文本和文件 ID，也支持只有附件的消息。所有 content 合计最多 16 项，文件项只能是 type=file / file_id=UUID；重复文件 ID、原生 receipt 和路径均被拒绝。摘要与 Go / Node 共享样例完全相同，原意图可继续由现有加密命令日志保存。
+`CommandIntent.message` 可组合文本和文件 ID，也支持只有附件的消息。所有 content 合计最多 16 项；默认通用文件项保持 type=file / file_id=UUID，显式协商的图片项另使用下述 type=image。两类引用共享去重、原请求摘要和文件归属；原生 receipt 与路径均被拒绝。原意图由现有加密命令日志保存。
 
 手机在有 message.submit 范围时提供 `message.files.v1`，实际协商成功后 `SessionCommands.state.canAttachFiles` 才为真。发送前再次检查能力；旧服务 / Host 下会保留原草稿并返回 file.unsupported，不写入不支持的文件帧。断线清除当前能力，不自动发送旧连接队列。已尝试命令继续先通过原有 REST 状态对账，再决定是否能以原 ID 重发。
 
@@ -102,3 +102,15 @@ Android 导出接入又通过 150 项协议 / 命令 / 网络 JVM 测试、完�
 扩展设备组合完成后，隔离 PostgreSQL 的全部 Go race / Kotlin / 真实 DSH 回归再次通过，记录为 `.local/android-real-files-full-regression.log`。
 
 对象 / scanner / 身份 / 模型仍是夹具；没有使用 TokenWorks，也没有声称完成实际学校、KMS、病毒签名引擎或文件全链路实机验收。
+
+## 显式图片与受保护历史预览
+
+- `message.images.v1` 将明确选择的图片文件 ID 作为 `type=image` 提交，不把扩展名或通用 PNG 文件自动升级为视觉输入。原上传、摘要、扫描、Host 暂存、原请求关联及消费规则不变；实际原生准入生成 image part，并使用原生所选模型的 exact `inputModalities`，不是 advisory 模型列表猜测。
+- 本地选择与系统拍照共用账号、完整资源、草稿 revision 和独立选择 token。一次性私有相机 URI 不进入 saved state、相册或永久授权；取消、迟到回调、退役和超期清理不能把结果交给新资源。恢复图片上传必须重新选择与原意图元数据和摘要相同的字节。
+- PNG、JPEG、WebP、GIF 只作为有界静态首帧处理，包含真实解码、像素/内存限制和 EXIF 方向处理；SVG、HTML 和远程热链不是图片入口。预览窗口保留安全标志，正文、原字节及 bitmap 不进入通用磁盘图片缓存，后台或撤权即清理。
+- `session.media.v1` 的 visible media reference 固定可见事件、版本、manifest 和当前 reader/sync；它不是下载权限，也不是任意 native attachment ID。解析与内容读取仍分别核对当前 `session.read`、独立 `file.download`、原设备、grant、epoch 和来源。未协商的旧读取方继续获得安全文字摘要。
+- 加密历史缓存的 `cache_v=2/media_v` 信封严格迁移旧文字记录，未知版本拒绝；旧文字或文件名不能获得图片能力。Room 6→7 仅以非破坏迁移增加分支结果字段，保持原命令、历史和未知结果身份。
+
+实际本地证据分层记录在忽略的 `.local/android-session-workflow-evidence/`：正常 Host 的 native image part、准确 PNG 字节、损坏解码与 text-only exact model 拒绝已执行；真实 Go/PostgreSQL/TLS/扫描 worker 场景进一步完成同一 typed PNG 的解析、扫描、下载、缺少下载授权、外设备/错会话/旧 sync 拒绝，以及等待 object headers 时的权威撤权取消。该图片为 1×1 PNG，SHA-256 为 `4ff6ab670a58c14270e034e2090d9a432caa263a14e0a25785386b0c12f880b5`；不将短单 chunk 的证据冒称为 active-body 撤权测试。
+
+API 36 专用安全模拟器实际执行四个 SQLCipher 升级/重开场景，包含 6→7 后部分分支 child/outcome 保留。Android 图片面板、解码、相机临时文件与选择结果生命周期另有实际设备测试；这些与原生/TLS 授权证据分别计数。模型仍为确定性 offline fixture，扫描对端为实际服务使用的 ClamAV 协议 fixture，不代表线上模型视觉理解、部署态病毒引擎或物理相机验收。

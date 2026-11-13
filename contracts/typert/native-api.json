@@ -8597,6 +8597,914 @@
       },
       "acceptsUndefinedResult": false
     },
+    "terminal/attach": {
+      "mode": "stream",
+      "cancellation": {
+        "parameter": "signal"
+      },
+      "parameters": [
+        {
+          "name": "agent",
+          "wire": "agentId",
+          "source": "lookup"
+        },
+        {
+          "name": "id",
+          "wire": "id",
+          "source": "json"
+        }
+      ],
+      "input": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "agentId": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "agentId",
+          "id"
+        ],
+        "additionalProperties": false
+      },
+      "result": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "anyOf": [
+          {
+            "type": "object",
+            "properties": {
+              "type": {
+                "readOnly": true,
+                "type": "string",
+                "const": "snapshot"
+              },
+              "sequence": {
+                "readOnly": true,
+                "type": "number"
+              },
+              "screen": {
+                "readOnly": true,
+                "type": "string"
+              },
+              "info": {
+                "readOnly": true,
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "readOnly": true,
+                    "type": "string"
+                  },
+                  "title": {
+                    "readOnly": true,
+                    "type": "string"
+                  },
+                  "shell": {
+                    "readOnly": true,
+                    "type": "object",
+                    "properties": {
+                      "path": {
+                        "readOnly": true,
+                        "type": "string"
+                      },
+                      "args": {
+                        "readOnly": true,
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        }
+                      },
+                      "name": {
+                        "readOnly": true,
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "path",
+                      "args",
+                      "name"
+                    ],
+                    "additionalProperties": false
+                  },
+                  "cwd": {
+                    "readOnly": true,
+                    "description": "Initial working directory; shell directory changes do not update this field.",
+                    "type": "string"
+                  },
+                  "cols": {
+                    "readOnly": true,
+                    "type": "number"
+                  },
+                  "rows": {
+                    "readOnly": true,
+                    "type": "number"
+                  },
+                  "state": {
+                    "readOnly": true,
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "const": "failed"
+                      },
+                      {
+                        "type": "string",
+                        "const": "running"
+                      },
+                      {
+                        "type": "string",
+                        "const": "exited"
+                      }
+                    ]
+                  },
+                  "exitCode": {
+                    "readOnly": true,
+                    "anyOf": [
+                      {
+                        "type": "null",
+                        "const": null
+                      },
+                      {
+                        "type": "number"
+                      }
+                    ]
+                  },
+                  "error": {
+                    "readOnly": true,
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "id",
+                  "title",
+                  "shell",
+                  "cwd",
+                  "cols",
+                  "rows",
+                  "state",
+                  "exitCode"
+                ],
+                "additionalProperties": false
+              },
+              "writable": {
+                "readOnly": true,
+                "type": "boolean"
+              },
+              "inputWindow": {
+                "readOnly": true,
+                "type": "object",
+                "properties": {
+                  "maxBytes": {
+                    "readOnly": true,
+                    "description": "Maximum complete encoded frame bytes waiting for the Host consumer.",
+                    "type": "number"
+                  },
+                  "frameOverheadBytes": {
+                    "readOnly": true,
+                    "description": "UTF-8 envelope bytes added to a compact JSON item with a present value field.",
+                    "type": "number"
+                  }
+                },
+                "required": [
+                  "maxBytes",
+                  "frameOverheadBytes"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "type",
+              "sequence",
+              "screen",
+              "info",
+              "writable"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "type": {
+                "readOnly": true,
+                "type": "string",
+                "const": "output"
+              },
+              "sequence": {
+                "readOnly": true,
+                "type": "number"
+              },
+              "data": {
+                "readOnly": true,
+                "type": "string"
+              }
+            },
+            "required": [
+              "type",
+              "sequence",
+              "data"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "type": {
+                "readOnly": true,
+                "type": "string",
+                "const": "state"
+              },
+              "info": {
+                "readOnly": true,
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "readOnly": true,
+                    "type": "string"
+                  },
+                  "title": {
+                    "readOnly": true,
+                    "type": "string"
+                  },
+                  "shell": {
+                    "readOnly": true,
+                    "type": "object",
+                    "properties": {
+                      "path": {
+                        "readOnly": true,
+                        "type": "string"
+                      },
+                      "args": {
+                        "readOnly": true,
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        }
+                      },
+                      "name": {
+                        "readOnly": true,
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "path",
+                      "args",
+                      "name"
+                    ],
+                    "additionalProperties": false
+                  },
+                  "cwd": {
+                    "readOnly": true,
+                    "description": "Initial working directory; shell directory changes do not update this field.",
+                    "type": "string"
+                  },
+                  "cols": {
+                    "readOnly": true,
+                    "type": "number"
+                  },
+                  "rows": {
+                    "readOnly": true,
+                    "type": "number"
+                  },
+                  "state": {
+                    "readOnly": true,
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "const": "failed"
+                      },
+                      {
+                        "type": "string",
+                        "const": "running"
+                      },
+                      {
+                        "type": "string",
+                        "const": "exited"
+                      }
+                    ]
+                  },
+                  "exitCode": {
+                    "readOnly": true,
+                    "anyOf": [
+                      {
+                        "type": "null",
+                        "const": null
+                      },
+                      {
+                        "type": "number"
+                      }
+                    ]
+                  },
+                  "error": {
+                    "readOnly": true,
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "id",
+                  "title",
+                  "shell",
+                  "cwd",
+                  "cols",
+                  "rows",
+                  "state",
+                  "exitCode"
+                ],
+                "additionalProperties": false
+              },
+              "writable": {
+                "readOnly": true,
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "type",
+              "info",
+              "writable"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "type": {
+                "readOnly": true,
+                "type": "string",
+                "const": "ack"
+              },
+              "sequence": {
+                "readOnly": true,
+                "type": "number"
+              },
+              "refusal": {
+                "readOnly": true,
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "const": "read-only"
+                  },
+                  {
+                    "type": "string",
+                    "const": "not-running"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "type",
+              "sequence"
+            ],
+            "additionalProperties": false
+          }
+        ]
+      },
+      "acceptsUndefinedResult": false
+    },
+    "terminal/close": {
+      "mode": "unary",
+      "cancellation": null,
+      "parameters": [
+        {
+          "name": "agent",
+          "wire": "agentId",
+          "source": "lookup"
+        },
+        {
+          "name": "id",
+          "wire": "id",
+          "source": "json"
+        }
+      ],
+      "input": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "agentId": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "agentId",
+          "id"
+        ],
+        "additionalProperties": false
+      },
+      "result": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema"
+      },
+      "acceptsUndefinedResult": true
+    },
+    "terminal/create": {
+      "mode": "unary",
+      "cancellation": {
+        "parameter": "signal"
+      },
+      "parameters": [
+        {
+          "name": "agent",
+          "wire": "agentId",
+          "source": "lookup"
+        },
+        {
+          "name": "request",
+          "wire": "request",
+          "source": "json"
+        }
+      ],
+      "input": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "agentId": {
+            "type": "string"
+          },
+          "request": {
+            "type": "object",
+            "properties": {
+              "shellPath": {
+                "description": "A path returned by shell discovery; absent selects the execution default.",
+                "readOnly": true,
+                "type": "string"
+              },
+              "id": {
+                "readOnly": true,
+                "type": "string"
+              },
+              "cols": {
+                "readOnly": true,
+                "type": "number"
+              },
+              "rows": {
+                "readOnly": true,
+                "type": "number"
+              }
+            },
+            "required": [
+              "id",
+              "cols",
+              "rows"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "agentId",
+          "request"
+        ],
+        "additionalProperties": false
+      },
+      "result": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "id": {
+            "readOnly": true,
+            "type": "string"
+          },
+          "title": {
+            "readOnly": true,
+            "type": "string"
+          },
+          "shell": {
+            "readOnly": true,
+            "type": "object",
+            "properties": {
+              "path": {
+                "readOnly": true,
+                "type": "string"
+              },
+              "args": {
+                "readOnly": true,
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "name": {
+                "readOnly": true,
+                "type": "string"
+              }
+            },
+            "required": [
+              "path",
+              "args",
+              "name"
+            ],
+            "additionalProperties": false
+          },
+          "cwd": {
+            "readOnly": true,
+            "description": "Initial working directory; shell directory changes do not update this field.",
+            "type": "string"
+          },
+          "cols": {
+            "readOnly": true,
+            "type": "number"
+          },
+          "rows": {
+            "readOnly": true,
+            "type": "number"
+          },
+          "state": {
+            "readOnly": true,
+            "anyOf": [
+              {
+                "type": "string",
+                "const": "failed"
+              },
+              {
+                "type": "string",
+                "const": "running"
+              },
+              {
+                "type": "string",
+                "const": "exited"
+              }
+            ]
+          },
+          "exitCode": {
+            "readOnly": true,
+            "anyOf": [
+              {
+                "type": "null",
+                "const": null
+              },
+              {
+                "type": "number"
+              }
+            ]
+          },
+          "error": {
+            "readOnly": true,
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "shell",
+          "cwd",
+          "cols",
+          "rows",
+          "state",
+          "exitCode"
+        ],
+        "additionalProperties": false
+      },
+      "acceptsUndefinedResult": false
+    },
+    "terminal/environment": {
+      "mode": "unary",
+      "cancellation": {
+        "parameter": "signal"
+      },
+      "parameters": [
+        {
+          "name": "agent",
+          "wire": "agentId",
+          "source": "lookup"
+        }
+      ],
+      "input": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "agentId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "agentId"
+        ],
+        "additionalProperties": false
+      },
+      "result": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "cwd": {
+            "readOnly": true,
+            "description": "Logged current directory, read without filesystem validation.",
+            "type": "string"
+          },
+          "maxInputBytes": {
+            "readOnly": true,
+            "type": "number"
+          },
+          "maxBufferedBytes": {
+            "readOnly": true,
+            "description": "Maximum complete encoded Client input bytes retained until acknowledgement.",
+            "type": "number"
+          },
+          "maxCols": {
+            "readOnly": true,
+            "type": "number"
+          },
+          "maxRows": {
+            "readOnly": true,
+            "type": "number"
+          },
+          "scrollback": {
+            "readOnly": true,
+            "type": "number"
+          }
+        },
+        "required": [
+          "cwd",
+          "maxInputBytes",
+          "maxBufferedBytes",
+          "maxCols",
+          "maxRows",
+          "scrollback"
+        ],
+        "additionalProperties": false
+      },
+      "acceptsUndefinedResult": false
+    },
+    "terminal/list": {
+      "mode": "unary",
+      "cancellation": null,
+      "parameters": [
+        {
+          "name": "sessionId",
+          "wire": "sessionId",
+          "source": "json"
+        }
+      ],
+      "input": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "sessionId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "sessionId"
+        ],
+        "additionalProperties": false
+      },
+      "result": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "readOnly": true,
+              "type": "string"
+            },
+            "title": {
+              "readOnly": true,
+              "type": "string"
+            },
+            "shell": {
+              "readOnly": true,
+              "type": "object",
+              "properties": {
+                "path": {
+                  "readOnly": true,
+                  "type": "string"
+                },
+                "args": {
+                  "readOnly": true,
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "name": {
+                  "readOnly": true,
+                  "type": "string"
+                }
+              },
+              "required": [
+                "path",
+                "args",
+                "name"
+              ],
+              "additionalProperties": false
+            },
+            "cwd": {
+              "readOnly": true,
+              "description": "Initial working directory; shell directory changes do not update this field.",
+              "type": "string"
+            },
+            "cols": {
+              "readOnly": true,
+              "type": "number"
+            },
+            "rows": {
+              "readOnly": true,
+              "type": "number"
+            },
+            "state": {
+              "readOnly": true,
+              "anyOf": [
+                {
+                  "type": "string",
+                  "const": "failed"
+                },
+                {
+                  "type": "string",
+                  "const": "running"
+                },
+                {
+                  "type": "string",
+                  "const": "exited"
+                }
+              ]
+            },
+            "exitCode": {
+              "readOnly": true,
+              "anyOf": [
+                {
+                  "type": "null",
+                  "const": null
+                },
+                {
+                  "type": "number"
+                }
+              ]
+            },
+            "error": {
+              "readOnly": true,
+              "type": "string"
+            }
+          },
+          "required": [
+            "id",
+            "title",
+            "shell",
+            "cwd",
+            "cols",
+            "rows",
+            "state",
+            "exitCode"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "acceptsUndefinedResult": false
+    },
+    "terminal/rename": {
+      "mode": "unary",
+      "cancellation": null,
+      "parameters": [
+        {
+          "name": "agent",
+          "wire": "agentId",
+          "source": "lookup"
+        },
+        {
+          "name": "id",
+          "wire": "id",
+          "source": "json"
+        },
+        {
+          "name": "title",
+          "wire": "title",
+          "source": "json"
+        }
+      ],
+      "input": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "agentId": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "agentId",
+          "id",
+          "title"
+        ],
+        "additionalProperties": false
+      },
+      "result": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema"
+      },
+      "acceptsUndefinedResult": true
+    },
+    "terminal/retain": {
+      "mode": "stream",
+      "cancellation": {
+        "parameter": "signal"
+      },
+      "parameters": [
+        {
+          "name": "sessionId",
+          "wire": "sessionId",
+          "source": "json"
+        },
+        {
+          "name": "id",
+          "wire": "id",
+          "source": "json"
+        }
+      ],
+      "input": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "sessionId": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "sessionId",
+          "id"
+        ],
+        "additionalProperties": false
+      },
+      "result": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "type": {
+            "readOnly": true,
+            "type": "string",
+            "const": "retained"
+          }
+        },
+        "required": [
+          "type"
+        ],
+        "additionalProperties": false
+      },
+      "acceptsUndefinedResult": false
+    },
+    "terminal/shells": {
+      "mode": "unary",
+      "cancellation": {
+        "parameter": "signal"
+      },
+      "parameters": [
+        {
+          "name": "agent",
+          "wire": "agentId",
+          "source": "lookup"
+        }
+      ],
+      "input": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "agentId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "agentId"
+        ],
+        "additionalProperties": false
+      },
+      "result": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "path": {
+              "readOnly": true,
+              "type": "string"
+            },
+            "args": {
+              "readOnly": true,
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "name": {
+              "readOnly": true,
+              "type": "string"
+            }
+          },
+          "required": [
+            "path",
+            "args",
+            "name"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "acceptsUndefinedResult": false
+    },
     "userQuestions/answer": {
       "mode": "unary",
       "cancellation": null,

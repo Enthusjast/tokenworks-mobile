@@ -14,7 +14,7 @@ Host 复用当前 dsh 的会话与模型服务；中转负责身份、授权、�
 | [host/remote-control](host/remote-control/README.md) | Cordis 插件、会话适配、命令日志、签名审批与文件交接 |
 | [services/remote](services/remote/README.md) | Go 控制面、Relay、账号网页、文件和通知服务 |
 | [android](android/README.md) | Android 客户端；实现和目标设备验收按专题分别记录 |
-| [contracts](contracts/) | REST、WebSocket、文件、推送与安全互操作契约 |
+| [contracts](contracts/) | dsh 原生 API 类型快照与仍使用的安全向量 |
 | [deploy](deploy/) | SQL 迁移、受控配置示例和监控规则 |
 | [tools](tools/) | 本机开发、定向联调、发行构建和校验 |
 | [docs](docs/README.md) | 按主题分类的操作指南、协议说明与验证证据 |
@@ -56,7 +56,7 @@ npm run dev:status
 ## 继续阅读
 
 - 使用或调试：[本机持续开发](docs/local-development.md)、[已有 dsh 接入](docs/dsh-desktop-plugin.md)、[账号网页](docs/relay-accounts.md)。
-- 开发协议：[OpenAPI](contracts/openapi/remote.yaml)、[WebSocket Schema](contracts/ws/v1/)、[专题索引](docs/README.md)。
+- 通信协议：dsh 原生 `/api`、`/api/remote.mux`、`$events`；本仓库只保留构建期类型快照 `contracts/typert/`。[专题索引](docs/README.md)。
 - 部署与恢复：[受保护配置](docs/trusted-service-configuration.md)、[Go 发行包](docs/go-service-bundle.md)、[恢复隔离](docs/database-recovery.md)。
 - 查验结果：[当前状态](docs/development-status.md)、[历史证据与包版本](docs/verification-history.md)。
 

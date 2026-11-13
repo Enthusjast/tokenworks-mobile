@@ -6,6 +6,7 @@ import { createCipheriv, createDecipheriv, createHash, createPrivateKey, createP
 import { dirname, resolve } from 'node:path'
 import { homedir } from 'node:os'
 import { fileURLToPath, pathToFileURL } from 'node:url'
+import { getCACertificates, setDefaultCACertificates } from 'node:tls'
 import { Config, inject as hostInject, HostEnrollmentClient, HostEnrollmentBindingStore, HostEnrollmentRecoveryStore,
   HostResourceJwtProvider, HostRestCredentialProvider, createEnrolledRemoteControlPlugin } from '../../host/remote-control/lib/index.js'
 
@@ -14,12 +15,14 @@ export const inject = [...hostInject, 'workingDirectory']
 export const name = 'tokenworks-mobile-local-fixture'
 export const root = resolve(dirname(fileURLToPath(import.meta.url)), '../..')
 export const state = resolve(root, '.local/tokenworks-mobile-dev')
-export const origin = 'http://127.0.0.1:8080'
-export const issuer = 'http://127.0.0.1:8082'
+const android = process.env.TOKENWORKS_MOBILE_LOCAL_ANDROID === '1' || new URL(import.meta.url).searchParams.get('mobile') === '1'
+export const origin = android ? 'https://localhost:8443' : 'http://127.0.0.1:8080'
+export const issuer = android ? origin + '/issuer' : 'http://127.0.0.1:8082'
 export const audience = 'urn:tokenworks-mobile:local-dev'
 export const organizationId = '3ed32392-2684-448d-83e7-d8b5b977035b'
 export const secureState = resolve(homedir(), '.local/state/tokenworks-mobile-development', createHash('sha256').update(root).digest('hex').slice(0, 16))
-const fixtureFile = resolve(secureState, 'identity.json')
+const fixtureFile = resolve(secureState, android ? 'identity-android.json' : 'identity.json')
+const bindingName = android ? 'fixture-android.bin' : 'fixture.bin'
 const runtimeFile = resolve(state, 'enrolled-runtime.json')
 const hostSubject = 'local-dev-host-owner', phoneSubject = 'local-dev-fixture-phone'
 const now = () => Math.floor(Date.now() / 1000)
@@ -104,7 +107,7 @@ export async function prepare(profile) {
   const authority = decodedKey(values.authority)
   const authorityId = 'tokenworks-mobile-approval-authority/local-dev'
   const validFrom = new Date(Date.now() - 60_000).toISOString(), validUntil = new Date(Date.now() + 7 * 86400_000).toISOString()
-  const privateFile = resolve(secureState, 'approval-authority.pem')
+  const privateFile = resolve(secureState, android ? 'approval-authority-android.pem' : 'approval-authority.pem')
   const encoded = Buffer.from(authority.privateKey.export({ format: 'pem', type: 'pkcs8' }))
   try {
     try { await writeFile(privateFile, encoded, { mode: 0o600, flag: 'wx' }) }
@@ -120,7 +123,7 @@ export async function prepare(profile) {
   await saveJSON(resolve(state, 'fixture-approval-anchor.json'), trusted)
   await saveJSON(resolve(state, 'fixture-approval-policy.json'), {
     policy: { version: 1, assurance_profile: 'fixture/local-development', max_auth_age_seconds: 60 },
-    mappings: [{ profile: 'fixture/local-development', issuer, client_id: 'local-dev-phone', acr: 'urn:local-dev:fixture', required_amr: ['otp'] }],
+    mappings: [{ profile: 'fixture/local-development', issuer, client_id: 'local-dev-phone', acr: 'urn:local-dev:fixture', required_amr: ['fixture'] }],
     signing: { issuer: trusted.issuer, key_id: authorityId, private_key_file: privateFile, valid_from: validFrom, valid_until: validUntil },
   })
   await saveJSON(resolve(state, 'fixture-public.json'), { purpose: 'tokenworks-mobile-local-development-only/v1', profile, organization_id: organizationId, issuer, audience, host_subject: hostSubject, phone_subject: phoneSubject })
@@ -135,7 +138,7 @@ function accessToken(authority, subject, clientId, thumbprint) {
   const issued = now()
   return jws(authority, { alg: 'ES256', typ: 'at+jwt', kid: 'local-dev-only' }, {
     iss: issuer, sub: subject, aud: audience, client_id: clientId, jti: randomUUID(), iat: issued, exp: issued + 300,
-    scope: 'remote.access', cnf: { jkt: thumbprint }, auth_time: issued, acr: 'urn:local-dev:fixture', amr: ['otp'],
+    scope: 'remote.access', cnf: { jkt: thumbprint }, auth_time: issued, acr: 'urn:local-dev:fixture', amr: ['fixture'],
   })
 }
 
@@ -146,7 +149,7 @@ export async function phoneClient(values = undefined) {
   const proof = decodedKey(values.phone), approval = decodedKey(values.approval), authority = await issuerKey()
   let nonce = ''
   const request = async (method, path, body, expected = 200) => {
-    if (!['GET', 'POST', 'DELETE'].includes(method) || !path.startsWith('/v1/') || path.includes('#')) throw unavailable()
+    if (!['GET', 'POST', 'DELETE'].includes(method) || !/^\/(v1|v2)\//.test(path) || path.includes('#')) throw unavailable()
     const token = accessToken(authority, phoneSubject, 'local-dev-phone', proof.thumbprint)
     for (let attempt = 0; attempt < 2; attempt++) {
       const proofId = randomUUID()
@@ -166,7 +169,30 @@ export async function phoneClient(values = undefined) {
     }
     throw unavailable()
   }
-  return { request, proof, approval }
+  /** One native dsh call through the relay tunnel, addressed by a lease token. */
+  const native = async (endpoint, args, runtimeId, lease) => {
+    if (!/^[A-Za-z0-9][A-Za-z0-9_.:-]*\/[A-Za-z0-9_.:-]+$/.test(endpoint) || !args || typeof args !== 'object' ||
+        typeof runtimeId !== 'string' || typeof lease !== 'string') throw unavailable()
+    const path = '/api/' + endpoint, token = accessToken(authority, phoneSubject, 'local-dev-phone', proof.thumbprint)
+    for (let attempt = 0; attempt < 2; attempt++) {
+      const dpop = jws(proof.privateKey, { typ: 'dpop+jwt', alg: 'ES256', jwk: proof.publicJwk },
+        { htm: 'POST', htu: origin + path, ath: hash(token), jti: randomUUID(), iat: now(), nonce })
+      const rpcId = randomUUID()
+      const response = await fetch(origin + path, { method: 'POST', redirect: 'error', signal: AbortSignal.timeout(15000),
+        headers: { authorization: 'DPoP ' + token, dpop, 'content-type': 'application/json',
+          'x-tokenworks-runtime': runtimeId, 'x-tokenworks-lease': lease },
+        body: JSON.stringify({ type: 'client-request', rpcId, method: endpoint, payload: { args } }) })
+      nonce = response.headers.get('dpop-nonce') ?? nonce
+      const raw = await response.text()
+      if (Buffer.byteLength(raw) > 65536) throw unavailable()
+      const envelope = JSON.parse(raw)
+      if (!attempt && response.status === 401 && response.headers.get('www-authenticate')?.includes('use_dpop_nonce')) continue
+      if (response.status !== 200 || envelope.type !== 'server-response' || envelope.rpcId !== rpcId || typeof envelope.result?.ok !== 'boolean') throw unavailable()
+      return envelope.result
+    }
+    throw unavailable()
+  }
+  return { request, native, proof, approval }
 }
 
 /** Deliberately file-backed fixture protector. Not production platform protection. */
@@ -197,13 +223,13 @@ async function integration() {
   const owner = new AbortController(), protector = fixtureProtector(values, owner)
   const identity = { issuer, subject: hostSubject, audience, clientId: 'local-dev-host' }
   const account = new HostResourceJwtProvider({ origin, identity, publicJwk: installation.publicJwk, requiredScopes: ['remote.access'],
-    jwksUrl: issuer + '/jwks.json', allowLoopbackHttp: true, source: { signal: owner.signal,
+    jwksUrl: issuer + '/jwks.json', allowLoopbackHttp: !android, source: { signal: owner.signal,
       async acquire(signal) { if (signal.aborted || owner.signal.aborted) throw unavailable(); return { token: accessToken(authority, hostSubject, 'local-dev-host', installation.thumbprint), tokenType: 'DPoP' } } } })
   const signer = { sign(input) { if (owner.signal.aborted) throw unavailable(); return sign('sha256', Buffer.from(input), { key: installation.privateKey, dsaEncoding: 'ieee-p1363' }) } }
-  const options = { origin, identity, publicJwk: installation.publicJwk, signer, account, requiredScopes: ['remote.access'], allowLoopbackHttp: true }
+  const options = { origin, identity, publicJwk: installation.publicJwk, signer, account, requiredScopes: ['remote.access'], allowLoopbackHttp: !android }
   const client = new HostEnrollmentClient(options)
-  const binding = new HostEnrollmentBindingStore({ path: resolve(secureState, 'binding/fixture.bin'), client, protector })
-  const recovery = new HostEnrollmentRecoveryStore({ path: resolve(secureState, 'recovery/fixture.bin'), client, protector })
+  const binding = new HostEnrollmentBindingStore({ path: resolve(secureState, 'binding', bindingName), client, protector })
+  const recovery = new HostEnrollmentRecoveryStore({ path: resolve(secureState, 'recovery', bindingName), client, protector })
   return { values, options, installation, owner, protector, account, client, binding, recovery,
     close() { owner.abort(); binding.close(); recovery.close(); client.close(); account.close() } }
 }
@@ -256,11 +282,28 @@ export async function bootstrap(profile) {
 
 /** Providers belong to one apply invocation. HMR unload aborts all old owners. */
 export async function apply(ctx, config) {
+  if (android) {
+    // Explicit development mode only. Add this owned fixture CA to this Node
+    // process without disabling chain/hostname verification or changing OS trust.
+    const ca = (await privateBytes(resolve(state, 'android/ca.pem'), 128 * 1024)).toString('utf8')
+    const certificates = getCACertificates('default')
+    if (!certificates.includes(ca)) setDefaultCACertificates([...certificates, ca])
+  }
   const local = await integration()
   let credentials
   try {
     ctx.effect(() => () => { credentials?.close(); local.close() }, 'local-development-fixture-owner')
-    const active = await local.binding.open(AbortSignal.any([local.owner.signal, AbortSignal.timeout(10000)]))
+    // A hot reload can activate this fiber while the previous fiber's open is
+    // still in flight; the process guard reports that overlap as `busy` until
+    // the old owner aborts and releases the path.
+    let active
+    for (let attempt = 1; ; attempt++) {
+      try { active = await local.binding.open(AbortSignal.any([local.owner.signal, AbortSignal.timeout(10000)])); break }
+      catch (error) {
+        if (error?.code !== 'host.enrollment_binding.busy' || attempt >= 40 || local.owner.signal.aborted) throw error
+        await new Promise(resolve => setTimeout(resolve, 150))
+      }
+    }
     if (!active || active.profileRef !== local.values.profile) throw unavailable()
     credentials = new HostRestCredentialProvider({ ...local.options, installationId: active.installationId })
     const authority = await privateJSON(resolve(state, 'fixture-approval-anchor.json'))

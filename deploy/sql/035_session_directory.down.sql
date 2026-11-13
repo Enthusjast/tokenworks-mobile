@@ -1,1 +1,0 @@
-drop index sessions_runtime_directory;

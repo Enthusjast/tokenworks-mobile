@@ -174,3 +174,104 @@ The reduced-motion run set all three Android animation scales to zero and restor
 Application SHA-256: `592c75bd4a192e9283579ddcc899a2f0a8aab4091a3169305b7109ce28e05b22`. Final test APK SHA-256: `377f12c1cbc4072d27e42ba8094ca0435ffb8e8d506131c425be2b1f1fd2a0ae`. Instrumentation ownership checks and an action locator were corrected during integration; per-batch harness identities, raw logs, images and exact restored settings are recorded under ignored `.local/android-ui-details-evidence/continuation/`, with the result index in `final-verification.json`.
 
 These results are software-emulator and fixture evidence, not physical-device performance or hardware-backed biometric assurance. TalkBack was not installed, so no TalkBack walkthrough is claimed. Production school SSO and physical/OEM behavior remain outside this acceptance. Earlier acceptance records above are historical rather than substitutes for this build's results.
+
+## Scoped session workflows
+
+The current directory keeps its status/workspace filters and searches only acquired, currently contained rows. Opt-in display names use explicit `session.metadata.read`; missing or withdrawn names fall back to collision-aware identifiers. A same-runtime refresh may keep already-authorized rows visible with a disabled, last-directory explanation. It does not open a reader; stale selections, lost scope and directory errors cannot turn those rows into actionable authority.
+
+Chat now separates information, file transfers, image preparation and original requests. User text, low-emphasis tool/reasoning disclosures and delivery facts retain independent meaning. Pending approvals/questions use their actual current keys; counting or navigating does not claim, answer or sign. The compact and fullscreen editors share one `TextFieldValue`, mode and revision. Offline saving is visible, IME candidate/Enter edits do not send, and returning from an editor keeps its current draft. An IME may be visible with zero occlusion height; back handling uses the visibility flag rather than inferring it from height. Insets remain consumed once.
+
+Ordinary drafts are foreground-only, keyed by accepted account/device/deployment and full host/runtime/session. Background, identity changes and withdrawal clear them, except the existing token-bound document/camera consent exception. They are not process-restorable or stored in preferences/saved state. The owner caps entries and total characters, including one failed-input recovery snapshot. A failed save cannot overwrite a newer edit: users may keep the current input or explicitly confirm replacing text/mode with the original; no attachment readiness, request replay or sending is restored by that choice.
+
+Model selection uses the existing reader receiver, scoped catalog cursor and immutable original command. Provider/model/effort labels do not determine identity. The page distinguishes loaded-item search, partial provider failure, unavailable peers and uncertain originals. Confirmation refers to the session selection checkpoint, not a global default/current-model projection.
+
+Configured-workspace Git review exposes its actual HEAD/version/manifest and exclusions, rather than claiming a per-turn diff. Partial or binary patches cannot be copied as complete. Reopening a paged file starts a fresh patch cursor chain while still rejecting cycles within that chain. Message share requires an explicit preview and fresh confirmation handle; attachment-only messages remain forkable but do not acquire invented share text. Native forks preserve the inclusive persisted prefix and original conversation; the journal permits only one native call per original. Known child/checkpoint evidence survives partial outcomes. A settled checkpoint may coexist with a separately reported workspace-attachment failure; it is not a claim that every sub-operation succeeded.
+
+Current cross-end acceptance separately exercised native title/workspace publication plus strict HTTP opt-in/withdrawal, and production Kotlin model/review consumers against normal Host, Go/PostgreSQL and TLS. The model scenario paged four opaque choices and recovered the same original after a lost status response. The review scenario compared six real Git patch byte streams, reopened a paged file, confirmed visible text, produced one actual native fork/checkpoint, preserved the source and retired proofs on sync/device revocation. These are deterministic offline-model/local-fixture results, not school SSO or commercial-model evidence. Image-specific independent authorization and migration scope are recorded in [Android files](android-files.md).
+
+### Current verification artifact
+
+The current debug build passed the repository Android `check`, application checks/lint and app/test APK assembly. On the separately created `dsh-session-workflow-owned-36` Android 16/API 36 x86_64 AVD (720×1280, 320 dpi, Windows WHPX), one final explicitly activated batch passed **166** UI/controller/storage cases. The batch includes the real platform IME visibility/back scenario, 2x actual-Android-font attachment layout, local model identity/effort controls, disabled partial-patch copy, unknown-original fork controls, image picker/decoder/private-camera-file rules, pending-item navigation and complete approval/plan review. Four separately activated SQLCipher migration cases passed, including encrypted 6→7 and partial child/outcome reopening. These are targeted batches, not an assertion that every device test was run.
+
+The owned AVD received a normal test PIN and virtual fingerprint through the system enrollment UI; no production key or authentication requirement was weakened. The notification-dependent known-resource scenario used its normal Android notification permission. The final default `MainActivity` was launched: the unconfigured-school gate remained visible, and native window metadata showed `SECURE` and `adjust=resize`. No protected pixels were captured. Public synthetic captures, raw results and package identities remain under ignored `.local/android-session-workflow-evidence/`.
+
+- App APK SHA-256: `033eec50a4cd7cb4d7c9c8fbb986ff34de64c401622bb53c1c4a041c26f7dd21`.
+- Test APK SHA-256: `9badfea8b19a38726b94887023d6517cef4915f4b557bc388218f0f20dbe5e7a`.
+- Migration test APK SHA-256: `80900fc411935d9a2aaca3e17505548a58622fb645fd5cb40159710c2a4eea33`.
+
+Software/virtual-biometric results do not establish physical hardware key enforcement, OEM background delivery, commercial-model quality or school SSO. Unicode composition/input and hardware/zero-height IME state were exercised; a manual Pinyin-candidate and TalkBack walkthrough were not performed. No physical-device or release-frame-budget performance claim is made.
+
+The final `npm run verify` completed contract regeneration checks, TypeScript checks/build and **462 passed / 1 skipped / 0 failed** Host cases. The final real Go/PostgreSQL/native-session composition also passed model paging/checkpoint/idempotency, legacy page-error compatibility, archive/cancel, approvals/questions, durable receipts and revocation. Its database privacy guard validates the strict bounded directory-name schema independently: an explicitly admitted native title may itself contain a short body-derived phrase; transcript/model-private data remains forbidden outside that field, and local paths/raw credentials remain forbidden throughout the dump. This is not a claim that title opt-in reveals no content. No document is included in either implementation commit.
+
+After acceptance, the dedicated `dsh-session-workflow-owned-36` emulator was stopped and its disposable profile was removed. Existing unrelated emulator profiles were not removed; the public synthetic evidence and exercised package artifacts were retained.
+
+## Android workspace presentation renewal
+
+The Android presentation now uses one READY workspace: an authorized session drawer on compact/medium windows, a 304dp session column or 72dp rail on expanded windows, and an optional 360dp inspector. The column widths and the chat row model were revised again; see "Android workspace columns and turn rows" below. Short windows remain single-column; IME changes do not reclassify the actual window. Directory position is attached to only one list. Computers, reminders and settings retain their original controller retirement paths; known-session entries do not acquire broad directory access.
+
+Chat uses an authorized title/status header, flat assistant content, naturally bounded user bubbles, adjacent process-only groups and a capsule editor. Errors, interrupted records, ordinary body text and media do not disappear into process summaries. Source message IDs, offsets and expanded source IDs are bounded presentation hints; model/diff/message-action tasks unmount the active chat and use an inert transcript backdrop. The compact/fullscreen editor shares the original draft value/revision. Opening the attachment menu does not launch a picker, and files/images retain independent eligibility. Delivery facts stay above input and original requests remain authoritative.
+
+Model and diff presentation choices are held above the adaptive container for the current owner/resource/context. Diff lines share a horizontal offset and measured content width. Approval reading, consent, refusal, question claim/release, fresh share/fork confirmation, transfer results, notification references, update verification and appearance ownership retain their existing business boundaries. Account onboarding uses neutral OIDC/device language; it does not introduce password login, default credentials, permissions or a phone-local runtime. The known directory model-action projection gap remains unchanged rather than being repaired by widening scope.
+
+### Verification for this presentation build
+
+| Layer | Observed result |
+| --- | --- |
+| APP JVM suites | 62 tests, 0 skipped, 0 failures/errors |
+| Network JVM suites | 153 tests, 0 skipped, 0 failures/errors |
+| Session JVM suites | 41 tests, 0 skipped, 0 failures/errors |
+| Default debug and instrumentation APK assembly | Passed |
+| Android debug lint | Passed |
+| Explicit existing-development deployment/CA debug assembly | Passed; installed with `-r`, without clearing app data |
+| Protected backend/protocol source boundary | All 1,433 baseline file digests unchanged |
+| Existing local TLS Discovery/JWKS | HTTP 200 with the explicit existing CA and certificate verification enabled; no model/tool request |
+| Current device interaction, captures and performance | Blocked by initial device unlock; not claimed as passing |
+
+Executed from `android/`: `./gradlew :app:testDebugUnitTest :core:network:test :core:session:test`, debug/test APK assembly and `:app:lintDebug`. New public native `ChatWorkspaceTest` scenarios avoid Espresso input injection, use actual Activity/UiAutomation/Window PixelCopy, and include viewport/theme/font combinations and a 60-second frame/anchor workload. They are compiled but **not executed** in this record.
+
+The unchanged baseline failed on Pixel_10/API 37 before UI actions because the existing Espresso dependency reflects `InputManager.getInstance`, which that platform no longer exposes. The pre-existing API 36 profile also remained `RUNNING_LOCKED`; ordinary wake/dismiss requests did not unlock it. Neither PIN guesses, lock resets, fingerprint enrollment, dependency upgrades nor secure-window capture were used. Pixel_10 has TalkBack installed, but no walkthrough, manual Pinyin candidate, real IME/chooser, rotation, authenticated Android service smoke or frame/memory result is claimed for this build. A prepared native smoke test does not substitute for the three planned activated device batches or real-service interaction.
+
+Current ignored evidence and installed artifact identities are under `.local/android-experience-renewal/`; baseline APKs are preserved separately for later same-input comparison. The installed package remains `cn.edu.ustc.tokenworks`; the development CA is debug-only and no backend service was restarted. These source/JVM/build results do not establish physical-tablet, physical-device, production-identity or release-frame-budget acceptance.
+
+## Android workspace columns and turn rows
+
+The READY workspace keeps one owner per resource and one reader per session. What changed is how the columns are computed and how a finished turn is drawn.
+
+| Rule | Value |
+| --- | --- |
+| Window classes | compact when width < 600 dp or height < 480 dp; medium 600–839 dp; expanded ≥ 840 dp |
+| Expanded navigation | 68 dp rail, or a 320 dp column when chat keeps ≥ 600 dp next to it |
+| Session panel | 30% of the window snapped to 4 dp, clamped to 360–420 dp, shown only while chat keeps ≥ 400 dp |
+| Drawer width | min(320 dp, window width − 24 dp) |
+| Reading measure | 720 dp for chat, sheet content and the transcript backdrop |
+| Vertical rhythm | 8 dp inside a turn, 24 dp between turns, 16 dp page gutter |
+| Press feedback | 0.97 scale for 90 ms, skipped when animations are disabled |
+
+`workspaceLayout` is a pure function of viewport, selected session, requested panel and the user's navigation preference, so the column choice is testable without a device. Opening the panel folds a 320 dp sidebar back to the rail instead of squeezing chat below its minimum.
+
+### Turn rows
+
+`projectChatTimeline` groups records by their native turn. User records carry no turn on the wire, so they take the next positioned turn, which keeps a prompt with the answer it produced.
+
+- A finished turn folds its tool calls and pure-reasoning records into one `过程 · N 项` header, keeps the final answer as a normal message, and closes with a footnote of elapsed time, distinct steps and tool calls. The header expands to the original message keys.
+- A run of three or more adjacent tool records groups even without an answer; shorter runs stay individual rows.
+- A streaming turn, or a turn containing an interrupted or errored record, never folds, so partial and failed work is never hidden behind a summary.
+- `ConversationItem` now exposes the native sequence, turn, step and record time used by this projection; the protocol surface is unchanged.
+
+### Local read marks
+
+Directory rows show a local unread dot per owner: the highest persisted sequence this device has displayed, stored in `session-read-v1-<ownerKey>` and capped at the 200 newest sessions. Marking happens when a session opens, when its persisted sequence advances, and when it closes. This is a client-side convenience only; it never claims or requests server-side read state, and losing the file only costs the dots.
+
+### Verification for this column and row build
+
+| Layer | Observed result |
+| --- | --- |
+| APP JVM suites | 71 tests, 0 skipped, 0 failures/errors |
+| Session JVM suites | 43 tests, 0 skipped, 0 failures/errors |
+| Debug and instrumentation APK assembly | Passed |
+| Android debug lint | Passed |
+| `ChatWorkspaceTest` (Pixel_10/API 37, native accessibility driver) | 10 cases passed |
+| `NativeWorkspaceControllerTest` (existing owned account fixture) | 1 case passed |
+| Captures | 24 chat viewport/theme/font combinations, drawer at 320/360/600 dp, navigation column at 840/1280 dp, folded and expanded turn |
+
+Commands used from `android/`: `./gradlew :app:testDebugUnitTest :core:session:test`, `:app:assembleDebug :app:assembleDebugAndroidTest :app:lintDebug`, and `adb shell am instrument -w -e class cn.edu.ustc.tokenworks.ChatWorkspaceTest …`. Captures and their JSON metadata are in the ignored `.local/uiux-parity/captures/` directory. The Compose-rule instrumentation suites remain unexecutable on API 37 because the pinned Espresso version reflects `InputManager.getInstance`; only the native accessibility suites ran. Light-theme evidence comes from the 2x font host, because the plain `ComponentActivity` host inherits the emulator's night mode.
