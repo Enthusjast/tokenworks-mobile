@@ -42,6 +42,8 @@ data class HomeState(
     val binding: HostBindingState? = null, val pendingBindingId: String? = null,
     val creation: SessionCreationState? = null,
     val composer: MessageComposerState? = null,
+    val interactions: List<PendingInteraction> = emptyList(),
+    val interactionError: String? = null,
 )
 
 internal fun HomeState.runtimeRow(id: String?): RuntimeRow? = runtimes.firstOrNull { it.id == id }
@@ -95,6 +97,8 @@ class LoginController internal constructor(private val context: Context, private
     private var readerJob: Job? = null
     private var reader: DshSessionReader? = null
     private var readMarks: SessionReadMarks? = null
+    private var watcher: InteractionWatcher? = null
+    private var watcherJob: Job? = null
     private var appUpdateFlow: AppUpdateFlow? = null
     private var appUpdateCollector: Job? = null
     private var appUpdateEventCollector: Job? = null
@@ -589,11 +593,29 @@ class LoginController internal constructor(private val context: Context, private
         readerJob?.cancel(); readerJob = null
         reader?.close(); reader = null
         if (clearDesired) desired = null
+        retireWatcher()
         mutable.value = mutable.value.copy(reader = null, loadingSessions = false, submitting = false, modelSelectionOpen = false, modelBusy = false, composer = null)
+    }
+
+    /** F-04: one $events watcher per runtime, started with the first session open. */
+    private fun ensureWatcher(runtime: String) {
+        if (watcher != null) return
+        val next = InteractionWatcher(api!!, runtime, scope)
+        watcher = next
+        watcherJob = scope.launch {
+            next.interactions.collect { if (watcher === next) mutable.value = mutable.value.copy(interactions = it, interactionError = next.errors.value) }
+        }
+    }
+
+    private fun retireWatcher() {
+        watcherJob?.cancel(); watcherJob = null
+        watcher?.close(); watcher = null
+        mutable.value = mutable.value.copy(interactions = emptyList(), interactionError = null)
     }
 
     private fun follow(runtime: String, session: String, stamp: Long, reopen: Boolean) {
         if (reopen) {
+            ensureWatcher(runtime)
             readerJob?.cancel(); readerJob = null
             reader?.close(); reader = null
             mutable.value = mutable.value.copy(selectedRuntimeId = runtime, selectedSessionId = session, sessionError = null, sessionActionError = null, reader = null, composer = draftResource(runtime, session)?.let { drafts.open(it) })
@@ -673,6 +695,20 @@ class LoginController internal constructor(private val context: Context, private
     }
 
     fun cancelSession() = sessionAction { it.cancel() }
+
+    /** F-04: approve/reject/answer one pending interaction. */
+    fun approveInteraction(eventId: String) {
+        val current = watcher ?: return
+        navigation { try { current.approve(eventId) } catch (e: CancellationException) { throw e } catch (_: Exception) { } }
+    }
+    fun rejectInteraction(eventId: String, message: String = "在手机上拒绝") {
+        val current = watcher ?: return
+        navigation { try { current.reject(eventId, message) } catch (e: CancellationException) { throw e } catch (_: Exception) { } }
+    }
+    fun submitAnswers(eventId: String, answers: List<InteractionBridge.AnsweredQuestion>) {
+        val current = watcher ?: return
+        navigation { try { current.submitAnswers(eventId, answers) } catch (e: CancellationException) { throw e } catch (_: Exception) { } }
+    }
 
     fun renameSession(title: String) {
         val next = title.trim()
@@ -866,6 +902,7 @@ class LoginController internal constructor(private val context: Context, private
         retireSession(!preserveSelection)
         retireBinding(preserveSelection)
         generation++; job?.cancel(); deadline?.cancel(); pending?.cancel(); pending = null; discardRegistration()
+        retireWatcher()
         if (closeKeys) { owner?.close(); owner = null; proof = null; approval = null; api = null; session = null; readMarks = null }
         mutable.value = mutable.value.copy(presentationOwner = null)
         return generation
@@ -956,6 +993,9 @@ class LoginController internal constructor(private val context: Context, private
 
 @HiltViewModel
 class HomeViewModel @Inject constructor(private val login: LoginController) : ViewModel() {
+    fun approveInteraction(eventId: String) = login.approveInteraction(eventId)
+    fun rejectInteraction(eventId: String, message: String) = login.rejectInteraction(eventId, message)
+    fun submitAnswers(eventId: String, answers: List<InteractionBridge.AnsweredQuestion>) = login.submitAnswers(eventId, answers)
     val state = login.state
     val appUpdateEvents = login.appUpdateEvents
     fun openAppUpdates() = login.openAppUpdates()

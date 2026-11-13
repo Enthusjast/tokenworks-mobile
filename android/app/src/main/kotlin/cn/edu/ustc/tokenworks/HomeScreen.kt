@@ -127,6 +127,16 @@ private fun ReadyHomeRoute(state: HomeState, model: HomeViewModel, viewport: Wor
                 }
             }
         }
+        // F-04: pending approvals and questions float above everything.
+        if (state.interactions.isNotEmpty()) {
+            InteractionCards(
+                interactions = state.interactions,
+                onApprove = model::approveInteraction,
+                onReject = { model.rejectInteraction(it, "在手机上拒绝") },
+                onAnswers = model::submitAnswers,
+                modifier = Modifier.align(Alignment.BottomCenter).padding(16.dp),
+            )
+        }
         SnackbarHost(snackbar, Modifier.align(Alignment.BottomCenter).windowInsetsPadding(WindowInsets.safeDrawing).padding(TokenWorksSpacing.md))
     }
     if (hostsOpen && !overlay) {
@@ -164,6 +174,7 @@ internal class SessionContentActions(
     constructor(model: HomeViewModel) : this(model::editDraft, model::sendDraft, model::cancelSession,
         model::openModelSelection, model::openCreation, model::loadOlder, model::forkSession,
         model::archiveSession, model::renameSession)
+
 }
 
 @Composable
