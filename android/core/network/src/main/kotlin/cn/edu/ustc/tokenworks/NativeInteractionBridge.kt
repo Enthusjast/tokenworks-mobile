@@ -1,6 +1,7 @@
 package cn.edu.ustc.tokenworks
 
 import kotlinx.coroutines.flow.MutableStateFlow
+import cn.edu.ustc.tokenworks.PendingInteraction.QuestionPhase
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
@@ -70,8 +71,10 @@ class NativeInteractionBridge(
         }
         if (questions.isEmpty()) throw ProtocolException()
         val wait = request.fields["wait"] as? JsonObject
+        val state = (request.fields["state"] as? JsonString)?.value
+        val phase = when (state) { "continued", "reply_queued" -> PendingInteraction.QuestionPhase.CONTINUED; else -> PendingInteraction.QuestionPhase.OPEN }
         return PendingInteraction.Question(waterfall.eventId, waterfall.agentId,
-            (wait?.fields?.get("callId") as? JsonString)?.value, wait?.fields?.get("timed") == JsonBoolean(true), questions)
+            (wait?.fields?.get("callId") as? JsonString)?.value, wait?.fields?.get("timed") == JsonBoolean(true), questions, phase)
     }
 
     private suspend fun result(eventId: String, outcome: DshEventOutcome) {
@@ -91,18 +94,24 @@ class NativeInteractionBridge(
     override suspend fun submitAnswers(eventId: String, answers: List<InteractionBridge.AnsweredQuestion>) {
         val interaction = mutable.value.filterIsInstance<PendingInteraction.Question>().firstOrNull { it.eventId == eventId }
             ?: throw DshFailure("native events unknown waterfall")
-        // The native answer endpoint carries the structured payload keyed by the
-        // waterfall's agent/call identity; the result closes the waterfall itself.
-        val callId = interaction.callId ?: throw DshFailure("question.no_call")
-        val args = jsonObject(
-            "agentId" to interaction.agentId.json(), "callId" to callId.json(),
-            "answer" to jsonObject("answers" to JsonArray(answers.map { item ->
-                jsonObject("id" to item.id.json(), "selected" to JsonArray(item.selected.map(String::json)),
-                    *(item.custom?.let { arrayOf("custom" to it.json()) } ?: emptyArray()))
-            })),
-        )
-        post("userQuestions/answer", args)
-        result(eventId, DshEventOutcome.Result(DshOptional.Missing))
+        val payload = jsonObject("answers" to JsonArray(answers.map { item ->
+            jsonObject("id" to item.id.json(), "selected" to JsonArray(item.selected.map(String::json)),
+                *(item.custom?.let { arrayOf("custom" to it.json()) } ?: emptyArray()))
+        }))
+        if (interaction.timed && interaction.phase == QuestionPhase.CONTINUED) {
+            // F-11: a timed question that already continued can only consume the
+            // answer as a queued user message; the waterfall itself is gone.
+            val callId = interaction.callId ?: throw DshFailure("question.no_call")
+            post("userQuestions/answer", jsonObject(
+                "agentId" to interaction.agentId.json(), "callId" to callId.json(),
+                "answer" to payload,
+            ))
+            result(eventId, DshEventOutcome.Result(DshOptional.Missing))
+        } else {
+            // F-11: an open question is answered by the waterfall's return value —
+            // the Host's question listener receives exactly this structured object.
+            result(eventId, DshEventOutcome.Result(DshOptional.Value(payload)))
+        }
     }
 
     override fun close() = events.close()

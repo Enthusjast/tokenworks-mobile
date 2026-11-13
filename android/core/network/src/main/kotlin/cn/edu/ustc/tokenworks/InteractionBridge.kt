@@ -15,7 +15,11 @@ sealed class PendingInteraction {
     data class Question(
         override val eventId: String, override val agentId: String, val callId: String?,
         val timed: Boolean, val questions: List<QuestionCard>,
+        /** `open` while the waterfall is live; `continued` after a timed timeout. */
+        val phase: QuestionPhase = QuestionPhase.OPEN,
     ) : PendingInteraction()
+
+    enum class QuestionPhase { OPEN, CONTINUED }
 
     data class QuestionCard(val id: String, val question: String, val detail: String?, val header: String?,
         val options: List<String>, val multiSelect: Boolean)

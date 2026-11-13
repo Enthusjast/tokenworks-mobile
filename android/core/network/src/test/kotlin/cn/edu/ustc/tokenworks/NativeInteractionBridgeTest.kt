@@ -83,12 +83,41 @@ class NativeInteractionBridgeTest {
             assertTrue(question.timed)
             assertEquals(listOf("Yes", "No"), question.questions.single().options)
             bridge.submitAnswers(question.eventId, listOf(InteractionBridge.AnsweredQuestion("q1", listOf("Yes"), null)))
+            // F-11: an open question answers through the waterfall result itself;
+            // no userQuestions/answer round-trip happens for the open path.
+            assertTrue(posts.isEmpty())
+            val result = DshStreams.result(answered.single()).obj("outcome")
+            assertEquals("result", result.string("kind"))
+            val value = result.fields["value"] as JsonObject
+            assertEquals("q1", value.array("answers").single().let { (it as JsonObject).string("id") })
+            assertEquals("Yes", value.array("answers").single().let { (it as JsonObject).array("selected").single().let { s -> (s as JsonString).value } })
+            assertTrue(bridge.interactions.value.isEmpty())
+        } finally { bridge.close() }
+    }
+
+    @Test fun continuedTimedQuestionsQueueThroughUserQuestionsAnswer() = runTest {
+        val bridge = bridge()
+        try {
+            mux.receive(itemFrame(jsonObject(
+                "type" to "waterfall".json(), "event" to "user-questions/request".json(),
+                "eventId" to "77777777-7777-4777-8777-777777777777".json(),
+                "agentId" to "33333333-3333-4333-8333-333333333333".json(),
+                "request" to jsonObject(
+                    "callId" to "call-8".json(),
+                    "state" to "continued".json(),
+                    "wait" to jsonObject("callId" to "call-8".json(), "timed" to JsonBoolean(true)),
+                    "questions" to JsonArray(listOf(jsonObject("id" to "q2".json(), "question" to "Late?".json()))),
+                ),
+            )))
+            bridgeAwait(condition = { bridge.refresh(); bridge.interactions.value.isNotEmpty() })
+            val question = bridge.interactions.value.filterIsInstance<PendingInteraction.Question>().single()
+            assertEquals(PendingInteraction.QuestionPhase.CONTINUED, question.phase)
+            bridge.submitAnswers(question.eventId, listOf(InteractionBridge.AnsweredQuestion("q2", listOf("later".json().let { "later" }), null)))
             val (endpoint, args) = posts.single()
             assertEquals("userQuestions/answer", endpoint)
-            assertEquals("33333333-3333-4333-8333-333333333333", args.string("agentId"))
-            assertEquals("call-9", args.string("callId"))
-            assertEquals("q1", args.obj("answer").array("answers").single().let { (it as JsonObject).string("id") })
-            assertEquals("11111111-1111-4111-8111-111111111111", answered.single().clientId)
+            assertEquals("call-8", args.string("callId"))
+            // The waterfall closes with a missing result: the tool call already ended.
+            assertEquals("result", DshStreams.result(answered.single()).obj("outcome").string("kind"))
             assertTrue(bridge.interactions.value.isEmpty())
         } finally { bridge.close() }
     }
