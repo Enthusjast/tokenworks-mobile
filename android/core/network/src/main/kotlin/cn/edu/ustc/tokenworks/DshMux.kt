@@ -17,7 +17,9 @@ class DshFailure(val code: String) : IllegalStateException(code)
  * One native WebSocket carrying logical streams. Framing only: the caller owns
  * the socket and hands text messages in. OkHttp's send is thread-safe.
  */
-class DshMux internal constructor(private val writer: (String) -> Boolean, private val closer: (Int, String?) -> Unit) {
+class DshMux internal constructor(private val writer: (String) -> Boolean, private val closer: (Int, String?) -> Unit,
+    /** F-06: per-stream frame budget; consumption slower than arrival cannot grow memory. */
+    private val streamCapacity: Int = 256) {
     private val ended = AtomicBoolean()
     private val nextId = AtomicLong(1)
     private val streams = ConcurrentHashMap<String, Channel<DshMuxFrame>>()
@@ -27,8 +29,20 @@ class DshMux internal constructor(private val writer: (String) -> Boolean, priva
     internal fun receive(text: String) {
         val frame = runCatching { DshStreams.decode(JsonDocument.parse(text).root) }.getOrNull() ?: return
         val target = streams[frame.streamId] ?: return
-        if (frame !is DshMuxFrame.Item) streams.remove(frame.streamId)
-        target.trySend(frame)
+        if (frame !is DshMuxFrame.Item) { streams.remove(frame.streamId); target.trySend(frame); return }
+        // F-06: a bounded stream admits the frame unless full. Assistant stream
+        // chunks are replaceable - the oldest buffered chunk yields to the newest.
+        // Durable frames (snapshot/event/checkpoint/page) are never dropped: the
+        // caller blocks, applying backpressure to the socket read loop.
+        if (target.trySend(frame).isSuccess) return
+        if (replaceable(frame)) { target.tryReceive(); target.trySend(frame) }
+        else kotlinx.coroutines.runBlocking { target.send(frame) }
+    }
+
+    /** Assistant stream frames can be collapsed to the newest without losing facts. */
+    private fun replaceable(frame: DshMuxFrame.Item): Boolean {
+        val payload = (frame.value as? DshOptional.Value)?.value as? JsonObject ?: return false
+        return payload.fields["type"] == JsonString("assistant-stream")
     }
     internal fun fail() {
         ended.set(true)
@@ -43,7 +57,7 @@ class DshMux internal constructor(private val writer: (String) -> Boolean, priva
 
     fun open(endpoint: String, payload: JsonValue): DshStream {
         val streamId = nextId.getAndIncrement().toString()
-        val channel = Channel<DshMuxFrame>(Channel.UNLIMITED)
+        val channel = Channel<DshMuxFrame>(streamCapacity)
         streams[streamId] = channel
         try {
             send(DshStreams.encode(DshMuxRequest.Open(streamId, endpoint, payload)))

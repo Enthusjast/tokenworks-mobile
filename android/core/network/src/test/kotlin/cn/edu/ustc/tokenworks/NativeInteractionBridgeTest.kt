@@ -12,7 +12,7 @@ class NativeInteractionBridgeTest {
     private val posted = mutableListOf<Pair<String, JsonObject>>()
     private val answered = mutableListOf<DshEventResult>()
     private val writer = RecordingWriter()
-    private val mux = DshMux(writer::write) { _, _ -> }
+    private val mux = DshMux(writer::write, { _, _ -> })
     private val stream = mux.open(DSH_EVENTS_ENDPOINT, jsonObject())
     private val posts = mutableListOf<Pair<String, JsonObject>>()
 

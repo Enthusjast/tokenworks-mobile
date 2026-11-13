@@ -33,7 +33,7 @@ class DshEventsTest {
 
     @Test fun readyThenWaterfallBecomesAnswerableAndAnswerRemovesIt() = runTest {
         val writer = RecordingWriter()
-        val mux = DshMux(writer::write) { _, _ -> }
+        val mux = DshMux(writer::write, { _, _ -> })
         val stream = mux.open(DSH_EVENTS_ENDPOINT, jsonObject())
         mux.receive(readyFrame())
         val sent = mutableListOf<DshEventResult>()
@@ -56,7 +56,7 @@ class DshEventsTest {
 
     @Test fun cancelMovesTheWaterfallToCancellationsOnce() = runTest {
         val writer = RecordingWriter()
-        val mux = DshMux(writer::write) { _, _ -> }
+        val mux = DshMux(writer::write, { _, _ -> })
         val stream = mux.open(DSH_EVENTS_ENDPOINT, jsonObject())
         mux.receive(readyFrame())
         val sent = mutableListOf<DshEventResult>()
@@ -74,7 +74,7 @@ class DshEventsTest {
 
     @Test fun errorFrameBreaksConstructionWithTheServerError() = runTest {
         val writer = RecordingWriter()
-        val mux = DshMux(writer::write) { _, _ -> }
+        val mux = DshMux(writer::write, { _, _ -> })
         val stream = mux.open(DSH_EVENTS_ENDPOINT, jsonObject())
         assertThrows(DshFailure::class.java) {
             DshEvents(stream, 5000, {}, { })
@@ -83,7 +83,7 @@ class DshEventsTest {
 
     @Test fun unknownWaterfallRefusesAnswersAndReadyTimeoutFails() = runTest {
         val writer = RecordingWriter()
-        val mux = DshMux(writer::write) { _, _ -> }
+        val mux = DshMux(writer::write, { _, _ -> })
         val stream = mux.open(DSH_EVENTS_ENDPOINT, jsonObject())
         mux.receive(readyFrame())
         val events = DshEvents(stream, 5000, {})
@@ -94,14 +94,14 @@ class DshEventsTest {
         } finally { events.close() }
         // A mux that never sends ready fails construction within the timeout.
         val silent = RecordingWriter()
-        val quietMux = DshMux(silent::write) { _, _ -> }
+        val quietMux = DshMux(silent::write, { _, _ -> })
         val quiet = quietMux.open(DSH_EVENTS_ENDPOINT, jsonObject())
         assertThrows(DshFailure::class.java) { DshEvents(quiet, 150, {}) }
     }
 
     @Test fun rejectEncodesTheRejectedOutcome() = runTest {
         val writer = RecordingWriter()
-        val mux = DshMux(writer::write) { _, _ -> }
+        val mux = DshMux(writer::write, { _, _ -> })
         val stream = mux.open(DSH_EVENTS_ENDPOINT, jsonObject())
         mux.receive(readyFrame())
         val sent = mutableListOf<DshEventResult>()

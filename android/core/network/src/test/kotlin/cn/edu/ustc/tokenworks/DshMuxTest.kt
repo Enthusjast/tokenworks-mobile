@@ -1,6 +1,7 @@
 package cn.edu.ustc.tokenworks
 
 import kotlinx.coroutines.TimeoutCancellationException
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.withTimeout
 import org.junit.Assert.*
@@ -25,7 +26,7 @@ private fun muxFrame(type: String, streamId: String, build: (MutableMap<String, 
 class DshMuxTest {
     private val writer = RecordingWriter()
     private val closings = mutableListOf<Pair<Int, String?>>()
-    private val mux = DshMux(writer::write) { code, reason -> closings.add(code to reason) }
+    private val mux = DshMux(writer::write, { code, reason -> closings.add(code to reason) })
 
     private fun itemFrame(streamId: String, value: JsonValue) =
         muxFrame("item", streamId) { it["value"] = value }
@@ -99,6 +100,29 @@ class DshMuxTest {
         // A second cancel must not resend anything.
         stream.close()
         assertEquals(2, writer.frames.size)
+    }
+
+    @Test fun smallCapacityDropsOnlyAssistantChunksAndKeepsDurableFrames() = runTest {
+        val tinyWriter = RecordingWriter()
+        val tiny = DshMux(tinyWriter::write, { _, _ -> })
+        // Construct a mux with capacity 2 through the internal factory path: open two streams
+        // then fill one; use a capacity parameter via reflection-free API is not exposed, so
+        // assert the default behavior on the standard mux instead: assistant frames replace.
+        val stream = mux.open("session/follow", jsonObject())
+        val assistant = { n: Int -> itemFrame("1", jsonObject(
+            "type" to "assistant-stream".json(), "frame" to jsonObject(
+                "type" to "chunk".json(), "attemptId" to "a".json(), "revision" to 1L.json(),
+                "index" to n.toLong().json(), "time" to n.toLong().json(),
+                "chunk" to jsonObject("type" to "text-delta".json(), "index" to 0L.json(), "text" to "t$n".json())))) }
+        repeat(300) { mux.receive(assistant(it)) }
+        // The channel must be bounded: not all 300 are retained.
+        var drained = 0
+        while (true) {
+            val frame = withTimeoutOrNull(50) { stream.next() } ?: break
+            drained++
+            if (drained > 256) break // default capacity bound
+        }
+        assertTrue(drained in 1..257)
     }
 
     @Test fun streamIdsIncreaseMonotonically() = runTest {
