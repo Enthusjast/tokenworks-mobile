@@ -32,6 +32,17 @@ export interface NativeResourceIds {
   readonly workspaces: readonly string[]
 }
 export type InspectLease = (leaseId: string, secret: string, signal: AbortSignal) => Promise<unknown>
+/**
+ * How an admitted device maps onto a dsh Peer.
+ * - `owner`: personal devices. The peer is `{ kind: 'owner' }` with
+ *   `interactions: 'answer'`, so scoped waterfalls (approval, questions) and
+ *   exact Fetch routes work. remoteAccess policies do not apply to owner;
+ *   revocation (lease removal) disposes the peer.
+ * - `device`: controlled deployments. The peer keeps the tokenworks-device
+ *   principal; only broadcast events covered by `event:*` bindings arrive and
+ *   every call goes through the remoteAccess policy.
+ */
+export type NativePeerMode = 'owner' | 'device'
 interface Entry {
   readonly lease: NativeLease
   readonly secret: string
@@ -52,15 +63,22 @@ export class NativeAccess {
   readonly #unregister: () => void
   readonly #interval: NodeJS.Timeout
   #generation = 0
+  readonly #mode: NativePeerMode
   constructor(readonly connection: HostConnectionHandle, readonly access: RemoteAccessService,
     readonly runtimeId: string, readonly installationId: string, readonly inspect: InspectLease,
-    readonly resources: () => NativeResourceIds) {
-    this.#unregister = access.registerPolicy('tokenworks-device', { bindings: principal => {
-      const current = this.#entries.get(principal.leaseId)
-      if (!(current && current.peer.principal.kind === 'tokenworks-device' && current.peer.principal.generation === principal.generation && current.lease.exp * 1000 > Date.now())) return []
-      const ids = this.resources()
-      return current.lease.bindings.flatMap(item => expand(item, ids))
-    } })
+    readonly resources: () => NativeResourceIds, mode: NativePeerMode = 'owner') {
+    this.#mode = mode
+    // The remoteAccess policy only governs non-owner principals; an owner peer
+    // bypasses it by dsh semantics, so the policy is registered for the device
+    // mode only.
+    this.#unregister = this.#mode === 'device'
+      ? access.registerPolicy('tokenworks-device', { bindings: principal => {
+        const current = principal.leaseId ? this.#entries.get(principal.leaseId) : undefined
+        if (!(current && current.peer.principal.kind === 'tokenworks-device' && current.peer.principal.generation === principal.generation && current.lease.exp * 1000 > Date.now())) return []
+        const ids = this.resources()
+        return current.lease.bindings.flatMap(item => expand(item, ids))
+      } })
+      : (() => () => undefined)
     this.#interval = setInterval(() => {
       for (const [id, entry] of this.#entries) void this.#refresh(id, entry)
     }, 20_000)
@@ -90,8 +108,14 @@ export class NativeAccess {
         flight = (async () => {
           const lease = await this.#read(id, secret)
           this.#lifetime.signal.throwIfAborted()
-          const principal = Object.freeze({ kind: 'tokenworks-device' as const, leaseId: id, generation: ++this.#generation })
-          const peer = this.connection.createPeer({ principal, interactions: 'none' })
+          this.#generation++
+          // F-02: personal devices admit as the Host owner with answer
+          // interactions, so scoped waterfalls and exact Fetch routes reach the
+          // phone. Revocation is enforced by lease removal disposing the peer.
+          const principal = this.#mode === 'owner'
+            ? Object.freeze({ kind: 'owner' as const })
+            : Object.freeze({ kind: 'tokenworks-device' as const, leaseId: id, generation: this.#generation })
+          const peer = this.connection.createPeer({ principal, interactions: this.#mode === 'owner' ? 'answer' : 'none' })
           const timer = setTimeout(() => this.#remove(id, created), Math.max(1, lease.exp * 1000 - Date.now()))
           timer.unref()
           const created: Entry = { lease, secret, peer, timer, connections: 0 }

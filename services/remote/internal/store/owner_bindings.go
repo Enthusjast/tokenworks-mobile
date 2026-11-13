@@ -12,6 +12,12 @@ func OwnerBindings() []GrantBinding {
 			"fileReferences/list", "skills/list", "fileUploads/upload",
 			"directoryPicker/list", "directoryPicker/createDirectory", "directoryPicker/pick",
 			"workspace/create", "workspace/initializeDefault",
+			"terminal/list", "terminal/create", "terminal/close", "terminal/environment",
+			"terminal/rename", "terminal/shells", "terminal/retain",
+			// Forwarded \$events: scoped waterfalls reach answer peers; broadcasts
+			// reach non-owner watchers.
+			"event:approval/request", "event:user-questions/request",
+			"event:approval/decided", "event:api-session/status", "event:api-session/activity",
 		}},
 		{Resource: GrantResource{Kind: "session"}, Actions: []string{
 			"session/list", "session/search", "session/create", "session/follow", "session/page",

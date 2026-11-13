@@ -10,7 +10,7 @@ import type { RemoteAccessService } from '@deepseek-ai/dsh-api-remote-access'
 import type { PeerScope } from '@deepseek-ai/dsh-typert-protocol'
 import type { TypertGateway } from '@deepseek-ai/dsh-api-gateway'
 import type { NativeGateway } from './native-gateway.js'
-import { NativeAccess, type NativeResourceIds } from './native-access.js'
+import { NativeAccess, type NativeResourceIds, type NativePeerMode } from './native-access.js'
 
 export interface LanGatewayOptions {
   /** Bind address; a specific LAN IP by contract, never a wildcard. */
@@ -26,6 +26,8 @@ export interface LanGatewayOptions {
   readonly certificate: { readonly cert: string; readonly key: string }
   /** The paired device secret (43 chars url-safe); requests must present it verbatim. */
   readonly deviceToken: () => string | undefined
+  /** F-02: LAN pairs are personal devices; owner is the default and only tested mode. */
+  readonly peerMode?: NativePeerMode
 }
 
 export type LanPhase = 'stopped' | 'listening' | 'closed'
@@ -51,7 +53,7 @@ export class LanGateway {
     this.#options = options
     this.#access = new NativeAccess(options.connection, options.remoteAccess, options.runtimeId, options.installationId,
       // LAN pairs cannot introspect Relay leases; the paired token is the whole credential.
-      async (id, secret) => this.#introspect(id, secret), options.resources)
+      async (id, secret) => this.#introspect(id, secret), options.resources, options.peerMode ?? 'owner')
     this.#server = createSecureServer({ allowHTTP1: true, key: options.certificate.key, cert: options.certificate.cert, settings: { maxConcurrentStreams: 128, maxHeaderListSize: 32 * 1024 } })
     this.#server.on('request', (request, response) => { void this.#request(request as unknown as IncomingMessage, response as unknown as ServerResponse) })
     this.#server.on('session', session => {

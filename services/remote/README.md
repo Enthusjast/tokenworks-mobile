@@ -1,222 +1,32 @@
-# Remote service foundation
+# Remote service (Go `/v2` tunnel)
 
-File [cleanup proof and quota accounting](../../docs/file-cleanup-proof.md) lock file/transfer before objects and recheck eligibility in a fresh snapshot, protecting a scan renewal still waiting in COMMIT. Cleanup claims/acknowledgements recheck actual lease deadlines after waits, and ignored proof/quota writes roll back. The I/O worker refuses unusable leases before DELETE; concurrent/repeated confirmations still release logical quota once. No schema, protocol or TTL change is required.
+Go 服务已从 v1 业务控制面缩减为 **通用 `/v2` 隧道**：设备认证、租约、节点路由和字节转发。
+会话、审批、文件、命令语义全部在 dsh（Host 插件）内；本服务不解析 dsh 帧。
 
-File [upload/export admission deadlines](../../docs/file-rest-admission-expiry.md) are rechecked after quota/ledger/source/audit waits. Expiry rolls back registration and first scan attestation, including original source windows when retention is extended. Presigned PUTs must remain live within upload/file/retention bounds, and downloads recheck their permit after opened audit before storage access. Single-row evidence is required; legitimate late commits and historical outcome reports retain their distinct semantics. No schema or protocol change is required.
+架构决策见 [`IMPROVE_PLAN.md`](../../IMPROVE_PLAN.md) 第 6.3/6.6 节。
 
-File [scan admission deadlines](../../docs/file-scan-admission-expiry.md) are rechecked after ledger/trigger/audit/outbox waits before commit. Claims, renewal and clean publication require current grant/scan/retention windows; renewal cannot revive an expired lease. Missing single-row evidence rolls back the transaction. Historical completed-attempt retries confirm facts without renewing authority; failure reporting still supports revoked grants under its original live lease. No TTL, protocol or schema change is required.
+## 模块
 
-File [handoff admission deadlines](../../docs/file-handoff-admission-expiry.md) are rechecked against the database clock after state/trigger/audit/completion-marker waits and before commit. Expiry rolls back offers, lease renewal, one-use read consumption and staged acknowledgements; renewal cannot revive a lease that expired while waiting. Offer/renewal return actual stored deadlines and reject ignored writes. Normal cleanup and fresh one-use handoffs remain available without changing TTLs, protocol or schema.
+| 模块 | 职责 |
+| --- | --- |
+| `internal/relay/tunnel.go` | 每 Host runtime 一条 HTTP/2 CONNECT 隧道；每租约 8 / 每 runtime 128 连接预算；控制事件驱动撤销 |
+| `internal/relay/routing.go` | 节点间转发（mutual TLS，cluster CA 携带唯一 node URI SAN） |
+| `internal/relay/ids.go` | UUID 语法校验 |
+| `internal/auth` | 安装凭据、DPoP、设备注册/撤销 |
+| `internal/store` | 隧道租约、owner 绑定矩阵（`OwnerBindings()`）、运行时连接 |
+| `internal/accounts` | 本地用户名密码账号（独立于隧道授权） |
+| `internal/releases` | Android 发行包目录与策略 |
 
-The opt-in [native Relay owner-crash drill](../../docs/native-relay-crash-drill.md) kills only the fixture-owned Host Relay child, keeps PostgreSQL/ingress/DSH running, and waits for natural node-lease expiry before explicit restart. Actual DSH reconnection preserves epoch/session and original command facts, rejects old sync identities, and accepts fresh commands. Run the terminal wrapper with `--relay-crash`; it is separate from the database-outage drill and does not certify production supervision or automatic ingress failover.
-
-Node-local [send payload budgets](../../docs/relay-node-send-budgets.md) bound queued and in-flight encoded bytes across all connections, with independent ordinary/control reserves. Defaults are 256 MiB/16 MiB; optional protected `REMOTE_RELAY_QUEUE_LIMITS_FILE` configures them once before admission. `remote queue-limits describe` works offline, and private fixed-label gauges include retiring writers until their write finishes. Existing frame/queue limits and failure/reconciliation paths remain in force.
-
-The independent [approval expiry worker](../../docs/approval-expiry-worker.md) terminates expired v1 metadata without another Host registration. Bounded runtime-first claims support concurrent nodes; state, audit and outbox commit together while signed evidence and native execution facts are retained. It runs separately from consumer renewal, routing and authority checks. Apply migration 044 for the active-expiry index.
-
-Signed [approval admission deadlines](../../docs/approval-admission-expiry.md) are rechecked after evidence/audit/outbox waits and before commit. Registration and decision retries also recheck current Host heartbeat after locks. Expiry rolls back new state, immutable evidence and events; valid bounded waits and exact retries remain supported without changing TTLs or schema.
-
-Host [challenge and credential issuance deadlines](../../docs/host-credential-expiry.md) are rechecked against the database clock after row/trigger/audit waits and before commit. Expiry rolls back consumption, credentials and success audit; a still-live challenge remains retryable after an aborted exchange. No migration or TTL change is required.
-
-Offline [connection policy operations](../../docs/connection-policy-operations.md) add `connection-limits status` and `replace`. A current database epoch, expected old digest, stable operation UUID and drained consumer registry gate each new replacement. Occupancy is preserved, receipts/audit commit atomically, and historical exact retries reconcile without resetting policy. Apply migration 043.
-
-Production [shared connection limits](../../docs/shared-connection-limits.md) bound current logical Host/device occupancy across nodes by total, user, device and installation. Apply migration 041. Optional `REMOTE_CONNECTION_LIMITS_FILE` must match the shared policy; `remote connection-limits describe` prints it offline. Registered-key proof precedes device occupancy, generation-fenced close releases it, and Host takeover reuses its runtime slot atomically. Pending handshakes have a separate per-node budget.
-
-Offline [command policy operations](../../docs/command-limit-policy-operations.md) add `command-limits status` and `replace` with an explicit current database epoch, expected old policy digest and stable operation UUID. Replacement requires drained consumer leases, preserves budgets, writes an immutable receipt and audit atomically, and supports exact reconciliation after lost output. Apply migration 039. Startup registers its consumer before policy validation and cleans it up on failure.
-
-Production [shared command limits](../../docs/shared-command-limits.md) use PostgreSQL budgets for current users, devices, installations and sessions across connections and owner nodes. Apply migration 038. Defaults are enabled; optional `REMOTE_COMMAND_LIMITS_FILE` must match the database policy on every node. `remote command-limits describe` prints the expected policy and canonical digest without database access. Limited attempts return `rate.limited` before command registration or forwarding; current Host result reporting stays available.
-
-All [phone command admissions recheck current grant expiry after database waits](../../docs/command-admission-expiry.md), including exact retries, initial session creation and attachment binding before commit. Late attempts roll back new commands, success audits and file claims. Current Host result reporting remains independent, and a spent ticket deadline does not replace the negotiated socket lifetime. No migration is required.
-
-Relay [control notification priority](../../docs/relay-control-priority.md) now reserves eight frames/128 KiB independently of the ordinary 16-frame queue. Explicit approval/revocation metadata precedes ordinary backlog, with a four-control/one-ordinary fairness rule and unchanged single-writer ownership. Stop releases both waiting queues; cancelled send waits retain queued accounting until dequeue or stop. No schema or wire migration is required.
-
-The additive [session model catalog](../../docs/session-model-catalog.md) pages current native provider/model/effort metadata over `session.models.v1`, with current read/selection authority and subscription binding on requests and responses. Queries have finite concurrent routes and timeouts; late results cannot claim a replacement route. Host lookups coalesce until the native provider actually settles, and configuration/defaults/provider failure messages stay private. No additional migration is required.
-
-The additive [remote model selection command](../../docs/session-model-selection.md) uses `session.model.select.v1`, explicit session/workspace authority, epoch-bound JCS digests and the existing durable command lifecycle. Host selection rechecks the native catalog and settles only after its session checkpoint. Apply migration 037 before deployment; existing grants are not expanded automatically.
-
-Pending enrollment confirmations [recheck their pairing deadline after database waits](../../docs/enrollment-expiry.md), including initial grant/audit writes before commit. Expired attempts cannot activate a profile or retain success evidence; approved historical retries remain available. No migration is required.
-
-After migration 036, an active installation can [enroll a retired profile name again](../../docs/installation-profile-management.md#撤销后重新登记) with new runtime/workspace UUIDs and fresh dual confirmation. Historical authority stays revoked; unrevoked names remain reserved. Schema rollback refuses historical duplicates without deleting records.
-
-Realtime ticket admission [rechecks grant/ticket expiry after transaction waits](../../docs/realtime-ticket-expiry.md), including the audit-to-commit boundary. Expired attempts roll back issuance/consumption and success audits. Established sockets keep their separate negotiated lifetime while current grant expiry is still enforced. No schema migration is required.
-
-The phone-bound [host and runtime directories](../../docs/resource-directories.md) provide stable UUID paging through `/v1/host-directory` and `/v1/runtime-directory`. Every page rechecks current device, membership and grant visibility; hosts are deduplicated across visible profiles. The original full lists share the visibility predicate, and no new migration is needed.
-
-`GET /v1/approvals/{id}` provides [HTTP-only approval status reconciliation](../../docs/approval-http-status.md) for current registered phones with the same owner/read/approval resource policy as WSS. Status remains available with no live socket or online Host; details and execution still require their existing separate authorization. It reads bound metadata without a new migration or signing operation.
-
-The opt-in [database outage drill](../../docs/database-outage-drill.md) removes connectivity to the exact owned test database, verifies both production relays fail closed, then explicitly restarts them after natural ownership expiry. The real npm DSH Host retains its native session/epoch and reconciles one accepted command without replay; this is a bounded local failure sample, not target-load or backup-restore acceptance.
-
-The phone-authenticated [bounded session directory](../../docs/session-directory.md) pages metadata through `GET /v1/runtimes/{id}/session-directory`, with current device/grant/resource checks on every page and stable UUID ordering. Apply migration 035 for its `(runtime_id,id)` index. Existing full-list clients retain their current route and need separate paging adoption.
-
-The explicit `projection=names.v1` directory extension adds native semantic names only when the caller also holds `session.metadata.read`; `session.list` remains independently required and callers without the new action retain identifier-only access. Apply migration 040 for nullable display metadata and replacement-connection cleanup; it does not update any existing grants or identifiers. New approved bindings may explicitly receive the action through the existing enrollment policy. Host/Relay negotiate `session.metadata.v1`; legacy catalogs and non-opt-in HTTP responses keep their original shape. Names are bounded untrusted plain text, not paths or body-derived labels. Source and projection cut preserve cached/sequenced provenance, authoritative nulls clear old names, and a replacement Host connection clears previous producer claims before publishing its catalog. Offline disconnection alone preserves registered cached hints; manual refresh re-fetches the directory rather than claiming a live native title read.
-
-Installation owners and current organization admins can [page and retire individual profiles](../../docs/installation-profile-management.md) under `/v1/installations/{id}/runtimes`. Per-profile retirement preserves sibling profiles and the shared installation credentials, while current runtime checks prevent reconnecting the retired profile. It reuses migration 034 and the durable runtime invalidation path.
-
-Runtime grant PUT/DELETE now [revalidate and lock the current phone proof inside the transaction](../../docs/runtime-grant-writes.md), including idempotent retries. Bounded SERIALIZABLE retries recheck authority after confirmed aborts; device revocation and grant writes cannot use an earlier middleware lookup as lasting authority. These routes reject query selectors, and DELETE rejects a body.
-
-Grant writes also recheck the original management expiry and any requested grant expiry against the database wall clock after target locking and immediately before the commit decision. Lock or audit waits cannot preserve expired owner authority through a transaction-start timestamp; current organization-admin authority and legitimate self-removal remain supported.
-
-Current organization admins and runtime owners with `grant.manage` can inspect the [runtime grant directory](../../docs/runtime-grant-directory.md) through bounded phone-authenticated pages. Every page rechecks the current account, device, membership, profile and management authority; expired/revoked records remain visible only to an eligible manager. The directory uses the existing grant primary key and requires no new migration.
-
-Registered phones can [discover and revoke installations](../../docs/installation-management.md) through current installation-owner or organization-admin authority. Revocation retires all profiles/credentials of that installation, publishes durable runtime invalidations, and preserves other installations on the same host. Apply migration 034 before enabling this entry.
-
-The [own-device directory](../../docs/device-directory.md) exposes bounded, current-key-authorized metadata through `GET /v1/devices`, independently of runtime grants. It supports finding another owned device before using the existing transactional revocation endpoint; migration 033 adds its paging index.
-
-The offline [identity synchronization command](../../docs/identity-synchronization.md) provisions current issuer/subject and organization mappings from a protected complete directory snapshot. Migration 032 adds monotonic source revisions and idempotent receipts; identity and membership losses retire old remote authority transactionally. The actual school directory connector remains to be configured.
-
-Optional [operational metrics](../../docs/operational-metrics.md) use a private Prometheus registry and a separate literal-loopback `REMOTE_METRICS_LISTEN_ADDR` listener, disabled by default. The public API does not expose `/metrics`. Current gauges cover socket lifecycle, per-connection queue distribution, in-flight bytes and subscriptions; counters/histograms cover payload traffic, queued sends, forwarding outcomes, resyncs and local control/revocation processing. Labels have fixed vocabularies and contain no resource IDs or bodies. Full authenticated target-load and multi-node acceptance remain open.
-
-This Go service provides a strict resource-token authentication foundation, PostgreSQL-backed device registration/revocation, dual-confirmation host enrollment, grant-filtered directory reads, scoped realtime-ticket issuance, installation-key challenge exchange, a key-proved WebSocket handshake, and host-published session catalog metadata. The Relay routes scoped text submissions, command receipts, session snapshots/history and assistant streams. The host plugin includes a reconnecting WSS client and command journal adapter. Its ordinary CLI test uses a local protocol peer; `npm run test:remote-dsh` additionally runs this Go production entrypoint with isolated PostgreSQL and the npm DSH CLI. File handoff and production credential-provider integration remain open.
-
-The service requires `REMOTE_ISSUER`, `REMOTE_AUDIENCE`, `REMOTE_JWKS_URL`, `REMOTE_CLIENT_IDS`, `REMOTE_REQUIRED_SCOPES`, `REMOTE_PUBLIC_ORIGIN`, and `REMOTE_DATABASE_URL`. `REMOTE_HOST_CLIENT_IDS` separately allowlists OAuth clients for host enrollment, confirmation, and host credential exchange; those clients must also appear in `REMOTE_CLIENT_IDS`. A development listener can use `REMOTE_LISTEN_ADDR=127.0.0.1:8080`. Start it with `go run ./cmd/remote` from this directory. `GET /healthz` is liveness-only; `GET /readyz` checks PostgreSQL. `GET /v1/me` requires a JWT access token, a DPoP proof and a provisioned active user. It returns the service `user_id` and current `memberships` resolved by the verified issuer/subject, alongside token identity and scopes. It is available before device enrollment, creates no authority and does not replace runtime grants; absent or suspended/deleted users receive 403 and database failure receives 503. `POST /v1/devices` registers separate approval and DPoP public keys, with the DPoP key bound to the access token; mobile directory, command-status, grant, ticket-issue, and revocation routes also require that key to belong to a non-revoked device. Host routes use the separate host-client allowlist and installation-key checks described below. Apply migrations `001_remote_control.up.sql` through `044_approval_expiry.up.sql` in order before starting the service. Bind it to loopback during development. Production must place it behind a TLS ingress configured to the same external origin and use a PostgreSQL DSN with `sslmode=verify-full`.
-
-Implemented routes are `GET /v1/devices/current`, `POST /v1/devices`, `DELETE /v1/devices/{id}`, `POST /v1/enrollments`, `GET /v1/enrollments/{id}`, `POST /v1/enrollments/{id}/confirm`, `POST /v1/enrollments/{id}/host-confirm`, `POST /v1/host-credentials/challenges`, `POST /v1/host-credentials`, `GET /v1/hosts`, `GET /v1/runtimes`, `GET /v1/runtimes/{id}/sessions`, `GET /v1/runtimes/{id}/sessions/{session_id}/read-access`, `PUT /v1/runtimes/{id}/grants/{user_id}`, `DELETE /v1/runtimes/{id}/grants/{user_id}`, `POST /v1/realtime/tickets`, `GET /v1/realtime`, and `GET /v1/commands/{request_id}?device_id=...`. Host enrollment requires a DPoP-bound P-256 installation key and an OAuth client listed in `REMOTE_HOST_CLIENT_IDS`; phone confirmation requires an active registered device and organization membership, and host confirmation requires the installation key. Both confirmations atomically activate the host and issue owner grants to the host owner and confirming user. The API does not yet invoke a local desktop confirmation UI. Enrollment codes are random 256-bit values; only SHA-256 digests are stored. Device enrollment [reconciliation](../../docs/device-enrollment-recovery.md) queries only the current authenticated key and makes exact fresh-proof retries idempotent without reviving revoked keys. After activation, the installation owner can request a 90-second challenge and exchange a signed, one-use installation proof for an opaque five-minute connection credential. Challenge issuance is limited to four pending and 20 in five minutes per installation; no more than eight unexpired credentials can be active for one installation. Challenge and credential storage contain only SHA-256 digests; credential validation checks active host state, key version, expiry, and the registered key thumbprint. The WSS route validates mobile tickets or host credentials, consumes mobile tickets only after the registered-key proof succeeds, and registers the authenticated host runtime. Device sockets have a five-minute lease; host sockets expire with the host credential. It routes text-only queue/steer submissions to the current host runtime and accepts command receipts when both peers negotiate `command.relay.v1`. Both peers may additionally negotiate `session.cancel.v1` for epoch-bound cancellation with explicit `session.cancel` permission; [cancellation notes](../../docs/session-cancel-protocol.md) explain native acknowledgement, turn-end and durable retry semantics. Each submission rechecks the device key version, grant version, action, and session/workspace scope; PostgreSQL stores only request ID, session ID, state, and digest. Duplicate request IDs with matching content are idempotent; changed content conflicts. Host receipts advance the durable state machine and are audited. Message bodies remain in the mobile retry queue and host journal, not PostgreSQL. The bounded per-connection queue closes slow peers. Host session catalog snapshots and deltas update the metadata-only PostgreSQL directory; complete snapshots remove stale workspace mappings, and removed or disconnected sessions become unavailable. Session content routing requires the negotiated `session.read.v1` capability and explicit `session.read` in ticket and current grant. Every content frame rechecks the current host, device key, grant version and session/workspace scope. Subscriptions belong to one socket; history pages remain tied to the host sync and fixed cursor. Unsubscribe, connection loss and host replacement abort the follower. Projected payloads are fragmented within a 2 MiB logical limit. Both peers may negotiate `session.create.v1` for workspace-scoped creation before a session UUID exists. Creation and the existing session commands share durable request IDs and receipt handling; [creation notes](../../docs/session-create-protocol.md) describe workspace/preset limits, atomic settlement and epoch-bound retries. Peers may additionally negotiate `question.blocking.v1` for scoped blocking-question snapshots and epoch-bound answers, with explicit `question.answer` permission and durable command receipts; see [question protocol](../../docs/question-protocol.md). The separately negotiated `question.timed.v1` adds scoped native timed snapshots, subscription-bound claim/release and epoch-bound late answers; [timed-question notes](../../docs/timed-question-protocol.md) distinguish foreground settlement from durable late-message admission. The optional signed-approval server transport is described below; normal signed plugin wiring now has real CLI evidence. The foreground Kotlin command coordinator reconciles its device-bound status after reconnect without automatically resending an attempted body; see [Android command delivery](../../docs/android-command-delivery.md). The host plugin WSS client accepts an externally supplied credential/key signer; enrollment refresh and the OS key-store adapter are not part of that client. Ingress and application logs must redact Authorization on this route. Runtime owners can delegate only actions and resources within their existing grant; owner grants must include `grant.manage`, and organization admins can assign them. Grant changes increment the version and write audit and outbox records in the same transaction. Realtime tickets last 30 seconds, store only a SHA-256 digest, and are atomically consumed by the service store after rechecking current device, membership, runtime, and grant version. Mobile and host handshakes require a fresh signature by the registered key; the current WSS capability set includes heartbeat, text message submission, session creation/cancellation, blocking/timed questions, host session catalog synchronization and scoped session reads. Directory and command-status data are filtered by the active user, organization membership, runtime grant, action scope, and session or workspace scope. An empty scope array grants no access. The OpenAPI contract is in `../../contracts/openapi/remote.yaml`; WSS frame schemas and golden examples are in `../../contracts/ws/v1`.
-
-Access tokens must be signed with RS256 or ES256, typed as `at+jwt`, issued by the configured issuer, intended for the configured audience, minted to an allowed OAuth client, contain every configured scope, and bind a P-256 proof key through `cnf.jkt`. No caller may choose the JWKS URL, algorithm, audience, client allowlist, or public origin through a request.
-
-The installation owner can inspect a confirmed phone user through the key-bound
-`GET /v1/enrollments/{id}/host-review`. Host confirmation now requires the
-reviewed `confirmed_user_id` and cannot precede phone confirmation. See the
-[binding protocol](../../docs/host-binding-protocol.md) for legacy pending
-confirmations, the host-client compatibility change and rollout requirements.
-
-Resource requests must use `Authorization: DPoP <access-token>` and a separate `DPoP` proof JWT. The resource service challenges for a one-time `DPoP-Nonce`, verifies the method, public URI, `ath`, proof-key thumbprint, timestamp and `jti`, and rejects replay. The production entrypoint uses [PostgreSQL-backed shared nonce/replay state](../../docs/shared-dpop-state.md): atomic consumption and rotation across processes, bounded bucket capacity and database-clock expiry. Storage failure returns 503 without reaching the resource handler or falling back to memory. Apply migration 018 and keep issuer/audience/public origin and `REMOTE_DPOP_ENTRIES_PER_BUCKET` identical across nodes (default 8192 per each of 256 buckets). The in-memory repository is for explicitly constructed library fixtures.
-
-The module requires Go 1.26.0 or later; development verification used Go 1.26.10. PostgreSQL connections use the `pgx` database/sql driver pinned in `go.mod`:
+## 验证
 
 ```sh
-go test -race -count=1 ./...
-go build -o /tmp/dsh-remote ./cmd/remote
+go build ./...
+go test ./internal/relay/ -race        # 隧道预算/撤销/终止
+go test ./internal/...                 # auth、store、releases 等
 ```
 
-The PostgreSQL integration test is opt-in because it creates and drops a uniquely named database. Set `REMOTE_TEST_DATABASE_URL` to a local PostgreSQL admin DSN whose role can create databases, then run `go test ./internal/store -run TestPostgresMigrationGrantLifecycleAndTransactionalOutbox`. It applies all ordered migrations and exercises grant writes, scope denial, enrollment idempotency and dual confirmation, atomic ticket consumption, installation challenge consumption and digest storage, host credential key binding, realtime ticket key-version binding, runtime connection attach/touch/detach, session catalog snapshots/deltas and scoped directory reads, command ID conflict/idempotency and receipt transitions, stale grant-version rejection, audit/outbox atomicity, and device revocation in that temporary database.
+## 历史
 
-The migrations are a schema baseline only; this repository does not yet apply them automatically. Migration 002 refuses to proceed if enrollment rows already exist, so reconcile those rows before applying it to a populated deployment. Migrations 001–008 and the repository integration suite passed against an isolated PostgreSQL 18.6 cluster using a private Unix socket; the existing system cluster was not modified. The repository suite verifies database behavior; the separate combined Go/DSH fixture test below verifies the Relay chain. Neither establishes deployed school identity. Production school-directory synchronization, local host confirmation/key provisioning, real-school OIDC/PKCE acceptance, production backup/restore and wider failure drills, Android offline-policy/device acceptance and remaining interactive workflows, remaining signed-approval capability/platform coverage, Android physical-device question/timing acceptance and mobile lease renewal, cluster target-load/failure-window measurements remain outstanding. The entrypoint now runs per-node outbox acknowledgement and independent batch connection checks; see [revocation propagation](../../docs/revocation-propagation.md). The authentication contract and its remaining gates are recorded in [M1 authentication notes](../../docs/m1-authentication.md).
-
-Session subscription identities, fragment limits and verification boundaries are documented in [session read protocol](../../docs/session-read-protocol.md). Existing grants do not gain body access from `session.list`; explicitly add `session.read` when authorized. Current per-frame authorization uses PostgreSQL checks; the target streaming load remains unvalidated; local cross-node routing evidence is recorded below.
-
-Runtime directory rows include the authenticated user's organization and current grant scope/version; session rows include their opaque workspace UUID (or null). These metadata snapshots support permission-aware mobile controls and explicit ticket-scope selection. They never replace fresh ticket/resource authorization or expose native IDs, paths or content.
-
-The [combined Go/DSH test](../../docs/go-dsh-integration.md) passed with local signed identity/model fixtures, covering enrollment, key proofs, text commands, streamed reads, pagination, idempotency, database content boundaries and grant revocation. It creates its own socket-only PostgreSQL cluster and does not touch the system cluster.
-
-The [binding review/activation protocol](../../docs/host-binding-protocol.md) adds a code-protected phone preview, actor-relative confirmation status and key-bound host status. Host OAuth clients cannot register or impersonate phone clients on protected routes. New profiles remain unavailable until both confirmations, even under an existing active installation or early grant. Expiry preserves sibling profiles; apply migration 008 for the partial eligibility index. The production host confirmation UI, key provider and school policy remain gates.
-
-`npm run test:remote-kotlin` additionally compiles the SDK-free JVM probe and runs the production Kotlin reader against real TLS Go/PostgreSQL and npm DSH. It verifies signed-token revalidation, scoped directory access, DPoP ticket/proof/heartbeat, offline correlation, large Unicode snapshots, fixed history, live settlement and fresh-snapshot reopen, plus Kotlin queue submission/native observation, own-device status, admitted-ID replay denial and epoch-bound native interruption before the separate command chain. JDK 17/21 and Gradle dependencies are required; the ordinary runner remains independent of Java. See [Android read evidence and its remaining device/production gates](../../docs/android-realtime.md).
-
-Set `REMOTE_APPROVAL_POLICY_FILE` to explicitly enable the server's signed-approval extension and `POST /v1/approvals/{id}/decisions`. The [approval protocol](../../docs/approval-protocol.md) specifies the verified assurance mapping, protected service-key file, independently provisioned host trust anchor, transient details RPC, bounded fragments, fresh HTTPS admission, scoped WSS forwarding and metadata/result reconciliation. Both the capability and endpoint remain unavailable without this configuration. Server transport and PostgreSQL/JWT/DPoP integration are tested; the normal DSH plugin's signed callback/body/guard lifecycle and durable delivery now have real Bash/CLI coverage. Android, production key provisioning and the remaining capability/platform gates remain open.
-
-The [Android encrypted history cache](../../docs/android-transcript-cache.md) uses the exact-session `read-access` endpoint after a current key-proved connection. Unlike directory visibility, it requires `session.read` and atomically checks current session/workspace membership and the phone key, identity, organization and grant. It remains available while host content is unavailable and returns only metadata, with a five-minute maximum further bounded by token/grant expiry. It is not a reusable credential or permission to read live host content. The phone keeps its control connection while the host is offline so revocation can clear the cached view.
-
-The `session.create_options.v1` extension keeps current host workspace/preset choices in bounded connection-local memory. It validates publication against the active installation/runtime epoch, acknowledges and replaces snapshots, and filters phone responses by fresh ticket/grant workspace scope. Only explicit public labels and preset tokens are returned; the service does not persist definitions or paths. See [creation metadata and Android recovery](../../docs/android-session-creation.md).
-
-The [Android interaction view](../../docs/android-questions.md) negotiates blocking/timed snapshots on the current read subscription and independently requires answer authority for replies/claims. Its real Kotlin composition now drives ordinary answer consumption, timed foreground claims and continued late messages through npm DSH; active callbacks and timing are not restored from history cache.
-
-Configured file services now support [sender-constrained Host handoffs](../../docs/file-host-handoffs.md) and [atomic Relay message attachments](../../docs/file-message-relay.md). Apply migrations 009–011 before enabling them. Each upload intent is reserved for one original command under the current device/session/grant and Host lease; the server stores IDs and digests, while native receipts stay on the Host. Real PostgreSQL/TLS/npm DSH tests cover actual native attachment admission and duplicate reconciliation. The API 26 APK now covers the scanned upload/file-message and restricted export/document-save chain against real Go/DSH with storage/scanner protocol peers; see [Android files](../../docs/android-files.md). Production storage/scanner and target-device acceptance remain outstanding.
-
-Optional [push registration and FCM delivery](../../docs/push-service.md) use migrations 014–015 and `REMOTE_PUSH_CONFIG_FILE`. They verify a provider-delivered ownership challenge, encrypt FID/challenge data, reserve independent durable references, recheck source/device/grant authority before sending, and distinguish provider acceptance from client posting/opening reports. Sources include signed-approval metadata and [runtime-wide ordinary/timed question references](../../docs/question-notifications.md), independent of phone subscriptions. The separate [Android flow](../../docs/android-notifications.md) protects receiving and fresh native reads; OEM providers and actual cloud/device delivery remain gates. Absent push configuration leaves provider routes/workers disabled; negotiated Host question metadata remains separate from provider credentials.
-
-The [known-session lookup and question-answer status](../../docs/known-session-access.md) let an authorized phone open one exact resource without directory enumeration and reconcile only its own answer without generic command-status authority. Migration 016 records new command actions; legacy rows remain unclassified and cannot be read through the narrow answer route. Exact lookup and status requests reject query selectors and bind the current user/device proof, resource, grant and token validity.
-
-Optional [APK release metadata](../../docs/app-release-metadata.md) is enabled by a protected `REMOTE_APP_RELEASES_FILE` startup catalog. Its registered-phone endpoint rechecks the exact school account, proof, organization membership and token lifetime independently of runtime grants, then selects the highest newer release within the published client/protocol/Android windows and stable per-device rollout. The response exposes public candidate metadata and no installation action or signing private key. The route is absent by default; downloading, APK signature verification, installation and production release acceptance remain separate work.
-
-[Serializable connection admission](../../docs/serializable-admission.md) now retries only PostgreSQL-confirmed aborted metadata transactions with bounded jitter and fresh authority checks. `REMOTE_SERIALIZABLE_ADMISSIONS` configures a startup-only budget from 1 to 30 (default 4), independent of the normal 30-connection database pool. Migration 017 adds the full installation cleanup index. Unknown commit outcomes and external effects are excluded from the retry boundary.
-
-The [batch authority query](../../docs/lease-validation-capacity.md) anchors exact runtimes before organization joins while retaining the two-second fail-closed worker. The [authenticated TLS capacity fixture](../../docs/authenticated-capacity.md) records independent 1000/3000 connection samples, negative proofs, exact stream delivery and resource/latency boundaries; it does not establish multi-node or full M4 acceptance.
-
-[Per-node control consumers](../../docs/control-fanout.md) use migration 019 and commit-visible snapshots, retaining late-committing events without sequence/time watermarks. Optional `REMOTE_RELAY_NODE_ID` is a stable unique UUID for durable restart replay; the default ephemeral identity revalidates current state on a fresh process. Ownership is fenced by generation and renewed independently. `published_at` is a legacy local marker, not an all-node acknowledgement or deletion watermark. Cross-node business routing has separate verification below.
-
-[Inter-node routing](../../docs/relay-routing.md) now uses migration 020's fenced
-runtime directory and private mutual TLS 1.3. Set a unique stable
-`REMOTE_RELAY_NODE_ID` plus protected `REMOTE_RELAY_CONFIG_FILE` to enable node
-transport. Phone WebSockets, approval HTTP, Host file reads and file-status
-requests resolve the host owner, where normal narrow-scope authorization and
-one-use credential consumption still run. Two production processes plus actual
-npm DSH passed with Host on A and all phone HTTP/WSS on B; separate two-instance
-native file tests cover transfer, receipt, deduplication and streaming revoke.
-Run `python3 tools/integration/run_remote_dsh.py --cross-node` from the repository
-root. Cluster capacity and broader fault/restore/device gates remain open.
-
-[Database recovery](../../docs/database-recovery.md) provides offline `remote
-recovery status|quarantine|release` commands. Apply migration 021. A restore must
-use a fresh `REMOTE_DATABASE_EPOCH` from deployment configuration outside the
-backup, isolate old credentials/authority, and import a protected current identity
-snapshot before serving. Initial databases alone may omit the epoch and use the
-compatibility value. The production entrypoint checks readiness/epoch before
-listening, on HTTP admission and independently for upgraded connections. Proof
-and control histories are retained in separate database epochs; old snapshots do
-not authorize new delivery. The small fixture performs actual dump/restore into
-a separate PostgreSQL cluster and invokes the production CLI. It does not certify
-school identity, encrypted backup/WAL/object-storage facilities or production
-RPO/RTO. Further large-load/physical-device/OEM setup remains deferred.
-
-[Control archive maintenance](../../docs/control-archive.md) moves eligible old
-control events and remaining node acknowledgements into protected PostgreSQL
-history through an explicit, idempotent CLI batch. Per-node coverage, recovery
-epochs and one-year-or-longer retention remain enforced. Database ACLs, external
-backup facilities and scheduled audit/proof retention still require deployment work. Optional
-[encrypted control-history export and import](../../docs/control-cold-export.md) add
-protected files and audited, separate history recovery without live replay;
-it does not replace independently managed backups, keys or access auditing.
-
-[Approval decision evidence](../../docs/approval-evidence.md) captures the
-verified public key, signature and its byte fingerprint in the decision transaction
-using migrations 025 and 027. An audited local verifier checks retained evidence
-without authorizing execution. Configure the stated database privileges before
-accepting approvals; older decisions cannot be attributed to an unverified key snapshot.
-[Encrypted approval evidence export](../../docs/approval-evidence-export.md)
-uses migration 028 for durable, recovery-aware files and offline verification;
-external backup facilities and production retention operations remain separate work.
-
-[Audit history maintenance](../../docs/audit-archive.md) uses migration 026 to
-move bounded, at-least-90-day-old audit records into immutable PostgreSQL history.
-It preserves unknown legacy provenance and audits each batch and expiry.
-[Encrypted audit batch export](../../docs/audit-cold-export.md) uses migration
-029; external backup facilities, automation and production recovery evidence
-remain separate work.
-[Cold audit and approval history import](../../docs/cold-history-import.md)
-uses migration 030 for separately protected inert records without restoring
-authorization, replaying events or inserting source rows into live tables.
-
-When private metrics are enabled, the command repository also reports committed
-state transitions, database state-entry ages/dwell, repository attempts and
-clock anomalies. Counters exclude unchanged retries, status reads, failed commits
-and receipt fanout. [Command observability](../../docs/command-observability.md)
-records exact semantics, process-local delivery limits and remaining native
-checkpoint/backlog metrics. No command body, resource ID or digest is a label.
-
-With private metrics enabled, optional installation-only `host.observations.v1`
-accepts bounded, connection-scoped native operation histograms. The normal Host
-samples actual DSH calls/checkpoint outcomes, without IDs or exception text in
-metric labels. Current ownership, rate, histogram arithmetic and monotone delta
-checks precede ingestion; phones cannot negotiate or forge this capability.
-[Host observation semantics](../../docs/host-native-observations.md) distinguish
-self-reported best-effort data from durable command acknowledgements and record
-actual local CLI flush-failure evidence. Older peers continue without the extension.
-
-[Approval observability](../../docs/approval-observability.md) separates committed
-control-state transitions from Host journal fact transitions and final outcomes.
-Signed lease preparation/availability and bounded lifetime metrics distinguish
-commit from return/delivery/execution. Unchanged retries and failed commits do
-not add transitions; per-attempt repository/provider durations remain visible.
-These process-local statistics do not change approval permission or durability.
-
-[File observability](../../docs/file-observability.md) measures claimed scan
-attempts and confirmed offer/read/staged milestones with fixed labels. Failed
-commits and duplicate acknowledgements cannot add milestones; database intervals
-separate offer age from read-to-stage time. A staged Host report remains distinct
-from native file admission or message execution. Worker attempts include failures,
-timeouts and cancellation without exposing file metadata or signed capabilities.
-
-[Push observability](../../docs/push-observability.md) separates FCM sender
-results, committed worker completion results and new authenticated client
-posted/opened/blocked receipts. Retries retain their notification identity and
-distinct lease attempts; repeated client states count once. Provider acceptance
-does not imply display, and no result grants interaction authority. Fixed-label
-durations/ages contain no endpoint, project, credential or resource identities.
-
-[Current unknown-result gauges](../../docs/unknown-results-metrics.md) use a
-bounded background database snapshot, with cached counts, availability and age.
-Scrapes do no source I/O, failures retain the last counts, and disabled metrics
-perform no query. Retained historical/recovery unknown rows remain included;
-reconciliation can reduce counts. Multiple nodes sharing a database report the
-same global scope, so these gauges must not be summed across those nodes.
+v1 时代的会话/审批/文件/命令路由、签名审批、推送、冷归档与审计归档已被移除
+（见 `FIX_PLAN.md` F-01~F-03 与 `IMPROVE_PLAN.md` §6.6）；对应专题文档保留在
+`docs/` 仅作历史参考，描述的能力不再存在于本服务。

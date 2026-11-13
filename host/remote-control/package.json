@@ -18,31 +18,28 @@
     "client"
   ],
   "dsh": {
-    "client": { "platform": "web", "inject": ["@deepseek-ai/dsh-client-ui-settings-general"] }
+    "client": {
+      "platform": "web",
+      "inject": [
+        "@deepseek-ai/dsh-client-ui-settings-general"
+      ]
+    }
   },
   "scripts": {
     "build": "tsc -p tsconfig.build.json"
   },
   "peerDependencies": {
-    "@deepseek-ai/cordis": "4.0.5",
-    "@deepseek-ai/cordis-plugin-loader": "1.0.6",
-    "@deepseek-ai/dsh-agent": "0.2.1-rc.5",
-    "@deepseek-ai/dsh-api-session-controller": "0.2.1-rc.5",
-    "@deepseek-ai/dsh-attachment": "0.2.1-rc.5",
-    "@deepseek-ai/dsh-client-file-upload": "0.2.1-rc.5",
-    "@deepseek-ai/dsh-fs-local": "0.2.1-rc.5",
-    "@deepseek-ai/dsh-fs-sandbox": "0.2.1-rc.5",
+    "@deepseek-ai/cordis": "^4.0.5",
+    "@deepseek-ai/cordis-plugin-loader": "*",
+    "@deepseek-ai/dsh-api-gateway": "0.2.1-rc.5",
+    "@deepseek-ai/dsh-api-remote-access": "0.2.1-rc.5",
+    "@deepseek-ai/dsh-client-connection": "0.2.1-rc.5",
     "@deepseek-ai/dsh-llm": "0.2.1-rc.5",
     "@deepseek-ai/dsh-session": "0.2.1-rc.5",
-    "@deepseek-ai/dsh-session-projection": "0.2.1-rc.5",
-    "@deepseek-ai/dsh-tools": "0.2.1-rc.5",
     "@deepseek-ai/dsh-typert-protocol": "0.2.1-rc.5",
-    "@deepseek-ai/dsh-user-approval": "0.2.1-rc.5",
-    "@deepseek-ai/dsh-user-questions": "0.2.1-rc.5",
-    "@deepseek-ai/dsh-working-directory": "0.2.1-rc.5",
     "@deepseek-ai/dsh-workspace": "0.2.1-rc.5",
-    "@deepseek-ai/schemastery": "3.18.5",
-    "zod": "4.4.3"
+    "@deepseek-ai/schemastery": "^3.18.5",
+    "zod": "^4.4.3"
   },
   "dependencies": {
     "canonicalize": "5.1.0",

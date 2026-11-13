@@ -5,7 +5,7 @@ import { setTimeout as delay } from 'node:timers/promises'
 import WebSocket, { createWebSocketStream } from 'ws'
 import type { HostConnectionHandle } from '@deepseek-ai/dsh-client-connection'
 import type { RemoteAccessService } from '@deepseek-ai/dsh-api-remote-access'
-import { NativeAccess, type NativeResourceIds } from './native-access.js'
+import { NativeAccess, type NativeResourceIds, type NativePeerMode } from './native-access.js'
 import { NativeGateway } from './native-gateway.js'
 import type { HostConnectionCredential, HostCredentialProvider } from './host-connection-credential.js'
 
@@ -44,6 +44,8 @@ export interface NativeTunnelOptions {
   readonly gateway: NativeGateway
   /** Live resource identities, read for every policy decision so a kind-wide grant never outlives its resource. */
   readonly resources: () => NativeResourceIds
+  /** F-02: how admitted devices map onto dsh Peers; personal deployments use owner. */
+  readonly peerMode?: NativePeerMode
 }
 
 export async function installationDPoP(credential: HostConnectionCredential, method: string, url: URL, nonce?: string): Promise<string> {
@@ -162,7 +164,7 @@ export class RelayTunnel {
         return JSON.parse(text) as unknown
       }
       throw new Error('lease introspection unavailable')
-    }, this.options.resources)
+    }, this.options.resources, this.options.peerMode ?? 'owner')
     this.#access = access
     let count = 0
     session.on('stream', (stream, headers) => {

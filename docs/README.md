@@ -1,15 +1,20 @@
 # 文档导航
 
-[项目首页](../README.md) · [当前状态](development-status.md) · [验证记录索引](verification-history.md)
+[项目首页](../README.md) · [当前状态](development-status.md) · [v2 架构方案](../IMPROVE_PLAN.md) · [修复计划](../FIX_PLAN.md) · [验证记录索引](verification-history.md)
 
 按主题查找文档；文件保留原路径，避免破坏已有引用。这里索引已提交的专题及公开收据，
 不将本机 `.local/` 运行文件、未提交设计稿或 PLAN.md 作为可移交的文档依赖。
+
+> **v2 注意**：当前架构以 [`IMPROVE_PLAN.md`](../IMPROVE_PLAN.md) 为唯一方案（dsh Typert 协议复用）。
+> v1 构建史见 [archive/PLAN-v1.md](archive/PLAN-v1.md)。下方 v1 专题（approval-*、file-*、question-*、
+> command-*、push-* 等）描述的能力已随 v1 协议层移除，仅作历史参考；当前能力矩阵见
+> [development-status.md](development-status.md)。
 
 ## 从哪里开始
 
 | 目标 | 阅读顺序 |
 | --- | --- |
-| 首次运行 | [项目首页](../README.md) → [本机持续开发](local-development.md) → [账号与网页](relay-accounts.md) |
+| 首次运行 | [项目首页](../README.md) → [本机持续开发](local-development.md) |
 | 接入已经运行的 dsh | [现有 Web profile 接入与 UI](dsh-desktop-plugin.md) → [Host 登记启动](host-enrolled-runtime.md) |
 | 理解项目完成程度 | [当前能力与开放出口](development-status.md) → [对应版本的验证记录](verification-history.md) |
 | 开发服务端 API | [Go 服务入口](../services/remote/README.md) → 下方身份与 Relay 专题 |
