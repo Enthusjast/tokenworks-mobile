@@ -5,11 +5,12 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
-	"reflect"
 	"regexp"
 	"slices"
 	"sort"
+	"strings"
 	"time"
+	"unicode"
 )
 
 var ErrAccessDenied = errors.New("store: grant access denied")
@@ -17,42 +18,76 @@ var ErrGrantInvalid = errors.New("store: invalid runtime grant")
 var ErrGrantNotFound = errors.New("store: runtime grant not found")
 
 var grantUUIDPattern = regexp.MustCompile(`^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$`)
+var nativeActionPattern = regexp.MustCompile(`^[A-Za-z0-9$][A-Za-z0-9$_.:-]*/[A-Za-z0-9$_.:-]+$`)
 
-type GrantScope struct {
-	Actions    []string `json:"actions"`
-	Workspaces []string `json:"workspaces"`
-	Sessions   []string `json:"sessions"`
+// GrantResource names one native dsh resource. Session and workspace identity
+// strings stay exactly as dsh produced them; the Relay never re-keys them.
+type GrantResource struct {
+	Kind string `json:"kind"`
+	ID   string `json:"id,omitempty"`
+}
+
+// GrantBinding grants native Remote endpoints on one resource. The Host's own
+// remoteAccess policy enforces it; the Relay only records and forwards it.
+type GrantBinding struct {
+	Resource GrantResource `json:"resource"`
+	Actions  []string      `json:"actions"`
 }
 
 type RuntimeGrantInput struct {
-	Role      string     `json:"role"`
-	Scope     GrantScope `json:"scope"`
-	ExpiresAt *time.Time `json:"expires_at,omitempty"`
+	Role      string         `json:"role"`
+	Bindings  []GrantBinding `json:"bindings"`
+	ExpiresAt *time.Time     `json:"expires_at,omitempty"`
 }
 
-var roleActions = map[string]map[string]struct{}{
-	"viewer": actionSet("host.list", "session.list", "session.read", "session.metadata.read", "session.changes.read", "command.status"),
-	"operator": actionSet(
-		"host.list", "session.list", "session.read", "session.metadata.read", "session.changes.read", "session.fork", "command.status", "session.create", "message.submit",
-		"session.cancel", "session.archive", "session.model.select", "approval.decide", "question.answer", "file.upload", "file.download",
-	),
-	"owner": actionSet(
-		"host.list", "session.list", "session.read", "session.metadata.read", "session.changes.read", "session.fork", "command.status", "session.create", "message.submit",
-		"session.cancel", "session.archive", "session.model.select", "approval.decide", "question.answer", "file.upload", "file.download", "grant.manage",
-	),
-}
-
-func actionSet(actions ...string) map[string]struct{} {
-	set := make(map[string]struct{}, len(actions))
-	for _, action := range actions {
-		set[action] = struct{}{}
+func validNativeResource(resource GrantResource) bool {
+	switch resource.Kind {
+	case "global":
+		return resource.ID == ""
+	case "session", "workspace":
+		if len(resource.ID) > 2048 {
+			return false
+		}
+		return strings.IndexFunc(resource.ID, func(r rune) bool { return r == 0 || unicode.IsControl(r) }) < 0
+	default:
+		return false
 	}
-	return set
+}
+
+func normalizeBindings(bindings []GrantBinding) ([]GrantBinding, error) {
+	if len(bindings) > 256 {
+		return nil, ErrGrantInvalid
+	}
+	seen := make(map[string]struct{}, len(bindings))
+	result := make([]GrantBinding, 0, len(bindings))
+	for _, binding := range bindings {
+		if !validNativeResource(binding.Resource) || len(binding.Actions) == 0 || len(binding.Actions) > 256 {
+			return nil, ErrGrantInvalid
+		}
+		actions := slices.Clone(binding.Actions)
+		for _, action := range actions {
+			if !nativeActionPattern.MatchString(action) || len(action) > 256 {
+				return nil, ErrGrantInvalid
+			}
+		}
+		sort.Strings(actions)
+		for index := 1; index < len(actions); index++ {
+			if actions[index] == actions[index-1] {
+				return nil, ErrGrantInvalid
+			}
+		}
+		key := binding.Resource.Kind + "\x00" + binding.Resource.ID
+		if _, duplicate := seen[key]; duplicate {
+			return nil, ErrGrantInvalid
+		}
+		seen[key] = struct{}{}
+		result = append(result, GrantBinding{Resource: binding.Resource, Actions: actions})
+	}
+	return result, nil
 }
 
 func NormalizeRuntimeGrantInput(input RuntimeGrantInput, now time.Time) (RuntimeGrantInput, error) {
-	allowedActions, roleExists := roleActions[input.Role]
-	if !roleExists {
+	if input.Role != "viewer" && input.Role != "operator" && input.Role != "owner" {
 		return RuntimeGrantInput{}, ErrGrantInvalid
 	}
 	if input.ExpiresAt != nil {
@@ -62,91 +97,28 @@ func NormalizeRuntimeGrantInput(input RuntimeGrantInput, now time.Time) (Runtime
 		}
 		input.ExpiresAt = &expires
 	}
-	if len(input.Scope.Actions) > len(allowedActions) || len(input.Scope.Workspaces) > 256 || len(input.Scope.Sessions) > 256 {
-		return RuntimeGrantInput{}, ErrGrantInvalid
-	}
-	var err error
-	input.Scope.Actions, err = normalizeStrings(input.Scope.Actions, false)
+	bindings, err := normalizeBindings(input.Bindings)
 	if err != nil {
 		return RuntimeGrantInput{}, err
 	}
-	input.Scope.Workspaces, err = normalizeStrings(input.Scope.Workspaces, true)
-	if err != nil {
-		return RuntimeGrantInput{}, err
-	}
-	input.Scope.Sessions, err = normalizeStrings(input.Scope.Sessions, true)
-	if err != nil {
-		return RuntimeGrantInput{}, err
-	}
-	for _, action := range input.Scope.Actions {
-		if _, ok := allowedActions[action]; !ok {
-			return RuntimeGrantInput{}, ErrGrantInvalid
-		}
-	}
-	if input.Role == "owner" && !slices.Contains(input.Scope.Actions, "grant.manage") {
-		return RuntimeGrantInput{}, ErrGrantInvalid
-	}
+	input.Bindings = bindings
 	return input, nil
 }
 
-func NormalizeTicketScope(role string, scope GrantScope) (GrantScope, error) {
-	allowedActions, ok := roleActions[role]
-	if !ok {
-		return GrantScope{}, ErrGrantInvalid
-	}
-	if role == "owner" {
-		allowedActions = actionSet(
-			"host.list", "session.list", "session.read", "session.metadata.read", "session.changes.read", "session.fork", "command.status", "session.create", "message.submit",
-			"session.cancel", "session.archive", "session.model.select", "approval.decide", "question.answer", "file.upload", "file.download",
-		)
-	}
-	if len(scope.Actions) == 0 || len(scope.Actions) > len(allowedActions) || len(scope.Workspaces) > 256 || len(scope.Sessions) > 256 {
-		return GrantScope{}, ErrGrantInvalid
-	}
-	var err error
-	scope.Actions, err = normalizeStrings(scope.Actions, false)
-	if err != nil {
-		return GrantScope{}, err
-	}
-	scope.Workspaces, err = normalizeStrings(scope.Workspaces, true)
-	if err != nil {
-		return GrantScope{}, err
-	}
-	scope.Sessions, err = normalizeStrings(scope.Sessions, true)
-	if err != nil {
-		return GrantScope{}, err
-	}
-	for _, action := range scope.Actions {
-		if _, ok := allowedActions[action]; !ok {
-			return GrantScope{}, ErrGrantInvalid
+func bindingSubset(candidate, parent []GrantBinding) bool {
+	for _, want := range candidate {
+		allowed := false
+		for _, have := range parent {
+			if have.Resource == want.Resource && stringSliceSubset(want.Actions, have.Actions) {
+				allowed = true
+				break
+			}
+		}
+		if !allowed {
+			return false
 		}
 	}
-	return scope, nil
-}
-
-func normalizeStrings(values []string, uuidValues bool) ([]string, error) {
-	if len(values) == 0 {
-		return []string{}, nil
-	}
-	result := append([]string(nil), values...)
-	for _, value := range result {
-		if value == "" || uuidValues && !grantUUIDPattern.MatchString(value) {
-			return nil, ErrGrantInvalid
-		}
-	}
-	sort.Strings(result)
-	for index := 1; index < len(result); index++ {
-		if result[index] == result[index-1] {
-			return nil, ErrGrantInvalid
-		}
-	}
-	return result, nil
-}
-
-func grantScopeSubset(candidate, parent GrantScope) bool {
-	return stringSliceSubset(candidate.Actions, parent.Actions) &&
-		stringSliceSubset(candidate.Workspaces, parent.Workspaces) &&
-		stringSliceSubset(candidate.Sessions, parent.Sessions)
+	return true
 }
 
 func stringSliceSubset(candidate, parent []string) bool {
@@ -189,7 +161,7 @@ func (postgres *Postgres) putRuntimeGrantOnce(ctx context.Context, identity User
 	}
 	defer transaction.Rollback()
 
-	actorID, orgID, actorRole, actorScope, isAdmin, authorityExpires, err := postgres.authorizeGrantManager(ctx, transaction, identity, deviceID, proofJKT, runtimeID)
+	actorID, orgID, actorRole, actorBindings, isAdmin, authorityExpires, err := postgres.authorizeGrantManager(ctx, transaction, identity, deviceID, proofJKT, runtimeID)
 	if err != nil {
 		return 0, err
 	}
@@ -199,25 +171,22 @@ func (postgres *Postgres) putRuntimeGrantOnce(ctx context.Context, identity User
 	if actorRole != "owner" && !isAdmin {
 		return 0, ErrAccessDenied
 	}
-	if !isAdmin && !grantScopeSubset(input.Scope, actorScope) {
+	if !isAdmin && !bindingSubset(input.Bindings, actorBindings) {
 		return 0, ErrAccessDenied
 	}
 	targetID, err := activeOrganizationUser(ctx, transaction, orgID, targetUserID)
 	if err != nil {
 		return 0, err
 	}
-	if err := validateGrantResources(ctx, transaction, runtimeID, input.Scope); err != nil {
-		return 0, err
-	}
 
 	var previousRole string
-	var previousScopeJSON []byte
+	var previousBindingsJSON []byte
 	var previousVersion int64
 	var previousExpiry, previousRevoked sql.NullTime
 	err = transaction.QueryRowContext(ctx, `
-		select role, scope, grant_version, expires_at, revoked_at
+		select role, bindings, grant_version, expires_at, revoked_at
 		from runtime_grants where runtime_id = $1 and user_id = $2 for update /* grant_target_fence */`, runtimeID, targetID).
-		Scan(&previousRole, &previousScopeJSON, &previousVersion, &previousExpiry, &previousRevoked)
+		Scan(&previousRole, &previousBindingsJSON, &previousVersion, &previousExpiry, &previousRevoked)
 	hasPrevious := err == nil
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return 0, transactionFailure(err)
@@ -226,7 +195,7 @@ func (postgres *Postgres) putRuntimeGrantOnce(ctx context.Context, identity User
 	if err != nil {
 		return 0, err
 	}
-	if hasPrevious && previousRole == "owner" && previousRevoked.Valid == false &&
+	if hasPrevious && previousRole == "owner" && !previousRevoked.Valid &&
 		(!previousExpiry.Valid || previousExpiry.Time.After(writeTime)) &&
 		(input.Role != "owner" || input.ExpiresAt != nil) {
 		remaining, err := countOtherActiveOwners(ctx, transaction, runtimeID, orgID, targetID)
@@ -238,12 +207,12 @@ func (postgres *Postgres) putRuntimeGrantOnce(ctx context.Context, identity User
 		}
 	}
 
-	scopeJSON, err := json.Marshal(input.Scope)
+	bindingsJSON, err := json.Marshal(input.Bindings)
 	if err != nil {
 		return 0, ErrGrantInvalid
 	}
-	if hasPrevious && previousRevoked.Valid == false && previousRole == input.Role &&
-		grantExpiryEqual(previousExpiry, input.ExpiresAt) && grantScopeEqual(previousScopeJSON, input.Scope) {
+	if hasPrevious && !previousRevoked.Valid && previousRole == input.Role &&
+		grantExpiryEqual(previousExpiry, input.ExpiresAt) && grantBindingsEqual(previousBindingsJSON, input.Bindings) {
 		if err := commitRuntimeGrant(ctx, transaction, isAdmin, authorityExpires, input.ExpiresAt); err != nil {
 			return 0, err
 		}
@@ -254,16 +223,16 @@ func (postgres *Postgres) putRuntimeGrantOnce(ctx context.Context, identity User
 		version = previousVersion + 1
 	}
 	if _, err := transaction.ExecContext(ctx, `
-		insert into runtime_grants (runtime_id, user_id, role, scope, grant_version, granted_by, expires_at, revoked_at)
+		insert into runtime_grants (runtime_id, user_id, role, bindings, grant_version, granted_by, expires_at, revoked_at)
 		values ($1, $2, $3, $4::jsonb, $5, $6, $7, null)
 		on conflict (runtime_id, user_id) do update set
-			role = excluded.role, scope = excluded.scope, grant_version = excluded.grant_version,
+			role = excluded.role, bindings = excluded.bindings, grant_version = excluded.grant_version,
 			granted_by = excluded.granted_by, expires_at = excluded.expires_at, revoked_at = null`,
-		runtimeID, targetID, input.Role, string(scopeJSON), version, actorID, input.ExpiresAt); err != nil {
+		runtimeID, targetID, input.Role, string(bindingsJSON), version, actorID, input.ExpiresAt); err != nil {
 		return 0, transactionFailure(err)
 	}
 	if err := writeGrantChange(ctx, transaction, actorID, deviceID, orgID, runtimeID, targetID, input.Role,
-		version, input.ExpiresAt, "runtime_grant.updated", "runtime_grant.update", scopeJSON); err != nil {
+		version, input.ExpiresAt, "runtime_grant.updated", "runtime_grant.update", bindingsJSON); err != nil {
 		return 0, transactionFailure(err)
 	}
 	if err := commitRuntimeGrant(ctx, transaction, isAdmin, authorityExpires, input.ExpiresAt); err != nil {
@@ -377,26 +346,26 @@ func commitRuntimeGrant(ctx context.Context, tx *sql.Tx, isAdmin bool, authority
 	return nil
 }
 
-func (postgres *Postgres) authorizeGrantManager(ctx context.Context, tx *sql.Tx, identity UserIdentity, deviceID, proofJKT, runtimeID string) (actorID, orgID, role string, scope GrantScope, isAdmin bool, expires *time.Time, err error) {
+func (postgres *Postgres) authorizeGrantManager(ctx context.Context, tx *sql.Tx, identity UserIdentity, deviceID, proofJKT, runtimeID string) (actorID, orgID, role string, bindings []GrantBinding, isAdmin bool, expires *time.Time, err error) {
 	if _, err = tx.ExecContext(ctx, `set local lock_timeout='2s'`); err != nil {
-		return "", "", "", GrantScope{}, false, nil, transactionFailure(err)
+		return "", "", "", nil, false, nil, transactionFailure(err)
 	}
 	if _, err = lockRecoveryReady(ctx, tx, ""); err != nil {
-		return "", "", "", GrantScope{}, false, nil, err
+		return "", "", "", nil, false, nil, err
 	}
 	actorID, err = postgres.userIDForSerializable(ctx, tx, identity.Issuer, identity.Subject)
 	if err != nil {
-		return "", "", "", GrantScope{}, false, nil, err
+		return "", "", "", nil, false, nil, err
 	}
 	var current string
 	err = tx.QueryRowContext(ctx, `select id::text from devices
 	 where id=$1 and user_id=$2 and proof_key_thumbprint=$3 and revoked_at is null
 	 for share /* grant_actor_device_fence */`, deviceID, actorID, proofJKT).Scan(&current)
 	if errors.Is(err, sql.ErrNoRows) {
-		return "", "", "", GrantScope{}, false, nil, ErrAccessDenied
+		return "", "", "", nil, false, nil, ErrAccessDenied
 	}
 	if err != nil {
-		return "", "", "", GrantScope{}, false, nil, transactionFailure(err)
+		return "", "", "", nil, false, nil, transactionFailure(err)
 	}
 	err = tx.QueryRowContext(ctx, `
 		select h.org_id::text from runtimes r
@@ -405,41 +374,38 @@ func (postgres *Postgres) authorizeGrantManager(ctx context.Context, tx *sql.Tx,
 		where r.id = $1 and r.revoked_at is null and `+runtimeEnrollmentApprovedSQL+`
 		for share of r, i, h`, runtimeID).Scan(&orgID)
 	if errors.Is(err, sql.ErrNoRows) {
-		return "", "", "", GrantScope{}, false, nil, ErrAccessDenied
+		return "", "", "", nil, false, nil, ErrAccessDenied
 	}
 	if err != nil {
-		return "", "", "", GrantScope{}, false, nil, transactionFailure(err)
+		return "", "", "", nil, false, nil, transactionFailure(err)
 	}
 	var membershipRole string
 	err = tx.QueryRowContext(ctx, `
 		select role from org_memberships where org_id = $1 and user_id = $2 for share`, orgID, actorID).Scan(&membershipRole)
 	if errors.Is(err, sql.ErrNoRows) {
-		return "", "", "", GrantScope{}, false, nil, ErrAccessDenied
+		return "", "", "", nil, false, nil, ErrAccessDenied
 	}
 	if err != nil {
-		return "", "", "", GrantScope{}, false, nil, transactionFailure(err)
+		return "", "", "", nil, false, nil, transactionFailure(err)
 	}
 	isAdmin = membershipRole == "admin"
-	var scopeJSON []byte
+	var bindingsJSON []byte
 	err = tx.QueryRowContext(ctx, `
-		select role, scope, expires_at from runtime_grants
+		select role, bindings, expires_at from runtime_grants
 		where runtime_id = $1 and user_id = $2 and revoked_at is null
 		  and (expires_at is null or expires_at > clock_timestamp())
-		for update`, runtimeID, actorID).Scan(&role, &scopeJSON, &expires)
+		for update`, runtimeID, actorID).Scan(&role, &bindingsJSON, &expires)
 	if errors.Is(err, sql.ErrNoRows) {
 		role = ""
 	} else if err != nil {
-		return "", "", "", GrantScope{}, false, nil, transactionFailure(err)
-	} else if err := json.Unmarshal(scopeJSON, &scope); err != nil {
-		return "", "", "", GrantScope{}, false, nil, transactionFailure(err)
-	}
-	if role == "owner" && !slices.Contains(scope.Actions, "grant.manage") {
-		role = ""
+		return "", "", "", nil, false, nil, transactionFailure(err)
+	} else if err := json.Unmarshal(bindingsJSON, &bindings); err != nil {
+		return "", "", "", nil, false, nil, transactionFailure(err)
 	}
 	if role != "owner" && !isAdmin {
-		return "", "", "", GrantScope{}, false, nil, ErrAccessDenied
+		return "", "", "", nil, false, nil, ErrAccessDenied
 	}
-	return actorID, orgID, role, scope, isAdmin, expires, nil
+	return actorID, orgID, role, bindings, isAdmin, expires, nil
 }
 
 func activeOrganizationUser(ctx context.Context, tx *sql.Tx, orgID, userID string) (string, error) {
@@ -458,26 +424,6 @@ func activeOrganizationUser(ctx context.Context, tx *sql.Tx, orgID, userID strin
 	return id, nil
 }
 
-func validateGrantResources(ctx context.Context, tx *sql.Tx, runtimeID string, scope GrantScope) error {
-	for _, resource := range []struct {
-		table string
-		ids   []string
-	}{{table: "workspaces", ids: scope.Workspaces}, {table: "sessions", ids: scope.Sessions}} {
-		if len(resource.ids) == 0 {
-			continue
-		}
-		var count int
-		query := "select count(*) from " + resource.table + " where runtime_id = $1 and id::text = any($2::text[])"
-		if err := tx.QueryRowContext(ctx, query, runtimeID, resource.ids).Scan(&count); err != nil {
-			return transactionFailure(err)
-		}
-		if count != len(resource.ids) {
-			return ErrGrantInvalid
-		}
-	}
-	return nil
-}
-
 func countOtherActiveOwners(ctx context.Context, tx *sql.Tx, runtimeID, orgID, excludedUserID string) (int, error) {
 	var count int
 	err := tx.QueryRowContext(ctx, `
@@ -485,7 +431,6 @@ func countOtherActiveOwners(ctx context.Context, tx *sql.Tx, runtimeID, orgID, e
 		join users u on u.id = g.user_id and u.status = 'active'
 		join org_memberships m on m.user_id = u.id and m.org_id = $2
 		where g.runtime_id = $1 and g.user_id <> $3 and g.role = 'owner'
-		  and g.scope->'actions' ? 'grant.manage'
 		  and g.revoked_at is null and (g.expires_at is null or g.expires_at > clock_timestamp())`, runtimeID, orgID, excludedUserID).Scan(&count)
 	return count, err
 }
@@ -497,31 +442,32 @@ func grantExpiryEqual(previous sql.NullTime, next *time.Time) bool {
 	return previous.Valid && previous.Time.Equal(*next)
 }
 
-func grantScopeEqual(previousJSON []byte, next GrantScope) bool {
-	var previous GrantScope
+func grantBindingsEqual(previousJSON []byte, next []GrantBinding) bool {
+	var previous []GrantBinding
 	if json.Unmarshal(previousJSON, &previous) != nil {
 		return false
 	}
-	return reflect.DeepEqual(previous, next)
+	if len(previous) != len(next) {
+		return false
+	}
+	for index := range previous {
+		if previous[index].Resource != next[index].Resource || !slices.Equal(previous[index].Actions, next[index].Actions) {
+			return false
+		}
+	}
+	return true
 }
 
-func writeGrantChange(ctx context.Context, tx *sql.Tx, actorID, deviceID, orgID, runtimeID, targetUserID, role string, version int64, expiresAt *time.Time, topic, action string, scopeJSON []byte) error {
+func writeGrantChange(ctx context.Context, tx *sql.Tx, actorID, deviceID, orgID, runtimeID, targetUserID, role string, version int64, expiresAt *time.Time, topic, action string, bindingsJSON []byte) error {
 	payload, err := json.Marshal(map[string]any{
 		"runtime_id": runtimeID, "user_id": targetUserID, "grant_version": version,
-		"role": role, "scope": json.RawMessage(scopeJSON), "expires_at": expiresAt,
+		"role": role, "bindings": json.RawMessage(bindingsJSON), "expires_at": expiresAt,
 	})
 	if err != nil {
 		return err
 	}
 	if _, err := tx.ExecContext(ctx, `
 		insert into control_outbox (org_id, topic, payload) values ($1, $2, $3::jsonb)`, orgID, topic, string(payload)); err != nil {
-		return err
-	}
-	metadata, err := json.Marshal(map[string]any{
-		"runtime_id": runtimeID, "user_id": targetUserID, "grant_version": version,
-		"role": role, "scope": json.RawMessage(scopeJSON), "expires_at": expiresAt,
-	})
-	if err != nil {
 		return err
 	}
 	var actorDeviceID any
@@ -531,6 +477,6 @@ func writeGrantChange(ctx context.Context, tx *sql.Tx, actorID, deviceID, orgID,
 	_, err = tx.ExecContext(ctx, `
 		insert into audit_log (org_id, actor_type, actor_id, device_id, runtime_id, action, result, metadata)
 		values ($1, 'user', $2, $3, $4, $5, 'success', $6::jsonb)`,
-		orgID, actorID, actorDeviceID, runtimeID, action, string(metadata))
+		orgID, actorID, actorDeviceID, runtimeID, action, string(payload))
 	return err
 }

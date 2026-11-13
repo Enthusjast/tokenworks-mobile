@@ -17,7 +17,7 @@ var ErrGrantDirectoryInvalid = errors.New("store: invalid grant directory reques
 type RuntimeGrantSummary struct {
 	UserID    string     `json:"user_id"`
 	Role      string     `json:"role"`
-	Scope     GrantScope `json:"scope"`
+	Bindings  []GrantBinding `json:"bindings"`
 	Version   int64      `json:"grant_version"`
 	GrantedBy string     `json:"granted_by"`
 	ExpiresAt *time.Time `json:"expires_at"`
@@ -93,11 +93,11 @@ func (postgres *Postgres) ListRuntimeGrants(ctx context.Context, identity UserId
 	 join org_memberships m on m.org_id=h.org_id and m.user_id=a.id
 	 left join runtime_grants own on own.runtime_id=r.id and own.user_id=a.id
 	 where `+runtimeEnrollmentApprovedSQL+` and (m.role='admin' or
-	 (own.role='owner' and own.scope->'actions' ? 'grant.manage' and own.revoked_at is null
+	 (own.role='owner' and own.revoked_at is null
 	 and (own.expires_at is null or own.expires_at>statement_timestamp())))
 	)
 	select a.id::text,coalesce((select jsonb_agg(row_to_json(p) order by p.user_id) from (
-	 select g.user_id,g.role,g.scope,g.grant_version,g.granted_by,g.expires_at,g.revoked_at,
+	 select g.user_id,g.role,g.bindings,g.grant_version,g.granted_by,g.expires_at,g.revoked_at,
 	 case when g.revoked_at is not null then 'revoked'
 	 when g.expires_at<=statement_timestamp() then 'expired'
 	 when u.status<>'active' or m.user_id is null then 'inactive' else 'active' end state

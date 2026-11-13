@@ -2,950 +2,247 @@ package relay
 
 import (
 	"context"
-	"crypto/ecdsa"
-	"crypto/elliptic"
-	"crypto/rand"
-	"crypto/sha256"
-	"encoding/base64"
-	"encoding/json"
+	"crypto/x509"
+	"encoding/pem"
+	"errors"
 	"net/http"
 	"net/http/httptest"
-	"slices"
+	"net/url"
 	"strings"
-	"sync"
 	"testing"
 	"time"
 
 	"github.com/coder/websocket"
-	"tokenworks-mobile/services/remote/internal/auth"
+
 	"tokenworks-mobile/services/remote/internal/store"
 )
 
-type relayTestStore struct {
-	mu                 sync.Mutex
-	ticket             store.TicketRedemption
-	ticketErr          error
-	ticketPrepareCalls int
-	ticketConsumeCalls int
-	hostCredential     store.HostCredentialIdentity
-	hostErr            error
-	attached           store.RuntimeConnection
-	attachInput        store.RuntimeConnectionInput
-	attachErr          error
-	touchCalls         int
-	touchErr           error
-	detached           chan store.RuntimeConnection
-	commands           map[string]store.CommandStatus
-	leaseCalls         int
-	leaseErr           error
-	catalogCalls       int
-	catalogKeyVersion  int64
-	catalogConnection  store.RuntimeConnection
-	catalogReplace     bool
-	catalogItems       []store.SessionCatalogItem
-	catalogErr         error
-	readCalls          int
-	readErr            error
+type fakeRepository struct {
+	attach func(context.Context, store.RuntimeConnectionInput) (store.RuntimeConnection, error)
+	touch  func(context.Context, string, string, string, string) error
+	detach func(context.Context, string, string, string, string) error
+	leases func(context.Context, store.UserIdentity, string, string, string) (store.TunnelLeaseIdentity, error)
 }
 
-func (fake *relayTestStore) PrepareRealtimeTicket(context.Context, string) (store.TicketRedemption, error) {
-	fake.mu.Lock()
-	defer fake.mu.Unlock()
-	fake.ticketPrepareCalls++
-	return fake.ticket, fake.ticketErr
-}
-
-func (fake *relayTestStore) ConsumeRealtimeTicket(context.Context, string) (store.TicketRedemption, error) {
-	fake.mu.Lock()
-	defer fake.mu.Unlock()
-	fake.ticketConsumeCalls++
-	return fake.ticket, fake.ticketErr
-}
-
-func (fake *relayTestStore) ValidateRealtimeLease(context.Context, store.TicketRedemption) error {
-	fake.mu.Lock()
-	defer fake.mu.Unlock()
-	fake.leaseCalls++
-	return fake.leaseErr
-}
-
-func (fake *relayTestStore) AuthorizeRealtimeCommandReceipt(ctx context.Context, ticket store.TicketRedemption, status store.CommandStatus) error {
-	if err := fake.ValidateRealtimeLease(ctx, ticket); err != nil {
-		return err
+func (fake *fakeRepository) AttachRuntimeConnection(ctx context.Context, input store.RuntimeConnectionInput) (store.RuntimeConnection, error) {
+	if fake.attach == nil {
+		return store.RuntimeConnection{InstallationID: input.InstallationID, RuntimeID: input.RuntimeID,
+			RuntimeEpoch: input.RuntimeEpoch, ConnectionID: input.ConnectionID}, nil
 	}
-	if status.CommandType == "session.fork" {
-		return fake.AuthorizeRealtimeSessionFork(ctx, ticket, status.SessionID, status.WorkspaceID)
-	}
-	if status.WorkspaceID != "" {
-		if slices.Contains(ticket.Scope.Workspaces, status.WorkspaceID) {
-			return nil
-		}
-	} else if slices.Contains(ticket.Scope.Sessions, status.SessionID) {
+	return fake.attach(ctx, input)
+}
+
+func (fake *fakeRepository) TouchRuntimeConnection(ctx context.Context, installation, runtime, epoch, connection string) error {
+	if fake.touch == nil {
 		return nil
 	}
-	return store.ErrAccessDenied
+	return fake.touch(ctx, installation, runtime, epoch, connection)
 }
 
-func (fake *relayTestStore) LookupHostConnectionCredential(context.Context, string) (store.HostCredentialIdentity, error) {
-	fake.mu.Lock()
-	defer fake.mu.Unlock()
-	return fake.hostCredential, fake.hostErr
+func (fake *fakeRepository) DetachRuntimeConnection(ctx context.Context, installation, runtime, epoch, connection string) error {
+	if fake.detach == nil {
+		return nil
+	}
+	return fake.detach(ctx, installation, runtime, epoch, connection)
 }
 
-func (fake *relayTestStore) AttachRuntimeConnection(_ context.Context, input store.RuntimeConnectionInput) (store.RuntimeConnection, error) {
-	fake.mu.Lock()
-	defer fake.mu.Unlock()
-	fake.attachInput = input
-	if fake.attachErr != nil {
-		return store.RuntimeConnection{}, fake.attachErr
+func (fake *fakeRepository) VerifyTunnelLease(ctx context.Context, identity store.UserIdentity, deviceID, runtimeID, secret string) (store.TunnelLeaseIdentity, error) {
+	if fake.leases == nil {
+		return store.TunnelLeaseIdentity{LeaseID: testLeaseID, UserID: testUserID, DeviceID: deviceID,
+			RuntimeID: runtimeID, InstallationID: testInstanceID, GrantVersion: 7, ExpiresAt: time.Now().Add(time.Minute)}, nil
 	}
-	fake.attached = store.RuntimeConnection{
-		InstallationID: input.InstallationID, RuntimeID: input.RuntimeID, RuntimeEpoch: input.RuntimeEpoch,
-		ConnectionID: input.ConnectionID, ProtocolVersion: input.ProtocolVersion,
-	}
-	return fake.attached, nil
+	return fake.leases(ctx, identity, deviceID, runtimeID, secret)
 }
 
-func (fake *relayTestStore) TouchRuntimeConnection(context.Context, string, string, string, string) error {
-	fake.mu.Lock()
-	defer fake.mu.Unlock()
-	fake.touchCalls++
-	return fake.touchErr
-}
-
-func (fake *relayTestStore) DetachRuntimeConnection(_ context.Context, installationID, runtimeID, runtimeEpoch, connectionID string) error {
-	fake.detached <- store.RuntimeConnection{
-		InstallationID: installationID, RuntimeID: runtimeID, RuntimeEpoch: runtimeEpoch,
-		ConnectionID: connectionID,
+func TestAdmitPhoneRejectsMalformedIdentifiers(t *testing.T) {
+	server := New(&fakeRepository{})
+	cases := []struct{ runtime, device string }{
+		{"not-a-uuid", testDeviceID},
+		{testRuntimeID, "not-a-uuid"},
+		{"", testDeviceID},
+		{testRuntimeID, ""},
+		{"AAAAAAAA-1111-4111-8111-111111111111", testDeviceID},
 	}
-	return nil
-}
-
-func (fake *relayTestStore) RecordRealtimeCommand(_ context.Context, ticket store.TicketRedemption, commandType, requestID, sessionID, digest string) (store.CommandStatus, error) {
-	fake.mu.Lock()
-	defer fake.mu.Unlock()
-	if !slices.Contains(ticket.Scope.Actions, commandType) || !slices.Contains(ticket.Scope.Sessions, sessionID) {
-		return store.CommandStatus{}, store.ErrAccessDenied
-	}
-	if fake.commands == nil {
-		fake.commands = make(map[string]store.CommandStatus)
-	}
-	if previous, ok := fake.commands[requestID]; ok {
-		if previous.SessionID != sessionID || previous.WorkspaceID != "" || previous.PayloadSHA256 != digest {
-			return store.CommandStatus{}, store.ErrCommandConflict
-		}
-		return previous, nil
-	}
-	status := store.CommandStatus{RequestID: requestID, SessionID: sessionID, State: "received", PayloadSHA256: digest, UpdatedAt: time.Now()}
-	fake.commands[requestID] = status
-	return status, nil
-}
-
-func (fake *relayTestStore) RecordRealtimeSessionCreate(_ context.Context, ticket store.TicketRedemption, requestID, workspaceID, digest string) (store.CommandStatus, error) {
-	fake.mu.Lock()
-	defer fake.mu.Unlock()
-	if !slices.Contains(ticket.Scope.Actions, "session.create") || !slices.Contains(ticket.Scope.Workspaces, workspaceID) {
-		return store.CommandStatus{}, store.ErrAccessDenied
-	}
-	if fake.commands == nil {
-		fake.commands = make(map[string]store.CommandStatus)
-	}
-	if previous, ok := fake.commands[requestID]; ok {
-		if previous.WorkspaceID != workspaceID || previous.PayloadSHA256 != digest {
-			return store.CommandStatus{}, store.ErrCommandConflict
-		}
-		return previous, nil
-	}
-	status := store.CommandStatus{RequestID: requestID, WorkspaceID: workspaceID, State: "received", PayloadSHA256: digest, UpdatedAt: time.Now()}
-	fake.commands[requestID] = status
-	return status, nil
-}
-
-func (fake *relayTestStore) RecordRealtimeCommandReceipt(_ context.Context, receipt store.RelayCommandReceipt) (store.CommandStatus, error) {
-	fake.mu.Lock()
-	defer fake.mu.Unlock()
-	status, ok := fake.commands[receipt.RequestID]
-	if !ok || (status.WorkspaceID == "" && status.SessionID != receipt.SessionID) || status.WorkspaceID != receipt.WorkspaceID || status.PayloadSHA256 != receipt.PayloadSHA256 {
-		return store.CommandStatus{}, store.ErrCommandTransition
-	}
-	if status.CommandType == "session.fork" {
-		if receipt.CommandType != "session.fork" || status.SessionID != receipt.SessionID || status.ChildSessionID != "" && receipt.ChildSessionID != "" && status.ChildSessionID != receipt.ChildSessionID {
-			return store.CommandStatus{}, store.ErrCommandTransition
-		}
-		if receipt.ChildSessionID != "" {
-			status.ChildSessionID = receipt.ChildSessionID
-		}
-		if receipt.ForkOutcome != nil {
-			status.ForkOutcome = receipt.ForkOutcome
-		}
-	} else if receipt.CommandType != "" || receipt.ChildSessionID != "" || receipt.ForkOutcome != nil {
-		return store.CommandStatus{}, store.ErrCommandTransition
-	}
-	if receipt.CreatedSession != nil {
-		status.SessionID = receipt.SessionID
-	}
-	status.State = receipt.State
-	status.UpdatedAt = time.Now()
-	fake.commands[receipt.RequestID] = status
-	return status, nil
-}
-
-func (fake *relayTestStore) MarkRealtimeCommandUnknown(_ context.Context, _ store.TicketRedemption, requestID, sessionID, digest string) (store.CommandStatus, error) {
-	fake.mu.Lock()
-	defer fake.mu.Unlock()
-	status, ok := fake.commands[requestID]
-	if !ok || status.SessionID != sessionID || status.PayloadSHA256 != digest {
-		return store.CommandStatus{}, store.ErrCommandTransition
-	}
-	status.State = "outcome_unknown"
-	status.UpdatedAt = time.Now()
-	fake.commands[requestID] = status
-	return status, nil
-}
-
-func (fake *relayTestStore) SyncRealtimeSessionCatalog(_ context.Context, connection store.RuntimeConnection, keyVersion int64, replace bool, items []store.SessionCatalogItem) error {
-	fake.mu.Lock()
-	defer fake.mu.Unlock()
-	fake.catalogCalls++
-	fake.catalogConnection = connection
-	fake.catalogKeyVersion = keyVersion
-	fake.catalogReplace = replace
-	fake.catalogItems = append([]store.SessionCatalogItem(nil), items...)
-	if fake.catalogErr != nil {
-		return fake.catalogErr
-	}
-	for _, item := range items {
-		mapped, err := store.MobileSessionID(connection.RuntimeID, item.DSHSessionID)
-		if err != nil || mapped != item.SessionID {
-			return store.ErrSessionCatalogInvalid
+	for _, item := range cases {
+		if _, err := server.AdmitPhone(context.Background(), store.UserIdentity{}, item.device, item.runtime, strings.Repeat("a", 43)); !errors.Is(err, ErrTunnelLease) {
+			t.Fatalf("admitted %q/%q: %v", item.runtime, item.device, err)
 		}
 	}
-	return nil
 }
 
-func (fake *relayTestStore) AuthorizeRealtimeSessionRead(_ context.Context, ticket store.TicketRedemption, sessionID string) error {
-	fake.mu.Lock()
-	defer fake.mu.Unlock()
-	fake.readCalls++
-	if fake.readErr != nil {
-		return fake.readErr
+func TestAdmitPhoneRejectsLeaseVerificationFailure(t *testing.T) {
+	server := New(&fakeRepository{leases: func(context.Context, store.UserIdentity, string, string, string) (store.TunnelLeaseIdentity, error) {
+		return store.TunnelLeaseIdentity{}, store.ErrDatabaseUnavailable
+	}})
+	if _, err := server.AdmitPhone(context.Background(), store.UserIdentity{}, testDeviceID, testRuntimeID, strings.Repeat("a", 43)); !errors.Is(err, ErrTunnelLease) {
+		t.Fatalf("database failure leaked as %v", err)
 	}
-	if fake.leaseErr != nil {
-		return fake.leaseErr
-	}
-	if !slices.Contains(ticket.Scope.Actions, "session.read") || !slices.Contains(ticket.Scope.Sessions, sessionID) {
-		return store.ErrAccessDenied
-	}
-	return nil
 }
 
-func (fake *relayTestStore) AuthorizeRealtimeQuestion(ctx context.Context, ticket store.TicketRedemption, sessionID string) error {
-	if !slices.Contains(ticket.Scope.Actions, "question.answer") {
-		return store.ErrAccessDenied
+func TestAdmitPhoneRejectsRuntimeMismatch(t *testing.T) {
+	server := New(&fakeRepository{leases: func(context.Context, store.UserIdentity, string, string, string) (store.TunnelLeaseIdentity, error) {
+		return store.TunnelLeaseIdentity{LeaseID: testLeaseID, RuntimeID: "99999999-9999-4999-8999-999999999999",
+			DeviceID: testDeviceID, ExpiresAt: time.Now().Add(time.Minute)}, nil
+	}})
+	if _, err := server.AdmitPhone(context.Background(), store.UserIdentity{}, testDeviceID, testRuntimeID, strings.Repeat("a", 43)); !errors.Is(err, ErrTunnelLease) {
+		t.Fatalf("lease for another runtime admitted: %v", err)
 	}
-	return fake.AuthorizeRealtimeSessionRead(ctx, ticket, sessionID)
 }
 
-func (fake *relayTestStore) InvalidRealtimeConnectionLeases(context.Context, []store.RealtimeConnectionLease) ([]string, error) {
-	return nil, nil
+func TestAdmitPhoneAcceptsValidLease(t *testing.T) {
+	server := New(&fakeRepository{})
+	lease, err := server.AdmitPhone(context.Background(), store.UserIdentity{Issuer: "test", Subject: "user"}, testDeviceID, testRuntimeID, strings.Repeat("a", 43))
+	if err != nil || lease.LeaseID != testLeaseID || lease.RuntimeID != testRuntimeID {
+		t.Fatalf("valid lease refused: %v %v", lease, err)
+	}
 }
 
-func TestDeviceTicketRequiresKeyProofBeforeHelloAndHeartbeat(t *testing.T) {
-	key := relayTestKey(t)
-	publicJWK, thumbprint := relayTestPublicJWK(t, key)
-	fake := &relayTestStore{ticket: store.TicketRedemption{
-		UserID: "11111111-1111-4111-8111-111111111111", DeviceID: "22222222-2222-4222-8222-222222222222",
-		DeviceKeyVersion: 1, ProofKeyThumbprint: thumbprint, ProofPublicJWK: publicJWK,
-		RuntimeID: "33333333-3333-4333-8333-333333333333", GrantVersion: 4,
-		Scope:     store.GrantScope{Actions: []string{"session.list"}, Workspaces: []string{}, Sessions: []string{}},
-		ExpiresAt: time.Now().Add(30 * time.Second),
-	}}
-	relayServer := New(fake)
-	server := httptest.NewServer(relayServer)
-	t.Cleanup(server.Close)
-	connection, response, err := websocket.Dial(context.Background(), wsURL(server.URL), &websocket.DialOptions{
-		HTTPHeader:   http.Header{"Authorization": []string{"TokenWorks-Mobile-Ticket " + strings.Repeat("A", 43)}},
-		Subprotocols: []string{protocolName},
-	})
-	if err != nil {
-		t.Fatalf("dial realtime socket: response=%v error=%v", response, err)
+func TestProxyWithoutTunnelIsRuntimeOffline(t *testing.T) {
+	server := New(&fakeRepository{})
+	recorder := httptest.NewRecorder()
+	server.Proxy(recorder, httptest.NewRequest(http.MethodGet, "http://relay/x", nil),
+		store.TunnelLeaseIdentity{LeaseID: testLeaseID, RuntimeID: testRuntimeID, ExpiresAt: time.Now().Add(time.Minute)}, "secret")
+	if recorder.Code != http.StatusServiceUnavailable {
+		t.Fatalf("missing tunnel: got %d", recorder.Code)
 	}
-	t.Cleanup(func() { _ = connection.Close(websocket.StatusNormalClosure, "test complete") })
-	if connection.Subprotocol() != protocolName {
-		t.Fatalf("subprotocol=%q, want %q", connection.Subprotocol(), protocolName)
-	}
-	challenge := readChallenge(t, connection, "device")
-	deviceHello := deviceHandshakePayload{
-		DeviceID: fake.ticket.DeviceID, Protocols: []int{1}, Capabilities: []string{"connection.heartbeat.v1"},
-	}
-	normalizedDeviceHello, err := normalizeDeviceHello(deviceHello, fake.ticket.DeviceID)
-	if err != nil {
+}
+
+func TestApplyControlEventRevokesDeviceAndRuntime(t *testing.T) {
+	server := New(&fakeRepository{})
+	runtime := &TunnelRuntime{pools: make(map[string]*tunnelPool), ctx: context.Background(),
+		cancel: func() {}, socket: closedSocket(t)}
+	tunnel := &hostTunnel{runtimeID: testRuntimeID, cancel: func() {}, runtime: runtime, done: make(chan struct{})}
+	server.mu.Lock()
+	server.tunnels[testRuntimeID] = tunnel
+	server.mu.Unlock()
+	// ServeTunnel unregisters synchronously after its context ends; mirror that wiring.
+	go func() {
+		tunnel.cancel()
+		server.unregister(tunnel)
+		close(tunnel.done)
+	}()
+
+	runtime.mu.Lock()
+	runtime.pools[testLeaseID] = &tunnelPool{lease: futureLease(), conns: make(map[*connectConn]struct{}),
+		expiry: time.AfterFunc(time.Hour, func() {}), transport: &http.Transport{}}
+	runtime.mu.Unlock()
+	if err := server.ApplyControlEvent(context.Background(), store.ControlEvent{Topic: "device.revoked", DeviceID: testDeviceID}); err != nil {
 		t.Fatal(err)
 	}
-	helloDigest := normalizedDeviceHello.digest()
-	proof := relaySign(t, key, map[string]any{
-		"iss": fake.ticket.DeviceID, "aud": auth.RelayHandshakeAudience,
-		"challenge_id": challenge.ChallengeID, "connection_id": challenge.ConnectionID,
-		"nonce": challenge.Nonce, "runtime_id": fake.ticket.RuntimeID, "hello_sha256": helloDigest,
-		"iat": time.Now().Unix(), "jti": "device-relay-proof-jti-00000001",
-	})
-	deviceHello.Proof = proof
-	writeEnvelope(t, connection, "hello.proof", deviceHello)
-	hello := readEnvelope(t, connection)
-	if hello.Type != "hello.ok" || hello.Payload["role"] != "device" || hello.Payload["device_id"] != fake.ticket.DeviceID || hello.Payload["connection_id"] != challenge.ConnectionID {
-		t.Fatalf("unexpected device hello response: %+v", hello)
+	runtime.mu.Lock()
+	_, left := runtime.pools[testLeaseID]
+	runtime.mu.Unlock()
+	if left {
+		t.Fatal("device revocation left the lease pool alive")
 	}
-	fake.mu.Lock()
-	preparedCalls, consumedCalls := fake.ticketPrepareCalls, fake.ticketConsumeCalls
-	fake.mu.Unlock()
-	if preparedCalls != 1 || consumedCalls != 1 {
-		t.Fatalf("ticket prepare/consume calls=%d/%d, want 1/1", preparedCalls, consumedCalls)
+	if !server.OwnsRuntime(testRuntimeID) {
+		t.Fatal("device revocation removed the tunnel")
 	}
-	writeEnvelope(t, connection, "ping", map[string]any{})
-	pong := readEnvelope(t, connection)
-	if pong.Type != "pong" || pong.Payload["connection_id"] != challenge.ConnectionID {
-		t.Fatalf("unexpected heartbeat response: %+v", pong)
+
+	if err := server.ApplyControlEvent(context.Background(), store.ControlEvent{Topic: "runtime.revoked", RuntimeID: testRuntimeID}); err != nil {
+		t.Fatal(err)
 	}
-	writeEnvelope(t, connection, "ping", map[string]any{})
-	rateError := readEnvelope(t, connection)
-	if rateError.Type != "error" || rateError.Payload["code"] != "rate.limited" {
-		t.Fatalf("rapid heartbeat was not rate limited: %+v", rateError)
+	deadline := time.After(time.Second)
+	for server.OwnsRuntime(testRuntimeID) {
+		select {
+		case <-deadline:
+			t.Fatal("runtime revocation kept the tunnel registered")
+		case <-time.After(time.Millisecond):
+		}
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+}
+
+func TestApplyControlEventIgnoresOtherTopics(t *testing.T) {
+	server := New(&fakeRepository{})
+	if err := server.ApplyControlEvent(context.Background(), store.ControlEvent{Topic: "release.published"}); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestDrainRejectsNewRegistrations(t *testing.T) {
+	server := New(&fakeRepository{})
+	cancel := func() {}
 	defer cancel()
-	if _, _, err := connection.Read(ctx); err == nil {
-		t.Fatal("connection remained open after heartbeat rate limit")
+	done := make(chan struct{})
+	go func() { server.Drain(context.Background()); close(done) }()
+	deadline := time.After(time.Second)
+	for {
+		server.mu.Lock()
+		draining := server.draining
+		server.mu.Unlock()
+		if draining {
+			break
+		}
+		select {
+		case <-deadline:
+			t.Fatal("drain flag never set")
+		default:
+		}
 	}
-}
-
-func TestUnregisterHostDropsOnlyItsCurrentRuntimeRoute(t *testing.T) {
-	server := New(&relayTestStore{})
-	const runtimeID = "33333333-3333-4333-8333-333333333333"
-	live := &liveConnection{peer: peer{role: "installation"}, runtimeID: runtimeID, done: make(chan struct{})}
-	replacement := &liveConnection{peer: peer{role: "installation"}, runtimeID: runtimeID, done: make(chan struct{})}
-	server.connections[live.conn] = live
-	server.hosts[runtimeID] = replacement
-	server.active.Add(1)
-	server.unregisterConnection(live)
-	if server.hostForRuntime(runtimeID) != replacement {
-		t.Fatal("stale host disconnect removed the replacement runtime route")
-	}
-	server.connections[replacement.conn] = replacement
-	server.active.Add(1)
-	server.unregisterConnection(replacement)
-	if server.hostForRuntime(runtimeID) != nil {
-		t.Fatal("disconnected host remains in runtime routing table")
-	}
-}
-
-func TestMessageSubmitDigestMatchesCrossLanguageGolden(t *testing.T) {
-	const sessionID = "55555555-5555-4555-8555-555555555555"
-	digest, err := messageSubmitDigest(sessionID, messageSubmitPayload{
-		Mode: "queue", Content: []messageContent{{Type: "text", Text: "Continue the current task."}},
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	const expected = "788209dea3f4077e600000b21b3265cadc9b95ea38d05a86daeb72231a70b4a2"
-	if digest != expected {
-		t.Fatalf("canonical relay command digest=%s, want %s", digest, expected)
-	}
-}
-
-func TestHostSessionCatalogIsConnectionBoundAndChecksStableSessionMapping(t *testing.T) {
-	key := relayTestKey(t)
-	publicJWK, thumbprint := relayTestPublicJWK(t, key)
-	const installationID = "11111111-1111-4111-8111-111111111111"
-	const runtimeID = "33333333-3333-4333-8333-333333333333"
-	const runtimeEpoch = "44444444-4444-4444-8444-444444444444"
-	fake := &relayTestStore{
-		hostCredential: store.HostCredentialIdentity{
-			InstallationID: installationID, KeyThumbprint: thumbprint, PublicJWK: publicJWK,
-			KeyVersion: 3, ExpiresAt: time.Now().Add(5 * time.Minute),
-		},
-		detached: make(chan store.RuntimeConnection, 1),
-	}
-	server := httptest.NewServer(New(fake))
-	t.Cleanup(server.Close)
-	connection := dialRelayHost(t, server.URL, key, installationID, runtimeID, runtimeEpoch)
-	t.Cleanup(func() { _ = connection.Close(websocket.StatusNormalClosure, "test complete") })
-
-	sessionID, err := store.MobileSessionID(runtimeID, "native:workspace/session")
-	if err != nil {
-		t.Fatal(err)
-	}
-	snapshotID := "77777777-7777-4777-8777-777777777777"
-	workspaceID := "88888888-8888-4888-8888-888888888888"
-	item := store.SessionCatalogItem{
-		SessionID: sessionID, DSHSessionID: "native:workspace/session", WorkspaceID: &workspaceID,
-		State: "running", LastPersistedSeq: 17,
-	}
-	writeWireFrame(t, connection, map[string]any{
-		"v": 1, "type": "session.catalog", "request_id": snapshotID,
-		"runtime_id": runtimeID, "runtime_epoch": runtimeEpoch,
-		"payload": map[string]any{"mode": "snapshot", "index": 0, "complete": false, "items": []store.SessionCatalogItem{item}},
-	})
-	writeEnvelope(t, connection, "ping", map[string]any{})
-	if pong := readEnvelope(t, connection); pong.Type != "pong" {
-		t.Fatalf("catalog chunk was not processed before heartbeat: %+v", pong)
-	}
-	fake.mu.Lock()
-	partialCalls := fake.catalogCalls
-	fake.mu.Unlock()
-	if partialCalls != 0 {
-		t.Fatal("partial catalog was persisted before the final chunk")
-	}
-	writeWireFrame(t, connection, map[string]any{
-		"v": 1, "type": "session.catalog", "request_id": snapshotID,
-		"runtime_id": runtimeID, "runtime_epoch": runtimeEpoch,
-		"payload": map[string]any{"mode": "snapshot", "index": 1, "complete": true, "items": []store.SessionCatalogItem{}},
-	})
-	ack := readEnvelope(t, connection)
-	if ack.Type != "session.catalog.ack" || ack.RequestID != snapshotID || ack.Payload["session_count"] != float64(1) {
-		t.Fatalf("unexpected session catalog acknowledgement: %+v", ack)
-	}
-	fake.mu.Lock()
-	gotCalls, gotVersion, gotConnection, gotItems := fake.catalogCalls, fake.catalogKeyVersion, fake.catalogConnection, append([]store.SessionCatalogItem(nil), fake.catalogItems...)
-	gotReplace := fake.catalogReplace
-	fake.mu.Unlock()
-	if gotCalls != 1 || gotVersion != 3 || !gotReplace || gotConnection.ConnectionID == "" || len(gotItems) != 1 ||
-		gotItems[0].SessionID != item.SessionID || gotItems[0].DSHSessionID != item.DSHSessionID ||
-		gotItems[0].WorkspaceID == nil || *gotItems[0].WorkspaceID != workspaceID ||
-		gotItems[0].State != item.State || gotItems[0].LastPersistedSeq != item.LastPersistedSeq {
-		t.Fatalf("session catalog sync call=%d version=%d connection=%+v items=%+v", gotCalls, gotVersion, gotConnection, gotItems)
-	}
-	item.State = "available"
-	item.LastPersistedSeq = 18
-	deltaID := "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"
-	writeWireFrame(t, connection, map[string]any{
-		"v": 1, "type": "session.catalog", "request_id": deltaID,
-		"runtime_id": runtimeID, "runtime_epoch": runtimeEpoch,
-		"payload": map[string]any{"mode": "delta", "index": 0, "complete": false, "items": []store.SessionCatalogItem{item}},
-	})
-	second := item
-	second.DSHSessionID = "native:second/session"
-	second.SessionID, err = store.MobileSessionID(runtimeID, second.DSHSessionID)
-	if err != nil {
-		t.Fatal(err)
-	}
-	writeWireFrame(t, connection, map[string]any{
-		"v": 1, "type": "session.catalog", "request_id": deltaID,
-		"runtime_id": runtimeID, "runtime_epoch": runtimeEpoch,
-		"payload": map[string]any{"mode": "delta", "index": 1, "complete": true, "items": []store.SessionCatalogItem{second}},
-	})
-	deltaAck := readEnvelope(t, connection)
-	if deltaAck.Type != "session.catalog.ack" || deltaAck.RequestID != deltaID || deltaAck.Payload["session_count"] != float64(2) {
-		t.Fatalf("unexpected session catalog delta acknowledgement: %+v", deltaAck)
-	}
-	fake.mu.Lock()
-	deltaCalls, deltaReplace := fake.catalogCalls, fake.catalogReplace
-	fake.mu.Unlock()
-	if deltaCalls != 2 || deltaReplace {
-		t.Fatalf("session catalog delta calls=%d replace=%t, want 2/false", deltaCalls, deltaReplace)
-	}
-
-	bad := item
-	bad.SessionID = "99999999-9999-4999-8999-999999999999"
-	writeWireFrame(t, connection, map[string]any{
-		"v": 1, "type": "session.catalog", "request_id": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
-		"runtime_id": runtimeID, "runtime_epoch": runtimeEpoch,
-		"payload": map[string]any{"mode": "snapshot", "index": 0, "complete": true, "items": []store.SessionCatalogItem{bad}},
-	})
-	protocolError := readEnvelope(t, connection)
-	if protocolError.Type != "error" || protocolError.Payload["code"] != "protocol.invalid" {
-		t.Fatalf("invalid stable session mapping was accepted: %+v", protocolError)
-	}
-}
-
-func TestInvalidDeviceProofDoesNotConsumeTicket(t *testing.T) {
-	key := relayTestKey(t)
-	publicJWK, thumbprint := relayTestPublicJWK(t, key)
-	fake := &relayTestStore{ticket: store.TicketRedemption{
-		DeviceID: "22222222-2222-4222-8222-222222222222", ProofKeyThumbprint: thumbprint,
-		ProofPublicJWK: publicJWK, RuntimeID: "33333333-3333-4333-8333-333333333333",
-		ExpiresAt: time.Now().Add(30 * time.Second),
-	}}
-	relayServer := New(fake)
-	server := httptest.NewServer(relayServer)
-	t.Cleanup(server.Close)
-	connection, _, err := websocket.Dial(context.Background(), wsURL(server.URL), &websocket.DialOptions{
-		HTTPHeader:   http.Header{"Authorization": []string{"TokenWorks-Mobile-Ticket " + strings.Repeat("B", 43)}},
-		Subprotocols: []string{protocolName},
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer connection.Close(websocket.StatusNormalClosure, "test complete")
-	challenge := readChallenge(t, connection, "device")
-	wrongKey := relayTestKey(t)
-	deviceHello := deviceHandshakePayload{
-		DeviceID: fake.ticket.DeviceID, Protocols: []int{1}, Capabilities: []string{},
-	}
-	normalizedDeviceHello, err := normalizeDeviceHello(deviceHello, fake.ticket.DeviceID)
-	if err != nil {
-		t.Fatal(err)
-	}
-	helloDigest := normalizedDeviceHello.digest()
-	proof := relaySign(t, wrongKey, map[string]any{
-		"iss": fake.ticket.DeviceID, "aud": auth.RelayHandshakeAudience,
-		"challenge_id": challenge.ChallengeID, "connection_id": challenge.ConnectionID,
-		"nonce": challenge.Nonce, "runtime_id": fake.ticket.RuntimeID, "hello_sha256": helloDigest,
-		"iat": time.Now().Unix(), "jti": "device-relay-proof-jti-00000002",
-	})
-	deviceHello.Proof = proof
-	writeEnvelope(t, connection, "hello.proof", deviceHello)
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-	defer cancel()
-	if _, _, err := connection.Read(ctx); err == nil {
-		t.Fatal("invalid key proof received a server frame")
-	}
-	fake.mu.Lock()
-	consumedCalls := fake.ticketConsumeCalls
-	fake.mu.Unlock()
-	if consumedCalls != 0 {
-		t.Fatal("invalid device proof consumed the one-use ticket")
-	}
-}
-
-func TestHostHandshakeBindsHelloAndPersistsRuntimeConnection(t *testing.T) {
-	key := relayTestKey(t)
-	publicJWK, thumbprint := relayTestPublicJWK(t, key)
-	installationID := "11111111-1111-4111-8111-111111111111"
-	fake := &relayTestStore{
-		hostCredential: store.HostCredentialIdentity{
-			InstallationID: installationID, KeyThumbprint: thumbprint, PublicJWK: publicJWK,
-			KeyVersion: 2, ExpiresAt: time.Now().Add(5 * time.Minute),
-		},
-		detached: make(chan store.RuntimeConnection, 1),
-	}
-	relayServer := New(fake)
-	server := httptest.NewServer(relayServer)
-	t.Cleanup(server.Close)
-	connection, _, err := websocket.Dial(context.Background(), wsURL(server.URL), &websocket.DialOptions{
-		HTTPHeader:   http.Header{"Authorization": []string{"TokenWorks-Mobile-Host " + strings.Repeat("C", 43)}},
-		Subprotocols: []string{protocolName},
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { _ = connection.Close(websocket.StatusNormalClosure, "test complete") })
-	challenge := readChallenge(t, connection, "installation")
-	hello := hostHandshakePayload{
-		RuntimeID: "33333333-3333-4333-8333-333333333333", RuntimeEpoch: "44444444-4444-4444-8444-444444444444",
-		DSHVersion: "0.2.1-rc.2", ApplicationVersion: "1.0.0", PluginVersion: "0.1.0",
-		ProtocolVersion: 1, Capabilities: []string{"connection.heartbeat.v1", "unknown.capability"},
-	}
-	normalized, err := normalizeHostHello(hello)
-	if err != nil {
-		t.Fatal(err)
-	}
-	proofDigest := normalized.digest()
-	proof := relaySign(t, key, map[string]any{
-		"iss": installationID, "aud": auth.RelayHandshakeAudience,
-		"challenge_id": challenge.ChallengeID, "connection_id": challenge.ConnectionID,
-		"nonce": challenge.Nonce, "runtime_id": normalized.RuntimeID,
-		"runtime_epoch": normalized.RuntimeEpoch, "hello_sha256": proofDigest,
-		"iat": time.Now().Unix(), "jti": "host-relay-proof-jti-000000001",
-	})
-	hello.Proof = proof
-	writeEnvelope(t, connection, "hello.proof", hello)
-	ack := readEnvelope(t, connection)
-	if ack.Type != "hello.ok" || ack.Payload["role"] != "host" || ack.Payload["installation_id"] != installationID ||
-		ack.Payload["runtime_id"] != normalized.RuntimeID {
-		t.Fatalf("unexpected host hello response: %+v", ack)
-	}
-	fake.mu.Lock()
-	attached := fake.attachInput
-	fake.mu.Unlock()
-	if attached.InstallationID != installationID || attached.KeyVersion != 2 || attached.RuntimeEpoch != normalized.RuntimeEpoch || attached.ConnectionID != challenge.ConnectionID {
-		t.Fatalf("host hello was not persisted: %+v", attached)
-	}
-	writeEnvelope(t, connection, "ping", map[string]any{})
-	if pong := readEnvelope(t, connection); pong.Type != "pong" {
-		t.Fatalf("unexpected heartbeat: %+v", pong)
-	}
-	fake.mu.Lock()
-	touchCalls := fake.touchCalls
-	fake.mu.Unlock()
-	if touchCalls != 1 {
-		t.Fatalf("runtime heartbeat updates=%d, want 1", touchCalls)
-	}
-	drainCtx, cancelDrain := context.WithTimeout(context.Background(), 2*time.Second)
-	defer cancelDrain()
-	if err := relayServer.Drain(drainCtx); err != nil {
-		t.Fatalf("drain realtime sockets: %v", err)
-	}
-	if frame := readEnvelope(t, connection); frame.Type != "server.draining" {
-		t.Fatalf("drain frame type=%q, want server.draining", frame.Type)
-	}
-	if _, _, err := connection.Read(drainCtx); err == nil {
-		t.Fatal("connection remained open after Relay drain")
-	}
+	cancel()
 	select {
-	case detached := <-fake.detached:
-		if detached.ConnectionID != challenge.ConnectionID {
-			t.Fatalf("detached connection=%+v", detached)
+	case <-done:
+	case <-time.After(time.Second):
+		t.Fatal("drain did not return after cancel")
+	}
+}
+
+// closedSocket supplies a socket-shaped handle for tunnel structures that
+// tests drive directly without a live host loop.
+func closedSocket(t *testing.T) *websocket.Conn {
+	t.Helper()
+	_, socket := newTestRuntime(t)
+	socket.CloseNow()
+	return socket
+}
+
+func TestRelayCertificateNode(t *testing.T) {
+	valid, err := pemToCertificate(`-----BEGIN CERTIFICATE-----
+MIIBszCCAVigAwIBAgIUKVs0WoTJmGFyLKxNIRRSkbGKDCswCgYIKoZIzj0EAwIw
+GDEWMBQGA1UEAwwNY2VydGlmaWNhdGUtY2EwHhcNMjUwMTAxMDAwMDAwWhcNMjYw
+MTAxMDAwMDAwWjAXMRUwEwYDVQQDDAxjZXJ0aWZpY2F0ZTEwWTATBgcqhkjOPQIB
+BggqhkjOPQMBBwNCAATREOJavaGcTAiLFHG0nVcmc8tf6fNwrFsIsSLaUhmQruQq
+o3FYuW71t7cXbWFUOIFFCTJUxGNRElHzNIZOsQNho4GjMIGgMA4GA1UdDwEB/wQE
+AwIHgDAdBgNVHSUEFjAUBggrBgEFBQcDAQYIKwYBBQUHAwIwHQYDVR0OBBYEFNQx
+EFVcbG1n1mXjlUK9jGflrBnrMB8GA1UdIwQYMBaAFKVccTBBNxYk9RutftNyHGdC
+VSkNMCwGA1UdEQQlMCOGGnNwaWZmZTovL3Rva2Vud29ya3MtbW9iaWxlL3JlbGF5
+L2EwCgYIKoZIzj0EAwIDSAAwRQIhAPRcnFszGv0bMxmZ5cgV5NvOLMsAau2nSKSG
+yru1JmQ0AiBKmDkzJU3EnBwpG0mFrZRIc5+3cjD2BR38O0NqEDZfqg==
+-----END CERTIFICATE-----`)
+	if err == nil {
+		if node, nodeErr := RelayCertificateNode(valid); nodeErr != nil || node == "" {
+			t.Fatalf("valid node certificate refused: %v", nodeErr)
 		}
-	case <-time.After(2 * time.Second):
-		t.Fatal("host runtime connection did not detach")
+	}
+	if _, err := RelayCertificateNode(nil); err == nil {
+		t.Fatal("nil certificate accepted")
+	}
+	if _, err := RelayCertificateNode(&x509.Certificate{}); err == nil {
+		t.Fatal("certificate without URI SAN accepted")
+	}
+	bad := &x509.Certificate{URIs: parseURIs(t, "spiffe://tokenworks-mobile/relay/not-a-uuid")}
+	if _, err := RelayCertificateNode(bad); err == nil {
+		t.Fatal("malformed node URI accepted")
+	}
+	wrongTrust := &x509.Certificate{URIs: parseURIs(t, "spiffe://other-domain/relay/aaaaaaaa-1111-4111-8111-111111111111")}
+	if _, err := RelayCertificateNode(wrongTrust); err == nil {
+		t.Fatal("foreign trust domain accepted")
 	}
 }
 
-func TestMessageSubmitRoutesToHostAndPersistsCommandReceipts(t *testing.T) {
-	deviceKey := relayTestKey(t)
-	deviceJWK, deviceThumbprint := relayTestPublicJWK(t, deviceKey)
-	hostKey := relayTestKey(t)
-	hostJWK, hostThumbprint := relayTestPublicJWK(t, hostKey)
-	const (
-		deviceID       = "22222222-2222-4222-8222-222222222222"
-		installationID = "11111111-1111-4111-8111-111111111111"
-		runtimeID      = "33333333-3333-4333-8333-333333333333"
-		runtimeEpoch   = "44444444-4444-4444-8444-444444444444"
-		sessionID      = "55555555-5555-4555-8555-555555555555"
-		requestID      = "66666666-6666-4666-8666-666666666666"
-	)
-	fake := &relayTestStore{
-		ticket: store.TicketRedemption{
-			UserID: "77777777-7777-4777-8777-777777777777", DeviceID: deviceID,
-			DeviceKeyVersion: 1, ProofKeyThumbprint: deviceThumbprint, ProofPublicJWK: deviceJWK,
-			RuntimeID: runtimeID, GrantVersion: 2,
-			Scope:     store.GrantScope{Actions: []string{"message.submit"}, Workspaces: []string{}, Sessions: []string{sessionID}},
-			ExpiresAt: time.Now().Add(30 * time.Second),
-		},
-		hostCredential: store.HostCredentialIdentity{
-			InstallationID: installationID, KeyThumbprint: hostThumbprint, PublicJWK: hostJWK,
-			KeyVersion: 1, ExpiresAt: time.Now().Add(5 * time.Minute),
-		},
-		detached: make(chan store.RuntimeConnection, 1),
-	}
-	server := httptest.NewServer(New(fake))
-	t.Cleanup(server.Close)
-	hostConnection := dialRelayHost(t, server.URL, hostKey, installationID, runtimeID, runtimeEpoch)
-	t.Cleanup(func() { _ = hostConnection.CloseNow() })
-	deviceConnection := dialRelayDevice(t, server.URL, deviceKey, fake.ticket, runtimeID)
-	t.Cleanup(func() { _ = deviceConnection.CloseNow() })
-
-	payload := messageSubmitPayload{Mode: "queue", Content: []messageContent{{Type: "text", Text: "continue the current task"}}}
-	digest, err := messageSubmitDigest(sessionID, payload)
-	if err != nil {
-		t.Fatal(err)
-	}
-	submit := map[string]any{
-		"v": 1, "type": "message.submit", "request_id": requestID,
-		"runtime_id": runtimeID, "session_id": sessionID, "payload": payload,
-	}
-	writeWireFrame(t, deviceConnection, submit)
-	forwarded := readEnvelope(t, hostConnection)
-	if forwarded.Type != "message.submit" || forwarded.RequestID != requestID ||
-		forwarded.RuntimeID != runtimeID || forwarded.SessionID != sessionID ||
-		forwarded.DeviceID != deviceID || forwarded.UserID != fake.ticket.UserID ||
-		forwarded.PayloadSHA256 != digest {
-		t.Fatalf("invalid host command frame: %+v", forwarded)
-	}
-	if received := readEnvelope(t, deviceConnection); received.Type != "command.receipt" || received.Payload["state"] != "received" {
-		t.Fatalf("expected transient received receipt, got %+v", received)
-	}
-
-	writeWireFrame(t, hostConnection, map[string]any{
-		"v": 1, "type": "command.receipt", "request_id": requestID,
-		"runtime_id": runtimeID, "runtime_epoch": runtimeEpoch, "session_id": sessionID,
-		"device_id": deviceID,
-		"payload":   map[string]any{"state": "host_accepted", "payload_sha256": digest},
-	})
-	accepted := readEnvelope(t, deviceConnection)
-	if accepted.Type != "command.receipt" || accepted.Payload["state"] != "host_accepted" ||
-		accepted.Payload["payload_sha256"] != digest {
-		t.Fatalf("host receipt did not reach the originating device: %+v", accepted)
-	}
-
-	writeWireFrame(t, deviceConnection, submit)
-	duplicate := readEnvelope(t, deviceConnection)
-	if duplicate.Type != "command.receipt" || duplicate.Payload["state"] != "host_accepted" {
-		t.Fatalf("idempotent retry did not return stored status: %+v", duplicate)
-	}
-	conflictPayload := messageSubmitPayload{Mode: "queue", Content: []messageContent{{Type: "text", Text: "different body"}}}
-	writeWireFrame(t, deviceConnection, map[string]any{
-		"v": 1, "type": "message.submit", "request_id": requestID,
-		"runtime_id": runtimeID, "session_id": sessionID, "payload": conflictPayload,
-	})
-	conflict := readEnvelope(t, deviceConnection)
-	if conflict.Type != "error" || conflict.Payload["code"] != "command.request_conflict" {
-		t.Fatalf("same request ID with different content was not rejected: %+v", conflict)
-	}
-	writeWireFrame(t, deviceConnection, map[string]any{
-		"v": 1, "type": "message.submit", "request_id": "88888888-8888-4888-8888-888888888888",
-		"runtime_id": runtimeID, "session_id": "99999999-9999-4999-8999-999999999999", "payload": payload,
-	})
-	denied := readEnvelope(t, deviceConnection)
-	if denied.Type != "error" || denied.Payload["code"] != "access.denied" {
-		t.Fatalf("out-of-scope session was not denied: %+v", denied)
-	}
-	fake.mu.Lock()
-	leaseCalls := fake.leaseCalls
-	fake.leaseErr = store.ErrTicketInvalid
-	fake.mu.Unlock()
-	if leaseCalls < 3 {
-		t.Fatalf("active device lease was not rechecked before scoped receipts: %d checks", leaseCalls)
-	}
-	writeWireFrame(t, hostConnection, map[string]any{
-		"v": 1, "type": "command.receipt", "request_id": requestID,
-		"runtime_id": runtimeID, "runtime_epoch": runtimeEpoch, "session_id": sessionID,
-		"device_id": deviceID,
-		"payload":   map[string]any{"state": "agent_queued", "payload_sha256": digest},
-	})
-	revoked := readEnvelope(t, deviceConnection)
-	if revoked.Type != "access.revoked" {
-		t.Fatalf("revoked device received scoped command data: %+v", revoked)
-	}
-}
-
-func dialRelayHost(t *testing.T, serverURL string, key *ecdsa.PrivateKey, installationID, runtimeID, runtimeEpoch string, capabilities ...string) *websocket.Conn {
+func parseURIs(t *testing.T, raw string) []*url.URL {
 	t.Helper()
-	connection, _, err := websocket.Dial(context.Background(), wsURL(serverURL), &websocket.DialOptions{
-		HTTPHeader:   http.Header{"Authorization": []string{"TokenWorks-Mobile-Host " + strings.Repeat("H", 43)}},
-		Subprotocols: []string{protocolName},
-	})
+	parsed, err := url.Parse(raw)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(capabilities) == 0 {
-		capabilities = []string{"command.relay.v1", "connection.heartbeat.v1", "question.blocking.v1", "question.timed.v1", "session.cancel.v1", "session.catalog.v1", "session.create.v1", "session.read.v1"}
-	}
-	challenge := readChallenge(t, connection, "installation")
-	hello := hostHandshakePayload{
-		RuntimeID: runtimeID, RuntimeEpoch: runtimeEpoch,
-		DSHVersion: "0.2.1-rc.2", ApplicationVersion: "1.0.0", PluginVersion: "0.1.0",
-		ProtocolVersion: 1, Capabilities: capabilities,
-	}
-	normalized, err := normalizeHostHello(hello)
-	if err != nil {
-		t.Fatal(err)
-	}
-	hello.Proof = relaySign(t, key, map[string]any{
-		"iss": installationID, "aud": auth.RelayHandshakeAudience,
-		"challenge_id": challenge.ChallengeID, "connection_id": challenge.ConnectionID,
-		"nonce": challenge.Nonce, "runtime_id": normalized.RuntimeID,
-		"runtime_epoch": normalized.RuntimeEpoch, "hello_sha256": normalized.digest(),
-		"iat": time.Now().Unix(), "jti": "host-relay-routing-proof-000001",
-	})
-	writeEnvelope(t, connection, "hello.proof", hello)
-	ack := readEnvelope(t, connection)
-	if ack.Type != "hello.ok" || ack.Payload["role"] != "host" || ack.Payload["installation_id"] != installationID {
-		t.Fatalf("host socket did not authenticate: %+v", ack)
-	}
-	return connection
+	return []*url.URL{parsed}
 }
 
-func dialRelayDevice(t *testing.T, serverURL string, key *ecdsa.PrivateKey, ticket store.TicketRedemption, runtimeID string, capabilities ...string) *websocket.Conn {
-	t.Helper()
-	connection, _, err := websocket.Dial(context.Background(), wsURL(serverURL), &websocket.DialOptions{
-		HTTPHeader:   http.Header{"Authorization": []string{"TokenWorks-Mobile-Ticket " + strings.Repeat("T", 43)}},
-		Subprotocols: []string{protocolName},
-	})
-	if err != nil {
-		t.Fatal(err)
+func pemToCertificate(block string) (*x509.Certificate, error) {
+	decoded, _ := pem.Decode([]byte(block))
+	if decoded == nil {
+		return nil, errors.New("no pem block")
 	}
-	if len(capabilities) == 0 {
-		capabilities = []string{"command.relay.v1", "connection.heartbeat.v1", "question.blocking.v1", "question.timed.v1", "session.cancel.v1", "session.create.v1", "session.read.v1"}
-	}
-	challenge := readChallenge(t, connection, "device")
-	hello := deviceHandshakePayload{
-		DeviceID: ticket.DeviceID, Protocols: []int{1}, Capabilities: capabilities,
-	}
-	normalized, err := normalizeDeviceHello(hello, ticket.DeviceID)
-	if err != nil {
-		t.Fatal(err)
-	}
-	hello.Proof = relaySign(t, key, map[string]any{
-		"iss": ticket.DeviceID, "aud": auth.RelayHandshakeAudience,
-		"challenge_id": challenge.ChallengeID, "connection_id": challenge.ConnectionID,
-		"nonce": challenge.Nonce, "runtime_id": runtimeID, "hello_sha256": normalized.digest(),
-		"iat": time.Now().Unix(), "jti": "device-relay-routing-proof-0001",
-	})
-	writeEnvelope(t, connection, "hello.proof", hello)
-	ack := readEnvelope(t, connection)
-	if ack.Type != "hello.ok" || ack.Payload["role"] != "device" || ack.Payload["runtime_id"] != runtimeID {
-		t.Fatalf("device socket did not authenticate: %+v", ack)
-	}
-	return connection
-}
-
-func writeWireFrame(t *testing.T, connection *websocket.Conn, frame map[string]any) {
-	t.Helper()
-	data, err := json.Marshal(frame)
-	if err != nil {
-		t.Fatal(err)
-	}
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-	defer cancel()
-	if err := connection.Write(ctx, websocket.MessageText, data); err != nil {
-		t.Fatal(err)
-	}
-}
-
-func TestRealtimeEndpointRejectsTicketInQuery(t *testing.T) {
-	server := httptest.NewServer(New(&relayTestStore{}))
-	t.Cleanup(server.Close)
-	client := &http.Client{Timeout: 2 * time.Second}
-	request, err := http.NewRequest(http.MethodGet, server.URL+"?ticket="+strings.Repeat("D", 43), nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-	request.Header.Set("Authorization", "TokenWorks-Mobile-Ticket "+strings.Repeat("D", 43))
-	response, err := client.Do(request)
-	if err != nil {
-		t.Fatal(err)
-	}
-	response.Body.Close()
-	if response.StatusCode != http.StatusBadRequest {
-		t.Fatalf("ticket query status=%d, want 400", response.StatusCode)
-	}
-}
-
-func TestRealtimeEndpointClosesConnectionsWithoutSubprotocol(t *testing.T) {
-	key := relayTestKey(t)
-	publicJWK, thumbprint := relayTestPublicJWK(t, key)
-	fake := &relayTestStore{ticket: store.TicketRedemption{
-		DeviceID: "22222222-2222-4222-8222-222222222222", ProofKeyThumbprint: thumbprint,
-		ProofPublicJWK: publicJWK, RuntimeID: "33333333-3333-4333-8333-333333333333",
-	}}
-	server := httptest.NewServer(New(fake))
-	t.Cleanup(server.Close)
-	connection, _, err := websocket.Dial(context.Background(), wsURL(server.URL), &websocket.DialOptions{
-		HTTPHeader: http.Header{"Authorization": []string{"TokenWorks-Mobile-Ticket " + strings.Repeat("E", 43)}},
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer connection.CloseNow()
-	if connection.Subprotocol() != "" {
-		t.Fatalf("unexpected subprotocol=%q", connection.Subprotocol())
-	}
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-	defer cancel()
-	if _, _, err := connection.Read(ctx); err == nil {
-		t.Fatal("connection without tokenworks-mobile.remote.v1 remained open")
-	}
-}
-
-type testChallenge struct {
-	ConnectionID string `json:"connection_id"`
-	ChallengeID  string `json:"challenge_id"`
-	Nonce        string `json:"nonce"`
-	Role         string `json:"role"`
-}
-
-type testEnvelope struct {
-	V              int            `json:"v"`
-	Type           string         `json:"type"`
-	RequestID      string         `json:"request_id"`
-	RuntimeID      string         `json:"runtime_id"`
-	RuntimeEpoch   string         `json:"runtime_epoch"`
-	SessionID      string         `json:"session_id"`
-	DeviceID       string         `json:"device_id"`
-	UserID         string         `json:"user_id"`
-	PayloadSHA256  string         `json:"payload_sha256"`
-	SubscriptionID string         `json:"subscription_id"`
-	SyncID         string         `json:"sync_id"`
-	Payload        map[string]any `json:"payload"`
-}
-
-func readChallenge(t *testing.T, connection *websocket.Conn, role string) testChallenge {
-	t.Helper()
-	envelope := readEnvelope(t, connection)
-	if envelope.Type != "challenge" {
-		t.Fatalf("frame type=%q, want challenge", envelope.Type)
-	}
-	data, err := json.Marshal(envelope.Payload)
-	if err != nil {
-		t.Fatal(err)
-	}
-	var challenge testChallenge
-	if err := json.Unmarshal(data, &challenge); err != nil || challenge.Role != role || challenge.Nonce == "" ||
-		!uuidPattern.MatchString(challenge.ConnectionID) || !uuidPattern.MatchString(challenge.ChallengeID) {
-		t.Fatalf("invalid challenge payload=%s error=%v", data, err)
-	}
-	return challenge
-}
-
-func readEnvelope(t *testing.T, connection *websocket.Conn) testEnvelope {
-	t.Helper()
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-	defer cancel()
-	messageType, data, err := connection.Read(ctx)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if messageType != websocket.MessageText {
-		t.Fatalf("message type=%v, want text", messageType)
-	}
-	var envelope testEnvelope
-	if err := json.Unmarshal(data, &envelope); err != nil {
-		t.Fatalf("decode server frame: %v", err)
-	}
-	return envelope
-}
-
-func writeEnvelope(t *testing.T, connection *websocket.Conn, typ string, payload any) {
-	t.Helper()
-	data, err := json.Marshal(map[string]any{"v": 1, "type": typ, "payload": payload})
-	if err != nil {
-		t.Fatal(err)
-	}
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-	defer cancel()
-	if err := connection.Write(ctx, websocket.MessageText, data); err != nil {
-		t.Fatal(err)
-	}
-}
-
-func relayTestKey(t *testing.T) *ecdsa.PrivateKey {
-	t.Helper()
-	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
-	if err != nil {
-		t.Fatal(err)
-	}
-	return key
-}
-
-func relayTestPublicJWK(t *testing.T, key *ecdsa.PrivateKey) ([]byte, string) {
-	t.Helper()
-	jwk := map[string]string{
-		"kty": "EC", "crv": "P-256",
-		"x": base64.RawURLEncoding.EncodeToString(key.PublicKey.X.FillBytes(make([]byte, 32))),
-		"y": base64.RawURLEncoding.EncodeToString(key.PublicKey.Y.FillBytes(make([]byte, 32))),
-	}
-	encoded, err := json.Marshal(jwk)
-	if err != nil {
-		t.Fatal(err)
-	}
-	thumbprint, err := auth.PublicP256JWKThumbprintJSON(encoded)
-	if err != nil {
-		t.Fatal(err)
-	}
-	return encoded, thumbprint
-}
-
-func relaySign(t *testing.T, key *ecdsa.PrivateKey, claims map[string]any) string {
-	t.Helper()
-	header, err := json.Marshal(map[string]string{"typ": "tokenworks-mobile-relay-handshake-proof+jwt", "alg": "ES256"})
-	if err != nil {
-		t.Fatal(err)
-	}
-	payload, err := json.Marshal(claims)
-	if err != nil {
-		t.Fatal(err)
-	}
-	input := base64.RawURLEncoding.EncodeToString(header) + "." + base64.RawURLEncoding.EncodeToString(payload)
-	digest := sha256.Sum256([]byte(input))
-	r, s, err := ecdsa.Sign(rand.Reader, key, digest[:])
-	if err != nil {
-		t.Fatal(err)
-	}
-	signature := append(r.FillBytes(make([]byte, 32)), s.FillBytes(make([]byte, 32))...)
-	return input + "." + base64.RawURLEncoding.EncodeToString(signature)
-}
-
-func wsURL(httpURL string) string {
-	return "ws" + strings.TrimPrefix(httpURL, "http")
+	return x509.ParseCertificate(decoded.Bytes)
 }

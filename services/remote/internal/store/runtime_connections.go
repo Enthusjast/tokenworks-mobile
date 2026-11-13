@@ -3,35 +3,30 @@ package store
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
 	"errors"
 	"strings"
-	"time"
 	"unicode"
 )
 
 var ErrRuntimeConnectionStale = errors.New("store: runtime connection is stale")
-var ErrRuntimeProtocolUnsupported = errors.New("store: runtime protocol is unsupported")
 
+// RuntimeConnectionInput registers one authenticated Host tunnel generation.
 type RuntimeConnectionInput struct {
-	CredentialExpiresAt time.Time
-	InstallationID      string
-	KeyVersion          int64
-	RuntimeID           string
-	RuntimeEpoch        string
-	ConnectionID        string
-	DSHVersion          string
-	ApplicationVersion  string
-	PluginVersion       string
-	ProtocolVersion     int
+	InstallationID     string
+	KeyVersion         int64
+	RuntimeID          string
+	RuntimeEpoch       string
+	ConnectionID       string
+	DSHVersion         string
+	ApplicationVersion string
+	PluginVersion      string
 }
 
 type RuntimeConnection struct {
-	InstallationID  string `json:"installation_id"`
-	RuntimeID       string `json:"runtime_id"`
-	RuntimeEpoch    string `json:"runtime_epoch"`
-	ConnectionID    string `json:"connection_id"`
-	ProtocolVersion int    `json:"protocol_version"`
+	InstallationID string `json:"installation_id"`
+	RuntimeID      string `json:"runtime_id"`
+	RuntimeEpoch   string `json:"runtime_epoch"`
+	ConnectionID   string `json:"connection_id"`
 }
 
 func (postgres *Postgres) AttachRuntimeConnection(ctx context.Context, input RuntimeConnectionInput) (RuntimeConnection, error) {
@@ -43,15 +38,12 @@ func (postgres *Postgres) attachRuntimeConnectionOnce(ctx context.Context, input
 }
 
 func (postgres *Postgres) attachRuntimeConnectionOwned(ctx context.Context, input RuntimeConnectionInput, directory *RelayDirectory) (RuntimeConnection, error) {
-	if directory == nil && (postgres.connectionLimits.limits != nil || postgres.connectionLimits.err != nil) {
-		return RuntimeConnection{}, ErrDatabaseConfig
-	}
 	input.DSHVersion = strings.TrimSpace(input.DSHVersion)
 	input.ApplicationVersion = strings.TrimSpace(input.ApplicationVersion)
 	input.PluginVersion = strings.TrimSpace(input.PluginVersion)
 	if !grantUUIDPattern.MatchString(input.InstallationID) || !grantUUIDPattern.MatchString(input.RuntimeID) ||
 		!grantUUIDPattern.MatchString(input.RuntimeEpoch) || !grantUUIDPattern.MatchString(input.ConnectionID) ||
-		input.KeyVersion <= 0 || input.ProtocolVersion < 1 || input.ProtocolVersion > 32 {
+		input.KeyVersion <= 0 {
 		return RuntimeConnection{}, ErrHostCredentialInvalid
 	}
 	for _, version := range []string{input.DSHVersion, input.ApplicationVersion, input.PluginVersion} {
@@ -69,44 +61,19 @@ func (postgres *Postgres) attachRuntimeConnectionOwned(ctx context.Context, inpu
 			return RuntimeConnection{}, err
 		}
 	}
-	if directory != nil {
-		if err := postgres.lockConnectionCapacity(ctx, transaction); err != nil {
-			return RuntimeConnection{}, err
-		}
-	}
-	var protocolVersion int
-	var orgID string
+	var approved bool
 	err = transaction.QueryRowContext(ctx, `
-		select r.protocol_version, h.org_id::text
+		select true
 		from runtimes r
 		join installations i on i.id = r.installation_id and i.revoked_at is null
 		join hosts h on h.id = i.host_id and h.state = 'active'
 		where r.id = $1 and i.id = $2 and i.key_version = $3 and r.revoked_at is null and `+runtimeEnrollmentApprovedSQL+`
-		for update of r, i, h`, input.RuntimeID, input.InstallationID, input.KeyVersion).Scan(&protocolVersion, &orgID)
+		for update of r, i, h`, input.RuntimeID, input.InstallationID, input.KeyVersion).Scan(&approved)
 	if errors.Is(err, sql.ErrNoRows) {
 		return RuntimeConnection{}, ErrHostCredentialInvalid
 	}
 	if err != nil {
 		return RuntimeConnection{}, transactionFailure(err)
-	}
-	if !input.CredentialExpiresAt.IsZero() {
-		if err := checkRuntimeCredentialTime(ctx, transaction, input.CredentialExpiresAt); err != nil {
-			return RuntimeConnection{}, err
-		}
-	}
-	if protocolVersion != input.ProtocolVersion {
-		return RuntimeConnection{}, ErrRuntimeProtocolUnsupported
-	}
-	if directory != nil && postgres.connectionLimits.limits != nil {
-		var owner string
-		if err := transaction.QueryRowContext(ctx, `select u.id::text from installations i join users u on u.id=i.owner_user_id and u.status='active' join hosts h on h.id=i.host_id join org_memberships m on m.org_id=h.org_id and m.user_id=u.id where i.id=$1 for share of u,m`, input.InstallationID).Scan(&owner); errors.Is(err, sql.ErrNoRows) {
-			return RuntimeConnection{}, ErrHostCredentialInvalid
-		} else if err != nil {
-			return RuntimeConnection{}, transactionFailure(err)
-		}
-		if err := postgres.checkConnectionCapacity(ctx, transaction, owner, "", input.InstallationID, input.RuntimeID); err != nil {
-			return RuntimeConnection{}, err
-		}
 	}
 	if _, err := transaction.ExecContext(ctx, `
 		update runtimes
@@ -117,11 +84,6 @@ func (postgres *Postgres) attachRuntimeConnectionOwned(ctx context.Context, inpu
 		input.PluginVersion, input.RuntimeID, input.InstallationID, input.KeyVersion); err != nil {
 		return RuntimeConnection{}, transactionFailure(err)
 	}
-	if _, err := transaction.ExecContext(ctx, `
-		update sessions set state = 'unavailable', updated_at = clock_timestamp()
-		where runtime_id = $1`, input.RuntimeID); err != nil {
-		return RuntimeConnection{}, transactionFailure(err)
-	}
 	if directory != nil {
 		if _, err := transaction.ExecContext(ctx, `insert into relay_runtime_routes(runtime_id,node_id,generation,runtime_epoch,connection_id)
             values($1,$2,$3,$4,$5) on conflict(runtime_id) do update set node_id=excluded.node_id,generation=excluded.generation,
@@ -130,34 +92,11 @@ func (postgres *Postgres) attachRuntimeConnectionOwned(ctx context.Context, inpu
 			return RuntimeConnection{}, transactionFailure(err)
 		}
 	}
-	ended, err := endRuntimeApprovals(ctx, transaction, orgID, input.RuntimeID, "", false)
-	if err != nil {
-		return RuntimeConnection{}, err
-	}
-	metadata, _ := json.Marshal(map[string]any{
-		"runtime_id": input.RuntimeID, "runtime_epoch": input.RuntimeEpoch,
-		"connection_id": input.ConnectionID, "protocol_version": input.ProtocolVersion,
-	})
-	if _, err := transaction.ExecContext(ctx, `
-		insert into audit_log (org_id, actor_type, actor_id, runtime_id, action, result, metadata)
-		values ($1, 'installation', $2, $3, 'host.runtime.connect', 'success', $4::jsonb)`,
-		orgID, input.InstallationID, input.RuntimeID, string(metadata)); err != nil {
-		return RuntimeConnection{}, transactionFailure(err)
-	}
-	if !input.CredentialExpiresAt.IsZero() {
-		if err := checkRuntimeCredentialTime(ctx, transaction, input.CredentialExpiresAt); err != nil {
-			return RuntimeConnection{}, err
-		}
-	}
 	if err := transaction.Commit(); err != nil {
 		return RuntimeConnection{}, transactionFailure(err)
 	}
-	postgres.observeEndedApprovals("connection", ended)
-	return RuntimeConnection{
-		InstallationID: input.InstallationID, RuntimeID: input.RuntimeID,
-		RuntimeEpoch: input.RuntimeEpoch, ConnectionID: input.ConnectionID,
-		ProtocolVersion: protocolVersion,
-	}, nil
+	return RuntimeConnection{InstallationID: input.InstallationID, RuntimeID: input.RuntimeID,
+		RuntimeEpoch: input.RuntimeEpoch, ConnectionID: input.ConnectionID}, nil
 }
 
 func (postgres *Postgres) TouchRuntimeConnection(ctx context.Context, installationID, runtimeID, runtimeEpoch, connectionID string) error {
@@ -177,10 +116,7 @@ func (postgres *Postgres) touchRuntimeConnectionOwned(ctx context.Context, insta
 		return ErrDatabaseUnavailable
 	}
 	rows, err := result.RowsAffected()
-	if err != nil {
-		return ErrDatabaseUnavailable
-	}
-	if rows != 1 {
+	if err != nil || rows != 1 {
 		return ErrRuntimeConnectionStale
 	}
 	return nil
@@ -191,7 +127,6 @@ func (postgres *Postgres) DetachRuntimeConnection(ctx context.Context, installat
 }
 
 func (postgres *Postgres) detachRuntimeConnectionOwned(ctx context.Context, installationID, runtimeID, runtimeEpoch, connectionID string, directory *RelayDirectory) error {
-	var ended []endedApprovalObservation
 	transaction, err := postgres.DB.BeginTx(ctx, nil)
 	if err != nil {
 		return ErrDatabaseUnavailable
@@ -199,53 +134,20 @@ func (postgres *Postgres) detachRuntimeConnectionOwned(ctx context.Context, inst
 	defer transaction.Rollback()
 	condition, arguments := routeOwnerCondition(directory, false)
 	arguments = append([]any{runtimeID, installationID, runtimeEpoch, connectionID}, arguments...)
-	result, err := transaction.ExecContext(ctx, `
+	if _, err := transaction.ExecContext(ctx, `
 		update runtimes r set connection_id = null, connection_key_version = null, last_seen_at = null
-		where r.id = $1 and r.installation_id = $2 and r.epoch = $3 and r.connection_id = $4`+condition, arguments...)
-	if err != nil {
+		where r.id = $1 and r.installation_id = $2 and r.epoch = $3 and r.connection_id = $4`+condition, arguments...); err != nil {
 		return ErrDatabaseUnavailable
 	}
-	rows, err := result.RowsAffected()
-	if err != nil {
-		return ErrDatabaseUnavailable
-	}
-	if rows == 1 {
-		if directory != nil {
-			if _, err := transaction.ExecContext(ctx, `delete from relay_runtime_routes where runtime_id=$1 and runtime_epoch=$2 and connection_id=$3 and node_id=$4 and generation=$5`,
-				runtimeID, runtimeEpoch, connectionID, directory.identity.NodeID, directory.identity.Generation); err != nil {
-				return ErrDatabaseUnavailable
-			}
-		}
+	if directory != nil {
 		if _, err := transaction.ExecContext(ctx, `
-			update sessions set state = 'unavailable', updated_at = clock_timestamp()
-			where runtime_id = $1`, runtimeID); err != nil {
+			delete from relay_runtime_routes where runtime_id = $1 and runtime_epoch = $2 and connection_id = $3`,
+			runtimeID, runtimeEpoch, connectionID); err != nil {
 			return ErrDatabaseUnavailable
-		}
-		var orgID string
-		if err := transaction.QueryRowContext(ctx, `
-			select h.org_id::text from runtimes r join installations i on i.id = r.installation_id
-			join hosts h on h.id = i.host_id where r.id = $1`, runtimeID).Scan(&orgID); err != nil {
-			return ErrDatabaseUnavailable
-		}
-		ended, err = endRuntimeApprovals(ctx, transaction, orgID, runtimeID, connectionID, false)
-		if err != nil {
-			return err
 		}
 	}
 	if err := transaction.Commit(); err != nil {
 		return ErrDatabaseUnavailable
-	}
-	postgres.observeEndedApprovals("connection", ended)
-	return nil
-}
-
-func checkRuntimeCredentialTime(ctx context.Context, tx *sql.Tx, expires time.Time) error {
-	var live bool
-	if err := tx.QueryRowContext(ctx, `select $1::timestamptz>clock_timestamp()`, expires).Scan(&live); err != nil {
-		return transactionFailure(err)
-	}
-	if !live {
-		return ErrHostCredentialInvalid
 	}
 	return nil
 }

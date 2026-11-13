@@ -111,15 +111,7 @@ func (postgres *Postgres) quarantineRecoveryOnce(ctx context.Context, id, expect
 		{"enrollments", `update enrollments set state='cancelled',decided_at=clock_timestamp() where state in ('pending','user_confirmed')`},
 		{"challenges", `update installation_challenges set consumed_at=coalesce(consumed_at,clock_timestamp()) where consumed_at is null`},
 		{"host_credentials", `update host_connection_credentials set revoked_at=clock_timestamp() where revoked_at is null`},
-		{"tickets", `update realtime_tickets set consumed_at=clock_timestamp() where consumed_at is null`},
 		{"runtimes", `update runtimes set connection_id=null,connection_key_version=null,last_seen_at=null,epoch=null where connection_id is not null or epoch is not null`},
-		{"sessions", `update sessions set state='unavailable',updated_at=clock_timestamp() where state in ('available','running')`},
-		{"commands", `update commands set state='outcome_unknown',updated_at=clock_timestamp() where state not in ('settled','rejected','outcome_unknown')`},
-		{"approvals", `update approvals set state=case when state='decision_received' or host_state='consumed' then 'outcome_unknown' else 'invalidated' end
-            where state in ('pending','decision_received') or state='allowed' and host_state='consumed'`},
-		{"handoffs", `update file_handoffs set state='invalidated',staged_name=null,ended_at=clock_timestamp() where state in ('offered','downloading','staged')`},
-		{"push_bindings", `update push_bindings set state='disabled' where state in ('pending','active')`},
-		{"push_deliveries", `update push_deliveries set state='expired',lease_id=null,lease_until=null,error_code='recovery_quarantine',updated_at=clock_timestamp() where state in ('queued','leased','retry')`},
 		{"consumers", `update control_consumers set generation=gen_random_uuid(),lease_until=clock_timestamp(),relay_origin=null`},
 	}
 	for _, operation := range operations {

@@ -9,7 +9,6 @@ import (
 	"encoding/json"
 	"errors"
 	"regexp"
-	"sort"
 	"strings"
 	"time"
 	"unicode"
@@ -849,26 +848,11 @@ func activateEnrollment(ctx context.Context, transaction *sql.Tx, row enrollment
 	if _, err := transaction.ExecContext(ctx, `update hosts set state = 'active' where id = $1 and state = 'pending'`, row.HostID); err != nil {
 		return ErrDatabaseUnavailable
 	}
-	workspaces, err := enrollmentWorkspaces(ctx, transaction, row.RuntimeID)
-	if err != nil {
-		return err
-	}
-	workspaceIDs := make([]string, 0, len(workspaces))
-	for _, workspace := range workspaces {
-		workspaceIDs = append(workspaceIDs, workspace.ID)
-	}
-	actions := make([]string, 0, len(roleActions["owner"]))
-	for action := range roleActions["owner"] {
-		actions = append(actions, action)
-	}
-	sort.Strings(actions)
-	ownerGrant, err := NormalizeRuntimeGrantInput(RuntimeGrantInput{Role: "owner", Scope: GrantScope{
-		Actions: actions, Workspaces: workspaceIDs, Sessions: []string{},
-	}}, time.Now())
+	ownerGrant, err := NormalizeRuntimeGrantInput(RuntimeGrantInput{Role: "owner", Bindings: OwnerBindings()}, time.Now())
 	if err != nil {
 		return ErrDatabaseUnavailable
 	}
-	scopeJSON, err := json.Marshal(ownerGrant.Scope)
+	bindingsJSON, err := json.Marshal(ownerGrant.Bindings)
 	if err != nil {
 		return ErrDatabaseUnavailable
 	}
@@ -878,12 +862,12 @@ func activateEnrollment(ctx context.Context, transaction *sql.Tx, row enrollment
 	}
 	for _, ownerID := range owners {
 		if _, err := transaction.ExecContext(ctx, `
-			insert into runtime_grants (runtime_id, user_id, role, scope, grant_version, granted_by)
-			values ($1, $2, 'owner', $3::jsonb, 1, $4)`, row.RuntimeID, ownerID, string(scopeJSON), actorID); err != nil {
+			insert into runtime_grants (runtime_id, user_id, role, bindings, grant_version, granted_by)
+			values ($1, $2, 'owner', $3::jsonb, 1, $4)`, row.RuntimeID, ownerID, string(bindingsJSON), actorID); err != nil {
 			return ErrDatabaseUnavailable
 		}
 		if err := writeGrantChange(ctx, transaction, actorID, auditDeviceID, row.OrgID, row.RuntimeID,
-			ownerID, "owner", 1, nil, "runtime_grant.updated", "runtime_grant.update", scopeJSON); err != nil {
+			ownerID, "owner", 1, nil, "runtime_grant.updated", "runtime_grant.update", bindingsJSON); err != nil {
 			return ErrDatabaseUnavailable
 		}
 	}

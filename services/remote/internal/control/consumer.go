@@ -5,7 +5,6 @@ import (
 	"errors"
 	"time"
 
-	"tokenworks-mobile/services/remote/internal/observability"
 	"tokenworks-mobile/services/remote/internal/store"
 )
 
@@ -13,7 +12,6 @@ type ConsumerRepository interface {
 	Repository
 	Renew(context.Context) error
 	PruneEphemeral(context.Context) error
-	ExpireApprovals(context.Context, int) (int, error)
 }
 
 type fencedRepository struct {
@@ -43,54 +41,31 @@ func (repository fencedRepository) MarkControlEventPublished(ctx context.Context
 // RunConsumer retains independent per-operation authority checks while renewing
 // exclusive dispatcher ownership. A lost/unknown lease ends service admission;
 // only the process coordinator releases ownership after draining its sockets.
-func RunConsumer(ctx context.Context, repository ConsumerRepository, relay Relay, metrics *observability.Metrics) error {
+func RunConsumer(ctx context.Context, repository ConsumerRepository, relay Relay) error {
 	worker, cancel := context.WithCancel(ctx)
 	defer cancel()
 	fatal := make(chan error, 1)
 	done := make(chan struct{})
-	go func() { defer close(done); Run(worker, fencedRepository{repository, fatal}, relay, metrics) }()
+	go func() { defer close(done); Run(worker, fencedRepository{repository, fatal}, relay) }()
 	defer func() { cancel(); <-done }()
-	expiryDone := make(chan struct{})
-	go func() {
-		defer close(expiryDone)
-		repeat(worker, time.Second, "approval_expiry", func(attempt context.Context) error {
-			_, err := repository.ExpireApprovals(attempt, 32)
-			fencedRepository{repository, fatal}.report(err)
-			return err
-		}, metrics)
-	}()
-	defer func() { cancel(); <-expiryDone }()
 	ticker := time.NewTicker(time.Second)
 	defer ticker.Stop()
 	iterations := 0
 	for {
 		attempt, stop := context.WithTimeout(worker, 2*time.Second)
-		started := time.Now()
 		err := repository.Renew(attempt)
 		stop()
 		iterations++
 		if ctx.Err() != nil {
-			metrics.ControlRun("consumer", "cancelled", time.Since(started))
 			return nil
 		}
-		result := "ok"
-		if err != nil {
-			result = "error"
-		}
-		metrics.ControlRun("consumer", result, time.Since(started))
 		if err != nil {
 			return err
 		}
 		if iterations%60 == 1 {
 			cleanup, stop := context.WithTimeout(worker, 2*time.Second)
-			begin := time.Now()
-			cleanupErr := repository.PruneEphemeral(cleanup)
+			_ = repository.PruneEphemeral(cleanup)
 			stop()
-			result := "ok"
-			if cleanupErr != nil {
-				result = "error"
-			}
-			metrics.ControlRun("consumer_cleanup", result, time.Since(begin))
 		}
 		select {
 		case <-ctx.Done():

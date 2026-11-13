@@ -14,13 +14,11 @@ import (
 
 var ErrResourceDirectoryInvalid = errors.New("store: invalid resource directory request")
 
-// Shared eligibility for legacy and paged host/runtime discovery. Read-only
-// session authority alone never grants directory enumeration.
+// Shared eligibility for host/runtime discovery. A directory listing needs a
+// live grant that carries at least one native binding; sessions are not
+// mirrored by the Relay.
 const runtimeDirectoryEligibilitySQL = `g.revoked_at is null and (g.expires_at is null or g.expires_at > now())
- and (g.scope->'actions' ? 'host.list' or (g.scope->'actions' ? 'session.list' and exists (
- select 1 from sessions s where s.runtime_id=r.id and (
- coalesce(g.scope->'sessions','[]'::jsonb) @> jsonb_build_array(s.id::text) or
- (s.workspace_id is not null and coalesce(g.scope->'workspaces','[]'::jsonb) @> jsonb_build_array(s.workspace_id::text))))))`
+ and jsonb_array_length(g.bindings) > 0`
 
 const resourceDirectoryActorSQL = `with actor as materialized (
  select u.id from users u join devices d on d.user_id=u.id
@@ -134,8 +132,8 @@ func (postgres *Postgres) RuntimeDirectory(ctx context.Context, identity UserIde
 	err = postgres.DB.QueryRowContext(ctx, resourceDirectoryActorSQL+`
  select a.id::text,coalesce((select jsonb_agg(row_to_json(p) order by p.id) from (
  select r.id,h.id host_id,h.org_id organization_id,coalesce(r.dsh_version,'') dsh_version,
- coalesce(r.application_version,'') application_version,coalesce(r.plugin_version,'') plugin_version,r.protocol_version,r.last_seen_at,
- jsonb_build_object('role',g.role,'grant_version',g.grant_version,'scope',g.scope,'expires_at',g.expires_at) access
+ coalesce(r.application_version,'') application_version,coalesce(r.plugin_version,'') plugin_version,r.last_seen_at,
+ jsonb_build_object('role',g.role,'grant_version',g.grant_version,'bindings',g.bindings,'expires_at',g.expires_at) access
  `+visibleDirectoryRuntimeSQL+` and ($6::uuid is null or r.id>$6) order by r.id limit $7) p),'[]'::jsonb) from actor a`,
 		identity.Issuer, identity.Subject, device, proof, actorArg, after, limit+1).Scan(&actor, &raw)
 	if errors.Is(err, sql.ErrNoRows) {
@@ -148,11 +146,11 @@ func (postgres *Postgres) RuntimeDirectory(ctx context.Context, identity UserIde
 		if item.Access == nil || item.Access.GrantVersion < 1 || item.Access.GrantVersion > 9007199254740991 {
 			return RuntimeDirectory{}, ErrDatabaseUnavailable
 		}
-		normalized, err := NormalizeRuntimeGrantInput(RuntimeGrantInput{Role: item.Access.Role, Scope: item.Access.Scope}, time.Time{})
+		normalized, err := NormalizeRuntimeGrantInput(RuntimeGrantInput{Role: item.Access.Role, Bindings: item.Access.Bindings}, time.Time{})
 		if err != nil {
 			return RuntimeDirectory{}, ErrDatabaseUnavailable
 		}
-		item.Access.Scope = normalized.Scope
+		item.Access.Bindings = normalized.Bindings
 	}
 	if len(page.Items) > limit {
 		page.Items = page.Items[:limit]

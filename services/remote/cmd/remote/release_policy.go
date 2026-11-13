@@ -61,7 +61,7 @@ func runAppReleaseCommand(args []string, output io.Writer) error {
 		}{"tokenworks-mobile-app-release-policy/v1", ref})
 	}
 	epoch := os.Getenv("REMOTE_DATABASE_EPOCH")
-	if !commandRateEpochPattern.MatchString(epoch) || command == "replace" && !store.ValidAppReleasePolicyChange(epoch, *id, *expected, catalog) || command == "confirm" && !store.ValidAppReleasePolicyConfirmation(epoch, *id, *expected, catalog) {
+	if !store.ValidDatabaseEpoch(epoch) || command == "replace" && !store.ValidAppReleasePolicyChange(epoch, *id, *expected, catalog) || command == "confirm" && !store.ValidAppReleasePolicyConfirmation(epoch, *id, *expected, catalog) {
 		return errReleaseConfiguration
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 8*time.Second)

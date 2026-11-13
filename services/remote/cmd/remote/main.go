@@ -17,7 +17,6 @@ import (
 	"tokenworks-mobile/services/remote/internal/accounts"
 	"tokenworks-mobile/services/remote/internal/control"
 	"tokenworks-mobile/services/remote/internal/httpapi"
-	"tokenworks-mobile/services/remote/internal/observability"
 	"tokenworks-mobile/services/remote/internal/relay"
 	"tokenworks-mobile/services/remote/internal/requestlog"
 	"tokenworks-mobile/services/remote/internal/store"
@@ -26,27 +25,14 @@ import (
 func main() {
 	operation := run
 	if len(os.Args) > 1 {
-		if os.Args[1] == "version" || os.Args[1] == "--version" {
+		switch os.Args[1] {
+		case "version", "--version":
 			operation = func() error { return runVersionCommand(os.Args[2:], os.Stdout) }
-		} else if os.Args[1] == "recovery" {
-			operation = func() error { return runRecoveryCommand(os.Args[2:], os.Stdout) }
-		} else if os.Args[1] == "archive" {
-			operation = func() error { return runArchiveCommand(os.Args[2:], os.Stdout) }
-		} else if os.Args[1] == "command-limits" {
-			operation = func() error { return runCommandRateCommand(os.Args[2:], os.Stdout) }
-		} else if os.Args[1] == "connection-limits" {
-			operation = func() error { return runConnectionLimitCommand(os.Args[2:], os.Stdout) }
-		} else if os.Args[1] == "queue-limits" {
-			operation = func() error { return runSendQueueDescription(os.Args[2:], os.Stdout) }
-		} else if os.Args[1] == "identities" {
+		case "identities":
 			operation = func() error { return runIdentityCommand(os.Args[2:], os.Stdout) }
-		} else if os.Args[1] == "app-releases" {
+		case "app-releases":
 			operation = func() error { return runAppReleaseCommand(os.Args[2:], os.Stdout) }
-		} else if os.Args[1] == "files" {
-			operation = func() error { return runFileCommand(os.Args[2:], os.Stdout) }
-		} else if os.Args[1] == "approval-authority" {
-			operation = func() error { return runApprovalAuthorityCommand(os.Args[2:], os.Stdout) }
-		} else {
+		default:
 			operation = func() error { return errors.New("remote service arguments are invalid") }
 		}
 	}
@@ -59,18 +45,6 @@ func main() {
 func run() error {
 	nodeID := strings.TrimSpace(os.Getenv("REMOTE_RELAY_NODE_ID"))
 	relayConfig, err := loadRelayDeployment(os.Getenv("REMOTE_RELAY_CONFIG_FILE"), nodeID)
-	if err != nil {
-		return err
-	}
-	commandLimits, err := loadCommandRateLimits(os.Getenv("REMOTE_COMMAND_LIMITS_FILE"))
-	if err != nil {
-		return err
-	}
-	connectionLimits, err := loadConnectionLimits(os.Getenv("REMOTE_CONNECTION_LIMITS_FILE"))
-	if err != nil {
-		return err
-	}
-	queueLimits, err := loadSendQueueLimits(os.Getenv("REMOTE_RELAY_QUEUE_LIMITS_FILE"))
 	if err != nil {
 		return err
 	}
@@ -98,52 +72,7 @@ func run() error {
 	if err := database.ConfigureSerializableAdmissions(admissions); err != nil {
 		return errors.New("remote serializable admission budget must be between 1 and 30")
 	}
-	approvalConfig, err := loadApprovalConfig(os.Getenv("REMOTE_APPROVAL_POLICY_FILE"), database, os.Getenv("REMOTE_ISSUER"), csv(os.Getenv("REMOTE_CLIENT_IDS")))
-	if err != nil {
-		return err
-	}
-	fileRuntime, err := loadFileRuntime(os.Getenv("REMOTE_FILES_CONFIG_FILE"), database)
-	if err != nil {
-		return err
-	}
-	defer fileRuntime.Close()
-	pushRuntime, err := loadPushRuntime(os.Getenv("REMOTE_PUSH_CONFIG_FILE"), database, os.Getenv("REMOTE_ISSUER"), approvalConfig)
-	if err != nil {
-		return err
-	}
-
-	metricsAddress := strings.TrimSpace(os.Getenv("REMOTE_METRICS_LISTEN_ADDR"))
-	var metrics *observability.Metrics
-	if metricsAddress != "" {
-		metrics = observability.New()
-	}
-	if err := database.ConfigureCommandMetrics(metrics); err != nil {
-		return errors.New("remote command observability configuration is invalid")
-	}
-	if err := database.ConfigureApprovalMetrics(metrics); err != nil {
-		return errors.New("remote approval observability configuration is invalid")
-	}
-	if err := database.ConfigureFileMetrics(metrics); err != nil {
-		return errors.New("remote file observability configuration is invalid")
-	}
-	if err := database.ConfigurePushMetrics(metrics); err != nil {
-		return errors.New("remote push observability configuration is invalid")
-	}
-	apiConfig := httpapi.Config{HostClientIDs: csv(os.Getenv("REMOTE_HOST_CLIENT_IDS")), Approvals: approvalConfig, Metrics: metrics}
-	if fileRuntime != nil {
-		if err := fileRuntime.service.ConfigureMetrics(metrics); err != nil {
-			return errors.New("remote file worker observability configuration is invalid")
-		}
-		apiConfig.Files = fileRuntime.service
-		apiConfig.FileHandoffs = fileRuntime.handoffs
-		apiConfig.FileExports = fileRuntime.exports
-	}
-	if pushRuntime != nil {
-		if err := pushRuntime.sender.ConfigureMetrics(metrics); err != nil {
-			return errors.New("remote push sender observability configuration is invalid")
-		}
-		apiConfig.Push = pushRuntime.repository
-	}
+	apiConfig := httpapi.Config{HostClientIDs: csv(os.Getenv("REMOTE_HOST_CLIENT_IDS"))}
 	apiConfig.Releases, err = loadRegisteredAppReleases(context.Background(), os.Getenv("REMOTE_APP_RELEASES_FILE"), database, recovery.Epoch())
 	if err != nil {
 		return err
@@ -159,12 +88,6 @@ func run() error {
 			log.Print("remote control consumer release unavailable=true")
 		}
 	}()
-	if err := database.ConfigureCommandRateLimits(context.Background(), commandLimits); err != nil {
-		return errCommandRateConfiguration
-	}
-	if err := database.ConfigureConnectionLimits(context.Background(), connectionLimits); err != nil {
-		return errConnectionLimitConfiguration
-	}
 	origin := ""
 	if relayConfig != nil {
 		origin = relayConfig.Origin
@@ -174,12 +97,6 @@ func run() error {
 		return errors.New("remote relay directory is unavailable")
 	}
 	handler := httpapi.New(directory, verifier, apiConfig)
-	if err := handler.ConfigurePendingHandshakes(connectionLimits.PendingHandshakes); err != nil {
-		return errConnectionLimitConfiguration
-	}
-	if err := handler.ConfigureSendQueueLimits(queueLimits); err != nil {
-		return errSendQueueConfiguration
-	}
 	routingConfig := relay.RoutingConfig{Directory: directory}
 	if relayConfig != nil {
 		routingConfig.ClientTLS, routingConfig.MaxProxyConnections = relayConfig.clientTLS, relayConfig.MaxProxyConnections
@@ -188,22 +105,18 @@ func run() error {
 		return errRelayConfiguration
 	}
 	accessLog := slog.New(slog.NewJSONHandler(os.Stderr, nil))
-	privateEndpoint, err := startRelayEndpoint(relayConfig, requestlog.Middleware(recovery.Middleware(handler.PrivateRelayHandler()), "relay", accessLog))
+	privateEndpoint, err := startRelayEndpoint(relayConfig,
+		requestlog.Middleware(recovery.Middleware(handler.PrivateRelayHandler(handler.ForwardedDeviceHandler())), "relay", accessLog))
 	if err != nil {
 		return err
 	}
 	defer privateEndpoint.close()
-	// Also fence upgraded transports if any listener exits unexpectedly.
+	// Fence upgraded transports if any listener exits unexpectedly.
 	defer func() {
 		drain, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 		_ = handler.Drain(drain)
 	}()
-	metricsEndpoint, err := startMetricsEndpoint(metricsAddress, metrics)
-	if err != nil {
-		return err
-	}
-	defer metricsEndpoint.close()
 	var publicHandler http.Handler = handler
 	if origin := os.Getenv("REMOTE_ACCOUNTS_ORIGIN"); origin != "" {
 		accountService, accountErr := accounts.New(database, recovery.Epoch())
@@ -220,8 +133,8 @@ func run() error {
 		Addr:              envOr("REMOTE_LISTEN_ADDR", "127.0.0.1:8080"),
 		Handler:           requestlog.Middleware(recovery.Middleware(publicHandler), "public", accessLog),
 		ReadHeaderTimeout: 5 * time.Second,
-		ReadTimeout:       30 * time.Second,
-		WriteTimeout:      30 * time.Second,
+		ReadTimeout:       0,
+		WriteTimeout:      0,
 		IdleTimeout:       60 * time.Second,
 		MaxHeaderBytes:    32 << 10,
 	}
@@ -245,33 +158,16 @@ func run() error {
 			proofs.Run(controlCtx)
 		}
 	}()
-	unknownDone := make(chan struct{})
-	go func() { defer close(unknownDone); observability.RunUnknownResults(controlCtx, metrics, database) }()
 	go func() {
 		defer close(controlDone)
-		if err := control.RunConsumer(controlCtx, consumer, handler, metrics); err != nil {
+		if err := control.RunConsumer(controlCtx, consumer, handler); err != nil {
 			controlFailure <- err
 		}
 	}()
-	filesDone := make(chan struct{})
-	if fileRuntime != nil {
-		go func() { defer close(filesDone); fileRuntime.service.Run(controlCtx) }()
-	} else {
-		close(filesDone)
-	}
-	pushDone := make(chan struct{})
-	if pushRuntime != nil {
-		go func() { defer close(pushDone); pushRuntime.Run(controlCtx) }()
-	} else {
-		close(pushDone)
-	}
 	defer func() {
 		stopControl()
 		<-controlDone
-		<-filesDone
-		<-pushDone
 		<-proofsDone
-		<-unknownDone
 		<-recoveryDone
 	}()
 	result := make(chan error, 1)
@@ -280,13 +176,8 @@ func run() error {
 	case <-ctx.Done():
 		shutdown, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
-		// Closing upgraded peers also cancels pending approval detail RPCs. Run
-		// this alongside HTTP shutdown so an active admission cannot hold shutdown
-		// open while waiting for a host that has not yet been drained.
 		drained := make(chan error, 1)
-		go func() {
-			drained <- handler.Drain(shutdown)
-		}()
+		go func() { drained <- handler.Drain(shutdown) }()
 		shutdownErr := server.Shutdown(shutdown)
 		drainErr := <-drained
 		if shutdownErr != nil {
@@ -295,7 +186,7 @@ func run() error {
 		}
 		if drainErr != nil {
 			_ = server.Close()
-			return fmt.Errorf("remote realtime drain failed: %w", drainErr)
+			return fmt.Errorf("remote native drain failed: %w", drainErr)
 		}
 		err := <-result
 		if !errors.Is(err, http.ErrServerClosed) {
@@ -307,22 +198,12 @@ func run() error {
 			return nil
 		}
 		return fmt.Errorf("remote service listener failed: %w", err)
-	case <-metricsEndpoint.errors():
-		// An explicitly configured listener is part of the service lifecycle.
-		// Stop admission and drain upgraded peers before returning a failure.
-		_ = server.Close()
-		shutdown, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		defer cancel()
-		if err := handler.Drain(shutdown); err != nil {
-			return fmt.Errorf("remote metrics failed and realtime drain failed: %w", err)
-		}
-		return errors.New("remote metrics listener failed")
 	case <-controlFailure:
 		_ = server.Close()
 		shutdown, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 		if err := handler.Drain(shutdown); err != nil {
-			return fmt.Errorf("remote control consumer failed and realtime drain failed: %w", err)
+			return fmt.Errorf("remote control consumer failed and native drain failed: %w", err)
 		}
 		return errors.New("remote control consumer authority unavailable")
 	case <-privateEndpoint.errors():
@@ -330,7 +211,7 @@ func run() error {
 		shutdown, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 		if err := handler.Drain(shutdown); err != nil {
-			return fmt.Errorf("remote private relay failed and realtime drain failed: %w", err)
+			return fmt.Errorf("remote private relay failed and native drain failed: %w", err)
 		}
 		return errors.New("remote private relay listener failed")
 	case <-recoveryFailure:
@@ -338,7 +219,7 @@ func run() error {
 		shutdown, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 		if err := handler.Drain(shutdown); err != nil {
-			return fmt.Errorf("remote recovery fence failed and realtime drain failed: %w", err)
+			return fmt.Errorf("remote recovery fence failed and native drain failed: %w", err)
 		}
 		return errors.New("remote service database recovery authority unavailable")
 	}

@@ -219,17 +219,7 @@ func (consumer *ControlConsumer) MarkControlEventPublished(ctx context.Context, 
 	}
 	var covered bool
 	if err := transaction.QueryRowContext(ctx, `select pg_visible_in_snapshot(producer_xid,$2::pg_snapshot) from control_outbox where id=$1 and database_epoch=$3`, id, coverage, consumer.databaseEpoch).Scan(&covered); errors.Is(err, sql.ErrNoRows) {
-		var archived bool
-		if err := transaction.QueryRowContext(ctx, `select exists(select 1 from control_outbox_archive where event_id=$1 and database_epoch=$2 and batch_epoch=$2 and reason='covered')`, id, consumer.databaseEpoch).Scan(&archived); err != nil {
-			return ErrDatabaseUnavailable
-		}
-		if !archived {
-			return ErrGrantInvalid
-		}
-		if transaction.Commit() != nil {
-			return ErrDatabaseUnavailable
-		}
-		return nil
+		return ErrGrantInvalid
 	} else if err != nil {
 		return ErrDatabaseUnavailable
 	}

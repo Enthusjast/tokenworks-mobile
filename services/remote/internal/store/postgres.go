@@ -21,19 +21,17 @@ var ErrDatabaseConfig = errors.New("store: invalid PostgreSQL configuration")
 var ErrDatabaseUnavailable = errors.New("store: PostgreSQL unavailable")
 var ErrIdentityNotProvisioned = errors.New("store: user is not provisioned")
 var ErrDeviceNotFound = errors.New("store: device not found")
+var ErrSchemaIncompatible = errors.New("store: database was created by the previous business schema; create a new database for the native transport baseline")
 
 // Postgres owns a bounded database/sql pool over the pinned pgx driver.
 type Postgres struct {
-	DB               *sql.DB
-	admissionOnce    sync.Once
-	admission        chan struct{}
-	commands         commandObservation
-	commandRates     commandRateState
-	connectionLimits connectionLimitState
-	approvals        approvalObservation
-	files            fileObservation
-	push             pushObservation
+	DB            *sql.DB
+	admissionOnce sync.Once
+	admission     chan struct{}
 }
+
+// NativeSchemaFormat identifies the one schema this build understands.
+const NativeSchemaFormat = "tokenworks-mobile-native-transport/v1"
 
 const DefaultSerializableAdmissions = 4
 const MaximumSerializableAdmissions = 30
@@ -72,42 +70,17 @@ type Runtime struct {
 	DSHVersion         string         `json:"dsh_version,omitempty"`
 	ApplicationVersion string         `json:"application_version,omitempty"`
 	PluginVersion      string         `json:"plugin_version,omitempty"`
-	ProtocolVersion    int            `json:"protocol_version"`
 	LastSeenAt         *time.Time     `json:"last_seen_at,omitempty"`
 	Access             *RuntimeAccess `json:"access,omitempty"`
 }
 
 // RuntimeAccess is the current user's directory snapshot, not a credential.
-// Ticket issuance and every operation independently recheck current authority.
+// Every operation independently rechecks current authority.
 type RuntimeAccess struct {
-	Role         string     `json:"role"`
-	GrantVersion int64      `json:"grant_version"`
-	Scope        GrantScope `json:"scope"`
-	ExpiresAt    *time.Time `json:"expires_at,omitempty"`
-}
-
-type Session struct {
-	RuntimeID        string             `json:"-"`
-	WorkspaceID      *string            `json:"workspace_id"`
-	ID               string             `json:"session_id"`
-	State            string             `json:"state"`
-	LastPersistedSeq int64              `json:"last_persisted_seq"`
-	UpdatedAt        time.Time          `json:"updated_at"`
-	Metadata         *DirectoryMetadata `json:"metadata,omitempty"`
-}
-
-type CommandStatus struct {
-	// Current dispatch attempt only; this flag grants no new file admission.
-	ReconcileFiles bool                `json:"-"`
-	RequestID      string              `json:"request_id"`
-	SessionID      string              `json:"session_id,omitempty"`
-	WorkspaceID    string              `json:"workspace_id,omitempty"`
-	ChildSessionID string              `json:"child_session_id,omitempty"`
-	ForkOutcome    *SessionForkOutcome `json:"fork_outcome,omitempty"`
-	CommandType    string              `json:"command_type,omitempty"`
-	State          string              `json:"state"`
-	PayloadSHA256  string              `json:"payload_sha256"`
-	UpdatedAt      time.Time           `json:"updated_at"`
+	Role         string         `json:"role"`
+	GrantVersion int64          `json:"grant_version"`
+	Bindings     []GrantBinding `json:"bindings"`
+	ExpiresAt    *time.Time     `json:"expires_at,omitempty"`
 }
 
 type DeviceRegistration struct {
@@ -168,6 +141,12 @@ func Open(ctx context.Context, dsn string) (*Postgres, error) {
 	if err := database.PingContext(ping); err != nil {
 		_ = database.Close()
 		return nil, ErrDatabaseUnavailable
+	}
+	var format string
+	err = database.QueryRowContext(ping, `select format from schema_identity`).Scan(&format)
+	if err != nil || format != NativeSchemaFormat {
+		_ = database.Close()
+		return nil, ErrSchemaIncompatible
 	}
 	return &Postgres{DB: database}, nil
 }
@@ -278,8 +257,8 @@ func (postgres *Postgres) ListRuntimes(ctx context.Context, identity UserIdentit
 	rows, err := postgres.DB.QueryContext(ctx, `
 		select distinct r.id::text, h.id::text, coalesce(r.dsh_version, ''),
 		       coalesce(r.application_version, ''), coalesce(r.plugin_version, ''),
-		       r.protocol_version, r.last_seen_at, h.org_id::text,
-		       g.role, g.grant_version, g.scope, g.expires_at
+		       r.last_seen_at, h.org_id::text,
+		       g.role, g.grant_version, g.bindings, g.expires_at
 		from users u
 		join org_memberships m on m.user_id = u.id
 		join hosts h on h.org_id = m.org_id and h.state = 'active'
@@ -297,20 +276,20 @@ func (postgres *Postgres) ListRuntimes(ctx context.Context, identity UserIdentit
 	for rows.Next() {
 		var runtime Runtime
 		var access RuntimeAccess
-		var scopeJSON []byte
+		var bindingsJSON []byte
 		if err := rows.Scan(&runtime.ID, &runtime.HostID, &runtime.DSHVersion, &runtime.ApplicationVersion,
-			&runtime.PluginVersion, &runtime.ProtocolVersion, &runtime.LastSeenAt, &runtime.OrganizationID,
-			&access.Role, &access.GrantVersion, &scopeJSON, &access.ExpiresAt); err != nil {
+			&runtime.PluginVersion, &runtime.LastSeenAt, &runtime.OrganizationID,
+			&access.Role, &access.GrantVersion, &bindingsJSON, &access.ExpiresAt); err != nil {
 			return nil, ErrDatabaseUnavailable
 		}
-		if access.GrantVersion < 1 || access.GrantVersion > 9_007_199_254_740_991 || json.Unmarshal(scopeJSON, &access.Scope) != nil {
+		if access.GrantVersion < 1 || access.GrantVersion > 9_007_199_254_740_991 || json.Unmarshal(bindingsJSON, &access.Bindings) != nil {
 			return nil, ErrDatabaseUnavailable
 		}
-		normalized, err := NormalizeRuntimeGrantInput(RuntimeGrantInput{Role: access.Role, Scope: access.Scope}, time.Time{})
+		normalized, err := NormalizeRuntimeGrantInput(RuntimeGrantInput{Role: access.Role, Bindings: access.Bindings}, time.Time{})
 		if err != nil {
 			return nil, ErrDatabaseUnavailable
 		}
-		access.Scope = normalized.Scope
+		access.Bindings = normalized.Bindings
 		runtime.Access = &access
 		runtimes = append(runtimes, runtime)
 	}
@@ -318,91 +297,6 @@ func (postgres *Postgres) ListRuntimes(ctx context.Context, identity UserIdentit
 		return nil, ErrDatabaseUnavailable
 	}
 	return runtimes, nil
-}
-
-func (postgres *Postgres) ListSessions(ctx context.Context, identity UserIdentity, runtimeID string) ([]Session, error) {
-	rows, err := postgres.DB.QueryContext(ctx, `
-		select s.id::text, s.runtime_id::text, s.workspace_id::text, s.state, s.last_persisted_seq, s.updated_at
-		from users u
-		join org_memberships m on m.user_id = u.id
-		join hosts h on h.org_id = m.org_id and h.state = 'active'
-		join installations i on i.host_id = h.id and i.revoked_at is null
-		join runtimes r on r.installation_id = i.id and r.id = $3 and r.revoked_at is null and `+runtimeEnrollmentApprovedSQL+`
-		join runtime_grants g on g.runtime_id = r.id and g.user_id = u.id
-		join sessions s on s.runtime_id = r.id
-		where u.issuer = $1 and u.subject = $2 and u.status = 'active'
-		  and g.revoked_at is null and (g.expires_at is null or g.expires_at > now())
-		  and g.scope->'actions' ? 'session.list'
-		  and (
-		      coalesce(g.scope->'sessions', '[]'::jsonb) @> jsonb_build_array(s.id::text)
-		      or (s.workspace_id is not null and coalesce(g.scope->'workspaces', '[]'::jsonb) @> jsonb_build_array(s.workspace_id::text))
-		  )
-		order by s.updated_at desc, s.id`, identity.Issuer, identity.Subject, runtimeID)
-	if err != nil {
-		return nil, ErrDatabaseUnavailable
-	}
-	defer rows.Close()
-	sessions := make([]Session, 0)
-	for rows.Next() {
-		var session Session
-		if err := rows.Scan(&session.ID, &session.RuntimeID, &session.WorkspaceID, &session.State, &session.LastPersistedSeq, &session.UpdatedAt); err != nil {
-			return nil, ErrDatabaseUnavailable
-		}
-		sessions = append(sessions, session)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, ErrDatabaseUnavailable
-	}
-	return sessions, nil
-}
-
-func (postgres *Postgres) CommandStatus(ctx context.Context, identity UserIdentity, deviceID, requestID string) (CommandStatus, error) {
-	var status CommandStatus
-	var forkOutcome []byte
-	err := postgres.DB.QueryRowContext(ctx, `
-		select c.request_id::text, coalesce(c.session_id::text, ''), coalesce(c.workspace_id::text, ''), c.state, c.payload_sha256, c.updated_at,
-		       coalesce(c.child_session_id::text, ''), c.fork_outcome,
-		       case when c.action = 'session.fork' then 'session.fork' else '' end
-		from users u
-		join devices d on d.user_id = u.id and d.id = $3 and d.revoked_at is null
-		join command_records c on c.device_id = d.id and c.user_id = u.id and c.request_id = $4::uuid
-		left join sessions s on s.id = c.session_id and s.runtime_id = c.runtime_id
-		left join workspaces w on w.id = c.workspace_id and w.runtime_id = c.runtime_id
-		join runtime_grants g on g.runtime_id = c.runtime_id and g.user_id = u.id
-		join runtimes r on r.id = c.runtime_id and r.revoked_at is null and `+runtimeEnrollmentApprovedSQL+`
-		join installations i on i.id = r.installation_id and i.revoked_at is null
-		join hosts h on h.id = i.host_id and h.state = 'active'
-		join org_memberships m on m.org_id = h.org_id and m.user_id = u.id
-		where u.issuer = $1 and u.subject = $2 and u.status = 'active'
-		  and g.revoked_at is null and (g.expires_at is null or g.expires_at > now())
-		  and g.scope->'actions' ? 'command.status'
-		  and (
-		      (c.action = 'session.fork' and s.id is not null and w.id is not null
-		        and s.workspace_id = c.workspace_id
-		        and g.scope->'workspaces' @> jsonb_build_array(w.id::text)
-		        and (g.scope->'sessions' @> jsonb_build_array(s.id::text)
-		          or g.scope->'workspaces' @> jsonb_build_array(s.workspace_id::text)))
-		      or (c.action is distinct from 'session.fork' and (
-		        (c.workspace_id is not null and w.id is not null
-		          and (c.session_id is null or s.workspace_id = c.workspace_id)
-		          and g.scope->'workspaces' @> jsonb_build_array(w.id::text))
-		        or (c.workspace_id is null and (
-		          g.scope->'sessions' @> jsonb_build_array(s.id::text)
-		          or (s.workspace_id is not null and g.scope->'workspaces' @> jsonb_build_array(s.workspace_id::text))))))
-		  )`,
-		identity.Issuer, identity.Subject, deviceID, requestID).
-		Scan(&status.RequestID, &status.SessionID, &status.WorkspaceID, &status.State, &status.PayloadSHA256, &status.UpdatedAt, &status.ChildSessionID, &forkOutcome, &status.CommandType)
-	if errors.Is(err, sql.ErrNoRows) {
-		return CommandStatus{}, ErrDeviceNotFound
-	}
-	if err != nil {
-		return CommandStatus{}, ErrDatabaseUnavailable
-	}
-	status.ForkOutcome, err = DecodeSessionForkOutcome(forkOutcome)
-	if err != nil {
-		return CommandStatus{}, ErrDatabaseUnavailable
-	}
-	return status, nil
 }
 
 func (postgres *Postgres) RegisterDevice(ctx context.Context, registration DeviceRegistration) (string, error) {
@@ -504,18 +398,6 @@ func (postgres *Postgres) RevokeDevice(ctx context.Context, issuer, subject, dev
 	metadata, _ := json.Marshal(map[string]string{"device_id": revokedID})
 	if _, err := transaction.ExecContext(ctx, `
 		insert into control_outbox (topic, payload) values ('device.revoked', $1::jsonb)`, string(metadata)); err != nil {
-		return ErrDatabaseUnavailable
-	}
-	// Scope host invalidations to runtimes that actually accepted this device's
-	// unspent decision. Never broadcast another organization's device IDs.
-	if _, err := transaction.ExecContext(ctx, `
-		insert into control_outbox (org_id,topic,payload)
-		select distinct h.org_id, 'approval.device.revoked',
-		    jsonb_build_object('runtime_id',a.runtime_id::text,'device_id',$1::uuid::text)
-		from approvals a join runtimes r on r.id=a.runtime_id
-		join installations i on i.id=r.installation_id join hosts h on h.id=i.host_id
-		where a.metadata_version=1 and a.decided_device_id=$1 and a.decision='allow_once'
-		  and a.state='decision_received' and a.expires_at>clock_timestamp() and a.decision_expires_at>clock_timestamp()`, revokedID); err != nil {
 		return ErrDatabaseUnavailable
 	}
 	if _, err := transaction.ExecContext(ctx, `

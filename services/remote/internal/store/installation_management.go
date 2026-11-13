@@ -191,10 +191,7 @@ func (postgres *Postgres) revokeInstallationOnce(ctx context.Context, identity U
 	}
 	for _, query := range []string{
 		`update runtimes set revoked_at=coalesce(revoked_at,clock_timestamp()) where installation_id=$1 and ($2::uuid is null or id=$2)`,
-		`update realtime_tickets set consumed_at=clock_timestamp() where consumed_at is null and runtime_id in(select id from runtimes where installation_id=$1 and ($2::uuid is null or id=$2))`,
 		`update enrollments set state='cancelled',decided_at=clock_timestamp() where installation_id=$1 and ($2::uuid is null or runtime_id=$2) and state in('pending','user_confirmed')`,
-		`update sessions set state='unavailable',updated_at=clock_timestamp() where runtime_id in(select id from runtimes where installation_id=$1 and ($2::uuid is null or id=$2)) and state in('available','running')`,
-		`update file_handoffs set state='invalidated',staged_name=null,ended_at=clock_timestamp() where runtime_id in(select id from runtimes where installation_id=$1 and ($2::uuid is null or id=$2)) and state in('offered','downloading','staged')`,
 	} {
 		if _, err = tx.ExecContext(ctx, query, installationID, target); err != nil {
 			return false, transactionFailure(err)

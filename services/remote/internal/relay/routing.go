@@ -4,24 +4,21 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
-	"encoding/base64"
-	"encoding/json"
 	"errors"
-	"net"
 	"net/http"
-	"sync"
-	"sync/atomic"
-	"time"
+	"net/http/httputil"
+	"net/url"
 
-	"github.com/coder/websocket"
 	"tokenworks-mobile/services/remote/internal/requestlog"
 	"tokenworks-mobile/services/remote/internal/store"
 )
 
-const privateRelayPath = "/internal/relay/v1/device"
+const privateRelayPath = "/internal/relay/v2/device"
 const relayNodeHeader = "X-TokenWorks-Mobile-Relay-Node"
 const relayGenerationHeader = "X-TokenWorks-Mobile-Relay-Generation"
 const relayRouteHeader = "X-TokenWorks-Mobile-Relay-Route"
+const relayRuntimeHeader = "X-TokenWorks-Runtime"
+const leaseHeader = "X-TokenWorks-Lease"
 
 type RoutingDirectory interface {
 	RelayIdentity() store.RelayNode
@@ -38,17 +35,6 @@ type RoutingConfig struct {
 type nodeRouting struct {
 	RoutingConfig
 	identity store.RelayNode
-}
-
-type relayTunnel struct {
-	ctx        context.Context
-	cancel     context.CancelFunc
-	mu         sync.Mutex
-	front      *websocket.Conn
-	back       *websocket.Conn
-	frontClose func() error
-	backClose  func() error
-	inflight   [2]atomic.Int64
 }
 
 // A dedicated cluster CA must issue exactly one node URI SAN in each leaf.
@@ -98,38 +84,97 @@ func (server *Server) ConfigureRouting(config RoutingConfig) error {
 	} else if identity.Origin != "" {
 		return errors.New("relay: private origin requires mutual TLS")
 	}
-	// Startup only, before admission or metric collection can observe routing.
 	server.routing = &nodeRouting{config, identity}
-	server.tunnels = make(map[*relayTunnel]struct{})
 	return nil
 }
 
-func (server *Server) resolveDevice(response http.ResponseWriter, request *http.Request, identity peer) (*store.RuntimeRoute, bool) {
-	if server.routing == nil || identity.role != "device" {
-		return nil, false
-	}
-	route, err := server.routing.Directory.LookupRuntimeRoute(request.Context(), identity.redemption.RuntimeID)
-	if errors.Is(err, store.ErrRuntimeConnectionStale) {
-		return nil, false // An offline phone may still connect to reconcile metadata.
-	}
-	if err != nil {
-		writeError(response, http.StatusServiceUnavailable, "internal")
-		return nil, true
-	}
-	if route.NodeID == server.routing.identity.NodeID && route.Generation == server.routing.identity.Generation {
-		return &route, false
-	}
-	server.proxyDevice(response, request, identity, route)
-	return nil, true
+func (server *Server) localRoute(runtimeID string) bool {
+	return server.routing != nil && server.OwnsRuntime(runtimeID)
 }
 
-func (server *Server) PrivateRelayHandler(owner ...http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path == privateOwnerHTTPPath && len(owner) == 1 {
-			server.servePrivateOwnerHTTP(w, r, owner[0])
+// ForwardNode sends one admitted phone request to the node that owns the
+// runtime tunnel. The bytes are forwarded once; a disconnect is never replayed.
+func (server *Server) ForwardNode(response http.ResponseWriter, request *http.Request, route store.RuntimeRoute) {
+	routing := server.routing
+	if routing == nil || routing.ClientTLS == nil || route.Origin == "" ||
+		route.NodeID == routing.identity.NodeID && route.Generation == routing.identity.Generation {
+		writeError(response, http.StatusServiceUnavailable, "runtime.offline")
+		return
+	}
+	origin, err := url.Parse(route.Origin)
+	if err != nil || origin.Scheme != "https" {
+		writeError(response, http.StatusServiceUnavailable, "internal")
+		return
+	}
+	proxy := httputil.ReverseProxy{
+		Transport: &http.Transport{
+			TLSClientConfig:     routing.ClientTLS.Clone(),
+			MaxIdleConnsPerHost: 32,
+			MaxConnsPerHost:     routing.MaxProxyConnections,
+			ForceAttemptHTTP2:   true,
+		},
+		FlushInterval: -1,
+		Rewrite: func(proxy *httputil.ProxyRequest) {
+			proxy.Out.URL.Scheme = "https"
+			proxy.Out.URL.Host = origin.Host
+			proxy.Out.URL.Path = privateRelayPath
+			proxy.Out.URL.RawPath = ""
+			proxy.Out.URL.RawQuery = ""
+			proxy.Out.Host = origin.Host
+			proxy.Out.Header.Set(relayNodeHeader, routing.identity.NodeID)
+			proxy.Out.Header.Set(relayGenerationHeader, routing.identity.Generation)
+			proxy.Out.Header.Set(relayRouteHeader, request.URL.Path)
+			proxy.Out.Header.Del("Cookie")
+		},
+		ErrorHandler: func(w http.ResponseWriter, _ *http.Request, _ error) {
+			writeError(w, http.StatusServiceUnavailable, "runtime.offline")
+		},
+	}
+	proxy.ServeHTTP(response, request)
+}
+
+// PrivateRelayHandler serves node-to-node forwarding only after the peer's
+// mutual-TLS node identity and the current route ownership are checked.
+func (server *Server) PrivateRelayHandler(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
+		if request.URL.Path != privateRelayPath || request.Method != "GET" && request.Method != "POST" && request.Method != "HEAD" {
+			writeError(response, http.StatusForbidden, "access.denied")
 			return
 		}
-		server.servePrivateRelay(w, r)
+		node, generation := singleHeader(request, relayNodeHeader), singleHeader(request, relayGenerationHeader)
+		runtimeID := singleHeader(request, relayRuntimeHeader)
+		if server.routing == nil || !uuidPattern.MatchString(node) || !uuidPattern.MatchString(generation) || !uuidPattern.MatchString(runtimeID) ||
+			request.TLS == nil || len(request.TLS.PeerCertificates) == 0 {
+			writeError(response, http.StatusForbidden, "access.denied")
+			return
+		}
+		peerNode, err := RelayCertificateNode(request.TLS.PeerCertificates[0])
+		if err != nil || peerNode != node {
+			writeError(response, http.StatusForbidden, "access.denied")
+			return
+		}
+		if err := server.routing.Directory.ValidateRelayNode(request.Context(), node, generation); err != nil {
+			writeError(response, http.StatusConflict, "runtime.changed")
+			return
+		}
+		route, err := server.routing.Directory.LookupRuntimeRoute(request.Context(), runtimeID)
+		if err != nil || route.NodeID != server.routing.identity.NodeID || route.Generation != server.routing.identity.Generation {
+			writeError(response, http.StatusConflict, "runtime.changed")
+			return
+		}
+		if route.Origin != "" && !store.ValidRelayOrigin(route.Origin) {
+			writeError(response, http.StatusConflict, "runtime.changed")
+			return
+		}
+		path := singleHeader(request, relayRouteHeader)
+		if path == "" || path[0] != '/' || len(path) > 4096 {
+			writeError(response, http.StatusBadRequest, "protocol.invalid")
+			return
+		}
+		request.URL.Path = path
+		request.URL.RawPath = ""
+		requestlog.AdoptForwarded(response, request)
+		next.ServeHTTP(response, request)
 	})
 }
 
@@ -141,214 +186,12 @@ func singleHeader(request *http.Request, name string) string {
 	return values[0]
 }
 
-func (server *Server) servePrivateRelay(response http.ResponseWriter, request *http.Request) {
-	response.Header().Set("Cache-Control", "no-store")
-	if request.Method != "GET" || request.URL.Path != privateRelayPath {
-		writeError(response, http.StatusForbidden, "access.denied")
-		return
+// Drain closes live tunnels; pending node forwards finish through their own
+// request contexts and are bounded by the node transport.
+func (server *Server) proxySlots() int {
+	if server.routing == nil || server.routing.MaxProxyConnections == 0 {
+		return 4096
 	}
-	expected, status, code := server.inspectPrivateRoute(request)
-	if status != 0 {
-		writeError(response, status, code)
-		return
-	}
-	requestlog.AdoptForwarded(response, request)
-	identity, err := server.authenticateCredential(request)
-	if err != nil {
-		server.writeAuthenticationError(response, err)
-		return
-	}
-	if identity.role != "device" || identity.redemption.RuntimeID != expected.RuntimeID {
-		writeError(response, http.StatusForbidden, "access.denied")
-		return
-	}
-	if !server.currentDeviceRoute(request.Context(), expected) {
-		writeError(response, http.StatusConflict, "runtime.changed")
-		return
-	}
-	server.serveConnection(response, request, identity, &expected)
+	return server.routing.MaxProxyConnections
 }
 
-func (server *Server) currentDeviceRoute(ctx context.Context, expected store.RuntimeRoute) bool {
-	if server.routing == nil {
-		return false
-	}
-	current, err := server.routing.Directory.LookupRuntimeRoute(ctx, expected.RuntimeID)
-	if err != nil || current != expected {
-		return false
-	}
-	server.mu.Lock()
-	defer server.mu.Unlock()
-	host := server.hosts[expected.RuntimeID]
-	return !server.draining && host != nil && !host.closing && host.runtimeEpoch == expected.RuntimeEpoch && host.connectionID == expected.ConnectionID
-}
-
-func (server *Server) proxyDevice(response http.ResponseWriter, request *http.Request, identity peer, route store.RuntimeRoute) {
-	routing := server.routing
-	if routing.ClientTLS == nil || route.Origin == "" || !store.ValidRelayOrigin(route.Origin) {
-		writeError(response, http.StatusServiceUnavailable, "runtime.offline")
-		return
-	}
-	ctx, cancel := context.WithTimeout(request.Context(), deviceConnectionLife+handshakeTimeout)
-	tunnel := &relayTunnel{ctx: ctx, cancel: cancel}
-	server.mu.Lock()
-	if server.draining || len(server.tunnels) >= routing.MaxProxyConnections {
-		server.mu.Unlock()
-		cancel()
-		writeError(response, http.StatusServiceUnavailable, "rate.limited")
-		return
-	}
-	server.tunnels[tunnel] = struct{}{}
-	server.active.Add(1)
-	server.mu.Unlock()
-	defer func() {
-		tunnel.close()
-		server.mu.Lock()
-		delete(server.tunnels, tunnel)
-		server.mu.Unlock()
-		server.active.Done()
-	}()
-	transport := routing.ownerTransport(route, func(connection net.Conn) error {
-		tunnel.mu.Lock()
-		defer tunnel.mu.Unlock()
-		if tunnel.ctx.Err() != nil {
-			return net.ErrClosed
-		}
-		tunnel.backClose = forceTransportCloser(connection)
-		return nil
-	})
-	defer transport.CloseIdleConnections()
-	client := &http.Client{Transport: transport, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
-	raw, _ := json.Marshal(route)
-	headers := http.Header{"Authorization": []string{"TokenWorks-Mobile-Ticket " + identity.ticket}}
-	requestlog.ForwardHeaders(request.Context(), headers)
-	headers.Set(relayNodeHeader, routing.identity.NodeID)
-	headers.Set(relayGenerationHeader, routing.identity.Generation)
-	headers.Set(relayRouteHeader, base64.RawURLEncoding.EncodeToString(raw))
-	back, reply, err := websocket.Dial(ctx, route.Origin+privateRelayPath, &websocket.DialOptions{HTTPClient: client, HTTPHeader: headers, Subprotocols: []string{protocolName}, CompressionMode: websocket.CompressionDisabled})
-	if reply != nil && reply.Body != nil {
-		_ = reply.Body.Close()
-	}
-	if err != nil {
-		writeError(response, http.StatusServiceUnavailable, "runtime.offline")
-		return
-	}
-	if !tunnel.bind(back, false) {
-		return
-	}
-	back.SetReadLimit(maxFrameBytes)
-	upgraded := &upgradeWriter{ResponseWriter: response}
-	front, err := websocket.Accept(upgraded, request, &websocket.AcceptOptions{Subprotocols: []string{protocolName}, CompressionMode: websocket.CompressionDisabled})
-	if err != nil {
-		return
-	}
-	tunnel.mu.Lock()
-	tunnel.frontClose = forceTransportCloser(upgraded.transport)
-	tunnel.mu.Unlock()
-	if !tunnel.bind(front, true) {
-		return
-	}
-	front.SetReadLimit(maxFrameBytes)
-	if front.Subprotocol() != protocolName || back.Subprotocol() != protocolName {
-		return
-	}
-	finished := make(chan struct{}, 2)
-	copyMessages := func(source, target *websocket.Conn, direction int) {
-		defer func() { finished <- struct{}{} }()
-		for {
-			typeID, body, err := source.Read(ctx)
-			if err != nil || typeID != websocket.MessageText || len(body) > maxFrameBytes {
-				return
-			}
-			started := time.Now()
-			tunnel.inflight[direction].Store(int64(len(body)))
-			write, stop := context.WithTimeout(ctx, 5*time.Second)
-			err = target.Write(write, websocket.MessageText, body)
-			stop()
-			tunnel.inflight[direction].Store(0)
-			server.metrics.TunnelTransit(direction, time.Since(started), err)
-			if err != nil {
-				return
-			}
-		}
-	}
-	go copyMessages(front, back, 0)
-	go copyMessages(back, front, 1)
-	<-finished
-	tunnel.close()
-	<-finished
-}
-
-func (tunnel *relayTunnel) bind(connection *websocket.Conn, front bool) bool {
-	tunnel.mu.Lock()
-	defer tunnel.mu.Unlock()
-	if tunnel.ctx.Err() != nil {
-		_ = connection.CloseNow()
-		return false
-	}
-	if front {
-		tunnel.front = connection
-	} else {
-		tunnel.back = connection
-	}
-	return true
-}
-
-func (tunnel *relayTunnel) close() {
-	tunnel.cancel()
-	tunnel.mu.Lock()
-	front, back := tunnel.front, tunnel.back
-	frontClose, backClose := tunnel.frontClose, tunnel.backClose
-	tunnel.mu.Unlock()
-	if frontClose != nil {
-		_ = frontClose()
-	}
-	if backClose != nil {
-		_ = backClose()
-	}
-	if front != nil {
-		_ = front.CloseNow()
-	}
-	if back != nil {
-		_ = back.CloseNow()
-	}
-}
-
-func (routing *nodeRouting) ownerTransport(route store.RuntimeRoute, capture func(net.Conn) error) *http.Transport {
-	clientTLS := routing.ClientTLS.Clone()
-	previousVerify := clientTLS.VerifyConnection
-	clientTLS.VerifyConnection = func(state tls.ConnectionState) error {
-		if previousVerify != nil {
-			if err := previousVerify(state); err != nil {
-				return err
-			}
-		}
-		if len(state.VerifiedChains) == 0 || len(state.PeerCertificates) == 0 {
-			return errors.New("relay: unverified owner")
-		}
-		node, err := RelayCertificateNode(state.PeerCertificates[0])
-		if err != nil || node != route.NodeID {
-			return errors.New("relay: wrong owner certificate")
-		}
-		return nil
-	}
-	transport := &http.Transport{TLSClientConfig: clientTLS, Proxy: nil,
-		DialContext:         (&net.Dialer{Timeout: 3 * time.Second, KeepAlive: 30 * time.Second}).DialContext,
-		TLSHandshakeTimeout: 3 * time.Second, ResponseHeaderTimeout: 3 * time.Second, MaxResponseHeaderBytes: 8 << 10}
-	transport.DialTLSContext = func(ctx context.Context, network, address string) (net.Conn, error) {
-		dial, stop := context.WithTimeout(ctx, 3*time.Second)
-		defer stop()
-		connection, err := (&tls.Dialer{NetDialer: &net.Dialer{Timeout: 3 * time.Second, KeepAlive: 30 * time.Second}, Config: clientTLS}).DialContext(dial, network, address)
-		if err != nil {
-			return nil, err
-		}
-		if capture != nil {
-			if err := capture(connection); err != nil {
-				_ = connection.Close()
-				return nil, err
-			}
-		}
-		return connection, nil
-	}
-	return transport
-}
