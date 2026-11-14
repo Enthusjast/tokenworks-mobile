@@ -3,9 +3,7 @@
 TokenWorks Mobile 移动远程控制平台：进程内 Host 插件（dsh 原生适配器）、Go `/v2` 通用隧道，以及原生 Android dsh 客户端。
 手机直接说 dsh 的 Typert 协议（`/api`、`/api/remote.mux`、`$events`）；Host 插件只做认证与传输适配；Relay 只搬字节，不解析业务。
 
-[文档导航](docs/README.md) · [v2 架构方案](IMPROVE_PLAN.md) · [修复与扩展计划](FIX_PLAN.md) · [当前能力与边界](docs/development-status.md)
-
-架构决策与 v1 审查记录见 `IMPROVE_PLAN.md`（唯一现行方案）；v1 构建史归档在 [docs/archive/PLAN-v1.md](docs/archive/PLAN-v1.md)。
+[连接与配对](docs/guide/01-connect.md) · [会话、审批与文件](docs/guide/02-sessions.md) · [故障排查](docs/guide/03-troubleshooting.md) · [安全说明](SECURITY.md) · [隐私与数据](PRIVACY.md)
 
 ## 项目结构
 
