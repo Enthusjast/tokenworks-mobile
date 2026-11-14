@@ -1,6 +1,8 @@
-import { mkdir, readFile, writeFile } from 'node:fs/promises'
+import { mkdir, writeFile } from 'node:fs/promises'
 import { createRequire } from 'node:module'
 import { createHash } from 'node:crypto'
+import { fileURLToPath } from 'node:url'
+import { checkTypertContracts } from './typert-contract-check.js'
 import { z } from 'zod'
 import type { TypertRemoteMethod } from '@deepseek-ai/dsh-typert-protocol'
 import { TYPERT_REMOTE as session } from '@deepseek-ai/dsh-api-session-controller/remote'
@@ -123,10 +125,10 @@ const outputs = new Map([
   ['contracts/typert/native-api.json', JSON.stringify({ dshVersion: version, methods: snapshot }, null, 2) + '\n'],
   ['android/core/protocol/src/main/kotlin/cn/edu/ustc/tokenworks/DshNativeTypes.kt', prelude + declarations.join('\n\n') + '\n'],
 ])
-for (const [path, content] of outputs) {
-  if (process.argv.includes('--check')) {
-    if (await readFile(path, 'utf8').catch(() => '') !== content) throw new Error(`${path} is stale; run npm run contracts:typert`)
-  } else {
+if (process.argv.includes('--check')) {
+  await checkTypertContracts([...outputs].map(([path, content]) => ({ path, content })), fileURLToPath(new URL('../', import.meta.url)))
+} else {
+  for (const [path, content] of outputs) {
     await mkdir(new URL('../' + path.substring(0, path.lastIndexOf('/')) + '/', import.meta.url), { recursive: true })
     await writeFile(new URL('../' + path, import.meta.url), content)
   }

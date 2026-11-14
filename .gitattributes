@@ -1,0 +1,35 @@
+# F-15: normalize line endings so text is stored as LF in the repository and checked
+# out as LF everywhere, keeping contract checks (`npm run contracts:typert:check`)
+# deterministic across platforms. Windows-only scripts keep CRLF.
+
+# Windows batch scripts require CRLF for cmd.exe.
+*.bat text eol=crlf
+*.cmd text eol=crlf
+
+# Generated/native contracts are always LF, regardless of platform.
+contracts/typert/** text eol=lf
+
+# Source, config, script and contract files: LF in the repository and on checkout.
+*.ts text eol=lf
+*.mjs text eol=lf
+*.js text eol=lf
+*.kt text eol=lf
+*.kts text eol=lf
+*.go text eol=lf
+*.py text eol=lf
+*.c text eol=lf
+*.h text eol=lf
+*.json text eol=lf
+*.yaml text eol=lf
+*.yml text eol=lf
+*.toml text eol=lf
+*.xml text eol=lf
+*.properties text eol=lf
+*.lockfile text eol=lf
+*.example text eol=lf
+*.sql text eol=lf
+*.css text eol=lf
+*.html text eol=lf
+*.mod text eol=lf
+*.sum text eol=lf
+android/gradlew text eol=lf
