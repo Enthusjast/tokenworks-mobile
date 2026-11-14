@@ -613,9 +613,10 @@ class LoginController internal constructor(private val context: Context, private
             next.interactions.collect { if (watcher === next) mutable.value = mutable.value.copy(interactions = it, interactionError = next.errors.value) }
         }
         // N-2: terminal watcher rides the same runtime lifecycle.
-        val terminals = TerminalWatcher(api!!, runtime, agentId(), scope)
+        val terminals = TerminalWatcher(api!!, runtime, scope)
         terminal = terminals
         scope.launch { terminals.terminals.collect { if (terminal === terminals) mutable.value = mutable.value.copy(terminals = it) } }
+
     }
 
     /** The session's agent identity as projected by follow records; empty until known. */

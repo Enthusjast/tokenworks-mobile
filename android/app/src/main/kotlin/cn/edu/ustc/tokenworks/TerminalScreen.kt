@@ -8,6 +8,7 @@ import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import kotlinx.coroutines.launch
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
@@ -23,12 +24,13 @@ internal fun TerminalScreen(watcher: TerminalWatcher, modifier: Modifier = Modif
     val terminals by watcher.terminals.collectAsState()
     val error by watcher.error.collectAsState()
     var input by remember { mutableStateOf("") }
+    val lifecycle = rememberCoroutineScope()
     Column(modifier = modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surfaceVariant).padding(12.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.horizontalScroll(rememberScrollState())) {
-            Button({ watcher.open("mobile-" + System.currentTimeMillis()) }, enabled = attached == null) { Text("新建终端") }
-            attached?.let { info -> OutlinedButton({ watcher.closeTerminal(info.id) }) { Text("关闭 ${info.title}") } }
-            OutlinedButton({ watcher.refresh() }) { Text("刷新") }
+            Button({ lifecycle.launch { watcher.open("mobile-" + System.currentTimeMillis()) } }, enabled = attached == null) { Text("新建终端") }
+            attached?.let { info -> OutlinedButton({ lifecycle.launch { watcher.closeTerminal(info.id) } }) { Text("关闭 ${info.title}") } }
+            OutlinedButton({ lifecycle.launch { watcher.refresh() } }) { Text("刷新") }
             if (terminals.isNotEmpty()) Text("${terminals.size} 个终端", style = MaterialTheme.typography.labelMedium)
         }
         error?.let { Text(it, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.error) }
