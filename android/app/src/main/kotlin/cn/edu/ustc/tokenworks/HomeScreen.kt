@@ -47,6 +47,8 @@ private fun ReadyHomeRoute(state: HomeState, model: HomeViewModel, viewport: Wor
     var appearanceSettings by remember { mutableStateOf(false) }
     var settingsOpen by remember { mutableStateOf(false) }
     var hostsOpen by remember { mutableStateOf(false) }
+    var terminalOpen by remember { mutableStateOf(false) }
+    val terminalWatcher = state.terminal
     val positions = remember { LinkedHashMap<Pair<String, String>, ChatReadingPosition>() }
     val snackbar = remember { SnackbarHostState() }
     val actionError = state.sessionActionError?.let { stringResource(R.string.session_action_error, it) }
@@ -54,7 +56,7 @@ private fun ReadyHomeRoute(state: HomeState, model: HomeViewModel, viewport: Wor
     LaunchedEffect(actionError) { actionError?.let { snackbar.showSnackbar(it) } }
     LaunchedEffect(homeError) { homeError?.let { snackbar.showSnackbar(it) } }
     val layout = workspaceLayout(viewport, state.selectedSessionId != null, state.modelSelectionOpen, navigationExpanded)
-    val overlay = appearanceSettings || settingsOpen || state.appUpdateSettings || state.binding != null || state.creation != null
+    val overlay = appearanceSettings || settingsOpen || state.appUpdateSettings || state.binding != null || state.creation != null || terminalOpen
     BackHandler { model.back() }
     Box(Modifier.fillMaxSize()) {
         WorkspaceScaffold(
@@ -74,6 +76,10 @@ private fun ReadyHomeRoute(state: HomeState, model: HomeViewModel, viewport: Wor
                 appearanceSettings && state.presentationOwner != null -> {
                     BackHandler { appearanceSettings = false }
                     AppearanceSettingsScreen(state.presentationOwner) { appearanceSettings = false }
+                }
+                terminalOpen -> {
+                    BackHandler { terminalOpen = false }
+                    terminalWatcher?.let { TerminalScreen(it) }
                 }
                 state.appUpdateSettings -> {
                     BackHandler { model.closeAppUpdates() }

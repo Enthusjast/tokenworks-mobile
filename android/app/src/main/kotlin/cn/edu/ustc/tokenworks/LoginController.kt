@@ -44,6 +44,10 @@ data class HomeState(
     val composer: MessageComposerState? = null,
     val interactions: List<PendingInteraction> = emptyList(),
     val interactionError: String? = null,
+    val terminal: TerminalWatcher? = null,
+    val terminals: List<TerminalInfo> = emptyList(),
+    /** First agent id seen in follow records; terminal/attach requires it. */
+    val agentId: String? = null,
 )
 
 internal fun HomeState.runtimeRow(id: String?): RuntimeRow? = runtimes.firstOrNull { it.id == id }
@@ -98,6 +102,7 @@ class LoginController internal constructor(private val context: Context, private
     private var reader: DshSessionReader? = null
     private var readMarks: SessionReadMarks? = null
     private var watcher: InteractionWatcher? = null
+    private var terminal: TerminalWatcher? = null
     private val outbox = PromptOutbox()
     private var watcherJob: Job? = null
     private var appUpdateFlow: AppUpdateFlow? = null
@@ -595,6 +600,7 @@ class LoginController internal constructor(private val context: Context, private
         reader?.close(); reader = null
         if (clearDesired) desired = null
         retireWatcher()
+        terminal?.close(); terminal = null
         mutable.value = mutable.value.copy(reader = null, loadingSessions = false, submitting = false, modelSelectionOpen = false, modelBusy = false, composer = null)
     }
 
@@ -606,7 +612,14 @@ class LoginController internal constructor(private val context: Context, private
         watcherJob = scope.launch {
             next.interactions.collect { if (watcher === next) mutable.value = mutable.value.copy(interactions = it, interactionError = next.errors.value) }
         }
+        // N-2: terminal watcher rides the same runtime lifecycle.
+        val terminals = TerminalWatcher(api!!, runtime, agentId(), scope)
+        terminal = terminals
+        scope.launch { terminals.terminals.collect { if (terminal === terminals) mutable.value = mutable.value.copy(terminals = it) } }
     }
+
+    /** The session's agent identity as projected by follow records; empty until known. */
+    private fun agentId(): String = mutable.value.agentId ?: ""
 
     private fun retireWatcher() {
         watcherJob?.cancel(); watcherJob = null

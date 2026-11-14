@@ -26,6 +26,9 @@ class DshSessionReader(
     private var mux: DshMux? = null
     private var stream: DshStream? = null
     private var openingCursor = -1L
+    /** N-2: the owning agent id as seen in follow records; empty until seen. */
+    private val mutableAgentId = MutableStateFlow("")
+    val agentId: StateFlow<String> = mutableAgentId.asStateFlow()
 
     init {
         Contract.uuid(runtimeId)
@@ -156,7 +159,11 @@ class DshSessionReader(
                     "assistant" to assistant(root.fields["assistantStream"] ?: JsonNull),
                 ))
             }
-            "event" -> SessionContent("session.event", "native", "native", root.obj("event"))
+            "event" -> {
+                val event = root.obj("event")
+                if (event.fields["agent"] is JsonString) mutableAgentId.value = (event.fields["agent"] as JsonString).value
+                SessionContent("session.event", "native", "native", event)
+            }
             "assistant-stream" -> {
                 val frame = root.obj("frame")
                 val kind = frame.string("type")
