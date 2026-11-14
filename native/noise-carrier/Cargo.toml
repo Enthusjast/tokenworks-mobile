@@ -1,0 +1,34 @@
+[package]
+name = "tokenworks-noise"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.96"
+publish = false
+
+[lib]
+name = "tokenworks_noise"
+crate-type = ["cdylib", "rlib"]
+
+[features]
+default = []
+node = ["dep:napi", "dep:napi-derive", "dep:napi-build"]
+jni = ["dep:jni"]
+
+[dependencies]
+snow = { version = "=0.10.0", default-features = false, features = ["std", "use-curve25519", "use-chacha20poly1305", "use-sha2", "use-getrandom"] }
+zeroize = "=1.8.2"
+napi = { version = "=2.16.17", optional = true, default-features = false, features = ["napi8"] }
+napi-derive = { version = "=2.16.13", optional = true }
+jni = { version = "=0.21.1", optional = true, default-features = false }
+
+[build-dependencies]
+napi-build = { version = "=2.1.3", optional = true }
+
+[dev-dependencies]
+hex = "=0.4.3"
+
+[profile.release]
+lto = "thin"
+codegen-units = 1
+strip = "debuginfo"
+panic = "unwind"

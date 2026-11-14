@@ -11,7 +11,30 @@ dependencies {
     testImplementation(libs.junit)
 }
 
+val buildNoiseJvm by tasks.registering(Exec::class) {
+    val repository = rootProject.projectDir.parentFile
+    workingDir(repository)
+    commandLine("python3", "tools/native/build-noise.py", "jvm")
+    inputs.dir(repository.resolve("native/noise-carrier/src"))
+    inputs.files(repository.resolve("native/noise-carrier/Cargo.toml"), repository.resolve("native/noise-carrier/Cargo.lock"),
+        repository.resolve("native/noise-carrier/build.rs"), repository.resolve("native/noise-carrier/rust-toolchain.toml"),
+        repository.resolve("tools/native/build-noise.py"))
+    outputs.file(repository.resolve(".local/noise/jvm/" + System.mapLibraryName("tokenworks_noise")))
+}
+
 tasks.test {
+    dependsOn(buildNoiseJvm)
+    systemProperty("tokenworks.noise.library", rootProject.file("../.local/noise/jvm/" + System.mapLibraryName("tokenworks_noise")).absolutePath)
+}
+
+tasks.register<JavaExec>("noiseInterop") {
+    group = "verification"
+    description = "Verify production-random Node/JVM Noise binding interoperability."
+    dependsOn(tasks.testClasses, buildNoiseJvm)
+    classpath = sourceSets.test.get().runtimeClasspath
+    mainClass.set("cn.edu.ustc.tokenworks.E2eInterop")
+    systemProperty("noise.repository", rootProject.projectDir.parentFile.absolutePath)
+    systemProperty("tokenworks.noise.library", rootProject.file("../.local/noise/jvm/" + System.mapLibraryName("tokenworks_noise")).absolutePath)
 }
 
 tasks.register<JavaExec>("generateInteropVectors") {
