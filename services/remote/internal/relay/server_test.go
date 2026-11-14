@@ -12,8 +12,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/coder/websocket"
-
 	"tokenworks-mobile/services/remote/internal/store"
 )
 
@@ -22,6 +20,7 @@ type fakeRepository struct {
 	touch  func(context.Context, string, string, string, string) error
 	detach func(context.Context, string, string, string, string) error
 	leases func(context.Context, store.UserIdentity, string, string, string) (store.TunnelLeaseIdentity, error)
+	inspect func(context.Context, string, string, string) (store.TunnelLeaseIdentity, error)
 }
 
 func (fake *fakeRepository) AttachRuntimeConnection(ctx context.Context, input store.RuntimeConnectionInput) (store.RuntimeConnection, error) {
@@ -54,6 +53,13 @@ func (fake *fakeRepository) VerifyTunnelLease(ctx context.Context, identity stor
 	return fake.leases(ctx, identity, deviceID, runtimeID, secret)
 }
 
+func (fake *fakeRepository) InspectTunnelLease(ctx context.Context, installationID, leaseID, secret string) (store.TunnelLeaseIdentity, error) {
+	if fake.inspect != nil { return fake.inspect(ctx, installationID, leaseID, secret) }
+	lease := futureLease()
+	lease.InstallationID, lease.LeaseID = installationID, leaseID
+	return lease, nil
+}
+
 func TestAdmitPhoneRejectsMalformedIdentifiers(t *testing.T) {
 	server := New(&fakeRepository{})
 	cases := []struct{ runtime, device string }{
@@ -74,7 +80,7 @@ func TestAdmitPhoneRejectsLeaseVerificationFailure(t *testing.T) {
 	server := New(&fakeRepository{leases: func(context.Context, store.UserIdentity, string, string, string) (store.TunnelLeaseIdentity, error) {
 		return store.TunnelLeaseIdentity{}, store.ErrDatabaseUnavailable
 	}})
-	if _, err := server.AdmitPhone(context.Background(), store.UserIdentity{}, testDeviceID, testRuntimeID, strings.Repeat("a", 43)); !errors.Is(err, ErrTunnelLease) {
+	if _, err := server.AdmitPhone(context.Background(), store.UserIdentity{Issuer:"test", Subject:"user"}, testDeviceID, testRuntimeID, strings.Repeat("a", 43)); !errors.Is(err, ErrTunnelLease) {
 		t.Fatalf("database failure leaked as %v", err)
 	}
 }
@@ -84,7 +90,7 @@ func TestAdmitPhoneRejectsRuntimeMismatch(t *testing.T) {
 		return store.TunnelLeaseIdentity{LeaseID: testLeaseID, RuntimeID: "99999999-9999-4999-8999-999999999999",
 			DeviceID: testDeviceID, ExpiresAt: time.Now().Add(time.Minute)}, nil
 	}})
-	if _, err := server.AdmitPhone(context.Background(), store.UserIdentity{}, testDeviceID, testRuntimeID, strings.Repeat("a", 43)); !errors.Is(err, ErrTunnelLease) {
+	if _, err := server.AdmitPhone(context.Background(), store.UserIdentity{Issuer:"test", Subject:"user"}, testDeviceID, testRuntimeID, strings.Repeat("a", 43)); !errors.Is(err, ErrTunnelLease) {
 		t.Fatalf("lease for another runtime admitted: %v", err)
 	}
 }
@@ -97,10 +103,10 @@ func TestAdmitPhoneAcceptsValidLease(t *testing.T) {
 	}
 }
 
-func TestProxyWithoutTunnelIsRuntimeOffline(t *testing.T) {
+func TestCarrierWithoutTunnelIsRuntimeOffline(t *testing.T) {
 	server := New(&fakeRepository{})
 	recorder := httptest.NewRecorder()
-	server.Proxy(recorder, httptest.NewRequest(http.MethodGet, "http://relay/x", nil),
+	server.Carrier(recorder, httptest.NewRequest(http.MethodGet, "http://relay/x", nil),
 		store.TunnelLeaseIdentity{LeaseID: testLeaseID, RuntimeID: testRuntimeID, ExpiresAt: time.Now().Add(time.Minute)}, "secret")
 	if recorder.Code != http.StatusServiceUnavailable {
 		t.Fatalf("missing tunnel: got %d", recorder.Code)
@@ -109,47 +115,19 @@ func TestProxyWithoutTunnelIsRuntimeOffline(t *testing.T) {
 
 func TestApplyControlEventRevokesDeviceAndRuntime(t *testing.T) {
 	server := New(&fakeRepository{})
-	runtime := &TunnelRuntime{pools: make(map[string]*tunnelPool), ctx: context.Background(),
-		cancel: func() {}, socket: closedSocket(t)}
-	tunnel := &hostTunnel{runtimeID: testRuntimeID, cancel: func() {}, runtime: runtime, done: make(chan struct{})}
-	server.mu.Lock()
-	server.tunnels[testRuntimeID] = tunnel
-	server.mu.Unlock()
-	// ServeTunnel unregisters synchronously after its context ends; mirror that wiring.
-	go func() {
-		tunnel.cancel()
-		server.unregister(tunnel)
-		close(tunnel.done)
-	}()
-
-	runtime.mu.Lock()
-	runtime.pools[testLeaseID] = &tunnelPool{lease: futureLease(), conns: make(map[*connectConn]struct{}),
-		expiry: time.AfterFunc(time.Hour, func() {}), transport: &http.Transport{}}
-	runtime.mu.Unlock()
-	if err := server.ApplyControlEvent(context.Background(), store.ControlEvent{Topic: "device.revoked", DeviceID: testDeviceID}); err != nil {
-		t.Fatal(err)
-	}
-	runtime.mu.Lock()
-	_, left := runtime.pools[testLeaseID]
-	runtime.mu.Unlock()
-	if left {
-		t.Fatal("device revocation left the lease pool alive")
-	}
-	if !server.OwnsRuntime(testRuntimeID) {
-		t.Fatal("device revocation removed the tunnel")
-	}
-
-	if err := server.ApplyControlEvent(context.Background(), store.ControlEvent{Topic: "runtime.revoked", RuntimeID: testRuntimeID}); err != nil {
-		t.Fatal(err)
-	}
-	deadline := time.After(time.Second)
-	for server.OwnsRuntime(testRuntimeID) {
-		select {
-		case <-deadline:
-			t.Fatal("runtime revocation kept the tunnel registered")
-		case <-time.After(time.Millisecond):
-		}
-	}
+	runtime := newTestRuntime(t, echoConnect(t, nil))
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	tunnel := &hostTunnel{runtimeID: testRuntimeID, installationID: testInstanceID, cancel: cancel, runtime: runtime, done: make(chan struct{})}
+	server.register(tunnel)
+	stream, err := runtime.connect(context.Background(), futureLease(), strings.Repeat("a",43), "native")
+	if err != nil { t.Fatal(err) }
+	defer stream.Close()
+	if err := server.ApplyControlEvent(context.Background(), store.ControlEvent{Topic:"device.revoked", DeviceID:testDeviceID}); err != nil { t.Fatal(err) }
+	if stream.ctx.Err() == nil { t.Fatal("device revocation left carrier active") }
+	if !server.OwnsRuntime(testRuntimeID) { t.Fatal("device revocation removed host tunnel") }
+	if err := server.ApplyControlEvent(context.Background(), store.ControlEvent{Topic:"runtime.revoked", RuntimeID:testRuntimeID}); err != nil { t.Fatal(err) }
+	select { case <-ctx.Done(): default: t.Fatal("runtime revocation did not cancel host tunnel") }
 }
 
 func TestApplyControlEventIgnoresOtherTopics(t *testing.T) {
@@ -187,14 +165,6 @@ func TestDrainRejectsNewRegistrations(t *testing.T) {
 	}
 }
 
-// closedSocket supplies a socket-shaped handle for tunnel structures that
-// tests drive directly without a live host loop.
-func closedSocket(t *testing.T) *websocket.Conn {
-	t.Helper()
-	_, socket := newTestRuntime(t)
-	socket.CloseNow()
-	return socket
-}
 
 func TestRelayCertificateNode(t *testing.T) {
 	valid, err := pemToCertificate(`-----BEGIN CERTIFICATE-----

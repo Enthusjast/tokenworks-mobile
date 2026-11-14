@@ -90,11 +90,17 @@ internal fun RuntimePicker(state: HomeState, viewModel: HomeViewModel, modifier:
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 Text(stringResource(R.string.nav_computers), style = MaterialTheme.typography.headlineMedium,
                     modifier = Modifier.weight(1f).semantics { heading() })
-                IconButton(viewModel::refresh, enabled = !state.refreshing,
+                IconButton(viewModel::refresh, enabled = !state.refreshing && !state.lanOnly,
                     modifier = Modifier.size(TokenWorksSpacing.minimumTouchTarget)) { ShellIcon(R.drawable.ic_refresh, R.string.action_refresh) }
             }
-            OutlinedButton(viewModel::openBinding, Modifier.fillMaxWidth().heightIn(min = TokenWorksSpacing.minimumTouchTarget)) {
+            OutlinedButton(viewModel::openBinding, Modifier.fillMaxWidth().heightIn(min = TokenWorksSpacing.minimumTouchTarget), enabled = !state.lanOnly) {
                 Text(stringResource(if (state.pendingBindingId == null) R.string.action_bind_computer else R.string.action_review_binding))
+            }
+            OutlinedButton(viewModel::openPairing, Modifier.fillMaxWidth().heightIn(min = TokenWorksSpacing.minimumTouchTarget)) { Text("局域网安全配对") }
+            OutlinedButton(viewModel::openManagement, Modifier.fillMaxWidth().heightIn(min = TokenWorksSpacing.minimumTouchTarget)) { Text("电脑与设备管理") }
+            if (state.lanOnly) {
+                Text("仅局域网模式：使用独立配对权限；中转账号尚未重新验证。", style = MaterialTheme.typography.bodySmall)
+                TextButton(viewModel::login) { Text("重新登录中转账号") }
             }
             Text(stringResource(R.string.computer_scope), style = MaterialTheme.typography.bodySmall,
                 color = tokenWorksSurfaces().textTertiary)
@@ -114,7 +120,7 @@ internal fun RuntimePicker(state: HomeState, viewModel: HomeViewModel, modifier:
             }
         }
         items(state.runtimes, key = { it.id }) { runtime ->
-            val available = runtime.access?.canList() == true
+            val available = state.lanOnly || runtime.access?.canList() == true
             Surface(onClick = { onRuntime(runtime.id) }, enabled = available && !state.refreshing,
                 modifier = Modifier.fillMaxWidth().tokenWorksPress(available).testTag("computer-open-${runtime.id}"),
                 shape = tokenWorksSquircle(TokenWorksRadius.md), color = MaterialTheme.colorScheme.surfaceContainerLow) {
@@ -135,7 +141,8 @@ internal fun RuntimePicker(state: HomeState, viewModel: HomeViewModel, modifier:
 }
 
 @Composable
-internal fun WorkspaceSettings(state: HomeState, onAppearance: () -> Unit, onAppUpdates: () -> Unit, onExit: () -> Unit, onBack: () -> Unit) {
+internal fun WorkspaceSettings(state: HomeState, onAppearance: () -> Unit, onAppUpdates: () -> Unit, onExit: () -> Unit,
+    onBack: () -> Unit, onManagement: () -> Unit, onNotifications: () -> Unit, onPairing: () -> Unit) {
     var confirmExit by remember { mutableStateOf(false) }
     Scaffold(topBar = {
         TokenWorksTopBar(stringResource(R.string.nav_settings), navigationIcon = {
@@ -160,7 +167,10 @@ internal fun WorkspaceSettings(state: HomeState, onAppearance: () -> Unit, onApp
                 SettingsItem(R.string.directory_appearance_entry, R.string.directory_appearance_detail,
                     onAppearance, enabled = state.presentationOwner != null)
             }
-            item("updates") { SettingsItem(R.string.settings_updates, R.string.settings_updates_detail, onAppUpdates) }
+            item("management") { OutlinedButton(onManagement, Modifier.fillMaxWidth().heightIn(min = TokenWorksSpacing.minimumTouchTarget)) { Text("电脑与设备管理") } }
+            item("notifications") { OutlinedButton(onNotifications, Modifier.fillMaxWidth().heightIn(min = TokenWorksSpacing.minimumTouchTarget)) { Text("通知与后台连接") } }
+            item("lan-pairing") { OutlinedButton(onPairing, Modifier.fillMaxWidth().heightIn(min = TokenWorksSpacing.minimumTouchTarget)) { Text("局域网安全配对") } }
+            if (!state.lanOnly) item("updates") { SettingsItem(R.string.settings_updates, R.string.settings_updates_detail, onAppUpdates) }
             item("version") { Text(stringResource(R.string.settings_version, BuildConfig.VERSION_NAME), style = MaterialTheme.typography.bodySmall) }
             item("exit") {
                 TextButton({ confirmExit = true }, Modifier.fillMaxWidth().heightIn(min = TokenWorksSpacing.minimumTouchTarget),

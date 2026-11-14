@@ -131,7 +131,7 @@ func (postgres *Postgres) RuntimeDirectory(ctx context.Context, identity UserIde
 	var raw []byte
 	err = postgres.DB.QueryRowContext(ctx, resourceDirectoryActorSQL+`
  select a.id::text,coalesce((select jsonb_agg(row_to_json(p) order by p.id) from (
- select r.id,h.id host_id,h.org_id organization_id,coalesce(r.dsh_version,'') dsh_version,
+ select r.id,h.id host_id,i.id installation_id,h.org_id organization_id,coalesce(r.dsh_version,'') dsh_version,
  coalesce(r.application_version,'') application_version,coalesce(r.plugin_version,'') plugin_version,r.last_seen_at,
  jsonb_build_object('role',g.role,'grant_version',g.grant_version,'bindings',g.bindings,'expires_at',g.expires_at) access
  `+visibleDirectoryRuntimeSQL+` and ($6::uuid is null or r.id>$6) order by r.id limit $7) p),'[]'::jsonb) from actor a`,

@@ -8,5 +8,5 @@ dependencyResolutionManagement {
 }
 
 rootProject.name = "tokenworks-mobile"
-include(":core:protocol", ":core:crypto", ":core:auth", ":core:session", ":core:network")
+include(":core:protocol", ":core:dsh-protocol", ":core:dsh-client", ":core:crypto", ":core:auth", ":core:session", ":core:network")
 if (providers.gradleProperty("jvmOnly").orNull != "true") include(":core:keystore", ":core:ui", ":app")

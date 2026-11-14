@@ -224,7 +224,7 @@ internal fun ChatTranscript(
     onProcessExpansion: (List<String>, Boolean) -> Unit,
     onQuote: ((String) -> Unit)?,
     onMessageAction: ((String) -> Unit)?,
-    onPreviewMedia: ((VisibleMediaReference) -> Unit)?,
+    onPreviewMedia: ((NativeImageReference) -> Unit)?,
     modifier: Modifier = Modifier,
 ) {
     val background = if (interactive) Modifier else Modifier.clearAndSetSemantics { }

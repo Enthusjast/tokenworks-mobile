@@ -74,7 +74,7 @@ internal fun SessionsScreen(state: HomeState, viewModel: HomeViewModel, modifier
         state.sessions.partition { it.updatedAt > 0 && now - it.updatedAt < 86_400_000L }
     }
     val available = state.selectedRuntimeId != null && !state.loadingSessions
-    val canCreate = runtime?.access?.canCreate() == true
+    val canCreate = state.lanOnly || runtime?.access?.canCreate() == true
 
     Box(modifier.fillMaxSize()) {
         Column(Modifier.fillMaxSize()) {
@@ -203,19 +203,19 @@ internal fun SessionsScreen(state: HomeState, viewModel: HomeViewModel, modifier
                     Modifier.padding(TokenWorksSpacing.md), style = MaterialTheme.typography.titleLarge,
                     maxLines = 2, overflow = TextOverflow.Ellipsis)
                 SessionDirectoryAction(stringResource(R.string.session_rename),
-                    enabled = available && runtime?.access?.canRename(actionSession.id) == true) {
+                    enabled = available && (state.lanOnly || runtime?.access?.canRename(actionSession.id) == true)) {
                     titleDraft = actionSession.metadata?.title.orEmpty()
                     renameSessionId = actionSession.id
                     actionSessionId = null
                 }
                 SessionDirectoryAction(stringResource(R.string.session_fork),
-                    enabled = available && runtime?.access?.canFork(actionSession.id) == true) {
+                    enabled = available && (state.lanOnly || runtime?.access?.canFork(actionSession.id) == true)) {
                     actionSessionId = null
                     if (state.selectedSessionId != actionSession.id) viewModel.openSession(actionSession.id)
                     viewModel.forkSession()
                 }
                 SessionDirectoryAction(stringResource(R.string.conversation_archive),
-                    enabled = available && runtime?.access?.allows("workspace/archiveSession", actionSession.id, actionSession.workspaceId) == true) {
+                    enabled = available && (state.lanOnly || runtime?.access?.allows("workspace/archiveSession", actionSession.id, actionSession.workspaceId) == true)) {
                     actionSessionId = null
                     if (state.selectedSessionId != actionSession.id) viewModel.openSession(actionSession.id)
                     viewModel.archiveSession()
@@ -244,7 +244,7 @@ internal fun SessionsScreen(state: HomeState, viewModel: HomeViewModel, modifier
                         if (state.selectedSessionId != renameSession.id) viewModel.openSession(renameSession.id)
                         viewModel.renameSession(titleDraft.trim())
                     },
-                    enabled = titleDraft.isNotBlank() && available && runtime?.access?.canRename(renameSession.id) == true,
+                    enabled = titleDraft.isNotBlank() && available && (state.lanOnly || runtime?.access?.canRename(renameSession.id) == true),
                 ) { Text(stringResource(R.string.action_confirm)) }
             },
             dismissButton = {

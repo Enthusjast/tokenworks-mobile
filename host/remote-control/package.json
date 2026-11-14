@@ -15,7 +15,8 @@
   "files": [
     "lib",
     "README.md",
-    "client"
+    "client",
+    "scripts"
   ],
   "dsh": {
     "client": {
@@ -26,17 +27,27 @@
     }
   },
   "scripts": {
-    "build": "tsc -p tsconfig.build.json"
+    "postinstall": "node scripts/patch-werift.mjs",
+    "prepare:rtc": "node scripts/patch-werift.mjs",
+    "verify:rtc": "node scripts/patch-werift.mjs --check",
+    "build": "node scripts/patch-werift.mjs --check && python3 ../../tools/native/build-noise.py node && tsc -p tsconfig.build.json"
   },
   "peerDependencies": {
     "@deepseek-ai/cordis": "^4.0.5",
     "@deepseek-ai/cordis-plugin-loader": "*",
     "@deepseek-ai/dsh-api-gateway": "0.2.1-rc.5",
     "@deepseek-ai/dsh-api-remote-access": "0.2.1-rc.5",
+    "@deepseek-ai/dsh-api-session-controller": "0.2.1-rc.5",
+    "@deepseek-ai/dsh-api-workspace-controller": "0.2.1-rc.5",
+    "@deepseek-ai/dsh-api-workspace-files": "0.2.1-rc.5",
+    "@deepseek-ai/dsh-client-file-upload": "0.2.1-rc.5",
     "@deepseek-ai/dsh-client-connection": "0.2.1-rc.5",
     "@deepseek-ai/dsh-llm": "0.2.1-rc.5",
     "@deepseek-ai/dsh-session": "0.2.1-rc.5",
+    "@deepseek-ai/dsh-tools": "0.2.1-rc.5",
+    "@deepseek-ai/dsh-user-approval": "0.2.1-rc.5",
     "@deepseek-ai/dsh-typert-protocol": "0.2.1-rc.5",
+    "@deepseek-ai/dsh-typert-registry": "0.2.1-rc.5",
     "@deepseek-ai/dsh-workspace": "0.2.1-rc.5",
     "@deepseek-ai/schemastery": "^3.18.5",
     "zod": "^4.4.3"
@@ -44,6 +55,11 @@
   "dependencies": {
     "canonicalize": "5.1.0",
     "jose": "6.2.13",
+    "qrcode": "^1.5.4",
+    "werift": "0.27.0",
     "ws": "8.22.0"
+  },
+  "devDependencies": {
+    "@types/qrcode": "^1.5.6"
   }
 }

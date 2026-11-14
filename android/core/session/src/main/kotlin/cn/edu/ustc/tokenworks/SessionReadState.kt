@@ -2,7 +2,7 @@ package cn.edu.ustc.tokenworks
 
 import java.util.Collections
 
-/** Phases of one native session follower. There is no offline replay: history comes from dsh. */
+/** Native session follower phases. Offline history is a stale display, never a replay queue. */
 enum class SessionReadPhase { CONNECTING, SYNCING, READY, BACKOFF, AUTH_REQUIRED, REVOKED, ERROR, CLOSED }
 
 /**
@@ -15,9 +15,12 @@ data class SessionReadState(
     val error: String? = null,
     val loadingOlder: Boolean = false,
     val pageError: String? = null,
+    /** Locally restored or disconnected history is never a source of authority. */
+    val stale: Boolean = false,
 ) {
     val items: List<ConversationItem> get() = window?.items ?: emptyList()
-    val running get() = window?.taskRunning == true
+    val readOnly get() = stale || phase != SessionReadPhase.READY
+    val running get() = !readOnly && window?.taskRunning == true
     override fun toString() = "SessionReadState($phase, items=${items.size})"
 }
 

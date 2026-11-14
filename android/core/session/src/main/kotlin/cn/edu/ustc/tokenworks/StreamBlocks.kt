@@ -4,7 +4,7 @@ import java.util.Collections
 
 enum class BlockKind { TEXT, REASONING, TOOL, IMAGE, OTHER }
 class DisplayBlock(val kind: BlockKind, val text: String, val name: String = "", val callId: String = "", val complete: Boolean = false,
-    val media: VisibleMediaReference? = null) {
+    val media: NativeImageReference? = null) {
     init { if ((kind == BlockKind.IMAGE) != (media != null)) throw SessionDataException() }
     override fun toString() = "DisplayBlock($kind)"
 }

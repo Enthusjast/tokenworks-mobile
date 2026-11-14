@@ -1,0 +1,37 @@
+TokenWorks application-maintained resource-bound patch for werift 0.27.0.
+This is not an upstream werift API or an upstream resource-safety claim.
+Source: https://github.com/shinyoshiaki/werift-webrtc/tree/v0.27.0
+License source: https://raw.githubusercontent.com/shinyoshiaki/werift-webrtc/v0.27.0/LICENSE
+
+The adjacent script and manifest retain exact original/patched SHA-256 digests
+for the Node ESM bundle, CJS runtime modules and public transport declarations.
+The patch adds bounded SCTP receive/send tasks, retransmission/reassembly and
+SACK metadata accounting, DTLS handshake tasks/fragments/transcript reservations,
+ICE early-check/checklist limits and real UDP send-callback consumption. It also
+removes automatic UDP-to-TCP TURN fallback, makes PeerConnection.close singleflight,
+and drains in-flight ICE gathering and SCTP/DTLS tasks before releasing PC credits.
+It does not replace protocol parsers, cryptography, or native application RPC semantics.
+Other werift entry points (polyfill/nonstandard) are not used by this carrier and
+are not advertised as patched. Preserve werift's shipped third-party notices.
+
+MIT License
+
+Copyright (c) 2020 shinyoshiaki
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.

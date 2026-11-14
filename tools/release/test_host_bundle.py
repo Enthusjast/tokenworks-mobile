@@ -29,10 +29,11 @@ def fixture():
     package = {"name": "tokenworks-mobile", "version": "0.0.1", "type": "module", "main": "lib/index.js", "types": "lib/index.d.ts",
                "files": ["lib", "README.md"], "private": True, "exports": {".": {"types": "./lib/index.d.ts", "default": "./lib/index.js"}}, "dependencies": {"ws": "8.22.0"}, "peerDependencies": {"@deepseek-ai/dsh-session": bundle.DSH}}
     files = {"package/package.json": bundle.json_bytes(package), "package/README.md": b"fixture", "package/lib/index.js": b"export const name = 'fixture'\n", "package/lib/index.d.ts": b"export declare const name: string\n"}
+    files[bundle.NATIVE] = b"\x7fELF" + bytes(60)
     raw = archive(files)
     manifest = {"format": bundle.FORMAT, "source": {"commit": "a" * 40, "inputs": [{"path": "host/remote-control/src/index.ts", "sha256": "b" * 64, "size": 1}]},
                 "builder_sha256": "c" * 64, "package": {key: package[key] for key in ["name", "version", "type", "dependencies", "peerDependencies"]},
-                "toolchain": {"node": "v24.20.0", "npm": "11.0.0", "typescript": "5.9.3", "dsh": {"version": bundle.DSH, "entry_sha256": "d" * 64},
+                "toolchain": {"node": "v24.20.0", "node_api": 8, "rust": "rustc 1.96.0 (ac68faa20 2026-05-25)", "npm": "11.0.0", "typescript": "5.9.3", "dsh": {"version": bundle.DSH, "entry_sha256": "d" * 64},
                               "installed_dependencies": {**package["dependencies"], **package["peerDependencies"]}, "platform": "linux", "architecture": "x86_64"},
                 "artifact": {"file": "tokenworks-mobile-0.0.1.tgz", "sha256": bundle.digest(raw), "size": len(raw),
                              "files": [bundle.file_record(name, files[name]) for name in sorted(files)]}}
@@ -45,6 +46,27 @@ def validate(manifest, raw):
 
 
 class HostBundleTests(unittest.TestCase):
+    def test_native_binary_is_required_and_only_exact_path_is_allowed(self):
+        files, raw, manifest = fixture()
+        validate(manifest, raw)
+        for replacement in (b"", b"not a native binary" * 8):
+            changed = dict(files); changed[bundle.NATIVE] = replacement
+            with self.assertRaises(bundle.BundleError): bundle.inspect_archive(archive(changed))
+        del files[bundle.NATIVE]
+        with self.assertRaises(bundle.BundleError): bundle.inspect_archive(archive(files))
+        for name in ("package/lib/other.node", "package/lib/native/other.node", "package/tokenworks_noise.node"):
+            self.assertFalse(bundle.package_path(name))
+        for key, value in (("node_api", 9), ("rust", "rustc 1.95.0 (abc123 2026-03-01)")):
+            changed = copy.deepcopy(manifest); changed["toolchain"][key] = value
+            with self.assertRaises(bundle.BundleError): validate(changed, raw)
+
+    def test_native_sources_are_bound_by_the_inventory(self):
+        _, raw, manifest = fixture()
+        for name in ("native/noise-carrier/Cargo.lock", "native/noise-carrier/src/lib.rs", "tools/native/build-noise.py"):
+            changed = copy.deepcopy(manifest)
+            changed["source"]["inputs"].append({"path": name, "size": 1, "sha256": "e" * 64})
+            validate(changed, raw)
+
     def test_client_metadata_requires_the_exact_ui_asset_and_excludes_fixture_exports(self):
         files, _, _ = fixture()
         package = json.loads(files['package/package.json'])

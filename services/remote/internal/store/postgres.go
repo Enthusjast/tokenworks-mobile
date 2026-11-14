@@ -66,6 +66,7 @@ type Host struct {
 type Runtime struct {
 	ID                 string         `json:"id"`
 	HostID             string         `json:"host_id"`
+	InstallationID     string         `json:"installation_id"`
 	OrganizationID     string         `json:"organization_id,omitempty"`
 	DSHVersion         string         `json:"dsh_version,omitempty"`
 	ApplicationVersion string         `json:"application_version,omitempty"`
@@ -255,7 +256,7 @@ func (postgres *Postgres) ListHosts(ctx context.Context, identity UserIdentity) 
 
 func (postgres *Postgres) ListRuntimes(ctx context.Context, identity UserIdentity) ([]Runtime, error) {
 	rows, err := postgres.DB.QueryContext(ctx, `
-		select distinct r.id::text, h.id::text, coalesce(r.dsh_version, ''),
+        select distinct r.id::text, h.id::text, i.id::text, coalesce(r.dsh_version, ''),
 		       coalesce(r.application_version, ''), coalesce(r.plugin_version, ''),
 		       r.last_seen_at, h.org_id::text,
 		       g.role, g.grant_version, g.bindings, g.expires_at
@@ -277,7 +278,7 @@ func (postgres *Postgres) ListRuntimes(ctx context.Context, identity UserIdentit
 		var runtime Runtime
 		var access RuntimeAccess
 		var bindingsJSON []byte
-		if err := rows.Scan(&runtime.ID, &runtime.HostID, &runtime.DSHVersion, &runtime.ApplicationVersion,
+		if err := rows.Scan(&runtime.ID, &runtime.HostID, &runtime.InstallationID, &runtime.DSHVersion, &runtime.ApplicationVersion,
 			&runtime.PluginVersion, &runtime.LastSeenAt, &runtime.OrganizationID,
 			&access.Role, &access.GrantVersion, &bindingsJSON, &access.ExpiresAt); err != nil {
 			return nil, ErrDatabaseUnavailable

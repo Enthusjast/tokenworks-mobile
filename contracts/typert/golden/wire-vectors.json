@@ -1,0 +1,1665 @@
+{
+  "source": "protocol-generated; validated by installed native wire parsers, not recorded execution",
+  "vectors": [
+    {
+      "id": "client:0",
+      "side": "client",
+      "value": {
+        "type": "open",
+        "streamId": "fixture-stream",
+        "endpoint": "session/follow",
+        "payload": {
+          "args": {
+            "request": {
+              "sessionId": "fixture-session"
+            }
+          }
+        }
+      },
+      "accepted": true,
+      "expected": {
+        "type": "open",
+        "streamId": "fixture-stream",
+        "endpoint": "session/follow",
+        "payload": {
+          "args": {
+            "request": {
+              "sessionId": "fixture-session"
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "client:1",
+      "side": "client",
+      "value": {
+        "type": "item",
+        "streamId": "fixture-stream"
+      },
+      "accepted": true,
+      "expected": {
+        "type": "item",
+        "streamId": "fixture-stream"
+      }
+    },
+    {
+      "id": "client:2",
+      "side": "client",
+      "value": {
+        "type": "item",
+        "streamId": "fixture-stream",
+        "value": null
+      },
+      "accepted": true,
+      "expected": {
+        "type": "item",
+        "streamId": "fixture-stream",
+        "value": null
+      }
+    },
+    {
+      "id": "client:3",
+      "side": "client",
+      "value": {
+        "type": "item",
+        "streamId": "fixture-stream",
+        "value": {
+          "fixture": [
+            "原样🙂",
+            null
+          ]
+        }
+      },
+      "accepted": true,
+      "expected": {
+        "type": "item",
+        "streamId": "fixture-stream",
+        "value": {
+          "fixture": [
+            "原样🙂",
+            null
+          ]
+        }
+      }
+    },
+    {
+      "id": "client:4",
+      "side": "client",
+      "value": {
+        "type": "end",
+        "streamId": "fixture-stream"
+      },
+      "accepted": true,
+      "expected": {
+        "type": "end",
+        "streamId": "fixture-stream"
+      }
+    },
+    {
+      "id": "client:5",
+      "side": "client",
+      "value": {
+        "type": "cancel",
+        "streamId": "fixture-stream"
+      },
+      "accepted": true,
+      "expected": {
+        "type": "cancel",
+        "streamId": "fixture-stream"
+      }
+    },
+    {
+      "id": "client:6",
+      "side": "client",
+      "value": null,
+      "accepted": false
+    },
+    {
+      "id": "client:7",
+      "side": "client",
+      "value": {},
+      "accepted": false
+    },
+    {
+      "id": "client:8",
+      "side": "client",
+      "value": {
+        "type": "future",
+        "streamId": "fixture-stream"
+      },
+      "accepted": false
+    },
+    {
+      "id": "client:9",
+      "side": "client",
+      "value": {
+        "type": "open",
+        "streamId": "fixture-stream",
+        "endpoint": "session/follow",
+        "payload": {
+          "args": {
+            "request": {
+              "sessionId": "fixture-session"
+            }
+          }
+        },
+        "unknownFixtureField": true
+      },
+      "accepted": false
+    },
+    {
+      "id": "client:10",
+      "side": "client",
+      "value": {
+        "streamId": "fixture-stream",
+        "endpoint": "session/follow",
+        "payload": {
+          "args": {
+            "request": {
+              "sessionId": "fixture-session"
+            }
+          }
+        }
+      },
+      "accepted": false
+    },
+    {
+      "id": "client:11",
+      "side": "client",
+      "value": {
+        "type": false,
+        "streamId": "fixture-stream",
+        "endpoint": "session/follow",
+        "payload": {
+          "args": {
+            "request": {
+              "sessionId": "fixture-session"
+            }
+          }
+        }
+      },
+      "accepted": false
+    },
+    {
+      "id": "client:12",
+      "side": "client",
+      "value": {
+        "type": "open",
+        "endpoint": "session/follow",
+        "payload": {
+          "args": {
+            "request": {
+              "sessionId": "fixture-session"
+            }
+          }
+        }
+      },
+      "accepted": false
+    },
+    {
+      "id": "client:13",
+      "side": "client",
+      "value": {
+        "type": "open",
+        "streamId": false,
+        "endpoint": "session/follow",
+        "payload": {
+          "args": {
+            "request": {
+              "sessionId": "fixture-session"
+            }
+          }
+        }
+      },
+      "accepted": false
+    },
+    {
+      "id": "client:14",
+      "side": "client",
+      "value": {
+        "type": "open",
+        "streamId": "fixture-stream",
+        "payload": {
+          "args": {
+            "request": {
+              "sessionId": "fixture-session"
+            }
+          }
+        }
+      },
+      "accepted": false
+    },
+    {
+      "id": "client:15",
+      "side": "client",
+      "value": {
+        "type": "open",
+        "streamId": "fixture-stream",
+        "endpoint": false,
+        "payload": {
+          "args": {
+            "request": {
+              "sessionId": "fixture-session"
+            }
+          }
+        }
+      },
+      "accepted": false
+    },
+    {
+      "id": "client:16",
+      "side": "client",
+      "value": {
+        "type": "open",
+        "streamId": "fixture-stream",
+        "endpoint": "session/follow"
+      },
+      "accepted": false
+    },
+    {
+      "id": "client:17",
+      "side": "client",
+      "value": {
+        "type": "open",
+        "streamId": "fixture-stream",
+        "endpoint": "session/follow",
+        "payload": false
+      },
+      "accepted": true,
+      "expected": {
+        "type": "open",
+        "streamId": "fixture-stream",
+        "endpoint": "session/follow",
+        "payload": false
+      }
+    },
+    {
+      "id": "client:18",
+      "side": "client",
+      "value": {
+        "type": "open",
+        "streamId": "",
+        "endpoint": "session/follow",
+        "payload": {
+          "args": {
+            "request": {
+              "sessionId": "fixture-session"
+            }
+          }
+        }
+      },
+      "accepted": false
+    },
+    {
+      "id": "client:19",
+      "side": "client",
+      "value": {
+        "type": "item",
+        "streamId": "fixture-stream",
+        "unknownFixtureField": true
+      },
+      "accepted": false
+    },
+    {
+      "id": "client:20",
+      "side": "client",
+      "value": {
+        "streamId": "fixture-stream"
+      },
+      "accepted": false
+    },
+    {
+      "id": "client:21",
+      "side": "client",
+      "value": {
+        "type": false,
+        "streamId": "fixture-stream"
+      },
+      "accepted": false
+    },
+    {
+      "id": "client:22",
+      "side": "client",
+      "value": {
+        "type": "item"
+      },
+      "accepted": false
+    },
+    {
+      "id": "client:23",
+      "side": "client",
+      "value": {
+        "type": "item",
+        "streamId": false
+      },
+      "accepted": false
+    },
+    {
+      "id": "client:24",
+      "side": "client",
+      "value": {
+        "type": "item",
+        "streamId": ""
+      },
+      "accepted": false
+    },
+    {
+      "id": "client:25",
+      "side": "client",
+      "value": {
+        "type": "item",
+        "streamId": "fixture-stream",
+        "value": null,
+        "unknownFixtureField": true
+      },
+      "accepted": false
+    },
+    {
+      "id": "client:26",
+      "side": "client",
+      "value": {
+        "streamId": "fixture-stream",
+        "value": null
+      },
+      "accepted": false
+    },
+    {
+      "id": "client:27",
+      "side": "client",
+      "value": {
+        "type": false,
+        "streamId": "fixture-stream",
+        "value": null
+      },
+      "accepted": false
+    },
+    {
+      "id": "client:28",
+      "side": "client",
+      "value": {
+        "type": "item",
+        "value": null
+      },
+      "accepted": false
+    },
+    {
+      "id": "client:29",
+      "side": "client",
+      "value": {
+        "type": "item",
+        "streamId": false,
+        "value": null
+      },
+      "accepted": false
+    },
+    {
+      "id": "client:30",
+      "side": "client",
+      "value": {
+        "type": "item",
+        "streamId": "fixture-stream",
+        "value": false
+      },
+      "accepted": true,
+      "expected": {
+        "type": "item",
+        "streamId": "fixture-stream",
+        "value": false
+      }
+    },
+    {
+      "id": "client:31",
+      "side": "client",
+      "value": {
+        "type": "item",
+        "streamId": "",
+        "value": null
+      },
+      "accepted": false
+    },
+    {
+      "id": "client:32",
+      "side": "client",
+      "value": {
+        "type": "item",
+        "streamId": "fixture-stream",
+        "value": {
+          "fixture": [
+            "原样🙂",
+            null
+          ]
+        },
+        "unknownFixtureField": true
+      },
+      "accepted": false
+    },
+    {
+      "id": "client:33",
+      "side": "client",
+      "value": {
+        "streamId": "fixture-stream",
+        "value": {
+          "fixture": [
+            "原样🙂",
+            null
+          ]
+        }
+      },
+      "accepted": false
+    },
+    {
+      "id": "client:34",
+      "side": "client",
+      "value": {
+        "type": false,
+        "streamId": "fixture-stream",
+        "value": {
+          "fixture": [
+            "原样🙂",
+            null
+          ]
+        }
+      },
+      "accepted": false
+    },
+    {
+      "id": "client:35",
+      "side": "client",
+      "value": {
+        "type": "item",
+        "value": {
+          "fixture": [
+            "原样🙂",
+            null
+          ]
+        }
+      },
+      "accepted": false
+    },
+    {
+      "id": "client:36",
+      "side": "client",
+      "value": {
+        "type": "item",
+        "streamId": false,
+        "value": {
+          "fixture": [
+            "原样🙂",
+            null
+          ]
+        }
+      },
+      "accepted": false
+    },
+    {
+      "id": "client:37",
+      "side": "client",
+      "value": {
+        "type": "item",
+        "streamId": "",
+        "value": {
+          "fixture": [
+            "原样🙂",
+            null
+          ]
+        }
+      },
+      "accepted": false
+    },
+    {
+      "id": "client:38",
+      "side": "client",
+      "value": {
+        "type": "end",
+        "streamId": "fixture-stream",
+        "unknownFixtureField": true
+      },
+      "accepted": false
+    },
+    {
+      "id": "client:39",
+      "side": "client",
+      "value": {
+        "type": "end"
+      },
+      "accepted": false
+    },
+    {
+      "id": "client:40",
+      "side": "client",
+      "value": {
+        "type": "end",
+        "streamId": false
+      },
+      "accepted": false
+    },
+    {
+      "id": "client:41",
+      "side": "client",
+      "value": {
+        "type": "end",
+        "streamId": ""
+      },
+      "accepted": false
+    },
+    {
+      "id": "client:42",
+      "side": "client",
+      "value": {
+        "type": "cancel",
+        "streamId": "fixture-stream",
+        "unknownFixtureField": true
+      },
+      "accepted": false
+    },
+    {
+      "id": "client:43",
+      "side": "client",
+      "value": {
+        "type": "cancel"
+      },
+      "accepted": false
+    },
+    {
+      "id": "client:44",
+      "side": "client",
+      "value": {
+        "type": "cancel",
+        "streamId": false
+      },
+      "accepted": false
+    },
+    {
+      "id": "client:45",
+      "side": "client",
+      "value": {
+        "type": "cancel",
+        "streamId": ""
+      },
+      "accepted": false
+    },
+    {
+      "id": "server:0",
+      "side": "server",
+      "value": {
+        "type": "item",
+        "streamId": "fixture-stream"
+      },
+      "accepted": true,
+      "expected": {
+        "type": "item",
+        "streamId": "fixture-stream"
+      }
+    },
+    {
+      "id": "server:1",
+      "side": "server",
+      "value": {
+        "type": "item",
+        "streamId": "fixture-stream",
+        "value": null
+      },
+      "accepted": true,
+      "expected": {
+        "type": "item",
+        "streamId": "fixture-stream",
+        "value": null
+      }
+    },
+    {
+      "id": "server:2",
+      "side": "server",
+      "value": {
+        "type": "item",
+        "streamId": "fixture-stream",
+        "value": {
+          "fixture": [
+            "原样🙂",
+            null
+          ]
+        }
+      },
+      "accepted": true,
+      "expected": {
+        "type": "item",
+        "streamId": "fixture-stream",
+        "value": {
+          "fixture": [
+            "原样🙂",
+            null
+          ]
+        }
+      }
+    },
+    {
+      "id": "server:3",
+      "side": "server",
+      "value": {
+        "type": "end",
+        "streamId": "fixture-stream"
+      },
+      "accepted": true,
+      "expected": {
+        "type": "end",
+        "streamId": "fixture-stream"
+      }
+    },
+    {
+      "id": "server:4",
+      "side": "server",
+      "value": {
+        "type": "error",
+        "streamId": "fixture-stream",
+        "error": {
+          "code": "fixture/failure",
+          "message": "isolated fixture",
+          "details": {}
+        }
+      },
+      "accepted": true,
+      "expected": {
+        "type": "error",
+        "streamId": "fixture-stream",
+        "error": {
+          "code": "fixture/failure",
+          "message": "isolated fixture",
+          "details": {}
+        }
+      }
+    },
+    {
+      "id": "server:5",
+      "side": "server",
+      "value": null,
+      "accepted": false
+    },
+    {
+      "id": "server:6",
+      "side": "server",
+      "value": {},
+      "accepted": false
+    },
+    {
+      "id": "server:7",
+      "side": "server",
+      "value": {
+        "type": "future",
+        "streamId": "fixture-stream"
+      },
+      "accepted": false
+    },
+    {
+      "id": "server:8",
+      "side": "server",
+      "value": {
+        "type": "item",
+        "streamId": "fixture-stream",
+        "unknownFixtureField": true
+      },
+      "accepted": false
+    },
+    {
+      "id": "server:9",
+      "side": "server",
+      "value": {
+        "streamId": "fixture-stream"
+      },
+      "accepted": false
+    },
+    {
+      "id": "server:10",
+      "side": "server",
+      "value": {
+        "type": false,
+        "streamId": "fixture-stream"
+      },
+      "accepted": false
+    },
+    {
+      "id": "server:11",
+      "side": "server",
+      "value": {
+        "type": "item"
+      },
+      "accepted": false
+    },
+    {
+      "id": "server:12",
+      "side": "server",
+      "value": {
+        "type": "item",
+        "streamId": false
+      },
+      "accepted": false
+    },
+    {
+      "id": "server:13",
+      "side": "server",
+      "value": {
+        "type": "item",
+        "streamId": ""
+      },
+      "accepted": false
+    },
+    {
+      "id": "server:14",
+      "side": "server",
+      "value": {
+        "type": "item",
+        "streamId": "fixture-stream",
+        "value": null,
+        "unknownFixtureField": true
+      },
+      "accepted": false
+    },
+    {
+      "id": "server:15",
+      "side": "server",
+      "value": {
+        "streamId": "fixture-stream",
+        "value": null
+      },
+      "accepted": false
+    },
+    {
+      "id": "server:16",
+      "side": "server",
+      "value": {
+        "type": false,
+        "streamId": "fixture-stream",
+        "value": null
+      },
+      "accepted": false
+    },
+    {
+      "id": "server:17",
+      "side": "server",
+      "value": {
+        "type": "item",
+        "value": null
+      },
+      "accepted": false
+    },
+    {
+      "id": "server:18",
+      "side": "server",
+      "value": {
+        "type": "item",
+        "streamId": false,
+        "value": null
+      },
+      "accepted": false
+    },
+    {
+      "id": "server:19",
+      "side": "server",
+      "value": {
+        "type": "item",
+        "streamId": "fixture-stream",
+        "value": false
+      },
+      "accepted": true,
+      "expected": {
+        "type": "item",
+        "streamId": "fixture-stream",
+        "value": false
+      }
+    },
+    {
+      "id": "server:20",
+      "side": "server",
+      "value": {
+        "type": "item",
+        "streamId": "",
+        "value": null
+      },
+      "accepted": false
+    },
+    {
+      "id": "server:21",
+      "side": "server",
+      "value": {
+        "type": "item",
+        "streamId": "fixture-stream",
+        "value": {
+          "fixture": [
+            "原样🙂",
+            null
+          ]
+        },
+        "unknownFixtureField": true
+      },
+      "accepted": false
+    },
+    {
+      "id": "server:22",
+      "side": "server",
+      "value": {
+        "streamId": "fixture-stream",
+        "value": {
+          "fixture": [
+            "原样🙂",
+            null
+          ]
+        }
+      },
+      "accepted": false
+    },
+    {
+      "id": "server:23",
+      "side": "server",
+      "value": {
+        "type": false,
+        "streamId": "fixture-stream",
+        "value": {
+          "fixture": [
+            "原样🙂",
+            null
+          ]
+        }
+      },
+      "accepted": false
+    },
+    {
+      "id": "server:24",
+      "side": "server",
+      "value": {
+        "type": "item",
+        "value": {
+          "fixture": [
+            "原样🙂",
+            null
+          ]
+        }
+      },
+      "accepted": false
+    },
+    {
+      "id": "server:25",
+      "side": "server",
+      "value": {
+        "type": "item",
+        "streamId": false,
+        "value": {
+          "fixture": [
+            "原样🙂",
+            null
+          ]
+        }
+      },
+      "accepted": false
+    },
+    {
+      "id": "server:26",
+      "side": "server",
+      "value": {
+        "type": "item",
+        "streamId": "",
+        "value": {
+          "fixture": [
+            "原样🙂",
+            null
+          ]
+        }
+      },
+      "accepted": false
+    },
+    {
+      "id": "server:27",
+      "side": "server",
+      "value": {
+        "type": "end",
+        "streamId": "fixture-stream",
+        "unknownFixtureField": true
+      },
+      "accepted": false
+    },
+    {
+      "id": "server:28",
+      "side": "server",
+      "value": {
+        "type": "end"
+      },
+      "accepted": false
+    },
+    {
+      "id": "server:29",
+      "side": "server",
+      "value": {
+        "type": "end",
+        "streamId": false
+      },
+      "accepted": false
+    },
+    {
+      "id": "server:30",
+      "side": "server",
+      "value": {
+        "type": "end",
+        "streamId": ""
+      },
+      "accepted": false
+    },
+    {
+      "id": "server:31",
+      "side": "server",
+      "value": {
+        "type": "error",
+        "streamId": "fixture-stream",
+        "error": {
+          "code": "fixture/failure",
+          "message": "isolated fixture",
+          "details": {}
+        },
+        "unknownFixtureField": true
+      },
+      "accepted": false
+    },
+    {
+      "id": "server:32",
+      "side": "server",
+      "value": {
+        "streamId": "fixture-stream",
+        "error": {
+          "code": "fixture/failure",
+          "message": "isolated fixture",
+          "details": {}
+        }
+      },
+      "accepted": false
+    },
+    {
+      "id": "server:33",
+      "side": "server",
+      "value": {
+        "type": false,
+        "streamId": "fixture-stream",
+        "error": {
+          "code": "fixture/failure",
+          "message": "isolated fixture",
+          "details": {}
+        }
+      },
+      "accepted": false
+    },
+    {
+      "id": "server:34",
+      "side": "server",
+      "value": {
+        "type": "error",
+        "error": {
+          "code": "fixture/failure",
+          "message": "isolated fixture",
+          "details": {}
+        }
+      },
+      "accepted": false
+    },
+    {
+      "id": "server:35",
+      "side": "server",
+      "value": {
+        "type": "error",
+        "streamId": false,
+        "error": {
+          "code": "fixture/failure",
+          "message": "isolated fixture",
+          "details": {}
+        }
+      },
+      "accepted": false
+    },
+    {
+      "id": "server:36",
+      "side": "server",
+      "value": {
+        "type": "error",
+        "streamId": "fixture-stream"
+      },
+      "accepted": false
+    },
+    {
+      "id": "server:37",
+      "side": "server",
+      "value": {
+        "type": "error",
+        "streamId": "fixture-stream",
+        "error": false
+      },
+      "accepted": false
+    },
+    {
+      "id": "server:38",
+      "side": "server",
+      "value": {
+        "type": "error",
+        "streamId": "",
+        "error": {
+          "code": "fixture/failure",
+          "message": "isolated fixture",
+          "details": {}
+        }
+      },
+      "accepted": false
+    },
+    {
+      "id": "event-result:0",
+      "side": "event-result",
+      "value": {
+        "clientId": "fixture-client",
+        "eventId": "fixture-event",
+        "outcome": {
+          "kind": "next"
+        }
+      },
+      "accepted": true,
+      "expected": {
+        "clientId": "fixture-client",
+        "eventId": "fixture-event",
+        "outcome": {
+          "kind": "next"
+        }
+      }
+    },
+    {
+      "id": "event-result:1",
+      "side": "event-result",
+      "value": {
+        "clientId": "fixture-client",
+        "eventId": "fixture-event",
+        "outcome": {
+          "kind": "result"
+        }
+      },
+      "accepted": true,
+      "expected": {
+        "clientId": "fixture-client",
+        "eventId": "fixture-event",
+        "outcome": {
+          "kind": "result"
+        }
+      }
+    },
+    {
+      "id": "event-result:2",
+      "side": "event-result",
+      "value": {
+        "clientId": "fixture-client",
+        "eventId": "fixture-event",
+        "outcome": {
+          "kind": "result",
+          "value": null
+        }
+      },
+      "accepted": true,
+      "expected": {
+        "clientId": "fixture-client",
+        "eventId": "fixture-event",
+        "outcome": {
+          "kind": "result",
+          "value": null
+        }
+      }
+    },
+    {
+      "id": "event-result:3",
+      "side": "event-result",
+      "value": {
+        "clientId": "fixture-client",
+        "eventId": "fixture-event",
+        "outcome": {
+          "kind": "result",
+          "value": {
+            "fixture": true
+          }
+        }
+      },
+      "accepted": true,
+      "expected": {
+        "clientId": "fixture-client",
+        "eventId": "fixture-event",
+        "outcome": {
+          "kind": "result",
+          "value": {
+            "fixture": true
+          }
+        }
+      }
+    },
+    {
+      "id": "event-result:4",
+      "side": "event-result",
+      "value": {
+        "clientId": "fixture-client",
+        "eventId": "fixture-event",
+        "outcome": {
+          "kind": "rejected",
+          "error": {
+            "name": "FixtureError",
+            "message": "isolated fixture"
+          }
+        }
+      },
+      "accepted": true,
+      "expected": {
+        "clientId": "fixture-client",
+        "eventId": "fixture-event",
+        "outcome": {
+          "kind": "rejected",
+          "error": {
+            "name": "FixtureError",
+            "message": "isolated fixture"
+          }
+        }
+      }
+    },
+    {
+      "id": "event-result:5",
+      "side": "event-result",
+      "value": {
+        "clientId": "fixture-client",
+        "eventId": "fixture-event",
+        "outcome": {
+          "kind": "rejected",
+          "error": {
+            "name": "FixtureError",
+            "message": "isolated fixture",
+            "code": "fixture/failure",
+            "details": null
+          }
+        }
+      },
+      "accepted": true,
+      "expected": {
+        "clientId": "fixture-client",
+        "eventId": "fixture-event",
+        "outcome": {
+          "kind": "rejected",
+          "error": {
+            "name": "FixtureError",
+            "message": "isolated fixture",
+            "code": "fixture/failure",
+            "details": null
+          }
+        }
+      }
+    },
+    {
+      "id": "event-result:6",
+      "side": "event-result",
+      "value": null,
+      "accepted": false
+    },
+    {
+      "id": "event-result:7",
+      "side": "event-result",
+      "value": {},
+      "accepted": false
+    },
+    {
+      "id": "event-result:8",
+      "side": "event-result",
+      "value": {
+        "type": "future",
+        "streamId": "fixture-stream"
+      },
+      "accepted": false
+    },
+    {
+      "id": "event-result:9",
+      "side": "event-result",
+      "value": {
+        "clientId": "fixture-client",
+        "eventId": "fixture-event",
+        "outcome": {
+          "kind": "next"
+        },
+        "unknownFixtureField": true
+      },
+      "accepted": false
+    },
+    {
+      "id": "event-result:10",
+      "side": "event-result",
+      "value": {
+        "eventId": "fixture-event",
+        "outcome": {
+          "kind": "next"
+        }
+      },
+      "accepted": false
+    },
+    {
+      "id": "event-result:11",
+      "side": "event-result",
+      "value": {
+        "clientId": false,
+        "eventId": "fixture-event",
+        "outcome": {
+          "kind": "next"
+        }
+      },
+      "accepted": false
+    },
+    {
+      "id": "event-result:12",
+      "side": "event-result",
+      "value": {
+        "clientId": "fixture-client",
+        "outcome": {
+          "kind": "next"
+        }
+      },
+      "accepted": false
+    },
+    {
+      "id": "event-result:13",
+      "side": "event-result",
+      "value": {
+        "clientId": "fixture-client",
+        "eventId": false,
+        "outcome": {
+          "kind": "next"
+        }
+      },
+      "accepted": false
+    },
+    {
+      "id": "event-result:14",
+      "side": "event-result",
+      "value": {
+        "clientId": "fixture-client",
+        "eventId": "fixture-event"
+      },
+      "accepted": false
+    },
+    {
+      "id": "event-result:15",
+      "side": "event-result",
+      "value": {
+        "clientId": "fixture-client",
+        "eventId": "fixture-event",
+        "outcome": false
+      },
+      "accepted": false
+    },
+    {
+      "id": "event-result:16",
+      "side": "event-result",
+      "value": {
+        "clientId": "fixture-client",
+        "eventId": "fixture-event",
+        "outcome": {
+          "kind": "future"
+        }
+      },
+      "accepted": false
+    },
+    {
+      "id": "event-result:17",
+      "side": "event-result",
+      "value": {
+        "clientId": "fixture-client",
+        "eventId": "fixture-event",
+        "outcome": {
+          "kind": "result"
+        },
+        "unknownFixtureField": true
+      },
+      "accepted": false
+    },
+    {
+      "id": "event-result:18",
+      "side": "event-result",
+      "value": {
+        "eventId": "fixture-event",
+        "outcome": {
+          "kind": "result"
+        }
+      },
+      "accepted": false
+    },
+    {
+      "id": "event-result:19",
+      "side": "event-result",
+      "value": {
+        "clientId": false,
+        "eventId": "fixture-event",
+        "outcome": {
+          "kind": "result"
+        }
+      },
+      "accepted": false
+    },
+    {
+      "id": "event-result:20",
+      "side": "event-result",
+      "value": {
+        "clientId": "fixture-client",
+        "outcome": {
+          "kind": "result"
+        }
+      },
+      "accepted": false
+    },
+    {
+      "id": "event-result:21",
+      "side": "event-result",
+      "value": {
+        "clientId": "fixture-client",
+        "eventId": false,
+        "outcome": {
+          "kind": "result"
+        }
+      },
+      "accepted": false
+    },
+    {
+      "id": "event-result:22",
+      "side": "event-result",
+      "value": {
+        "clientId": "fixture-client",
+        "eventId": "fixture-event",
+        "outcome": {
+          "kind": "result",
+          "value": null
+        },
+        "unknownFixtureField": true
+      },
+      "accepted": false
+    },
+    {
+      "id": "event-result:23",
+      "side": "event-result",
+      "value": {
+        "eventId": "fixture-event",
+        "outcome": {
+          "kind": "result",
+          "value": null
+        }
+      },
+      "accepted": false
+    },
+    {
+      "id": "event-result:24",
+      "side": "event-result",
+      "value": {
+        "clientId": false,
+        "eventId": "fixture-event",
+        "outcome": {
+          "kind": "result",
+          "value": null
+        }
+      },
+      "accepted": false
+    },
+    {
+      "id": "event-result:25",
+      "side": "event-result",
+      "value": {
+        "clientId": "fixture-client",
+        "outcome": {
+          "kind": "result",
+          "value": null
+        }
+      },
+      "accepted": false
+    },
+    {
+      "id": "event-result:26",
+      "side": "event-result",
+      "value": {
+        "clientId": "fixture-client",
+        "eventId": false,
+        "outcome": {
+          "kind": "result",
+          "value": null
+        }
+      },
+      "accepted": false
+    },
+    {
+      "id": "event-result:27",
+      "side": "event-result",
+      "value": {
+        "clientId": "fixture-client",
+        "eventId": "fixture-event",
+        "outcome": {
+          "kind": "result",
+          "value": {
+            "fixture": true
+          }
+        },
+        "unknownFixtureField": true
+      },
+      "accepted": false
+    },
+    {
+      "id": "event-result:28",
+      "side": "event-result",
+      "value": {
+        "eventId": "fixture-event",
+        "outcome": {
+          "kind": "result",
+          "value": {
+            "fixture": true
+          }
+        }
+      },
+      "accepted": false
+    },
+    {
+      "id": "event-result:29",
+      "side": "event-result",
+      "value": {
+        "clientId": false,
+        "eventId": "fixture-event",
+        "outcome": {
+          "kind": "result",
+          "value": {
+            "fixture": true
+          }
+        }
+      },
+      "accepted": false
+    },
+    {
+      "id": "event-result:30",
+      "side": "event-result",
+      "value": {
+        "clientId": "fixture-client",
+        "outcome": {
+          "kind": "result",
+          "value": {
+            "fixture": true
+          }
+        }
+      },
+      "accepted": false
+    },
+    {
+      "id": "event-result:31",
+      "side": "event-result",
+      "value": {
+        "clientId": "fixture-client",
+        "eventId": false,
+        "outcome": {
+          "kind": "result",
+          "value": {
+            "fixture": true
+          }
+        }
+      },
+      "accepted": false
+    },
+    {
+      "id": "event-result:32",
+      "side": "event-result",
+      "value": {
+        "clientId": "fixture-client",
+        "eventId": "fixture-event",
+        "outcome": {
+          "kind": "rejected",
+          "error": {
+            "name": "FixtureError",
+            "message": "isolated fixture"
+          }
+        },
+        "unknownFixtureField": true
+      },
+      "accepted": false
+    },
+    {
+      "id": "event-result:33",
+      "side": "event-result",
+      "value": {
+        "eventId": "fixture-event",
+        "outcome": {
+          "kind": "rejected",
+          "error": {
+            "name": "FixtureError",
+            "message": "isolated fixture"
+          }
+        }
+      },
+      "accepted": false
+    },
+    {
+      "id": "event-result:34",
+      "side": "event-result",
+      "value": {
+        "clientId": false,
+        "eventId": "fixture-event",
+        "outcome": {
+          "kind": "rejected",
+          "error": {
+            "name": "FixtureError",
+            "message": "isolated fixture"
+          }
+        }
+      },
+      "accepted": false
+    },
+    {
+      "id": "event-result:35",
+      "side": "event-result",
+      "value": {
+        "clientId": "fixture-client",
+        "outcome": {
+          "kind": "rejected",
+          "error": {
+            "name": "FixtureError",
+            "message": "isolated fixture"
+          }
+        }
+      },
+      "accepted": false
+    },
+    {
+      "id": "event-result:36",
+      "side": "event-result",
+      "value": {
+        "clientId": "fixture-client",
+        "eventId": false,
+        "outcome": {
+          "kind": "rejected",
+          "error": {
+            "name": "FixtureError",
+            "message": "isolated fixture"
+          }
+        }
+      },
+      "accepted": false
+    },
+    {
+      "id": "event-result:37",
+      "side": "event-result",
+      "value": {
+        "clientId": "fixture-client",
+        "eventId": "fixture-event",
+        "outcome": {
+          "kind": "rejected",
+          "error": {
+            "name": "FixtureError",
+            "message": "isolated fixture",
+            "code": "fixture/failure",
+            "details": null
+          }
+        },
+        "unknownFixtureField": true
+      },
+      "accepted": false
+    },
+    {
+      "id": "event-result:38",
+      "side": "event-result",
+      "value": {
+        "eventId": "fixture-event",
+        "outcome": {
+          "kind": "rejected",
+          "error": {
+            "name": "FixtureError",
+            "message": "isolated fixture",
+            "code": "fixture/failure",
+            "details": null
+          }
+        }
+      },
+      "accepted": false
+    },
+    {
+      "id": "event-result:39",
+      "side": "event-result",
+      "value": {
+        "clientId": false,
+        "eventId": "fixture-event",
+        "outcome": {
+          "kind": "rejected",
+          "error": {
+            "name": "FixtureError",
+            "message": "isolated fixture",
+            "code": "fixture/failure",
+            "details": null
+          }
+        }
+      },
+      "accepted": false
+    },
+    {
+      "id": "event-result:40",
+      "side": "event-result",
+      "value": {
+        "clientId": "fixture-client",
+        "outcome": {
+          "kind": "rejected",
+          "error": {
+            "name": "FixtureError",
+            "message": "isolated fixture",
+            "code": "fixture/failure",
+            "details": null
+          }
+        }
+      },
+      "accepted": false
+    },
+    {
+      "id": "event-result:41",
+      "side": "event-result",
+      "value": {
+        "clientId": "fixture-client",
+        "eventId": false,
+        "outcome": {
+          "kind": "rejected",
+          "error": {
+            "name": "FixtureError",
+            "message": "isolated fixture",
+            "code": "fixture/failure",
+            "details": null
+          }
+        }
+      },
+      "accepted": false
+    }
+  ]
+}

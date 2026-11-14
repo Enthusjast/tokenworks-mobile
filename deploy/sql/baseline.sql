@@ -676,8 +676,6 @@ CREATE TABLE public.devices (
     proof_public_jwk jsonb NOT NULL,
     proof_key_thumbprint text NOT NULL,
     key_version bigint DEFAULT 1 NOT NULL,
-    push_provider text,
-    push_token_ciphertext bytea,
     last_seen_at timestamp with time zone,
     revoked_at timestamp with time zone,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
@@ -685,8 +683,7 @@ CREATE TABLE public.devices (
     CONSTRAINT devices_check CHECK ((approval_key_thumbprint <> proof_key_thumbprint)),
     CONSTRAINT devices_key_version_check CHECK ((key_version > 0)),
     CONSTRAINT devices_name_check CHECK (((length(name) >= 1) AND (length(name) <= 160))),
-    CONSTRAINT devices_proof_public_jwk_check CHECK ((jsonb_typeof(proof_public_jwk) = 'object'::text)),
-    CONSTRAINT devices_push_provider_check CHECK (((push_provider = ANY (ARRAY['fcm'::text, 'vendor'::text])) OR (push_provider IS NULL)))
+    CONSTRAINT devices_proof_public_jwk_check CHECK ((jsonb_typeof(proof_public_jwk) = 'object'::text))
 );
 
 
@@ -2405,3 +2402,36 @@ INSERT INTO public.schema_identity (format) VALUES ('tokenworks-mobile-native-tr
 -- the published original, not a deployment-specific rotation.
 INSERT INTO public.remote_recovery_state (slot, epoch, phase)
 VALUES (1, '00000000-0000-4000-8000-000000000000', 'ready');
+
+-- Optional data-only push stores encrypted provider tokens and minimal references.
+CREATE TABLE public.push_registrations (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    account_id uuid NOT NULL,
+    org_id uuid NOT NULL REFERENCES public.orgs(id),
+    user_id uuid NOT NULL REFERENCES public.users(id),
+    device_id uuid NOT NULL REFERENCES public.devices(id),
+    device_key_version bigint NOT NULL,
+    proof_key_thumbprint text NOT NULL,
+    deployment_sha256 text NOT NULL CHECK (deployment_sha256 ~ '^[0-9a-f]{64}$'),
+    owner_fingerprint text NOT NULL CHECK (owner_fingerprint ~ '^[0-9a-f]{64}$'),
+    token_sha256 bytea NOT NULL UNIQUE CHECK (octet_length(token_sha256) = 32),
+    token_ciphertext bytea NOT NULL CHECK (octet_length(token_ciphertext) >= 29),
+    created_at timestamptz NOT NULL DEFAULT clock_timestamp(),
+    UNIQUE (device_id)
+);
+
+CREATE TABLE public.push_deliveries (
+    id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    binding_id uuid NOT NULL REFERENCES public.push_registrations(id) ON DELETE CASCADE,
+    notification_id uuid NOT NULL,
+    installation_id uuid NOT NULL REFERENCES public.installations(id),
+    installation_key_version bigint NOT NULL,
+    runtime_id uuid NOT NULL REFERENCES public.runtimes(id),
+    session_id text NOT NULL CHECK (length(session_id) BETWEEN 1 AND 256),
+    kind text NOT NULL CHECK (kind IN ('interaction', 'completed')),
+    expires_at timestamptz NOT NULL,
+    next_attempt_at timestamptz NOT NULL DEFAULT clock_timestamp(),
+    delivered_at timestamptz,
+    UNIQUE (binding_id, notification_id)
+);
+CREATE INDEX push_deliveries_pending ON public.push_deliveries(next_attempt_at, id) WHERE delivered_at IS NULL;

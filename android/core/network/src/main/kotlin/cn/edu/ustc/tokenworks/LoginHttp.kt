@@ -10,18 +10,11 @@ import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.RequestBody.Companion.toRequestBody
 import java.io.IOException
-import java.io.InputStream
-import java.io.OutputStream
 import java.net.URI
-import java.net.InetSocketAddress
-import java.net.Socket
 import java.net.Proxy
 import java.util.concurrent.TimeUnit
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
-import javax.net.ssl.SSLSocket
-
-class RemoteRequestException(val code: String = "network.unavailable") : IllegalStateException(code)
 
 /** No redirects, implicit retries, cookies, logging interceptor or disk response cache. */
 class LoginHttp private constructor(private val client: OkHttpClient) {
@@ -55,7 +48,7 @@ class LoginHttp private constructor(private val client: OkHttpClient) {
 
     private suspend fun get(url: String): ByteArray = checked(execute(Request.Builder().url(url).header("Accept", "application/json").header("Cache-Control", "no-store").build())).bytes
 
-    internal suspend fun execute(request: Request): HttpReply {
+    internal suspend fun execute(request: Request, maxBytes: Int = JsonDocument.MAX_BYTES): HttpReply {
         if (request.url.scheme != "https" || request.url.username.isNotEmpty() || request.url.password.isNotEmpty()) throw RemoteRequestException("network.insecure_endpoint")
         return suspendCancellableCoroutine { continuation ->
             val call = client.newCall(request)
@@ -68,10 +61,10 @@ class LoginHttp private constructor(private val client: OkHttpClient) {
                     try {
                         val reply = response.use {
                             val body = it.body ?: throw RemoteRequestException("network.invalid_response")
-                            if (body.contentLength() > JsonDocument.MAX_BYTES) throw RemoteRequestException("network.response_too_large")
+                            if (body.contentLength() > maxBytes) throw RemoteRequestException("network.response_too_large")
                             val source = body.source()
-                            source.request(JsonDocument.MAX_BYTES.toLong() + 1)
-                            if (source.buffer.size > JsonDocument.MAX_BYTES) throw RemoteRequestException("network.response_too_large")
+                            source.request(maxBytes.toLong() + 1)
+                            if (source.buffer.size > maxBytes) throw RemoteRequestException("network.response_too_large")
                             val type = body.contentType()
                             if (type?.type != "application" || (type.subtype != "json" && !type.subtype.endsWith("+json")) || type.charset(Charsets.UTF_8) != Charsets.UTF_8) throw RemoteRequestException("network.invalid_response")
                             HttpReply(it.code, it.headers, source.buffer.readByteArray())
@@ -87,6 +80,11 @@ class LoginHttp private constructor(private val client: OkHttpClient) {
 
     internal fun webSocket(request: Request, listener: WebSocketListener): WebSocket = client.newWebSocket(request, listener)
 
+    internal fun newCall(request: Request): Call = client.newCall(request)
+
+    internal suspend fun carrier(request: Request, credentials: LanCredentials, signer: DeviceProofSigner, purpose: String, lease: DshLease): CarrierSocket =
+        CarrierSocket.open(client, request, credentials, signer, "relay", purpose, lease)
+
     internal fun checked(reply: HttpReply): HttpReply {
         if (reply.status !in 200..299) {
             val code = runCatching { JsonDocument.parse(reply.bytes).root.obj("error").string("code") }.getOrNull()
@@ -99,8 +97,9 @@ class LoginHttp private constructor(private val client: OkHttpClient) {
     }
 
     companion object {
-        fun create(): LoginHttp = LoginHttp(secure(OkHttpClient.Builder()).build())
-        internal fun forTests(client: OkHttpClient): LoginHttp = LoginHttp(secure(client.newBuilder()).build())
+        /** Adds an operator-provisioned trust client without relaxing secure account HTTP policy. */
+        fun create(operatorClient: OkHttpClient = OkHttpClient()): LoginHttp =
+            LoginHttp(secure(operatorClient.newBuilder()).build())
         private fun secure(builder: OkHttpClient.Builder): OkHttpClient.Builder = builder
             .followRedirects(false).followSslRedirects(false).retryOnConnectionFailure(false).cache(null)
             .cookieJar(CookieJar.NO_COOKIES).authenticator(Authenticator.NONE).proxyAuthenticator(Authenticator.NONE)
@@ -152,7 +151,6 @@ class TokenEndpoint internal constructor(private val http: LoginHttp, private va
 }
 
 class RemoteApi internal constructor(private val http: LoginHttp, private val config: LoginConfiguration, private val session: LoginSession, private val signer: DeviceProofSigner) {
-    private val fileOwner = Any()
     private var nonce: String? = null
     private var mappedUserId: String? = null
     private val mutex = Mutex()
@@ -277,6 +275,14 @@ class RemoteApi internal constructor(private val http: LoginHttp, private val co
         fun cancel() { once.set(true); signatureRequest.cancel() }
     }
 
+    /** Platform feature adapters share DPoP custody without exposing credentials to app UI. */
+    internal suspend fun resourceJson(method: String, path: String, body: JsonObject? = null): JsonObject {
+        require(method in setOf("GET", "POST", "DELETE") && (method != "GET" || body == null))
+        require((path.startsWith("/v1/") || path.startsWith("/v2/")) && path.length <= 8192 &&
+            path.none { it.code < 32 || it.code == 127 } && '#' !in path)
+        return mutex.withLock { JsonDocument.parse(request(method, path, body)).root }
+    }
+
     private suspend fun read(path: String): ByteArray = request("GET", path)
 
     private suspend fun request(method: String, path: String, body: JsonObject? = null, beforeSend: () -> Unit = {}): ByteArray {
@@ -287,7 +293,8 @@ class RemoteApi internal constructor(private val http: LoginHttp, private val co
             val proof = DeviceProofs.dpop(signer, method, url.toString(), System.currentTimeMillis(), nonce, access)
             nonce = null
             val builder = Request.Builder().url(url).header("Authorization", "DPoP $access").header("DPoP", proof.compact).header("Accept", "application/json").header("Cache-Control", "no-store")
-            if (body != null) builder.post(JsonDocument.of(body).canonicalBytes().toRequestBody("application/json".toMediaType()))
+            val encoded = body?.let { JsonDocument.of(it).canonicalBytes().toRequestBody("application/json".toMediaType()) }
+            builder.method(method, if (method == "POST") encoded ?: ByteArray(0).toRequestBody(null) else encoded)
             currentCoroutineContext().ensureActive(); beforeSend()
             val reply = http.execute(builder.build())
             nonce = reply.nonce()
@@ -298,32 +305,6 @@ class RemoteApi internal constructor(private val http: LoginHttp, private val co
         throw RemoteRequestException("auth.proof_invalid")
     }
 
-    /** Same DPoP shape as request(), plus the Relay routing headers. */
-    private suspend fun nativeRequest(method: String, path: String, body: JsonObject?, extra: List<Pair<String, String>>): ByteArray {
-        val url = (config.remoteOrigin + path).toHttpUrl()
-        repeat(2) { attempt ->
-            currentCoroutineContext().ensureActive()
-            val access = session.accessTokenForRequest(System.currentTimeMillis())
-            val proof = DeviceProofs.dpop(signer, method, url.toString(), System.currentTimeMillis(), nonce, access)
-            nonce = null
-            val builder = Request.Builder().url(url).header("Authorization", "DPoP $access").header("DPoP", proof.compact)
-                .header("Accept", "application/json").header("Cache-Control", "no-store")
-            extra.forEach { (name, value) -> builder.header(name, value) }
-            if (body != null) builder.post(JsonDocument.of(body).canonicalBytes().toRequestBody("application/json".toMediaType()))
-            val reply = http.execute(builder.build())
-            nonce = reply.nonce()
-            val challenge = reply.status == 401 && reply.headers.values("WWW-Authenticate").any { it == "DPoP error=\"use_dpop_nonce\"" }
-            if (attempt == 0 && challenge && nonce != null) return@repeat
-            return http.checked(reply).bytes
-        }
-        throw RemoteRequestException("auth.proof_invalid")
-    }
-
-    // ---- Native dsh transport (POST /api + /api/remote.mux) ----
-
-    private fun adopt(headers: Headers) {
-        headers.values("DPoP-Nonce").singleOrNull()?.let { nonce = it }
-    }
 
     suspend fun nativeLease(runtimeId: String): DshLease {
         Contract.uuid(runtimeId)
@@ -340,93 +321,40 @@ class RemoteApi internal constructor(private val http: LoginHttp, private val co
         return DshLease(token, data.string("lease_id"), System.currentTimeMillis() + 300_000)
     }
 
-    /** One unary native call. Returns the raw dsh value; absence stays absent. */
-    suspend fun native(endpoint: String, args: JsonObject, runtimeId: String, lease: DshLease): JsonValue {
-        if (!endpoint.matches(Regex("^[A-Za-z0-9][A-Za-z0-9_.:-]*/[A-Za-z0-9_.:-]+"))) throw RemoteRequestException("protocol.invalid")
-        Contract.uuid(runtimeId)
-        val rpcId = java.util.UUID.randomUUID().toString()
-        val body = jsonObject(
-            "type" to JsonString("client-request"),
-            "rpcId" to JsonString(rpcId),
-            "method" to JsonString(endpoint),
-            "payload" to jsonObject("args" to args),
-        )
-        val reply = mutex.withLock {
-            nativeRequest("POST", "/api/$endpoint", body, routing(runtimeId, lease))
-        }
-        val root = JsonDocument.parse(reply).root
-        if (root.fields.keys != setOf("type", "rpcId", "result") || root.string("type") != "server-response" || root.string("rpcId") != rpcId) throw RemoteRequestException("network.invalid_response")
-        val result = root.obj("result")
-        if (result.fields.keys !in setOf(setOf("ok", "value"), setOf("ok", "error"), setOf("ok"))) throw RemoteRequestException("network.invalid_response")
-        return when (result["ok"]) {
-            JsonBoolean(true) -> result.fields["value"] ?: JsonNull
-            JsonBoolean(false) -> {
-                val error = result.obj("error")
-                val code = runCatching { error.string("code") }.getOrDefault("gateway/internal")
-                throw DshFailure(if (code.matches(Regex("^[a-z0-9][a-z0-9/._-]{0,63}$"))) code else "gateway/internal")
-            }
-            else -> throw RemoteRequestException("network.invalid_response")
-        }
+    internal suspend fun boundNativeLease(credentials: LanCredentials): DshLease {
+        verifyCarrierScope(credentials.runtimeId, credentials)
+        return nativeLease(credentials.runtimeId)
     }
 
-    private fun routing(runtimeId: String, lease: DshLease) = listOf(
-        "X-TokenWorks-Runtime" to runtimeId, "X-TokenWorks-Lease" to lease.token,
-    )
-
-    /** One exact-route GET under the runtime lease; binary bodies pass through verbatim. */
-    suspend fun fileBytes(runtimeId: String, lease: DshLease, path: String, maxBytes: Int): ByteArray {
-        Contract.uuid(runtimeId)
-        if (!path.startsWith("/api/") || path.length > 4096) throw RemoteRequestException("protocol.invalid")
-        val reply = mutex.withLock { nativeRequest("GET", path, null, routing(runtimeId, lease)) }
-        if (reply.size > maxBytes) throw RemoteRequestException("network.response_too_large")
-        return reply
+    private fun verifyCarrierScope(runtimeId: String, credentials: LanCredentials) {
+        val relay = credentials.manifest.fields["relay"] as? JsonObject ?: throw DshFailure("e2e.relay_unbound")
+        if (credentials.runtimeId != runtimeId || relay.string("issuer") != config.remoteOrigin || relay.string("organizationId") != config.organizationId ||
+            relay.string("deploymentSha256") != config.fingerprint || credentials.manifest.string("proofJkt") != signer.publicKey.thumbprint)
+            throw DshFailure("e2e.owner_mismatch")
     }
 
-    /** Opens the native mux for this runtime. The caller keeps it for its lifetime. */
-    suspend fun openMux(runtimeId: String, lease: DshLease): cn.edu.ustc.tokenworks.DshMux {
+    /** Only opaque encrypted carriers leave the native network boundary. No public /api route exists. */
+    internal suspend fun openCarrier(runtimeId: String, lease: DshLease, credentials: LanCredentials, purpose: String): CarrierSocket {
         Contract.uuid(runtimeId)
-        val url = config.remoteOrigin + "/api/remote.mux"
-        val httpsUrl = url.toHttpUrl()
-        // A GET rotates the DPoP nonce through the normal JSON path so the
-        // upgrade proof carries a server-issued nonce. 404 here is expected.
-        runCatching { mutex.withLock { nativeRequest("GET", "/api/remote.mux", null, routing(runtimeId, lease)) } }
+        verifyCarrierScope(runtimeId, credentials)
+        if (lease.expiresAt <= System.currentTimeMillis()) throw DshFailure("lease/expired")
         repeat(2) { attempt ->
-            val access = session.accessTokenForRequest(System.currentTimeMillis())
-            val proof = DeviceProofs.dpop(signer, "GET", url, System.currentTimeMillis(), nonce, access)
-            nonce = null
-            val request = Request.Builder().url(url.replaceFirst("https://", "wss://"))
-                .header("Authorization", "DPoP $access").header("DPoP", proof.compact)
-                .header("X-TokenWorks-Runtime", runtimeId).header("X-TokenWorks-Lease", lease.token)
-                .build()
-            val opened = CompletableDeferred<cn.edu.ustc.tokenworks.DshMux>()
-            var socket: WebSocket? = null
-            val listener = object : WebSocketListener() {
-                override fun onOpen(webSocket: WebSocket, response: Response) {
-                    adopt(response.headers)
-                    opened.complete(cn.edu.ustc.tokenworks.DshMux(
-                        { text -> webSocket.send(text) },
-                        { code, reason -> webSocket.close(code, reason) },
-                    ))
-                }
-                override fun onMessage(webSocket: WebSocket, text: String) {
-                    if (opened.isCompleted) opened.getCompleted().receive(text) else opened.completeExceptionally(RemoteRequestException("network.invalid_response"))
-                }
-                override fun onClosing(webSocket: WebSocket, code: Int, reason: String) {
-                    if (opened.isCompleted) opened.getCompleted().fail()
-                    webSocket.close(1000, null)
-                }
-                override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
-                    response?.let { adopt(it.headers) }
-                    if (!opened.isCompleted) opened.completeExceptionally(RemoteRequestException(if (response?.code == 401) "auth.proof_invalid" else "network.unavailable"))
-                }
+            currentCoroutineContext().ensureActive()
+            val request = mutex.withLock {
+                val url = (config.remoteOrigin + "/v2/runtimes/$runtimeId/carrier").toHttpUrl()
+                val access = session.accessTokenForRequest(System.currentTimeMillis())
+                val proof = DeviceProofs.dpop(signer, "GET", url.toString(), System.currentTimeMillis(), nonce, access)
+                nonce = null
+                Request.Builder().url(url).header("Authorization", "DPoP $access").header("DPoP", proof.compact)
+                    .header("X-TokenWorks-Lease", lease.token).header("X-TokenWorks-Carrier-Purpose", purpose).build()
             }
-            socket = http.webSocket(request, listener)
             try {
-                return withTimeout(15_000) { opened.await() }
-            } catch (error: Exception) {
-                socket?.cancel()
-                val retry = attempt == 0 && error is RemoteRequestException && error.code == "auth.proof_invalid" && nonce != null
-                if (!retry) throw error
+                val carrier = http.carrier(request, credentials, signer, purpose, lease)
+                carrier.responseNonce?.let { value -> mutex.withLock { nonce = value } }
+                return carrier
+            } catch (error: CarrierUpgradeException) {
+                if (attempt != 0 || error.status != 401 || !error.nonceChallenge || error.nonce == null) throw error
+                mutex.withLock { nonce = error.nonce }
             }
         }
         throw RemoteRequestException("auth.proof_invalid")

@@ -9,11 +9,8 @@ class ConversationItem(val id: String, val role: ConversationRole, val blocks: L
     val seq: Long = -1, val turn: Long? = null, val step: Long? = null, val time: Long? = null) {
     override fun toString() = "ConversationItem($role, live=$live)"
 }
-class SessionRecord private constructor(val seq: Long, val type: String, val data: JsonObject, val raw: JsonObject, val blocks: List<DisplayBlock>, val replacement: Boolean, val time: Long,
-    private val versionRoot: JsonObject, initialVersion: String?) {
+class SessionRecord private constructor(val seq: Long, val type: String, val data: JsonObject, val raw: JsonObject, val blocks: List<DisplayBlock>, val replacement: Boolean, val time: Long) {
     val weight = SessionJson.weight(raw)
-    private var cachedVersion = initialVersion
-    val messageVersionSha256: String get() = synchronized(this) { cachedVersion ?: mediaEventSha256(SessionJson.encode(versionRoot)).also { cachedVersion = it } }
     companion object {
         /** Records larger than this are stored truncated; the raw wire payload never enters the window. */
         const val MAX_RECORD_WEIGHT = 64L * 1024
@@ -28,6 +25,7 @@ class SessionRecord private constructor(val seq: Long, val type: String, val dat
         private fun truncateOversized(type: String, data: JsonObject): JsonObject {
             if (SessionJson.weight(data) <= MAX_RECORD_WEIGHT) return data
             val rebuilt = when (type) {
+                "user/message" -> data.with("content" to preview(data.fields["content"]))
                 "tool/call" -> {
                     val arguments = data.fields["arguments"]
                     data.with("arguments" to preview(arguments))
@@ -47,17 +45,22 @@ class SessionRecord private constructor(val seq: Long, val type: String, val dat
         private fun preview(value: JsonValue?): JsonValue {
             if (value == null || value is JsonNull) return JsonNull
             return when (value) {
-                is JsonString -> JsonString(value.value.take(PREVIEW_CHARS) + TRUNCATION_NOTICE)
+                is JsonString -> if (value.value.length <= PREVIEW_CHARS) value else JsonString(value.value.take(PREVIEW_CHARS) + TRUNCATION_NOTICE)
                 is JsonArray -> {
-                    val texts = value.values.mapNotNull { (it as? JsonObject)?.fields?.get("text") as? JsonString }
-                    if (texts.isEmpty()) JsonArray(emptyList())
-                    else JsonArray(listOf(jsonObject("type" to "text".json(), "text" to (texts.joinToString("\n").take(PREVIEW_CHARS) + TRUNCATION_NOTICE).json())))
+                    JsonArray(value.values.map { part ->
+                        val block = part as? JsonObject ?: throw SessionDataException()
+                        when ((block.fields["type"] as? JsonString)?.value) {
+                            "image" -> block
+                            "text", "reasoning" -> block.with("text" to preview(block.fields["text"]))
+                            else -> throw SessionDataException("protocol.unsupported")
+                        }
+                    })
                 }
                 else -> JsonString(TRUNCATION_NOTICE)
             }
         }
 
-        fun parse(root: JsonObject, mediaRefs: Boolean = false): SessionRecord {
+        fun parse(root: JsonObject): SessionRecord {
             SessionJson.fields(root, setOf("seq", "time", "type", "data"), setOf("surfaceOp", "sourceEventSeqs"))
             val seq = root.integer("seq", 0)
             val time = (root["time"] as? JsonNumber)?.value ?: throw SessionDataException()
@@ -74,16 +77,12 @@ class SessionRecord private constructor(val seq: Long, val type: String, val dat
                 }
             }
             var blocks: List<DisplayBlock> = emptyList()
-            var lastMediaIndex = -1
             fun content(source: JsonObject): List<DisplayBlock> = source.array("content").map { value ->
                 val block = value as? JsonObject ?: throw SessionDataException()
                 if (block.string("type") == "image") {
-                    if (!mediaRefs) throw SessionDataException("protocol.unsupported")
-                    block.exactKeys("type", "reference")
-                    val reference = VisibleMediaReference.parse(block.obj("reference"))
-                    if (reference.nativeSeq != seq || reference.partIndex <= lastMediaIndex) throw SessionDataException()
-                    lastMediaIndex = reference.partIndex
-                    DisplayBlock(BlockKind.IMAGE, "", reference.manifest.name, complete = true, media = reference)
+                    block.exactKeys("type", "attachment")
+                    val reference = NativeImageReference.parse(block.obj("attachment"))
+                    DisplayBlock(BlockKind.IMAGE, "", reference.name.orEmpty(), complete = true, media = reference)
                 } else {
                     block.exactKeys("type", "text")
                     DisplayBlock(when (block.string("type")) { "text" -> BlockKind.TEXT; "reasoning" -> BlockKind.REASONING; else -> throw SessionDataException("protocol.unsupported") }, block.string("text"), complete = true)
@@ -113,21 +112,7 @@ class SessionRecord private constructor(val seq: Long, val type: String, val dat
             }
             for (number in listOf("turn", "step")) if (number in data.fields) data.integer(number, 0)
             if ("interrupted" in data.fields) SessionJson.boolean(data, "interrupted")
-            val references = blocks.mapNotNull { it.media }
-            var ordinary = root
-            var version: String? = null
-            if (references.isNotEmpty()) {
-                val message = if (type == "user/message") data else data.obj("message")
-                val legacy = JsonArray(message.array("content").map { value ->
-                    val block = value as JsonObject
-                    if (block.string("type") == "image") jsonObject("type" to "text".json(), "text" to LEGACY_IMAGE_NOTICE.json()) else block
-                })
-                val legacyData = if (type == "user/message") data.with("content" to legacy) else data.with("message" to message.with("content" to legacy))
-                ordinary = root.with("data" to legacyData)
-                version = mediaEventSha256(SessionJson.encode(ordinary))
-                if (references.any { it.eventVersionSha256 != version }) throw SessionDataException()
-            }
-            return SessionRecord(seq, type, data, root, Collections.unmodifiableList(blocks), replacement, time.toLong(), ordinary, version)
+            return SessionRecord(seq, type, data, root, Collections.unmodifiableList(blocks), replacement, time.toLong())
         }
     }
 }
@@ -140,6 +125,9 @@ class SessionTranscript internal constructor(
     val turns: List<TurnSpan> = emptyList(),
 ) {
     override fun toString() = "SessionTranscript(records=${records.size})"
+    /** A cached display must not resurrect an unfinished turn or streaming assistant state. */
+    fun asReadOnly(): SessionTranscript = SessionTranscript(records, cursor, openingCursor, hasMore,
+        persistedThrough, checkpoint, items, false, true, turns)
 }
 
 class TurnSpan(val turn: Long, val startedAt: Long, var endedAt: Long? = null, var steps: Int = 0, var reason: String? = null) {
@@ -148,7 +136,7 @@ class TurnSpan(val turn: Long, val startedAt: Long, var endedAt: Long? = null, v
 class SessionPageRequest(val requestId: String, val payload: JsonObject)
 
 /** One acknowledged subscription/sync. A replacement snapshot discards old transient and observation state. */
-class SessionWindow(private val subscribeRequest: String, private val mediaRefs: Boolean = false) {
+class SessionWindow(private val subscribeRequest: String, private val retainTail: Boolean = false) {
     companion object { const val MAX_RECORDS = 4096; const val MAX_RETAINED_WEIGHT = 8L * 1024 * 1024 }
     private class Attempt(val id: String, val after: Long, val turn: Long, val step: Long, var next: Long, val blocks: StreamBlocks)
     private class Page(val id: String, val before: Long)
@@ -171,6 +159,8 @@ class SessionWindow(private val subscribeRequest: String, private val mediaRefs:
     val ready get() = sync != null
     val paging get() = page != null
     val syncId get() = sync
+    val committedCursor get() = cursor
+    val firstSeq: Long? get() = records.firstEntry()?.key
     fun acceptsSync(value: String): Boolean = if(value==sync) true else if(value in retiredSyncs) false else throw SessionDataException()
     fun settlementMillis(nowNanos: Long = System.nanoTime()): Long? = held?.let { ((heldAt + 10_000_000_000 - nowNanos) / 1_000_000).coerceAtLeast(0) }
 
@@ -191,14 +181,18 @@ class SessionWindow(private val subscribeRequest: String, private val mediaRefs:
         val payload = content.payload
         when (content.type) {
             "session.event" -> {
-                val record = SessionRecord.parse(payload, mediaRefs)
+                val record = SessionRecord.parse(payload)
                 if (record.seq <= cursor) {
                     records[record.seq]?.let { if (!SessionJson.same(it.raw, record.raw)) throw SessionDataException() }
                     return false
                 }
                 if (record.seq != cursor + 1) throw SessionDataException()
-                budget(records.size + 1, retainedWeight + record.weight)
+                if (!retainTail) budget(records.size + 1, retainedWeight + record.weight)
                 records[record.seq] = record; retainedWeight += record.weight; cursor = record.seq
+                if (retainTail) {
+                    while (records.size > MAX_RECORDS || retainedWeight > MAX_RETAINED_WEIGHT) retainedWeight -= records.pollFirstEntry().value.weight
+                    more = records.firstKey() > 0
+                }
                 val attempt = active
                 if (attempt != null && record.type in setOf("assistant/message", "assistant/attempt") && !record.replacement && record.seq > attempt.after &&
                     (record.data.fields["turn"] as? JsonNumber)?.value == attempt.turn.toDouble() && (record.data.fields["step"] as? JsonNumber)?.value == attempt.step.toDouble()) {
@@ -251,7 +245,7 @@ class SessionWindow(private val subscribeRequest: String, private val mediaRefs:
     }
     private fun parseRecords(values: List<JsonValue>): List<SessionRecord> {
         if (values.size > MAX_RECORDS) throw SessionDataException("client.history_limit")
-        val result = values.map { SessionRecord.parse(it as? JsonObject ?: throw SessionDataException(), mediaRefs) }
+        val result = values.map { SessionRecord.parse(it as? JsonObject ?: throw SessionDataException()) }
         for (index in 1 until result.size) if (result[index].seq != result[index - 1].seq + 1) throw SessionDataException()
         return result
     }
@@ -315,10 +309,13 @@ class SessionWindow(private val subscribeRequest: String, private val mediaRefs:
         }
     }
 
+    /** Committed records only, without allocating a second display/item projection for persistence. */
+    fun durableRecords(): List<SessionRecord> = records.values.filter { it.seq <= persisted && (held == null || it.seq < held!!.seq) }
+
     fun snapshot(durableOnly: Boolean = false): SessionTranscript {
         // A held settlement and its suffix cannot be restored as completed history
         // until the matching committed end arrives, even if a checkpoint led it.
-        val entries = records.values.filter { !durableOnly || it.seq <= persisted && (held == null || it.seq < held!!.seq) }
+        val entries = if (durableOnly) durableRecords() else records.values.toList()
         val live = if (durableOnly) null else active
         val items = arrayListOf<ConversationItem>()
         var liveAdded = false

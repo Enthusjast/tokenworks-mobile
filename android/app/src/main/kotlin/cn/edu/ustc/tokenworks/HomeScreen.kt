@@ -32,22 +32,26 @@ import kotlinx.coroutines.launch
 internal fun HomeRoute(model: HomeViewModel, onSecuritySettings: () -> Unit,
     viewport: WorkspaceViewport = rememberWorkspaceViewport(), onCancel: () -> Unit) {
     val state by model.state.collectAsStateWithLifecycle()
+    val management by model.management.collectAsStateWithLifecycle()
     if (state.phase == HomePhase.READY) {
         key(model, state.presentationOwner?.fingerprint) {
-            ReadyHomeRoute(state, model, viewport, onCancel)
+            ReadyHomeRoute(state, management, model, viewport, onCancel)
         }
     } else {
-        HomeScreen(state, model::login, model::register, onSecuritySettings, onCancel)
+        HomeScreen(state, model::login, model::register, onSecuritySettings, onCancel, onLanOnly = model::enterLanOnly)
     }
 }
 
 @Composable
-private fun ReadyHomeRoute(state: HomeState, model: HomeViewModel, viewport: WorkspaceViewport, onCancel: () -> Unit) {
+private fun ReadyHomeRoute(state: HomeState, management: HostManagementState, model: HomeViewModel,
+    viewport: WorkspaceViewport, onCancel: () -> Unit) {
     var navigationExpanded by remember { mutableStateOf(true) }
     var appearanceSettings by remember { mutableStateOf(false) }
     var settingsOpen by remember { mutableStateOf(false) }
     var hostsOpen by remember { mutableStateOf(false) }
-    var terminalOpen by remember { mutableStateOf(false) }
+    var terminalOpen by remember(state.selectedRuntimeId, state.selectedSessionId) { mutableStateOf(false) }
+    var filesOpen by remember(state.selectedRuntimeId, state.selectedSessionId) { mutableStateOf(false) }
+    var speechOpen by remember(state.selectedRuntimeId, state.selectedSessionId) { mutableStateOf(false) }
     val terminalWatcher = state.terminal
     val positions = remember { LinkedHashMap<Pair<String, String>, ChatReadingPosition>() }
     val snackbar = remember { SnackbarHostState() }
@@ -55,8 +59,11 @@ private fun ReadyHomeRoute(state: HomeState, model: HomeViewModel, viewport: Wor
     val homeError = state.error?.let { errorText(it) }
     LaunchedEffect(actionError) { actionError?.let { snackbar.showSnackbar(it) } }
     LaunchedEffect(homeError) { homeError?.let { snackbar.showSnackbar(it) } }
+    LaunchedEffect(state.interactionError, state.outboxError) {
+        (state.interactionError ?: state.outboxError)?.let { snackbar.showSnackbar(it) }
+    }
     val layout = workspaceLayout(viewport, state.selectedSessionId != null, state.modelSelectionOpen, navigationExpanded)
-    val overlay = appearanceSettings || settingsOpen || state.appUpdateSettings || state.binding != null || state.creation != null || terminalOpen
+    val overlay = appearanceSettings || settingsOpen || state.appUpdateSettings || state.binding != null || state.creation != null || terminalOpen || filesOpen || speechOpen || state.pairingOpen || management.open || state.notifySettingsOpen
     BackHandler { model.back() }
     Box(Modifier.fillMaxSize()) {
         WorkspaceScaffold(
@@ -73,6 +80,22 @@ private fun ReadyHomeRoute(state: HomeState, model: HomeViewModel, viewport: Wor
                 if (layout.leftPane == WorkspaceLeftPane.SIDEBAR) navigationExpanded = false else toggleNavigation()
             }
             when {
+                management.open -> HostManagementScreen(management, model::closeManagement, model::refreshManagement,
+                    model::loadManagementDevices, model::loadManagementInstallations, model::loadManagementProfiles,
+                    model::loadManagementGrants, model::requestManagementRevoke, model::cancelManagementRevoke,
+                    model::confirmManagementRevoke, model::probeHostPath, model::selectHostPath, model::setRtcConsent)
+                state.pairingOpen -> {
+                    BackHandler { model.closePairing() }
+                    val pairing = state.pairing
+                    if (pairing == null) CircularProgressIndicator()
+                    else PairingScreen(pairing, model::importPairingDescriptor, model::pairLan, model::retryPairingSave,
+                        model::revokeLan, model::revokePendingPairing, model::forgetLan, model::closePairing,
+                        model::rotateDeviceKey, model::reconcileDeviceRotation)
+                }
+                state.notifySettingsOpen -> {
+                    BackHandler { model.closeNotifySettings() }
+                    NotifySettingsScreen(state.notify, model::setNotificationsEnabled, model::setBackgroundConnectionEnabled, model::closeNotifySettings)
+                }
                 appearanceSettings && state.presentationOwner != null -> {
                     BackHandler { appearanceSettings = false }
                     AppearanceSettingsScreen(state.presentationOwner) { appearanceSettings = false }
@@ -80,6 +103,10 @@ private fun ReadyHomeRoute(state: HomeState, model: HomeViewModel, viewport: Wor
                 terminalOpen -> {
                     BackHandler { terminalOpen = false }
                     terminalWatcher?.let { TerminalScreen(it) }
+                }
+                filesOpen && state.files != null && state.selectedSessionId != null -> {
+                    BackHandler { filesOpen = false }
+                    FilesScreen(state.files, state.selectedSessionId) { filesOpen = false }
                 }
                 state.appUpdateSettings -> {
                     BackHandler { model.closeAppUpdates() }
@@ -99,7 +126,8 @@ private fun ReadyHomeRoute(state: HomeState, model: HomeViewModel, viewport: Wor
                 settingsOpen -> {
                     BackHandler { settingsOpen = false }
                     WorkspaceSettings(state, onAppearance = { appearanceSettings = true }, onAppUpdates = model::openAppUpdates,
-                        onExit = onCancel, onBack = { settingsOpen = false })
+                        onExit = onCancel, onBack = { settingsOpen = false }, onManagement = model::openManagement,
+                        onNotifications = model::openNotifySettings, onPairing = model::openPairing)
                 }
                 state.selectedSessionId != null -> key(state.selectedRuntimeId, state.selectedSessionId) {
                     val resource = state.selectedRuntimeId.orEmpty() to state.selectedSessionId
@@ -109,7 +137,14 @@ private fun ReadyHomeRoute(state: HomeState, model: HomeViewModel, viewport: Wor
                             positions[resource] = it
                         }
                     }
-                    NativeSessionContent(state, position, SessionContentActions(model), openNavigation, { hostsOpen = true })
+                    NativeSessionContent(state, position, SessionContentActions(model, { terminalOpen = true }, { filesOpen = true }, { speechOpen = true }, { image ->
+                        val sessionId = state.selectedSessionId
+                        val files = state.files
+                        if (sessionId != null && files != null && state.reader?.readOnly == false) {
+                            files.loadAttachment(sessionId, image.attachmentId)
+                            filesOpen = true
+                        }
+                    }), openNavigation, { hostsOpen = true })
                 }
                 else -> Column(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing)) {
                     TokenWorksTopBar(stringResource(R.string.nav_sessions), navigationIcon = {
@@ -163,6 +198,15 @@ private fun ReadyHomeRoute(state: HomeState, model: HomeViewModel, viewport: Wor
             SessionModelsScreen(state, model, currentKey = null)
         }
     }
+    if (speechOpen) key(state.presentationOwner?.fingerprint, state.selectedRuntimeId, state.selectedSessionId) {
+        SpeechInputSheet(onInsert = { text ->
+            state.composer?.let { draft ->
+                val combined = draft.value.text + (if (draft.value.text.isEmpty()) "" else "\n") + text
+                model.editDraft(TextFieldValue(combined, TextRange(combined.length)))
+            }
+            speechOpen = false
+        }, onDismiss = { speechOpen = false })
+    }
 }
 
 /** Every effect the chat surface can raise, so the production screen can be hosted without a controller. */
@@ -176,10 +220,17 @@ internal class SessionContentActions(
     val fork: () -> Unit = {},
     val archive: () -> Unit = {},
     val rename: (String) -> Unit = {},
+    val openTerminal: () -> Unit = {},
+    val openFiles: () -> Unit = {},
+    val retryPrompt: (String) -> Unit = {},
+    val abandonPrompt: (String) -> Unit = {},
+    val openSpeech: () -> Unit = {},
+    val previewImage: ((NativeImageReference) -> Unit)? = null,
 ) {
-    constructor(model: HomeViewModel) : this(model::editDraft, model::sendDraft, model::cancelSession,
+    constructor(model: HomeViewModel, openTerminal: () -> Unit, openFiles: () -> Unit, openSpeech: () -> Unit,
+        previewImage: (NativeImageReference) -> Unit) : this(model::editDraft, model::sendDraft, model::cancelSession,
         model::openModelSelection, model::openCreation, model::loadOlder, model::forkSession,
-        model::archiveSession, model::renameSession)
+        model::archiveSession, model::renameSession, openTerminal, openFiles, model::retryPrompt, model::abandonPrompt, openSpeech, previewImage)
 
 }
 
@@ -221,32 +272,55 @@ internal fun NativeSessionContent(state: HomeState, position: ChatReadingPositio
                 SessionReadPhase.CONNECTING, SessionReadPhase.SYNCING -> HeaderConnection.PENDING
                 SessionReadPhase.BACKOFF, SessionReadPhase.CLOSED -> HeaderConnection.DEGRADED
                 else -> HeaderConnection.ERROR
-            }, modelsEnabled = runtime?.access?.canReadModelCatalog() == true && !state.modelBusy,
-            createEnabled = runtime?.access?.canCreate() == true,
+            }, modelsEnabled = (state.lanOnly || runtime?.access?.canReadModelCatalog() == true) && !state.modelBusy && !read.readOnly,
+            createEnabled = (state.lanOnly || runtime?.access?.canCreate() == true) && !read.readOnly,
             onNavigation = onNavigation, onHosts = onHosts, onModels = actions.openModels,
             onCreate = actions.openCreation, onMore = { moreOpen = true })
+        if (read.stale) Text("已缓存的离线记录 · 仅供续读；连接恢复前不能发送或审批", Modifier.fillMaxWidth().padding(TokenWorksSpacing.sm),
+            color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.labelMedium)
         NativeChatTimeline(read, position, actions.loadOlder, quote, { selectedMessageId = it },
-            Modifier.widthIn(max = TokenWorksSpacing.readingWidth).fillMaxWidth().weight(1f))
+            Modifier.widthIn(max = TokenWorksSpacing.readingWidth).fillMaxWidth().weight(1f),
+            onPreviewMedia = actions.previewImage.takeIf { !read.readOnly })
+        if (state.pendingPrompts.isNotEmpty()) Column(Modifier.fillMaxWidth().heightIn(max = 180.dp).verticalScroll(rememberScrollState())
+            .padding(horizontal = TokenWorksSpacing.md)) {
+            Text("发送记录：结果未知时不会自动重发。", style = MaterialTheme.typography.labelMedium)
+            state.pendingPrompts.forEach { entry ->
+                Text(entry.text.take(120).ifBlank { "${entry.receipts.size} 个文件 · ${entry.images.size} 张图片" }, maxLines = 2)
+                Text(when (entry.state) {
+                    PromptDeliveryState.PENDING -> "已保存，尚未确认发送"
+                    PromptDeliveryState.SENDING -> "正在发送"
+                    PromptDeliveryState.OUTCOME_UNKNOWN -> "结果未知；请先检查会话"
+                    PromptDeliveryState.REFUSED -> "主机拒绝了此请求"
+                }, style = MaterialTheme.typography.labelSmall)
+                Row {
+                    TextButton({ actions.retryPrompt(entry.requestId) }, enabled = !state.submitting && !read.readOnly) { Text("使用原请求 ID 重试") }
+                    TextButton({ actions.abandonPrompt(entry.requestId) }, enabled = !state.submitting) { Text("移除记录") }
+                }
+            }
+        }
         ChatComposer(state, actions.editDraft, actions.send, actions.cancel, actions.openModels,
             Modifier.widthIn(max = TokenWorksSpacing.readingWidth).fillMaxWidth())
     }
     if (moreOpen) AlertDialog(onDismissRequest = { moreOpen = false }, title = { Text(stringResource(R.string.session_actions_title)) },
         text = {
             Column {
+                TextButton({ moreOpen = false; actions.openTerminal() }, enabled = state.terminal != null && !read.readOnly) { Text("远程终端") }
+                TextButton({ moreOpen = false; actions.openFiles() }, enabled = state.files != null && !read.readOnly) { Text("文件与附件") }
+                TextButton({ moreOpen = false; actions.openSpeech() }, enabled = state.composer != null) { Text("语音转文字") }
                 TextButton({ moreOpen = false; title = entry?.metadata?.title.orEmpty(); renameOpen = true },
-                    enabled = runtime?.access?.canRename(sessionId) == true && !state.submitting) { Text(stringResource(R.string.session_rename)) }
-                TextButton({ moreOpen = false; actions.fork() }, enabled = runtime?.access?.canFork(sessionId) == true && !state.submitting) {
+                    enabled = (state.lanOnly || runtime?.access?.canRename(sessionId) == true) && !state.submitting && !read.readOnly) { Text(stringResource(R.string.session_rename)) }
+                TextButton({ moreOpen = false; actions.fork() }, enabled = (state.lanOnly || runtime?.access?.canFork(sessionId) == true) && !state.submitting && !read.readOnly) {
                     Text(stringResource(R.string.session_fork))
                 }
                 TextButton({ moreOpen = false; actions.archive() },
-                    enabled = runtime?.access?.allows("workspace/archiveSession", sessionId, entry?.workspaceId) == true && !state.submitting) {
+                    enabled = (state.lanOnly || runtime?.access?.allows("workspace/archiveSession", sessionId, entry?.workspaceId) == true) && !state.submitting && !read.readOnly) {
                     Text(stringResource(R.string.conversation_archive))
                 }
             }
         }, confirmButton = { TextButton({ moreOpen = false }) { Text(stringResource(R.string.action_close)) } })
     if (renameOpen) AlertDialog(onDismissRequest = { renameOpen = false }, title = { Text(stringResource(R.string.session_rename)) },
         text = { OutlinedTextField(title, { title = it }, label = { Text(stringResource(R.string.session_title_label)) }, singleLine = true) },
-        confirmButton = { TextButton({ renameOpen = false; actions.rename(title.trim()) }, enabled = title.isNotBlank() && !state.submitting) {
+        confirmButton = { TextButton({ renameOpen = false; actions.rename(title.trim()) }, enabled = title.isNotBlank() && !state.submitting && !read.readOnly) {
             Text(stringResource(R.string.action_confirm))
         } }, dismissButton = { TextButton({ renameOpen = false }) { Text(stringResource(R.string.action_cancel)) } })
     val message = read.items.firstOrNull { it.id == selectedMessageId }
@@ -262,7 +336,8 @@ internal fun NativeSessionContent(state: HomeState, position: ChatReadingPositio
 
 @Composable
 internal fun NativeChatTimeline(read: SessionReadState, position: ChatReadingPosition, onLoadOlder: () -> Unit,
-    onQuote: (String) -> Unit, onMessageAction: (String) -> Unit, modifier: Modifier = Modifier) {
+    onQuote: (String) -> Unit, onMessageAction: (String) -> Unit, modifier: Modifier = Modifier,
+    onPreviewMedia: ((NativeImageReference) -> Unit)? = null) {
     val projection = remember(read.items, read.running) { projectChatTimeline(read.items, read.running) }
     val listState = androidx.compose.foundation.lazy.rememberLazyListState()
     var showJump by remember { mutableStateOf(false) }
@@ -316,7 +391,8 @@ internal fun NativeChatTimeline(read: SessionReadState, position: ChatReadingPos
             }
         }, onProcessExpansion = { ids, expanded ->
             position.expandedSourceIds = if (expanded) position.expandedSourceIds + ids else position.expandedSourceIds - ids.toSet()
-        }, onQuote = onQuote, onMessageAction = onMessageAction, onPreviewMedia = null, modifier = Modifier.fillMaxSize())
+        }, onQuote = onQuote, onMessageAction = onMessageAction.takeUnless { read.readOnly },
+        onPreviewMedia = onPreviewMedia.takeUnless { read.readOnly }, modifier = Modifier.fillMaxSize())
     if (showJump && !position.following) FilledTonalButton(
         onClick = {
             position.following = true; showJump = false
@@ -330,7 +406,8 @@ internal fun NativeChatTimeline(read: SessionReadState, position: ChatReadingPos
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-fun HomeScreen(state: HomeState, onLogin: () -> Unit, onRegister: (String) -> Unit, onSecuritySettings: () -> Unit, onCancel: () -> Unit) {
+fun HomeScreen(state: HomeState, onLogin: () -> Unit, onRegister: (String) -> Unit, onSecuritySettings: () -> Unit,
+    onCancel: () -> Unit, onLanOnly: () -> Unit = {}) {
     var name by rememberSaveable { mutableStateOf("${Build.MANUFACTURER} ${Build.MODEL}".trim()) }
     val displayName = state.deviceName ?: name
     val nameValid = displayName.trim().isNotEmpty() && displayName.trim().toByteArray(Charsets.UTF_8).size <= 160 && displayName.none { it < ' ' || it == '\u007f' }
@@ -434,6 +511,10 @@ fun HomeScreen(state: HomeState, onLogin: () -> Unit, onRegister: (String) -> Un
                             }), style = MaterialTheme.typography.bodyLarge)
                         }
                     }
+                    if (state.canUseLanOnly && state.phase in setOf(HomePhase.RECOVERY_ERROR, HomePhase.REAUTHENTICATE)) {
+                        OutlinedButton(onLanOnly, Modifier.fillMaxWidth().heightIn(min = 48.dp)) { Text("仅连接已配对局域网") }
+                        Text("此入口只使用本机保存的独立 LAN 配对，不使用未验证的中转账号权限。", style = MaterialTheme.typography.bodySmall)
+                    }
                     if (state.issuer.isNotEmpty() || state.subject.isNotEmpty() || state.deviceId.isNotEmpty()) {
                         TextButton({ showSource = !showSource }, Modifier.heightIn(min = 48.dp).testTag("onboarding-source")) {
                             Text(stringResource(if (showSource) R.string.onboarding_source_close else R.string.onboarding_source_open))
@@ -472,7 +553,11 @@ fun HomeScreen(state: HomeState, onLogin: () -> Unit, onRegister: (String) -> Un
 }
 
 @Composable
-internal fun errorText(code: String): String = stringResource(when (code) {
+internal fun errorText(code: String): String = when (code) {
+    "lan.pending_authorization" -> "局域网配对结果尚未确认。请先在配对页保存、对账或撤销；仅删除本地记录不等于撤销主机授权。"
+    "lan.pending_removed_with_account" -> "账号权限已失效并已清理本地密钥。局域网配对结果未确认；请在主机设置中检查并撤销。"
+    "transport/changed", "transport.route_changed" -> "连接路径已切换；旧路径上的结果不会自动重发。请检查当前会话后再操作。"
+    else -> stringResource(when (code) {
     "login.browser_unavailable" -> R.string.workspace_error_browser
     "login.invalid_callback" -> R.string.workspace_error_callback
     "login.expired", "auth.expired", "login.identity" -> R.string.workspace_error_expired
@@ -494,3 +579,4 @@ internal fun errorText(code: String): String = stringResource(when (code) {
     "device.registration_conflict" -> R.string.workspace_error_registration_conflict
     else -> R.string.workspace_error_operation
 })
+}

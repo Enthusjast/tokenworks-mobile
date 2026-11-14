@@ -1,5 +1,6 @@
 {
   "dshVersion": "0.2.1-rc.5",
+  "source": "installed-native-reflection; not recorded method execution",
   "methods": {
     "fileUploads/upload": {
       "mode": "unary",
@@ -42,7 +43,8 @@
             "required": [
               "data"
             ],
-            "additionalProperties": false
+            "additionalProperties": false,
+            "x-unknownKeys": "strip"
           }
         },
         "required": [
@@ -82,14 +84,16 @@
               "name",
               "bytes"
             ],
-            "additionalProperties": false
+            "additionalProperties": false,
+            "x-unknownKeys": "strip"
           }
         },
         "required": [
           "receiptId",
           "file"
         ],
-        "additionalProperties": false
+        "additionalProperties": false,
+        "x-unknownKeys": "strip"
       },
       "acceptsUndefinedResult": false
     },
@@ -126,7 +130,8 @@
               "type",
               "owner"
             ],
-            "additionalProperties": false
+            "additionalProperties": false,
+            "x-unknownKeys": "strip"
           },
           {
             "type": "object",
@@ -162,7 +167,8 @@
                           "required": [
                             "kind"
                           ],
-                          "additionalProperties": false
+                          "additionalProperties": false,
+                          "x-unknownKeys": "strip"
                         },
                         {
                           "type": "object",
@@ -181,7 +187,8 @@
                             "kind",
                             "id"
                           ],
-                          "additionalProperties": false
+                          "additionalProperties": false,
+                          "x-unknownKeys": "strip"
                         },
                         {
                           "type": "object",
@@ -200,7 +207,8 @@
                             "kind",
                             "id"
                           ],
-                          "additionalProperties": false
+                          "additionalProperties": false,
+                          "x-unknownKeys": "strip"
                         }
                       ]
                     },
@@ -217,7 +225,8 @@
                     "resource",
                     "actions"
                   ],
-                  "additionalProperties": false
+                  "additionalProperties": false,
+                  "x-unknownKeys": "strip"
                 }
               }
             },
@@ -226,7 +235,8 @@
               "owner",
               "grants"
             ],
-            "additionalProperties": false
+            "additionalProperties": false,
+            "x-unknownKeys": "strip"
           },
           {
             "type": "object",
@@ -255,7 +265,8 @@
                         "required": [
                           "kind"
                         ],
-                        "additionalProperties": false
+                        "additionalProperties": false,
+                        "x-unknownKeys": "strip"
                       },
                       {
                         "type": "object",
@@ -274,7 +285,8 @@
                           "kind",
                           "id"
                         ],
-                        "additionalProperties": false
+                        "additionalProperties": false,
+                        "x-unknownKeys": "strip"
                       },
                       {
                         "type": "object",
@@ -293,7 +305,8 @@
                           "kind",
                           "id"
                         ],
-                        "additionalProperties": false
+                        "additionalProperties": false,
+                        "x-unknownKeys": "strip"
                       }
                     ]
                   },
@@ -310,14 +323,16 @@
                   "resource",
                   "actions"
                 ],
-                "additionalProperties": false
+                "additionalProperties": false,
+                "x-unknownKeys": "strip"
               }
             },
             "required": [
               "type",
               "grant"
             ],
-            "additionalProperties": false
+            "additionalProperties": false,
+            "x-unknownKeys": "strip"
           },
           {
             "type": "object",
@@ -342,7 +357,8 @@
                     "required": [
                       "kind"
                     ],
-                    "additionalProperties": false
+                    "additionalProperties": false,
+                    "x-unknownKeys": "strip"
                   },
                   {
                     "type": "object",
@@ -361,7 +377,8 @@
                       "kind",
                       "id"
                     ],
-                    "additionalProperties": false
+                    "additionalProperties": false,
+                    "x-unknownKeys": "strip"
                   },
                   {
                     "type": "object",
@@ -380,7 +397,8 @@
                       "kind",
                       "id"
                     ],
-                    "additionalProperties": false
+                    "additionalProperties": false,
+                    "x-unknownKeys": "strip"
                   }
                 ]
               }
@@ -389,7 +407,8 @@
               "type",
               "resource"
             ],
-            "additionalProperties": false
+            "additionalProperties": false,
+            "x-unknownKeys": "strip"
           }
         ]
       },
@@ -425,7 +444,8 @@
               "sessionId",
               "attachmentId"
             ],
-            "additionalProperties": false
+            "additionalProperties": false,
+            "x-unknownKeys": "strip"
           }
         },
         "required": [
@@ -497,7 +517,8 @@
                   "width",
                   "height"
                 ],
-                "additionalProperties": false
+                "additionalProperties": false,
+                "x-unknownKeys": "strip"
               }
             },
             "required": [
@@ -507,7 +528,8 @@
               "width",
               "height"
             ],
-            "additionalProperties": false
+            "additionalProperties": false,
+            "x-unknownKeys": "strip"
           },
           "data": {
             "readOnly": true,
@@ -518,7 +540,8 @@
           "attachment",
           "data"
         ],
-        "additionalProperties": false
+        "additionalProperties": false,
+        "x-unknownKeys": "strip"
       },
       "acceptsUndefinedResult": false
     },
@@ -547,7 +570,8 @@
             "required": [
               "sessionId"
             ],
-            "additionalProperties": false
+            "additionalProperties": false,
+            "x-unknownKeys": "strip"
           }
         },
         "required": [
@@ -568,7 +592,8 @@
         "required": [
           "accepted"
         ],
-        "additionalProperties": false
+        "additionalProperties": false,
+        "x-unknownKeys": "strip"
       },
       "acceptsUndefinedResult": false
     },
@@ -642,7 +667,8 @@
                                     "next-turn",
                                     "next-step"
                                   ],
-                                  "additionalProperties": false
+                                  "additionalProperties": false,
+                                  "x-unknownKeys": "strip"
                                 },
                                 "workingDirectory": {
                                   "description": "Recorded current directory for Session observations, or null when none is recorded.",
@@ -718,7 +744,8 @@
                                           "content",
                                           "status"
                                         ],
-                                        "additionalProperties": false
+                                        "additionalProperties": false,
+                                        "x-unknownKeys": "strip"
                                       }
                                     }
                                   ]
@@ -750,7 +777,8 @@
                                     "blank",
                                     "lastPromptAt"
                                   ],
-                                  "additionalProperties": false
+                                  "additionalProperties": false,
+                                  "x-unknownKeys": "strip"
                                 },
                                 "imageLimits": {
                                   "description": "Image-intake limits enforced by the Session prompt endpoint.",
@@ -804,7 +832,8 @@
                                     "maxImageDimension",
                                     "mediaTypes"
                                   ],
-                                  "additionalProperties": false
+                                  "additionalProperties": false,
+                                  "x-unknownKeys": "strip"
                                 },
                                 "modelSelection": {
                                   "description": "Durable model selection already used and selected for the next request.",
@@ -838,7 +867,8 @@
                                             "provider",
                                             "model"
                                           ],
-                                          "additionalProperties": false
+                                          "additionalProperties": false,
+                                          "x-unknownKeys": "strip"
                                         }
                                       ]
                                     },
@@ -870,7 +900,8 @@
                                             "provider",
                                             "model"
                                           ],
-                                          "additionalProperties": false
+                                          "additionalProperties": false,
+                                          "x-unknownKeys": "strip"
                                         }
                                       ]
                                     }
@@ -879,7 +910,8 @@
                                     "lastUsed",
                                     "next"
                                   ],
-                                  "additionalProperties": false
+                                  "additionalProperties": false,
+                                  "x-unknownKeys": "strip"
                                 },
                                 "permissions": {
                                   "description": "The session's current permission, folded from the three whole-value knob events (`permission/preset`, `sandbox/mode`, `approval/policy`) over the composition defaults. Selectable options come from the process-level catalog Remote. Key absence means no permission service is composed — clients hide the control.",
@@ -893,7 +925,8 @@
                                   "required": [
                                     "currentValue"
                                   ],
-                                  "additionalProperties": false
+                                  "additionalProperties": false,
+                                  "x-unknownKeys": "strip"
                                 },
                                 "subagentCatalog": {
                                   "description": "Direct children in parent catalog event order, excluding fork-inherited facts.",
@@ -926,7 +959,8 @@
                                           "createdAt",
                                           "mode"
                                         ],
-                                        "additionalProperties": false
+                                        "additionalProperties": false,
+                                        "x-unknownKeys": "strip"
                                       },
                                       {
                                         "type": "object",
@@ -954,7 +988,8 @@
                                           "createdAt",
                                           "mode"
                                         ],
-                                        "additionalProperties": false
+                                        "additionalProperties": false,
+                                        "x-unknownKeys": "strip"
                                       },
                                       {
                                         "type": "object",
@@ -983,7 +1018,8 @@
                                           "mode",
                                           "label"
                                         ],
-                                        "additionalProperties": false
+                                        "additionalProperties": false,
+                                        "x-unknownKeys": "strip"
                                       },
                                       {
                                         "type": "object",
@@ -1011,7 +1047,8 @@
                                           "createdAt",
                                           "mode"
                                         ],
-                                        "additionalProperties": false
+                                        "additionalProperties": false,
+                                        "x-unknownKeys": "strip"
                                       }
                                     ]
                                   }
@@ -1041,7 +1078,8 @@
                                         "since",
                                         "through"
                                       ],
-                                      "additionalProperties": false
+                                      "additionalProperties": false,
+                                      "x-unknownKeys": "strip"
                                     },
                                     "lastTurnCompleted": {
                                       "description": "Whether the latest closed turn after the child's own descriptor completed normally; absent while a turn is open or before one closes.",
@@ -1051,7 +1089,8 @@
                                   "required": [
                                     "settledMs"
                                   ],
-                                  "additionalProperties": false
+                                  "additionalProperties": false,
+                                  "x-unknownKeys": "strip"
                                 },
                                 "subagent": {
                                   "description": "Identity of a descriptor-backed subagent session. `null` ⟺ no valid descriptor (missing, malformed, or unrecognized-version — deliberately undistinguished). The sentinel is deliberately serializable: a value pushed over JSON transports must survive `JSON.stringify` losslessly, where an `undefined` field would be dropped and a stale identity would survive on the receiving side. The entry itself stays non-optional.",
@@ -1081,7 +1120,8 @@
                                         "mode",
                                         "seq"
                                       ],
-                                      "additionalProperties": false
+                                      "additionalProperties": false,
+                                      "x-unknownKeys": "strip"
                                     },
                                     {
                                       "type": "object",
@@ -1105,7 +1145,8 @@
                                         "label",
                                         "seq"
                                       ],
-                                      "additionalProperties": false
+                                      "additionalProperties": false,
+                                      "x-unknownKeys": "strip"
                                     }
                                   ]
                                 },
@@ -1132,7 +1173,8 @@
                                     "cacheReadTokens",
                                     "cacheWriteTokens"
                                   ],
-                                  "additionalProperties": false
+                                  "additionalProperties": false,
+                                  "x-unknownKeys": "strip"
                                 },
                                 "contextPressure": {
                                   "description": "Newest request pressure paired with the newest known route capacity.",
@@ -1151,7 +1193,8 @@
                                       "type": "number"
                                     }
                                   },
-                                  "additionalProperties": false
+                                  "additionalProperties": false,
+                                  "x-unknownKeys": "strip"
                                 },
                                 "contextBreakdown": {
                                   "description": "Heuristic system/tools/message composition of the next request.",
@@ -1175,7 +1218,8 @@
                                     "toolsTokens",
                                     "messageTokens"
                                   ],
-                                  "additionalProperties": false
+                                  "additionalProperties": false,
+                                  "x-unknownKeys": "strip"
                                 },
                                 "agentTeam": {
                                   "description": "Durable roster and non-deleted task board of the Team rooted at the projected Session.",
@@ -1237,7 +1281,8 @@
                                           "role",
                                           "phase"
                                         ],
-                                        "additionalProperties": false
+                                        "additionalProperties": false,
+                                        "x-unknownKeys": "strip"
                                       }
                                     },
                                     "tasks": {
@@ -1324,7 +1369,8 @@
                                           "ready",
                                           "writeScopeWarnings"
                                         ],
-                                        "additionalProperties": false
+                                        "additionalProperties": false,
+                                        "x-unknownKeys": "strip"
                                       }
                                     },
                                     "failure": {
@@ -1336,7 +1382,8 @@
                                     "members",
                                     "tasks"
                                   ],
-                                  "additionalProperties": false
+                                  "additionalProperties": false,
+                                  "x-unknownKeys": "strip"
                                 },
                                 "userQuestions": {
                                   "description": "Timed questions that remain answerable in this Session, and the ones a late reply settled.",
@@ -1393,7 +1440,8 @@
                                                     "required": [
                                                       "label"
                                                     ],
-                                                    "additionalProperties": false
+                                                    "additionalProperties": false,
+                                                    "x-unknownKeys": "strip"
                                                   }
                                                 },
                                                 "multiSelect": {
@@ -1422,14 +1470,16 @@
                                                     "kind",
                                                     "approve"
                                                   ],
-                                                  "additionalProperties": false
+                                                  "additionalProperties": false,
+                                                  "x-unknownKeys": "strip"
                                                 }
                                               },
                                               "required": [
                                                 "id",
                                                 "question"
                                               ],
-                                              "additionalProperties": false
+                                              "additionalProperties": false,
+                                              "x-unknownKeys": "strip"
                                             }
                                           },
                                           "state": {
@@ -1451,7 +1501,8 @@
                                           "questions",
                                           "state"
                                         ],
-                                        "additionalProperties": false
+                                        "additionalProperties": false,
+                                        "x-unknownKeys": "strip"
                                       }
                                     },
                                     "settled": {
@@ -1493,7 +1544,8 @@
                                                 "id",
                                                 "selected"
                                               ],
-                                              "additionalProperties": false
+                                              "additionalProperties": false,
+                                              "x-unknownKeys": "strip"
                                             }
                                           }
                                         },
@@ -1501,7 +1553,8 @@
                                           "callId",
                                           "answers"
                                         ],
-                                        "additionalProperties": false
+                                        "additionalProperties": false,
+                                        "x-unknownKeys": "strip"
                                       }
                                     }
                                   },
@@ -1509,7 +1562,8 @@
                                     "active",
                                     "settled"
                                   ],
-                                  "additionalProperties": false
+                                  "additionalProperties": false,
+                                  "x-unknownKeys": "strip"
                                 },
                                 "goal": {
                                   "description": "The session's current goal and admitted-round count, or `null` before the first create and after a clear tombstone. `goal/change` supplies the whole lifecycle value; matching admitted `user/message` events advance `roundsStarted`.",
@@ -1573,7 +1627,8 @@
                                                 "code",
                                                 "message"
                                               ],
-                                              "additionalProperties": false
+                                              "additionalProperties": false,
+                                              "x-unknownKeys": "strip"
                                             },
                                             "maxGoalRounds": {
                                               "readOnly": true,
@@ -1598,7 +1653,8 @@
                                             "id",
                                             "revision"
                                           ],
-                                          "additionalProperties": false
+                                          "additionalProperties": false,
+                                          "x-unknownKeys": "strip"
                                         },
                                         "roundsStarted": {
                                           "readOnly": true,
@@ -1622,7 +1678,8 @@
                                         "createdAt",
                                         "updatedAt"
                                       ],
-                                      "additionalProperties": false
+                                      "additionalProperties": false,
+                                      "x-unknownKeys": "strip"
                                     }
                                   ]
                                 },
@@ -1641,10 +1698,12 @@
                                     "active",
                                     "pending"
                                   ],
-                                  "additionalProperties": false
+                                  "additionalProperties": false,
+                                  "x-unknownKeys": "strip"
                                 }
                               },
-                              "additionalProperties": false
+                              "additionalProperties": false,
+                              "x-unknownKeys": "strip"
                             },
                             {
                               "readOnly": true,
@@ -1663,21 +1722,24 @@
                         "asOfSeq",
                         "values"
                       ],
-                      "additionalProperties": false
+                      "additionalProperties": false,
+                      "x-unknownKeys": "strip"
                     }
                   }
                 },
                 "required": [
                   "projections"
                 ],
-                "additionalProperties": false
+                "additionalProperties": false,
+                "x-unknownKeys": "strip"
               }
             },
             "required": [
               "type",
               "value"
             ],
-            "additionalProperties": false
+            "additionalProperties": false,
+            "x-unknownKeys": "strip"
           },
           {
             "type": "object",
@@ -1711,7 +1773,8 @@
               "value",
               "seq"
             ],
-            "additionalProperties": false
+            "additionalProperties": false,
+            "x-unknownKeys": "strip"
           }
         ],
         "$defs": {
@@ -1881,7 +1944,8 @@
                 "type": "string"
               }
             },
-            "additionalProperties": false
+            "additionalProperties": false,
+            "x-unknownKeys": "strip"
           }
         },
         "required": [
@@ -1907,7 +1971,8 @@
         "required": [
           "sessionId"
         ],
-        "additionalProperties": false
+        "additionalProperties": false,
+        "x-unknownKeys": "strip"
       },
       "acceptsUndefinedResult": false
     },
@@ -1950,7 +2015,8 @@
                       "kind",
                       "sessionId"
                     ],
-                    "additionalProperties": false
+                    "additionalProperties": false,
+                    "x-unknownKeys": "strip"
                   },
                   {
                     "type": "object",
@@ -1992,7 +2058,8 @@
                       "childSessionId",
                       "mode"
                     ],
-                    "additionalProperties": false
+                    "additionalProperties": false,
+                    "x-unknownKeys": "strip"
                   }
                 ]
               },
@@ -2026,13 +2093,15 @@
                   "minMessages",
                   "minTurns"
                 ],
-                "additionalProperties": false
+                "additionalProperties": false,
+                "x-unknownKeys": "strip"
               }
             },
             "required": [
               "address"
             ],
-            "additionalProperties": false
+            "additionalProperties": false,
+            "x-unknownKeys": "strip"
           }
         },
         "required": [
@@ -2093,14 +2162,16 @@
                   "time",
                   "data"
                 ],
-                "additionalProperties": false
+                "additionalProperties": false,
+                "x-unknownKeys": "strip"
               }
             },
             "required": [
               "type",
               "event"
             ],
-            "additionalProperties": false
+            "additionalProperties": false,
+            "x-unknownKeys": "strip"
           },
           {
             "type": "object",
@@ -2159,7 +2230,8 @@
                   "createdAt",
                   "isSeeded"
                 ],
-                "additionalProperties": false
+                "additionalProperties": false,
+                "x-unknownKeys": "strip"
               },
               "cursor": {
                 "readOnly": true,
@@ -2218,14 +2290,16 @@
                         "time",
                         "data"
                       ],
-                      "additionalProperties": false
+                      "additionalProperties": false,
+                      "x-unknownKeys": "strip"
                     }
                   },
                   "required": [
                     "type",
                     "event"
                   ],
-                  "additionalProperties": false
+                  "additionalProperties": false,
+                  "x-unknownKeys": "strip"
                 }
               },
               "hasMore": {
@@ -2270,7 +2344,8 @@
                               "next-turn",
                               "next-step"
                             ],
-                            "additionalProperties": false
+                            "additionalProperties": false,
+                            "x-unknownKeys": "strip"
                           },
                           "workingDirectory": {
                             "description": "Recorded current directory for Session observations, or null when none is recorded.",
@@ -2346,7 +2421,8 @@
                                     "content",
                                     "status"
                                   ],
-                                  "additionalProperties": false
+                                  "additionalProperties": false,
+                                  "x-unknownKeys": "strip"
                                 }
                               }
                             ]
@@ -2378,7 +2454,8 @@
                               "blank",
                               "lastPromptAt"
                             ],
-                            "additionalProperties": false
+                            "additionalProperties": false,
+                            "x-unknownKeys": "strip"
                           },
                           "imageLimits": {
                             "description": "Image-intake limits enforced by the Session prompt endpoint.",
@@ -2432,7 +2509,8 @@
                               "maxImageDimension",
                               "mediaTypes"
                             ],
-                            "additionalProperties": false
+                            "additionalProperties": false,
+                            "x-unknownKeys": "strip"
                           },
                           "modelSelection": {
                             "description": "Durable model selection already used and selected for the next request.",
@@ -2466,7 +2544,8 @@
                                       "provider",
                                       "model"
                                     ],
-                                    "additionalProperties": false
+                                    "additionalProperties": false,
+                                    "x-unknownKeys": "strip"
                                   }
                                 ]
                               },
@@ -2498,7 +2577,8 @@
                                       "provider",
                                       "model"
                                     ],
-                                    "additionalProperties": false
+                                    "additionalProperties": false,
+                                    "x-unknownKeys": "strip"
                                   }
                                 ]
                               }
@@ -2507,7 +2587,8 @@
                               "lastUsed",
                               "next"
                             ],
-                            "additionalProperties": false
+                            "additionalProperties": false,
+                            "x-unknownKeys": "strip"
                           },
                           "permissions": {
                             "description": "The session's current permission, folded from the three whole-value knob events (`permission/preset`, `sandbox/mode`, `approval/policy`) over the composition defaults. Selectable options come from the process-level catalog Remote. Key absence means no permission service is composed — clients hide the control.",
@@ -2521,7 +2602,8 @@
                             "required": [
                               "currentValue"
                             ],
-                            "additionalProperties": false
+                            "additionalProperties": false,
+                            "x-unknownKeys": "strip"
                           },
                           "subagentCatalog": {
                             "description": "Direct children in parent catalog event order, excluding fork-inherited facts.",
@@ -2554,7 +2636,8 @@
                                     "createdAt",
                                     "mode"
                                   ],
-                                  "additionalProperties": false
+                                  "additionalProperties": false,
+                                  "x-unknownKeys": "strip"
                                 },
                                 {
                                   "type": "object",
@@ -2582,7 +2665,8 @@
                                     "createdAt",
                                     "mode"
                                   ],
-                                  "additionalProperties": false
+                                  "additionalProperties": false,
+                                  "x-unknownKeys": "strip"
                                 },
                                 {
                                   "type": "object",
@@ -2611,7 +2695,8 @@
                                     "mode",
                                     "label"
                                   ],
-                                  "additionalProperties": false
+                                  "additionalProperties": false,
+                                  "x-unknownKeys": "strip"
                                 },
                                 {
                                   "type": "object",
@@ -2639,7 +2724,8 @@
                                     "createdAt",
                                     "mode"
                                   ],
-                                  "additionalProperties": false
+                                  "additionalProperties": false,
+                                  "x-unknownKeys": "strip"
                                 }
                               ]
                             }
@@ -2669,7 +2755,8 @@
                                   "since",
                                   "through"
                                 ],
-                                "additionalProperties": false
+                                "additionalProperties": false,
+                                "x-unknownKeys": "strip"
                               },
                               "lastTurnCompleted": {
                                 "description": "Whether the latest closed turn after the child's own descriptor completed normally; absent while a turn is open or before one closes.",
@@ -2679,7 +2766,8 @@
                             "required": [
                               "settledMs"
                             ],
-                            "additionalProperties": false
+                            "additionalProperties": false,
+                            "x-unknownKeys": "strip"
                           },
                           "subagent": {
                             "description": "Identity of a descriptor-backed subagent session. `null` ⟺ no valid descriptor (missing, malformed, or unrecognized-version — deliberately undistinguished). The sentinel is deliberately serializable: a value pushed over JSON transports must survive `JSON.stringify` losslessly, where an `undefined` field would be dropped and a stale identity would survive on the receiving side. The entry itself stays non-optional.",
@@ -2709,7 +2797,8 @@
                                   "mode",
                                   "seq"
                                 ],
-                                "additionalProperties": false
+                                "additionalProperties": false,
+                                "x-unknownKeys": "strip"
                               },
                               {
                                 "type": "object",
@@ -2733,7 +2822,8 @@
                                   "label",
                                   "seq"
                                 ],
-                                "additionalProperties": false
+                                "additionalProperties": false,
+                                "x-unknownKeys": "strip"
                               }
                             ]
                           },
@@ -2760,7 +2850,8 @@
                               "cacheReadTokens",
                               "cacheWriteTokens"
                             ],
-                            "additionalProperties": false
+                            "additionalProperties": false,
+                            "x-unknownKeys": "strip"
                           },
                           "contextPressure": {
                             "description": "Newest request pressure paired with the newest known route capacity.",
@@ -2779,7 +2870,8 @@
                                 "type": "number"
                               }
                             },
-                            "additionalProperties": false
+                            "additionalProperties": false,
+                            "x-unknownKeys": "strip"
                           },
                           "contextBreakdown": {
                             "description": "Heuristic system/tools/message composition of the next request.",
@@ -2803,7 +2895,8 @@
                               "toolsTokens",
                               "messageTokens"
                             ],
-                            "additionalProperties": false
+                            "additionalProperties": false,
+                            "x-unknownKeys": "strip"
                           },
                           "agentTeam": {
                             "description": "Durable roster and non-deleted task board of the Team rooted at the projected Session.",
@@ -2865,7 +2958,8 @@
                                     "role",
                                     "phase"
                                   ],
-                                  "additionalProperties": false
+                                  "additionalProperties": false,
+                                  "x-unknownKeys": "strip"
                                 }
                               },
                               "tasks": {
@@ -2952,7 +3046,8 @@
                                     "ready",
                                     "writeScopeWarnings"
                                   ],
-                                  "additionalProperties": false
+                                  "additionalProperties": false,
+                                  "x-unknownKeys": "strip"
                                 }
                               },
                               "failure": {
@@ -2964,7 +3059,8 @@
                               "members",
                               "tasks"
                             ],
-                            "additionalProperties": false
+                            "additionalProperties": false,
+                            "x-unknownKeys": "strip"
                           },
                           "userQuestions": {
                             "description": "Timed questions that remain answerable in this Session, and the ones a late reply settled.",
@@ -3021,7 +3117,8 @@
                                               "required": [
                                                 "label"
                                               ],
-                                              "additionalProperties": false
+                                              "additionalProperties": false,
+                                              "x-unknownKeys": "strip"
                                             }
                                           },
                                           "multiSelect": {
@@ -3050,14 +3147,16 @@
                                               "kind",
                                               "approve"
                                             ],
-                                            "additionalProperties": false
+                                            "additionalProperties": false,
+                                            "x-unknownKeys": "strip"
                                           }
                                         },
                                         "required": [
                                           "id",
                                           "question"
                                         ],
-                                        "additionalProperties": false
+                                        "additionalProperties": false,
+                                        "x-unknownKeys": "strip"
                                       }
                                     },
                                     "state": {
@@ -3079,7 +3178,8 @@
                                     "questions",
                                     "state"
                                   ],
-                                  "additionalProperties": false
+                                  "additionalProperties": false,
+                                  "x-unknownKeys": "strip"
                                 }
                               },
                               "settled": {
@@ -3121,7 +3221,8 @@
                                           "id",
                                           "selected"
                                         ],
-                                        "additionalProperties": false
+                                        "additionalProperties": false,
+                                        "x-unknownKeys": "strip"
                                       }
                                     }
                                   },
@@ -3129,7 +3230,8 @@
                                     "callId",
                                     "answers"
                                   ],
-                                  "additionalProperties": false
+                                  "additionalProperties": false,
+                                  "x-unknownKeys": "strip"
                                 }
                               }
                             },
@@ -3137,7 +3239,8 @@
                               "active",
                               "settled"
                             ],
-                            "additionalProperties": false
+                            "additionalProperties": false,
+                            "x-unknownKeys": "strip"
                           },
                           "goal": {
                             "description": "The session's current goal and admitted-round count, or `null` before the first create and after a clear tombstone. `goal/change` supplies the whole lifecycle value; matching admitted `user/message` events advance `roundsStarted`.",
@@ -3201,7 +3304,8 @@
                                           "code",
                                           "message"
                                         ],
-                                        "additionalProperties": false
+                                        "additionalProperties": false,
+                                        "x-unknownKeys": "strip"
                                       },
                                       "maxGoalRounds": {
                                         "readOnly": true,
@@ -3226,7 +3330,8 @@
                                       "id",
                                       "revision"
                                     ],
-                                    "additionalProperties": false
+                                    "additionalProperties": false,
+                                    "x-unknownKeys": "strip"
                                   },
                                   "roundsStarted": {
                                     "readOnly": true,
@@ -3250,7 +3355,8 @@
                                   "createdAt",
                                   "updatedAt"
                                 ],
-                                "additionalProperties": false
+                                "additionalProperties": false,
+                                "x-unknownKeys": "strip"
                               }
                             ]
                           },
@@ -3269,10 +3375,12 @@
                               "active",
                               "pending"
                             ],
-                            "additionalProperties": false
+                            "additionalProperties": false,
+                            "x-unknownKeys": "strip"
                           }
                         },
-                        "additionalProperties": false
+                        "additionalProperties": false,
+                        "x-unknownKeys": "strip"
                       },
                       {
                         "readOnly": true,
@@ -3291,7 +3399,8 @@
                   "asOfSeq",
                   "values"
                 ],
-                "additionalProperties": false
+                "additionalProperties": false,
+                "x-unknownKeys": "strip"
               },
               "assistantStream": {
                 "readOnly": true,
@@ -3352,13 +3461,15 @@
                       "nextIndex",
                       "stream"
                     ],
-                    "additionalProperties": false
+                    "additionalProperties": false,
+                    "x-unknownKeys": "strip"
                   }
                 },
                 "required": [
                   "revision"
                 ],
-                "additionalProperties": false
+                "additionalProperties": false,
+                "x-unknownKeys": "strip"
               }
             },
             "required": [
@@ -3369,7 +3480,8 @@
               "hasMore",
               "projections"
             ],
-            "additionalProperties": false
+            "additionalProperties": false,
+            "x-unknownKeys": "strip"
           },
           {
             "type": "object",
@@ -3427,7 +3539,8 @@
                       "turn",
                       "step"
                     ],
-                    "additionalProperties": false
+                    "additionalProperties": false,
+                    "x-unknownKeys": "strip"
                   },
                   {
                     "type": "object",
@@ -3466,7 +3579,8 @@
                       "time",
                       "chunk"
                     ],
-                    "additionalProperties": false
+                    "additionalProperties": false,
+                    "x-unknownKeys": "strip"
                   },
                   {
                     "type": "object",
@@ -3523,7 +3637,8 @@
                               "eventType",
                               "seq"
                             ],
-                            "additionalProperties": false
+                            "additionalProperties": false,
+                            "x-unknownKeys": "strip"
                           },
                           {
                             "type": "object",
@@ -3537,7 +3652,8 @@
                             "required": [
                               "kind"
                             ],
-                            "additionalProperties": false
+                            "additionalProperties": false,
+                            "x-unknownKeys": "strip"
                           }
                         ]
                       }
@@ -3549,7 +3665,8 @@
                       "index",
                       "outcome"
                     ],
-                    "additionalProperties": false
+                    "additionalProperties": false,
+                    "x-unknownKeys": "strip"
                   }
                 ]
               }
@@ -3558,7 +3675,8 @@
               "type",
               "frame"
             ],
-            "additionalProperties": false
+            "additionalProperties": false,
+            "x-unknownKeys": "strip"
           }
         ],
         "$defs": {
@@ -3942,7 +4060,8 @@
             "required": [
               "sessionId"
             ],
-            "additionalProperties": false
+            "additionalProperties": false,
+            "x-unknownKeys": "strip"
           }
         },
         "required": [
@@ -3962,7 +4081,8 @@
         "required": [
           "sessionId"
         ],
-        "additionalProperties": false
+        "additionalProperties": false,
+        "x-unknownKeys": "strip"
       },
       "acceptsUndefinedResult": false
     },
@@ -3990,7 +4110,8 @@
                 "type": "string"
               }
             },
-            "additionalProperties": false
+            "additionalProperties": false,
+            "x-unknownKeys": "strip"
           }
         },
         "required": [
@@ -4109,7 +4230,8 @@
                                 "next-turn",
                                 "next-step"
                               ],
-                              "additionalProperties": false
+                              "additionalProperties": false,
+                              "x-unknownKeys": "strip"
                             },
                             "workingDirectory": {
                               "description": "Recorded current directory for Session observations, or null when none is recorded.",
@@ -4185,7 +4307,8 @@
                                       "content",
                                       "status"
                                     ],
-                                    "additionalProperties": false
+                                    "additionalProperties": false,
+                                    "x-unknownKeys": "strip"
                                   }
                                 }
                               ]
@@ -4217,7 +4340,8 @@
                                 "blank",
                                 "lastPromptAt"
                               ],
-                              "additionalProperties": false
+                              "additionalProperties": false,
+                              "x-unknownKeys": "strip"
                             },
                             "imageLimits": {
                               "description": "Image-intake limits enforced by the Session prompt endpoint.",
@@ -4271,7 +4395,8 @@
                                 "maxImageDimension",
                                 "mediaTypes"
                               ],
-                              "additionalProperties": false
+                              "additionalProperties": false,
+                              "x-unknownKeys": "strip"
                             },
                             "modelSelection": {
                               "description": "Durable model selection already used and selected for the next request.",
@@ -4305,7 +4430,8 @@
                                         "provider",
                                         "model"
                                       ],
-                                      "additionalProperties": false
+                                      "additionalProperties": false,
+                                      "x-unknownKeys": "strip"
                                     }
                                   ]
                                 },
@@ -4337,7 +4463,8 @@
                                         "provider",
                                         "model"
                                       ],
-                                      "additionalProperties": false
+                                      "additionalProperties": false,
+                                      "x-unknownKeys": "strip"
                                     }
                                   ]
                                 }
@@ -4346,7 +4473,8 @@
                                 "lastUsed",
                                 "next"
                               ],
-                              "additionalProperties": false
+                              "additionalProperties": false,
+                              "x-unknownKeys": "strip"
                             },
                             "permissions": {
                               "description": "The session's current permission, folded from the three whole-value knob events (`permission/preset`, `sandbox/mode`, `approval/policy`) over the composition defaults. Selectable options come from the process-level catalog Remote. Key absence means no permission service is composed — clients hide the control.",
@@ -4360,7 +4488,8 @@
                               "required": [
                                 "currentValue"
                               ],
-                              "additionalProperties": false
+                              "additionalProperties": false,
+                              "x-unknownKeys": "strip"
                             },
                             "subagentCatalog": {
                               "description": "Direct children in parent catalog event order, excluding fork-inherited facts.",
@@ -4393,7 +4522,8 @@
                                       "createdAt",
                                       "mode"
                                     ],
-                                    "additionalProperties": false
+                                    "additionalProperties": false,
+                                    "x-unknownKeys": "strip"
                                   },
                                   {
                                     "type": "object",
@@ -4421,7 +4551,8 @@
                                       "createdAt",
                                       "mode"
                                     ],
-                                    "additionalProperties": false
+                                    "additionalProperties": false,
+                                    "x-unknownKeys": "strip"
                                   },
                                   {
                                     "type": "object",
@@ -4450,7 +4581,8 @@
                                       "mode",
                                       "label"
                                     ],
-                                    "additionalProperties": false
+                                    "additionalProperties": false,
+                                    "x-unknownKeys": "strip"
                                   },
                                   {
                                     "type": "object",
@@ -4478,7 +4610,8 @@
                                       "createdAt",
                                       "mode"
                                     ],
-                                    "additionalProperties": false
+                                    "additionalProperties": false,
+                                    "x-unknownKeys": "strip"
                                   }
                                 ]
                               }
@@ -4508,7 +4641,8 @@
                                     "since",
                                     "through"
                                   ],
-                                  "additionalProperties": false
+                                  "additionalProperties": false,
+                                  "x-unknownKeys": "strip"
                                 },
                                 "lastTurnCompleted": {
                                   "description": "Whether the latest closed turn after the child's own descriptor completed normally; absent while a turn is open or before one closes.",
@@ -4518,7 +4652,8 @@
                               "required": [
                                 "settledMs"
                               ],
-                              "additionalProperties": false
+                              "additionalProperties": false,
+                              "x-unknownKeys": "strip"
                             },
                             "subagent": {
                               "description": "Identity of a descriptor-backed subagent session. `null` ⟺ no valid descriptor (missing, malformed, or unrecognized-version — deliberately undistinguished). The sentinel is deliberately serializable: a value pushed over JSON transports must survive `JSON.stringify` losslessly, where an `undefined` field would be dropped and a stale identity would survive on the receiving side. The entry itself stays non-optional.",
@@ -4548,7 +4683,8 @@
                                     "mode",
                                     "seq"
                                   ],
-                                  "additionalProperties": false
+                                  "additionalProperties": false,
+                                  "x-unknownKeys": "strip"
                                 },
                                 {
                                   "type": "object",
@@ -4572,7 +4708,8 @@
                                     "label",
                                     "seq"
                                   ],
-                                  "additionalProperties": false
+                                  "additionalProperties": false,
+                                  "x-unknownKeys": "strip"
                                 }
                               ]
                             },
@@ -4599,7 +4736,8 @@
                                 "cacheReadTokens",
                                 "cacheWriteTokens"
                               ],
-                              "additionalProperties": false
+                              "additionalProperties": false,
+                              "x-unknownKeys": "strip"
                             },
                             "contextPressure": {
                               "description": "Newest request pressure paired with the newest known route capacity.",
@@ -4618,7 +4756,8 @@
                                   "type": "number"
                                 }
                               },
-                              "additionalProperties": false
+                              "additionalProperties": false,
+                              "x-unknownKeys": "strip"
                             },
                             "contextBreakdown": {
                               "description": "Heuristic system/tools/message composition of the next request.",
@@ -4642,7 +4781,8 @@
                                 "toolsTokens",
                                 "messageTokens"
                               ],
-                              "additionalProperties": false
+                              "additionalProperties": false,
+                              "x-unknownKeys": "strip"
                             },
                             "agentTeam": {
                               "description": "Durable roster and non-deleted task board of the Team rooted at the projected Session.",
@@ -4704,7 +4844,8 @@
                                       "role",
                                       "phase"
                                     ],
-                                    "additionalProperties": false
+                                    "additionalProperties": false,
+                                    "x-unknownKeys": "strip"
                                   }
                                 },
                                 "tasks": {
@@ -4791,7 +4932,8 @@
                                       "ready",
                                       "writeScopeWarnings"
                                     ],
-                                    "additionalProperties": false
+                                    "additionalProperties": false,
+                                    "x-unknownKeys": "strip"
                                   }
                                 },
                                 "failure": {
@@ -4803,7 +4945,8 @@
                                 "members",
                                 "tasks"
                               ],
-                              "additionalProperties": false
+                              "additionalProperties": false,
+                              "x-unknownKeys": "strip"
                             },
                             "userQuestions": {
                               "description": "Timed questions that remain answerable in this Session, and the ones a late reply settled.",
@@ -4860,7 +5003,8 @@
                                                 "required": [
                                                   "label"
                                                 ],
-                                                "additionalProperties": false
+                                                "additionalProperties": false,
+                                                "x-unknownKeys": "strip"
                                               }
                                             },
                                             "multiSelect": {
@@ -4889,14 +5033,16 @@
                                                 "kind",
                                                 "approve"
                                               ],
-                                              "additionalProperties": false
+                                              "additionalProperties": false,
+                                              "x-unknownKeys": "strip"
                                             }
                                           },
                                           "required": [
                                             "id",
                                             "question"
                                           ],
-                                          "additionalProperties": false
+                                          "additionalProperties": false,
+                                          "x-unknownKeys": "strip"
                                         }
                                       },
                                       "state": {
@@ -4918,7 +5064,8 @@
                                       "questions",
                                       "state"
                                     ],
-                                    "additionalProperties": false
+                                    "additionalProperties": false,
+                                    "x-unknownKeys": "strip"
                                   }
                                 },
                                 "settled": {
@@ -4960,7 +5107,8 @@
                                             "id",
                                             "selected"
                                           ],
-                                          "additionalProperties": false
+                                          "additionalProperties": false,
+                                          "x-unknownKeys": "strip"
                                         }
                                       }
                                     },
@@ -4968,7 +5116,8 @@
                                       "callId",
                                       "answers"
                                     ],
-                                    "additionalProperties": false
+                                    "additionalProperties": false,
+                                    "x-unknownKeys": "strip"
                                   }
                                 }
                               },
@@ -4976,7 +5125,8 @@
                                 "active",
                                 "settled"
                               ],
-                              "additionalProperties": false
+                              "additionalProperties": false,
+                              "x-unknownKeys": "strip"
                             },
                             "goal": {
                               "description": "The session's current goal and admitted-round count, or `null` before the first create and after a clear tombstone. `goal/change` supplies the whole lifecycle value; matching admitted `user/message` events advance `roundsStarted`.",
@@ -5040,7 +5190,8 @@
                                             "code",
                                             "message"
                                           ],
-                                          "additionalProperties": false
+                                          "additionalProperties": false,
+                                          "x-unknownKeys": "strip"
                                         },
                                         "maxGoalRounds": {
                                           "readOnly": true,
@@ -5065,7 +5216,8 @@
                                         "id",
                                         "revision"
                                       ],
-                                      "additionalProperties": false
+                                      "additionalProperties": false,
+                                      "x-unknownKeys": "strip"
                                     },
                                     "roundsStarted": {
                                       "readOnly": true,
@@ -5089,7 +5241,8 @@
                                     "createdAt",
                                     "updatedAt"
                                   ],
-                                  "additionalProperties": false
+                                  "additionalProperties": false,
+                                  "x-unknownKeys": "strip"
                                 }
                               ]
                             },
@@ -5108,10 +5261,12 @@
                                 "active",
                                 "pending"
                               ],
-                              "additionalProperties": false
+                              "additionalProperties": false,
+                              "x-unknownKeys": "strip"
                             }
                           },
-                          "additionalProperties": false
+                          "additionalProperties": false,
+                          "x-unknownKeys": "strip"
                         },
                         {
                           "readOnly": true,
@@ -5131,7 +5286,8 @@
                     "asOfSeq",
                     "values"
                   ],
-                  "additionalProperties": false
+                  "additionalProperties": false,
+                  "x-unknownKeys": "strip"
                 }
               },
               "required": [
@@ -5141,7 +5297,8 @@
                 "running",
                 "blank"
               ],
-              "additionalProperties": false
+              "additionalProperties": false,
+              "x-unknownKeys": "strip"
             }
           }
         },
@@ -5149,6 +5306,7 @@
           "items"
         ],
         "additionalProperties": false,
+        "x-unknownKeys": "strip",
         "$defs": {
           "__schema0": {
             "anyOf": [
@@ -5282,7 +5440,8 @@
               "provider",
               "model"
             ],
-            "additionalProperties": false
+            "additionalProperties": false,
+            "x-unknownKeys": "strip"
           },
           "routableProviders": {
             "readOnly": true,
@@ -5351,7 +5510,8 @@
                                 "id",
                                 "name"
                               ],
-                              "additionalProperties": false
+                              "additionalProperties": false,
+                              "x-unknownKeys": "strip"
                             }
                           },
                           "defaultEffort": {
@@ -5362,14 +5522,16 @@
                         "required": [
                           "efforts"
                         ],
-                        "additionalProperties": false
+                        "additionalProperties": false,
+                        "x-unknownKeys": "strip"
                       }
                     },
                     "required": [
                       "id",
                       "name"
                     ],
-                    "additionalProperties": false
+                    "additionalProperties": false,
+                    "x-unknownKeys": "strip"
                   }
                 }
               },
@@ -5378,7 +5540,8 @@
                 "name",
                 "models"
               ],
-              "additionalProperties": false
+              "additionalProperties": false,
+              "x-unknownKeys": "strip"
             }
           },
           "failures": {
@@ -5405,7 +5568,8 @@
                 "name",
                 "message"
               ],
-              "additionalProperties": false
+              "additionalProperties": false,
+              "x-unknownKeys": "strip"
             }
           }
         },
@@ -5415,7 +5579,8 @@
           "groups",
           "failures"
         ],
-        "additionalProperties": false
+        "additionalProperties": false,
+        "x-unknownKeys": "strip"
       },
       "acceptsUndefinedResult": false
     },
@@ -5458,7 +5623,8 @@
                       "kind",
                       "sessionId"
                     ],
-                    "additionalProperties": false
+                    "additionalProperties": false,
+                    "x-unknownKeys": "strip"
                   },
                   {
                     "type": "object",
@@ -5500,7 +5666,8 @@
                       "childSessionId",
                       "mode"
                     ],
-                    "additionalProperties": false
+                    "additionalProperties": false,
+                    "x-unknownKeys": "strip"
                   }
                 ]
               },
@@ -5537,14 +5704,16 @@
                   "minMessages",
                   "minTurns"
                 ],
-                "additionalProperties": false
+                "additionalProperties": false,
+                "x-unknownKeys": "strip"
               }
             },
             "required": [
               "address",
               "throughSeq"
             ],
-            "additionalProperties": false
+            "additionalProperties": false,
+            "x-unknownKeys": "strip"
           }
         },
         "required": [
@@ -5609,14 +5778,16 @@
                     "time",
                     "data"
                   ],
-                  "additionalProperties": false
+                  "additionalProperties": false,
+                  "x-unknownKeys": "strip"
                 }
               },
               "required": [
                 "type",
                 "event"
               ],
-              "additionalProperties": false
+              "additionalProperties": false,
+              "x-unknownKeys": "strip"
             }
           },
           "hasMore": {
@@ -5629,6 +5800,7 @@
           "hasMore"
         ],
         "additionalProperties": false,
+        "x-unknownKeys": "strip",
         "$defs": {
           "__schema0": {
             "anyOf": [
@@ -5754,7 +5926,8 @@
             "required": [
               "sessionId"
             ],
-            "additionalProperties": false
+            "additionalProperties": false,
+            "x-unknownKeys": "strip"
           }
         },
         "required": [
@@ -5806,7 +5979,8 @@
                           "next-turn",
                           "next-step"
                         ],
-                        "additionalProperties": false
+                        "additionalProperties": false,
+                        "x-unknownKeys": "strip"
                       },
                       "workingDirectory": {
                         "description": "Recorded current directory for Session observations, or null when none is recorded.",
@@ -5882,7 +6056,8 @@
                                 "content",
                                 "status"
                               ],
-                              "additionalProperties": false
+                              "additionalProperties": false,
+                              "x-unknownKeys": "strip"
                             }
                           }
                         ]
@@ -5914,7 +6089,8 @@
                           "blank",
                           "lastPromptAt"
                         ],
-                        "additionalProperties": false
+                        "additionalProperties": false,
+                        "x-unknownKeys": "strip"
                       },
                       "imageLimits": {
                         "description": "Image-intake limits enforced by the Session prompt endpoint.",
@@ -5968,7 +6144,8 @@
                           "maxImageDimension",
                           "mediaTypes"
                         ],
-                        "additionalProperties": false
+                        "additionalProperties": false,
+                        "x-unknownKeys": "strip"
                       },
                       "modelSelection": {
                         "description": "Durable model selection already used and selected for the next request.",
@@ -6002,7 +6179,8 @@
                                   "provider",
                                   "model"
                                 ],
-                                "additionalProperties": false
+                                "additionalProperties": false,
+                                "x-unknownKeys": "strip"
                               }
                             ]
                           },
@@ -6034,7 +6212,8 @@
                                   "provider",
                                   "model"
                                 ],
-                                "additionalProperties": false
+                                "additionalProperties": false,
+                                "x-unknownKeys": "strip"
                               }
                             ]
                           }
@@ -6043,7 +6222,8 @@
                           "lastUsed",
                           "next"
                         ],
-                        "additionalProperties": false
+                        "additionalProperties": false,
+                        "x-unknownKeys": "strip"
                       },
                       "permissions": {
                         "description": "The session's current permission, folded from the three whole-value knob events (`permission/preset`, `sandbox/mode`, `approval/policy`) over the composition defaults. Selectable options come from the process-level catalog Remote. Key absence means no permission service is composed — clients hide the control.",
@@ -6057,7 +6237,8 @@
                         "required": [
                           "currentValue"
                         ],
-                        "additionalProperties": false
+                        "additionalProperties": false,
+                        "x-unknownKeys": "strip"
                       },
                       "subagentCatalog": {
                         "description": "Direct children in parent catalog event order, excluding fork-inherited facts.",
@@ -6090,7 +6271,8 @@
                                 "createdAt",
                                 "mode"
                               ],
-                              "additionalProperties": false
+                              "additionalProperties": false,
+                              "x-unknownKeys": "strip"
                             },
                             {
                               "type": "object",
@@ -6118,7 +6300,8 @@
                                 "createdAt",
                                 "mode"
                               ],
-                              "additionalProperties": false
+                              "additionalProperties": false,
+                              "x-unknownKeys": "strip"
                             },
                             {
                               "type": "object",
@@ -6147,7 +6330,8 @@
                                 "mode",
                                 "label"
                               ],
-                              "additionalProperties": false
+                              "additionalProperties": false,
+                              "x-unknownKeys": "strip"
                             },
                             {
                               "type": "object",
@@ -6175,7 +6359,8 @@
                                 "createdAt",
                                 "mode"
                               ],
-                              "additionalProperties": false
+                              "additionalProperties": false,
+                              "x-unknownKeys": "strip"
                             }
                           ]
                         }
@@ -6205,7 +6390,8 @@
                               "since",
                               "through"
                             ],
-                            "additionalProperties": false
+                            "additionalProperties": false,
+                            "x-unknownKeys": "strip"
                           },
                           "lastTurnCompleted": {
                             "description": "Whether the latest closed turn after the child's own descriptor completed normally; absent while a turn is open or before one closes.",
@@ -6215,7 +6401,8 @@
                         "required": [
                           "settledMs"
                         ],
-                        "additionalProperties": false
+                        "additionalProperties": false,
+                        "x-unknownKeys": "strip"
                       },
                       "subagent": {
                         "description": "Identity of a descriptor-backed subagent session. `null` ⟺ no valid descriptor (missing, malformed, or unrecognized-version — deliberately undistinguished). The sentinel is deliberately serializable: a value pushed over JSON transports must survive `JSON.stringify` losslessly, where an `undefined` field would be dropped and a stale identity would survive on the receiving side. The entry itself stays non-optional.",
@@ -6245,7 +6432,8 @@
                               "mode",
                               "seq"
                             ],
-                            "additionalProperties": false
+                            "additionalProperties": false,
+                            "x-unknownKeys": "strip"
                           },
                           {
                             "type": "object",
@@ -6269,7 +6457,8 @@
                               "label",
                               "seq"
                             ],
-                            "additionalProperties": false
+                            "additionalProperties": false,
+                            "x-unknownKeys": "strip"
                           }
                         ]
                       },
@@ -6296,7 +6485,8 @@
                           "cacheReadTokens",
                           "cacheWriteTokens"
                         ],
-                        "additionalProperties": false
+                        "additionalProperties": false,
+                        "x-unknownKeys": "strip"
                       },
                       "contextPressure": {
                         "description": "Newest request pressure paired with the newest known route capacity.",
@@ -6315,7 +6505,8 @@
                             "type": "number"
                           }
                         },
-                        "additionalProperties": false
+                        "additionalProperties": false,
+                        "x-unknownKeys": "strip"
                       },
                       "contextBreakdown": {
                         "description": "Heuristic system/tools/message composition of the next request.",
@@ -6339,7 +6530,8 @@
                           "toolsTokens",
                           "messageTokens"
                         ],
-                        "additionalProperties": false
+                        "additionalProperties": false,
+                        "x-unknownKeys": "strip"
                       },
                       "agentTeam": {
                         "description": "Durable roster and non-deleted task board of the Team rooted at the projected Session.",
@@ -6401,7 +6593,8 @@
                                 "role",
                                 "phase"
                               ],
-                              "additionalProperties": false
+                              "additionalProperties": false,
+                              "x-unknownKeys": "strip"
                             }
                           },
                           "tasks": {
@@ -6488,7 +6681,8 @@
                                 "ready",
                                 "writeScopeWarnings"
                               ],
-                              "additionalProperties": false
+                              "additionalProperties": false,
+                              "x-unknownKeys": "strip"
                             }
                           },
                           "failure": {
@@ -6500,7 +6694,8 @@
                           "members",
                           "tasks"
                         ],
-                        "additionalProperties": false
+                        "additionalProperties": false,
+                        "x-unknownKeys": "strip"
                       },
                       "userQuestions": {
                         "description": "Timed questions that remain answerable in this Session, and the ones a late reply settled.",
@@ -6557,7 +6752,8 @@
                                           "required": [
                                             "label"
                                           ],
-                                          "additionalProperties": false
+                                          "additionalProperties": false,
+                                          "x-unknownKeys": "strip"
                                         }
                                       },
                                       "multiSelect": {
@@ -6586,14 +6782,16 @@
                                           "kind",
                                           "approve"
                                         ],
-                                        "additionalProperties": false
+                                        "additionalProperties": false,
+                                        "x-unknownKeys": "strip"
                                       }
                                     },
                                     "required": [
                                       "id",
                                       "question"
                                     ],
-                                    "additionalProperties": false
+                                    "additionalProperties": false,
+                                    "x-unknownKeys": "strip"
                                   }
                                 },
                                 "state": {
@@ -6615,7 +6813,8 @@
                                 "questions",
                                 "state"
                               ],
-                              "additionalProperties": false
+                              "additionalProperties": false,
+                              "x-unknownKeys": "strip"
                             }
                           },
                           "settled": {
@@ -6657,7 +6856,8 @@
                                       "id",
                                       "selected"
                                     ],
-                                    "additionalProperties": false
+                                    "additionalProperties": false,
+                                    "x-unknownKeys": "strip"
                                   }
                                 }
                               },
@@ -6665,7 +6865,8 @@
                                 "callId",
                                 "answers"
                               ],
-                              "additionalProperties": false
+                              "additionalProperties": false,
+                              "x-unknownKeys": "strip"
                             }
                           }
                         },
@@ -6673,7 +6874,8 @@
                           "active",
                           "settled"
                         ],
-                        "additionalProperties": false
+                        "additionalProperties": false,
+                        "x-unknownKeys": "strip"
                       },
                       "goal": {
                         "description": "The session's current goal and admitted-round count, or `null` before the first create and after a clear tombstone. `goal/change` supplies the whole lifecycle value; matching admitted `user/message` events advance `roundsStarted`.",
@@ -6737,7 +6939,8 @@
                                       "code",
                                       "message"
                                     ],
-                                    "additionalProperties": false
+                                    "additionalProperties": false,
+                                    "x-unknownKeys": "strip"
                                   },
                                   "maxGoalRounds": {
                                     "readOnly": true,
@@ -6762,7 +6965,8 @@
                                   "id",
                                   "revision"
                                 ],
-                                "additionalProperties": false
+                                "additionalProperties": false,
+                                "x-unknownKeys": "strip"
                               },
                               "roundsStarted": {
                                 "readOnly": true,
@@ -6786,7 +6990,8 @@
                               "createdAt",
                               "updatedAt"
                             ],
-                            "additionalProperties": false
+                            "additionalProperties": false,
+                            "x-unknownKeys": "strip"
                           }
                         ]
                       },
@@ -6805,10 +7010,12 @@
                           "active",
                           "pending"
                         ],
-                        "additionalProperties": false
+                        "additionalProperties": false,
+                        "x-unknownKeys": "strip"
                       }
                     },
-                    "additionalProperties": false
+                    "additionalProperties": false,
+                    "x-unknownKeys": "strip"
                   },
                   {
                     "readOnly": true,
@@ -6833,7 +7040,8 @@
               "values",
               "kind"
             ],
-            "additionalProperties": false
+            "additionalProperties": false,
+            "x-unknownKeys": "strip"
           },
           {
             "type": "object",
@@ -6872,7 +7080,8 @@
                           "next-turn",
                           "next-step"
                         ],
-                        "additionalProperties": false
+                        "additionalProperties": false,
+                        "x-unknownKeys": "strip"
                       },
                       "workingDirectory": {
                         "description": "Recorded current directory for Session observations, or null when none is recorded.",
@@ -6948,7 +7157,8 @@
                                 "content",
                                 "status"
                               ],
-                              "additionalProperties": false
+                              "additionalProperties": false,
+                              "x-unknownKeys": "strip"
                             }
                           }
                         ]
@@ -6980,7 +7190,8 @@
                           "blank",
                           "lastPromptAt"
                         ],
-                        "additionalProperties": false
+                        "additionalProperties": false,
+                        "x-unknownKeys": "strip"
                       },
                       "imageLimits": {
                         "description": "Image-intake limits enforced by the Session prompt endpoint.",
@@ -7034,7 +7245,8 @@
                           "maxImageDimension",
                           "mediaTypes"
                         ],
-                        "additionalProperties": false
+                        "additionalProperties": false,
+                        "x-unknownKeys": "strip"
                       },
                       "modelSelection": {
                         "description": "Durable model selection already used and selected for the next request.",
@@ -7068,7 +7280,8 @@
                                   "provider",
                                   "model"
                                 ],
-                                "additionalProperties": false
+                                "additionalProperties": false,
+                                "x-unknownKeys": "strip"
                               }
                             ]
                           },
@@ -7100,7 +7313,8 @@
                                   "provider",
                                   "model"
                                 ],
-                                "additionalProperties": false
+                                "additionalProperties": false,
+                                "x-unknownKeys": "strip"
                               }
                             ]
                           }
@@ -7109,7 +7323,8 @@
                           "lastUsed",
                           "next"
                         ],
-                        "additionalProperties": false
+                        "additionalProperties": false,
+                        "x-unknownKeys": "strip"
                       },
                       "permissions": {
                         "description": "The session's current permission, folded from the three whole-value knob events (`permission/preset`, `sandbox/mode`, `approval/policy`) over the composition defaults. Selectable options come from the process-level catalog Remote. Key absence means no permission service is composed — clients hide the control.",
@@ -7123,7 +7338,8 @@
                         "required": [
                           "currentValue"
                         ],
-                        "additionalProperties": false
+                        "additionalProperties": false,
+                        "x-unknownKeys": "strip"
                       },
                       "subagentCatalog": {
                         "description": "Direct children in parent catalog event order, excluding fork-inherited facts.",
@@ -7156,7 +7372,8 @@
                                 "createdAt",
                                 "mode"
                               ],
-                              "additionalProperties": false
+                              "additionalProperties": false,
+                              "x-unknownKeys": "strip"
                             },
                             {
                               "type": "object",
@@ -7184,7 +7401,8 @@
                                 "createdAt",
                                 "mode"
                               ],
-                              "additionalProperties": false
+                              "additionalProperties": false,
+                              "x-unknownKeys": "strip"
                             },
                             {
                               "type": "object",
@@ -7213,7 +7431,8 @@
                                 "mode",
                                 "label"
                               ],
-                              "additionalProperties": false
+                              "additionalProperties": false,
+                              "x-unknownKeys": "strip"
                             },
                             {
                               "type": "object",
@@ -7241,7 +7460,8 @@
                                 "createdAt",
                                 "mode"
                               ],
-                              "additionalProperties": false
+                              "additionalProperties": false,
+                              "x-unknownKeys": "strip"
                             }
                           ]
                         }
@@ -7271,7 +7491,8 @@
                               "since",
                               "through"
                             ],
-                            "additionalProperties": false
+                            "additionalProperties": false,
+                            "x-unknownKeys": "strip"
                           },
                           "lastTurnCompleted": {
                             "description": "Whether the latest closed turn after the child's own descriptor completed normally; absent while a turn is open or before one closes.",
@@ -7281,7 +7502,8 @@
                         "required": [
                           "settledMs"
                         ],
-                        "additionalProperties": false
+                        "additionalProperties": false,
+                        "x-unknownKeys": "strip"
                       },
                       "subagent": {
                         "description": "Identity of a descriptor-backed subagent session. `null` ⟺ no valid descriptor (missing, malformed, or unrecognized-version — deliberately undistinguished). The sentinel is deliberately serializable: a value pushed over JSON transports must survive `JSON.stringify` losslessly, where an `undefined` field would be dropped and a stale identity would survive on the receiving side. The entry itself stays non-optional.",
@@ -7311,7 +7533,8 @@
                               "mode",
                               "seq"
                             ],
-                            "additionalProperties": false
+                            "additionalProperties": false,
+                            "x-unknownKeys": "strip"
                           },
                           {
                             "type": "object",
@@ -7335,7 +7558,8 @@
                               "label",
                               "seq"
                             ],
-                            "additionalProperties": false
+                            "additionalProperties": false,
+                            "x-unknownKeys": "strip"
                           }
                         ]
                       },
@@ -7362,7 +7586,8 @@
                           "cacheReadTokens",
                           "cacheWriteTokens"
                         ],
-                        "additionalProperties": false
+                        "additionalProperties": false,
+                        "x-unknownKeys": "strip"
                       },
                       "contextPressure": {
                         "description": "Newest request pressure paired with the newest known route capacity.",
@@ -7381,7 +7606,8 @@
                             "type": "number"
                           }
                         },
-                        "additionalProperties": false
+                        "additionalProperties": false,
+                        "x-unknownKeys": "strip"
                       },
                       "contextBreakdown": {
                         "description": "Heuristic system/tools/message composition of the next request.",
@@ -7405,7 +7631,8 @@
                           "toolsTokens",
                           "messageTokens"
                         ],
-                        "additionalProperties": false
+                        "additionalProperties": false,
+                        "x-unknownKeys": "strip"
                       },
                       "agentTeam": {
                         "description": "Durable roster and non-deleted task board of the Team rooted at the projected Session.",
@@ -7467,7 +7694,8 @@
                                 "role",
                                 "phase"
                               ],
-                              "additionalProperties": false
+                              "additionalProperties": false,
+                              "x-unknownKeys": "strip"
                             }
                           },
                           "tasks": {
@@ -7554,7 +7782,8 @@
                                 "ready",
                                 "writeScopeWarnings"
                               ],
-                              "additionalProperties": false
+                              "additionalProperties": false,
+                              "x-unknownKeys": "strip"
                             }
                           },
                           "failure": {
@@ -7566,7 +7795,8 @@
                           "members",
                           "tasks"
                         ],
-                        "additionalProperties": false
+                        "additionalProperties": false,
+                        "x-unknownKeys": "strip"
                       },
                       "userQuestions": {
                         "description": "Timed questions that remain answerable in this Session, and the ones a late reply settled.",
@@ -7623,7 +7853,8 @@
                                           "required": [
                                             "label"
                                           ],
-                                          "additionalProperties": false
+                                          "additionalProperties": false,
+                                          "x-unknownKeys": "strip"
                                         }
                                       },
                                       "multiSelect": {
@@ -7652,14 +7883,16 @@
                                           "kind",
                                           "approve"
                                         ],
-                                        "additionalProperties": false
+                                        "additionalProperties": false,
+                                        "x-unknownKeys": "strip"
                                       }
                                     },
                                     "required": [
                                       "id",
                                       "question"
                                     ],
-                                    "additionalProperties": false
+                                    "additionalProperties": false,
+                                    "x-unknownKeys": "strip"
                                   }
                                 },
                                 "state": {
@@ -7681,7 +7914,8 @@
                                 "questions",
                                 "state"
                               ],
-                              "additionalProperties": false
+                              "additionalProperties": false,
+                              "x-unknownKeys": "strip"
                             }
                           },
                           "settled": {
@@ -7723,7 +7957,8 @@
                                       "id",
                                       "selected"
                                     ],
-                                    "additionalProperties": false
+                                    "additionalProperties": false,
+                                    "x-unknownKeys": "strip"
                                   }
                                 }
                               },
@@ -7731,7 +7966,8 @@
                                 "callId",
                                 "answers"
                               ],
-                              "additionalProperties": false
+                              "additionalProperties": false,
+                              "x-unknownKeys": "strip"
                             }
                           }
                         },
@@ -7739,7 +7975,8 @@
                           "active",
                           "settled"
                         ],
-                        "additionalProperties": false
+                        "additionalProperties": false,
+                        "x-unknownKeys": "strip"
                       },
                       "goal": {
                         "description": "The session's current goal and admitted-round count, or `null` before the first create and after a clear tombstone. `goal/change` supplies the whole lifecycle value; matching admitted `user/message` events advance `roundsStarted`.",
@@ -7803,7 +8040,8 @@
                                       "code",
                                       "message"
                                     ],
-                                    "additionalProperties": false
+                                    "additionalProperties": false,
+                                    "x-unknownKeys": "strip"
                                   },
                                   "maxGoalRounds": {
                                     "readOnly": true,
@@ -7828,7 +8066,8 @@
                                   "id",
                                   "revision"
                                 ],
-                                "additionalProperties": false
+                                "additionalProperties": false,
+                                "x-unknownKeys": "strip"
                               },
                               "roundsStarted": {
                                 "readOnly": true,
@@ -7852,7 +8091,8 @@
                               "createdAt",
                               "updatedAt"
                             ],
-                            "additionalProperties": false
+                            "additionalProperties": false,
+                            "x-unknownKeys": "strip"
                           }
                         ]
                       },
@@ -7871,10 +8111,12 @@
                           "active",
                           "pending"
                         ],
-                        "additionalProperties": false
+                        "additionalProperties": false,
+                        "x-unknownKeys": "strip"
                       }
                     },
-                    "additionalProperties": false
+                    "additionalProperties": false,
+                    "x-unknownKeys": "strip"
                   },
                   {
                     "readOnly": true,
@@ -7893,7 +8135,8 @@
               "kind",
               "values"
             ],
-            "additionalProperties": false
+            "additionalProperties": false,
+            "x-unknownKeys": "strip"
           }
         ],
         "$defs": {
@@ -8151,7 +8394,8 @@
                         "type",
                         "text"
                       ],
-                      "additionalProperties": false
+                      "additionalProperties": false,
+                      "x-unknownKeys": "strip"
                     },
                     {
                       "type": "object",
@@ -8196,7 +8440,8 @@
                         "mediaType",
                         "data"
                       ],
-                      "additionalProperties": false
+                      "additionalProperties": false,
+                      "x-unknownKeys": "strip"
                     },
                     {
                       "type": "object",
@@ -8215,7 +8460,8 @@
                         "type",
                         "receiptId"
                       ],
-                      "additionalProperties": false
+                      "additionalProperties": false,
+                      "x-unknownKeys": "strip"
                     }
                   ]
                 }
@@ -8231,7 +8477,8 @@
               "mode",
               "content"
             ],
-            "additionalProperties": false
+            "additionalProperties": false,
+            "x-unknownKeys": "strip"
           }
         },
         "required": [
@@ -8252,7 +8499,8 @@
         "required": [
           "accepted"
         ],
-        "additionalProperties": false
+        "additionalProperties": false,
+        "x-unknownKeys": "strip"
       },
       "acceptsUndefinedResult": false
     },
@@ -8286,7 +8534,8 @@
               "sessionId",
               "title"
             ],
-            "additionalProperties": false
+            "additionalProperties": false,
+            "x-unknownKeys": "strip"
           }
         },
         "required": [
@@ -8311,7 +8560,8 @@
           "title",
           "seq"
         ],
-        "additionalProperties": false
+        "additionalProperties": false,
+        "x-unknownKeys": "strip"
       },
       "acceptsUndefinedResult": false
     },
@@ -8342,7 +8592,8 @@
             "required": [
               "query"
             ],
-            "additionalProperties": false
+            "additionalProperties": false,
+            "x-unknownKeys": "strip"
           }
         },
         "required": [
@@ -8373,7 +8624,8 @@
                 "sessionId",
                 "snippet"
               ],
-              "additionalProperties": false
+              "additionalProperties": false,
+              "x-unknownKeys": "strip"
             }
           },
           "hasMore": {
@@ -8385,7 +8637,8 @@
           "items",
           "hasMore"
         ],
-        "additionalProperties": false
+        "additionalProperties": false,
+        "x-unknownKeys": "strip"
       },
       "acceptsUndefinedResult": false
     },
@@ -8428,7 +8681,8 @@
               "provider",
               "model"
             ],
-            "additionalProperties": false
+            "additionalProperties": false,
+            "x-unknownKeys": "strip"
           }
         },
         "required": [
@@ -8461,13 +8715,15 @@
               "provider",
               "model"
             ],
-            "additionalProperties": false
+            "additionalProperties": false,
+            "x-unknownKeys": "strip"
           }
         },
         "required": [
           "selected"
         ],
-        "additionalProperties": false
+        "additionalProperties": false,
+        "x-unknownKeys": "strip"
       },
       "acceptsUndefinedResult": false
     },
@@ -8526,7 +8782,8 @@
                             "type",
                             "text"
                           ],
-                          "additionalProperties": false
+                          "additionalProperties": false,
+                          "x-unknownKeys": "strip"
                         }
                       }
                     },
@@ -8534,7 +8791,8 @@
                       "kind",
                       "content"
                     ],
-                    "additionalProperties": false
+                    "additionalProperties": false,
+                    "x-unknownKeys": "strip"
                   },
                   {
                     "type": "object",
@@ -8548,7 +8806,8 @@
                     "required": [
                       "kind"
                     ],
-                    "additionalProperties": false
+                    "additionalProperties": false,
+                    "x-unknownKeys": "strip"
                   },
                   {
                     "type": "object",
@@ -8562,7 +8821,8 @@
                     "required": [
                       "kind"
                     ],
-                    "additionalProperties": false
+                    "additionalProperties": false,
+                    "x-unknownKeys": "strip"
                   }
                 ]
               }
@@ -8572,7 +8832,8 @@
               "itemId",
               "action"
             ],
-            "additionalProperties": false
+            "additionalProperties": false,
+            "x-unknownKeys": "strip"
           }
         },
         "required": [
@@ -8593,7 +8854,8 @@
         "required": [
           "accepted"
         ],
-        "additionalProperties": false
+        "additionalProperties": false,
+        "x-unknownKeys": "strip"
       },
       "acceptsUndefinedResult": false
     },
@@ -8687,7 +8949,8 @@
                       "args",
                       "name"
                     ],
-                    "additionalProperties": false
+                    "additionalProperties": false,
+                    "x-unknownKeys": "strip"
                   },
                   "cwd": {
                     "readOnly": true,
@@ -8746,7 +9009,8 @@
                   "state",
                   "exitCode"
                 ],
-                "additionalProperties": false
+                "additionalProperties": false,
+                "x-unknownKeys": "strip"
               },
               "writable": {
                 "readOnly": true,
@@ -8771,7 +9035,8 @@
                   "maxBytes",
                   "frameOverheadBytes"
                 ],
-                "additionalProperties": false
+                "additionalProperties": false,
+                "x-unknownKeys": "strip"
               }
             },
             "required": [
@@ -8781,7 +9046,8 @@
               "info",
               "writable"
             ],
-            "additionalProperties": false
+            "additionalProperties": false,
+            "x-unknownKeys": "strip"
           },
           {
             "type": "object",
@@ -8805,7 +9071,8 @@
               "sequence",
               "data"
             ],
-            "additionalProperties": false
+            "additionalProperties": false,
+            "x-unknownKeys": "strip"
           },
           {
             "type": "object",
@@ -8852,7 +9119,8 @@
                       "args",
                       "name"
                     ],
-                    "additionalProperties": false
+                    "additionalProperties": false,
+                    "x-unknownKeys": "strip"
                   },
                   "cwd": {
                     "readOnly": true,
@@ -8911,7 +9179,8 @@
                   "state",
                   "exitCode"
                 ],
-                "additionalProperties": false
+                "additionalProperties": false,
+                "x-unknownKeys": "strip"
               },
               "writable": {
                 "readOnly": true,
@@ -8923,7 +9192,8 @@
               "info",
               "writable"
             ],
-            "additionalProperties": false
+            "additionalProperties": false,
+            "x-unknownKeys": "strip"
           },
           {
             "type": "object",
@@ -8955,7 +9225,68 @@
               "type",
               "sequence"
             ],
-            "additionalProperties": false
+            "additionalProperties": false,
+            "x-unknownKeys": "strip"
+          }
+        ]
+      },
+      "uplink": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "anyOf": [
+          {
+            "type": "object",
+            "properties": {
+              "type": {
+                "readOnly": true,
+                "type": "string",
+                "const": "write"
+              },
+              "sequence": {
+                "readOnly": true,
+                "type": "number"
+              },
+              "data": {
+                "readOnly": true,
+                "type": "string"
+              }
+            },
+            "required": [
+              "type",
+              "sequence",
+              "data"
+            ],
+            "additionalProperties": false,
+            "x-unknownKeys": "strip"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "type": {
+                "readOnly": true,
+                "type": "string",
+                "const": "resize"
+              },
+              "sequence": {
+                "readOnly": true,
+                "type": "number"
+              },
+              "cols": {
+                "readOnly": true,
+                "type": "number"
+              },
+              "rows": {
+                "readOnly": true,
+                "type": "number"
+              }
+            },
+            "required": [
+              "type",
+              "sequence",
+              "cols",
+              "rows"
+            ],
+            "additionalProperties": false,
+            "x-unknownKeys": "strip"
           }
         ]
       },
@@ -8994,7 +9325,8 @@
         "additionalProperties": false
       },
       "result": {
-        "$schema": "https://json-schema.org/draft/2020-12/schema"
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "not": {}
       },
       "acceptsUndefinedResult": true
     },
@@ -9048,7 +9380,8 @@
               "cols",
               "rows"
             ],
-            "additionalProperties": false
+            "additionalProperties": false,
+            "x-unknownKeys": "strip"
           }
         },
         "required": [
@@ -9094,7 +9427,8 @@
               "args",
               "name"
             ],
-            "additionalProperties": false
+            "additionalProperties": false,
+            "x-unknownKeys": "strip"
           },
           "cwd": {
             "readOnly": true,
@@ -9153,7 +9487,8 @@
           "state",
           "exitCode"
         ],
-        "additionalProperties": false
+        "additionalProperties": false,
+        "x-unknownKeys": "strip"
       },
       "acceptsUndefinedResult": false
     },
@@ -9221,7 +9556,8 @@
           "maxRows",
           "scrollback"
         ],
-        "additionalProperties": false
+        "additionalProperties": false,
+        "x-unknownKeys": "strip"
       },
       "acceptsUndefinedResult": false
     },
@@ -9287,7 +9623,8 @@
                 "args",
                 "name"
               ],
-              "additionalProperties": false
+              "additionalProperties": false,
+              "x-unknownKeys": "strip"
             },
             "cwd": {
               "readOnly": true,
@@ -9346,7 +9683,8 @@
             "state",
             "exitCode"
           ],
-          "additionalProperties": false
+          "additionalProperties": false,
+          "x-unknownKeys": "strip"
         }
       },
       "acceptsUndefinedResult": false
@@ -9393,7 +9731,8 @@
         "additionalProperties": false
       },
       "result": {
-        "$schema": "https://json-schema.org/draft/2020-12/schema"
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "not": {}
       },
       "acceptsUndefinedResult": true
     },
@@ -9444,7 +9783,8 @@
         "required": [
           "type"
         ],
-        "additionalProperties": false
+        "additionalProperties": false,
+        "x-unknownKeys": "strip"
       },
       "acceptsUndefinedResult": false
     },
@@ -9500,7 +9840,8 @@
             "args",
             "name"
           ],
-          "additionalProperties": false
+          "additionalProperties": false,
+          "x-unknownKeys": "strip"
         }
       },
       "acceptsUndefinedResult": false
@@ -9563,7 +9904,8 @@
                     "id",
                     "selected"
                   ],
-                  "additionalProperties": false
+                  "additionalProperties": false,
+                  "x-unknownKeys": "strip"
                 },
                 "description": "Structured answers keyed by question id."
               }
@@ -9571,7 +9913,8 @@
             "required": [
               "answers"
             ],
-            "additionalProperties": false
+            "additionalProperties": false,
+            "x-unknownKeys": "strip"
           }
         },
         "required": [
@@ -9632,7 +9975,8 @@
         "required": [
           "remainingMs"
         ],
-        "additionalProperties": false
+        "additionalProperties": false,
+        "x-unknownKeys": "strip"
       },
       "acceptsUndefinedResult": false
     },
@@ -9666,7 +10010,8 @@
             "required": [
               "sessionId"
             ],
-            "additionalProperties": false
+            "additionalProperties": false,
+            "x-unknownKeys": "strip"
           }
         },
         "required": [
@@ -9689,7 +10034,8 @@
         "required": [
           "archivedSessionIds"
         ],
-        "additionalProperties": false
+        "additionalProperties": false,
+        "x-unknownKeys": "strip"
       },
       "acceptsUndefinedResult": false
     },
@@ -9718,7 +10064,8 @@
             "required": [
               "path"
             ],
-            "additionalProperties": false
+            "additionalProperties": false,
+            "x-unknownKeys": "strip"
           }
         },
         "required": [
@@ -9775,7 +10122,8 @@
               "createdAt",
               "updatedAt"
             ],
-            "additionalProperties": false
+            "additionalProperties": false,
+            "x-unknownKeys": "strip"
           },
           "created": {
             "readOnly": true,
@@ -9786,7 +10134,8 @@
           "workspace",
           "created"
         ],
-        "additionalProperties": false
+        "additionalProperties": false,
+        "x-unknownKeys": "strip"
       },
       "acceptsUndefinedResult": false
     },
@@ -9815,7 +10164,8 @@
             "required": [
               "workspaceId"
             ],
-            "additionalProperties": false
+            "additionalProperties": false,
+            "x-unknownKeys": "strip"
           }
         },
         "required": [
@@ -9836,7 +10186,8 @@
         "required": [
           "deleted"
         ],
-        "additionalProperties": false
+        "additionalProperties": false,
+        "x-unknownKeys": "strip"
       },
       "acceptsUndefinedResult": false
     },
@@ -9914,7 +10265,8 @@
                         "createdAt",
                         "updatedAt"
                       ],
-                      "additionalProperties": false
+                      "additionalProperties": false,
+                      "x-unknownKeys": "strip"
                     }
                   },
                   "archivedSessionIds": {
@@ -9938,14 +10290,16 @@
                   "archivedSessionIds",
                   "pinnedSessionIds"
                 ],
-                "additionalProperties": false
+                "additionalProperties": false,
+                "x-unknownKeys": "strip"
               }
             },
             "required": [
               "type",
               "value"
             ],
-            "additionalProperties": false
+            "additionalProperties": false,
+            "x-unknownKeys": "strip"
           },
           {
             "type": "object",
@@ -10006,7 +10360,8 @@
                         "createdAt",
                         "updatedAt"
                       ],
-                      "additionalProperties": false
+                      "additionalProperties": false,
+                      "x-unknownKeys": "strip"
                     }
                   },
                   "archivedSessionIds": {
@@ -10030,14 +10385,16 @@
                   "archivedSessionIds",
                   "pinnedSessionIds"
                 ],
-                "additionalProperties": false
+                "additionalProperties": false,
+                "x-unknownKeys": "strip"
               }
             },
             "required": [
               "type",
               "value"
             ],
-            "additionalProperties": false
+            "additionalProperties": false,
+            "x-unknownKeys": "strip"
           },
           {
             "type": "object",
@@ -10092,14 +10449,16 @@
                   "createdAt",
                   "updatedAt"
                 ],
-                "additionalProperties": false
+                "additionalProperties": false,
+                "x-unknownKeys": "strip"
               }
             },
             "required": [
               "type",
               "workspace"
             ],
-            "additionalProperties": false
+            "additionalProperties": false,
+            "x-unknownKeys": "strip"
           },
           {
             "type": "object",
@@ -10118,7 +10477,8 @@
               "type",
               "workspaceId"
             ],
-            "additionalProperties": false
+            "additionalProperties": false,
+            "x-unknownKeys": "strip"
           },
           {
             "type": "object",
@@ -10140,7 +10500,8 @@
               "type",
               "workspaceIds"
             ],
-            "additionalProperties": false
+            "additionalProperties": false,
+            "x-unknownKeys": "strip"
           },
           {
             "type": "object",
@@ -10162,7 +10523,8 @@
               "type",
               "archivedSessionIds"
             ],
-            "additionalProperties": false
+            "additionalProperties": false,
+            "x-unknownKeys": "strip"
           },
           {
             "type": "object",
@@ -10184,7 +10546,8 @@
               "type",
               "pinnedSessionIds"
             ],
-            "additionalProperties": false
+            "additionalProperties": false,
+            "x-unknownKeys": "strip"
           }
         ]
       },
@@ -10205,7 +10568,9 @@
       "result": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "anyOf": [
-          {},
+          {
+            "not": {}
+          },
           {
             "type": "object",
             "properties": {
@@ -10254,13 +10619,15 @@
                   "createdAt",
                   "updatedAt"
                 ],
-                "additionalProperties": false
+                "additionalProperties": false,
+                "x-unknownKeys": "strip"
               }
             },
             "required": [
               "workspace"
             ],
-            "additionalProperties": false
+            "additionalProperties": false,
+            "x-unknownKeys": "strip"
           }
         ]
       },
@@ -10295,7 +10662,8 @@
             "required": [
               "workspaceId"
             ],
-            "additionalProperties": false
+            "additionalProperties": false,
+            "x-unknownKeys": "strip"
           }
         },
         "required": [
@@ -10318,7 +10686,8 @@
         "required": [
           "workspaceIds"
         ],
-        "additionalProperties": false
+        "additionalProperties": false,
+        "x-unknownKeys": "strip"
       },
       "acceptsUndefinedResult": false
     },
@@ -10356,7 +10725,8 @@
               "workspaceId",
               "sessionId"
             ],
-            "additionalProperties": false
+            "additionalProperties": false,
+            "x-unknownKeys": "strip"
           }
         },
         "required": [
@@ -10413,13 +10783,15 @@
               "createdAt",
               "updatedAt"
             ],
-            "additionalProperties": false
+            "additionalProperties": false,
+            "x-unknownKeys": "strip"
           }
         },
         "required": [
           "workspace"
         ],
-        "additionalProperties": false
+        "additionalProperties": false,
+        "x-unknownKeys": "strip"
       },
       "acceptsUndefinedResult": false
     },
@@ -10448,7 +10820,8 @@
             "required": [
               "sessionId"
             ],
-            "additionalProperties": false
+            "additionalProperties": false,
+            "x-unknownKeys": "strip"
           }
         },
         "required": [
@@ -10471,7 +10844,8 @@
         "required": [
           "pinnedSessionIds"
         ],
-        "additionalProperties": false
+        "additionalProperties": false,
+        "x-unknownKeys": "strip"
       },
       "acceptsUndefinedResult": false
     },
@@ -10505,7 +10879,8 @@
               "workspaceId",
               "title"
             ],
-            "additionalProperties": false
+            "additionalProperties": false,
+            "x-unknownKeys": "strip"
           }
         },
         "required": [
@@ -10562,13 +10937,15 @@
               "createdAt",
               "updatedAt"
             ],
-            "additionalProperties": false
+            "additionalProperties": false,
+            "x-unknownKeys": "strip"
           }
         },
         "required": [
           "workspace"
         ],
-        "additionalProperties": false
+        "additionalProperties": false,
+        "x-unknownKeys": "strip"
       },
       "acceptsUndefinedResult": false
     },
@@ -10597,7 +10974,8 @@
             "required": [
               "sessionId"
             ],
-            "additionalProperties": false
+            "additionalProperties": false,
+            "x-unknownKeys": "strip"
           }
         },
         "required": [
@@ -10620,7 +10998,8 @@
         "required": [
           "archivedSessionIds"
         ],
-        "additionalProperties": false
+        "additionalProperties": false,
+        "x-unknownKeys": "strip"
       },
       "acceptsUndefinedResult": false
     },
@@ -10649,7 +11028,8 @@
             "required": [
               "sessionId"
             ],
-            "additionalProperties": false
+            "additionalProperties": false,
+            "x-unknownKeys": "strip"
           }
         },
         "required": [
@@ -10672,7 +11052,8 @@
         "required": [
           "pinnedSessionIds"
         ],
-        "additionalProperties": false
+        "additionalProperties": false,
+        "x-unknownKeys": "strip"
       },
       "acceptsUndefinedResult": false
     }

@@ -11,6 +11,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"testing"
 	"time"
 )
@@ -66,21 +67,23 @@ func PostgresDatabase(t *testing.T) (context.Context, *sql.DB) {
 	if !ok {
 		t.Fatal("resolve integration test source path")
 	}
-	migrations, err := filepath.Glob(filepath.Join(filepath.Dir(sourceFile), "../../../../deploy/sql/*.up.sql"))
-	if err != nil || len(migrations) == 0 {
-		t.Fatal("resolve integration migrations")
+	baselinePath := filepath.Join(filepath.Dir(sourceFile), "../../../../deploy/sql/baseline.sql")
+	baseline, err := os.ReadFile(baselinePath)
+	if err != nil {
+		t.Fatalf("read native PostgreSQL baseline: %v", err)
 	}
-	for _, migrationPath := range migrations {
-		name := filepath.Base(migrationPath)
-		migration, err := os.ReadFile(migrationPath)
-		if err != nil {
-			_ = migrationConnection.Close(context.Background())
-			t.Fatalf("read PostgreSQL migration %s: %v", name, err)
+	// pg_dump's restriction guards are psql commands, not SQL sent to pgx.
+	lines := strings.Split(string(baseline), "\n")
+	sqlLines := lines[:0]
+	for _, line := range lines {
+		if strings.HasPrefix(line, "\\restrict ") || strings.HasPrefix(line, "\\unrestrict ") {
+			continue
 		}
-		if _, err := migrationConnection.Exec(ctx, string(migration), pgx.QueryExecModeSimpleProtocol); err != nil {
-			_ = migrationConnection.Close(context.Background())
-			t.Fatalf("apply PostgreSQL migration %s: %v", name, err)
-		}
+		sqlLines = append(sqlLines, line)
+	}
+	if _, err := migrationConnection.Exec(ctx, strings.Join(sqlLines, "\n"), pgx.QueryExecModeSimpleProtocol); err != nil {
+		_ = migrationConnection.Close(context.Background())
+		t.Fatalf("apply native PostgreSQL baseline: %v", err)
 	}
 	if err := migrationConnection.Close(context.Background()); err != nil {
 		t.Fatalf("close migration connection: %v", err)

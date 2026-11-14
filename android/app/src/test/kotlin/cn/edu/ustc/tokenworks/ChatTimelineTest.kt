@@ -1,7 +1,6 @@
 package cn.edu.ustc.tokenworks
 
-import cn.edu.ustc.tokenworks.ExportManifest
-import cn.edu.ustc.tokenworks.VisibleMediaReference
+import cn.edu.ustc.tokenworks.NativeImageReference
 import cn.edu.ustc.tokenworks.json
 import cn.edu.ustc.tokenworks.jsonObject
 import cn.edu.ustc.tokenworks.BlockKind
@@ -129,12 +128,7 @@ class ChatTimelineTest {
     }
 
     @Test fun bodyUserNoticeOtherImageErrorAndInterruptionEachBreakBothSidesOfAGroup() {
-        val image = VisibleMediaReference.parse(jsonObject(
-            "v" to 1L.json(), "origin" to "session_attachment".json(), "native_seq" to 0L.json(),
-            "part_index" to 0L.json(), "event_version_sha256" to "a".repeat(64).json(),
-            "manifest" to ExportManifest("public.png", 123, "b".repeat(64)).json(),
-            "media_type" to "image/png".json(), "width" to 8L.json(), "height" to 8L.json(),
-        ))
+        val image = NativeImageReference("sha256:${"b".repeat(64)}", "image/png", 123, 8, 8, "public.png")
         val boundaries = listOf(
             message("body", ConversationRole.ASSISTANT),
             message("user", ConversationRole.USER),

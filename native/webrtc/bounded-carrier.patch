@@ -1,0 +1,1597 @@
+diff --git a/api/transport/stun.cc b/api/transport/stun.cc
+--- a/api/transport/stun.cc
++++ b/api/transport/stun.cc
+@@ -595,6 +595,7 @@
+ }
+ 
+ bool StunMessage::Read(ByteBufferReader* buf) {
++  if (buf->Length() > 4096) return false;
+   // Keep a copy of the buffer data around for later verification.
+   buffer_.assign(buf->DataView().begin(), buf->DataView().end());
+ 
+@@ -642,7 +643,9 @@
+   attrs_.resize(0);
+ 
+   size_t rest = buf->Length() - length_;
++  size_t parsed_attributes = 0;
+   while (buf->Length() > rest) {
++    if (++parsed_attributes > 64) return false;
+     uint16_t attr_type, attr_length;
+     if (!buf->ReadUInt16(&attr_type))
+       return false;
+diff --git a/build/android/gyp/compile_java.py b/build/android/gyp/compile_java.py
+--- a/build/android/gyp/compile_java.py
++++ b/build/android/gyp/compile_java.py
+@@ -603,10 +603,10 @@
+       '-g',
+       # Required for Error Prone's /* paramName= */ check.
+       '-parameters',
+-      # Jacoco does not currently support a higher value.
++      # Match the consuming Android app's Java 17/KAPT toolchain.
+       '--release',
+       # Keep consistent with javac_cmd in //build/android/gyp/turbine.py.
+-      '21',
++      '17',
+       # Chromium only allows UTF8 source files.  Being explicit avoids
+       # javac pulling a default encoding from the user's environment.
+       '-encoding',
+diff --git a/build/android/gyp/turbine.py b/build/android/gyp/turbine.py
+--- a/build/android/gyp/turbine.py
++++ b/build/android/gyp/turbine.py
+@@ -88,10 +88,8 @@
+   cmd = build_utils.JavaCmd() + [
+       '-classpath', options.turbine_jar_path, 'com.google.turbine.main.Main'
+   ]
+-  # Keep consistent with javac_args release flag in
+-  # //build/android/gyp/compile_java.py and
+-  # compileOptions in //build/android/gradle/android.jinja
+-  javac_cmd = ['--release', '21']
++  # Keep consistent with javac_args release in //build/android/gyp/compile_java.py.
++  javac_cmd = ['--release', '17']
+ 
+   # Turbine reads lists from command line args by consuming args until one
+   # starts with double dash (--). Thus command line args should be grouped
+diff --git a/build/config/android/BUILD.gn b/build/config/android/BUILD.gn
+--- a/build/config/android/BUILD.gn
++++ b/build/config/android/BUILD.gn
+@@ -37,12 +37,6 @@
+     "ANDROID_NDK_VERSION_ROLL=${android_ndk_version}_1",
+   ]
+ 
+-  if (android_64bit_current_cpu) {
+-    _max_page_size = 16384
+-  } else {
+-    _max_page_size = 4096
+-  }
+-
+   ldflags = [
+     # Don't allow visible symbols from libraries that contain
+     # assembly code with symbols that aren't hidden properly.
+@@ -52,7 +46,7 @@
+     # Reduce the page size from 65536 in order to reduce binary size slightly
+     # by shrinking the alignment gap between segments. This also causes all
+     # segments to be mapped adjacently, which breakpad relies on.
+-    "-Wl,-z,max-page-size=$_max_page_size",
++    "-Wl,-z,max-page-size=16384",
+   ]
+ 
+   if (current_cpu == "arm64") {
+diff --git a/media/sctp/dcsctp_transport.cc b/media/sctp/dcsctp_transport.cc
+--- a/media/sctp/dcsctp_transport.cc
++++ b/media/sctp/dcsctp_transport.cc
+@@ -526,10 +526,13 @@
+                         << " on an SCTP packet. Dropping.";
+     return;
+   }
+-  receive_buffer_.Clear();
+-  if (!IsEmptyPPID(message.ppid()))
+-    receive_buffer_.AppendData(message.payload().data(),
+-                               message.payload().size());
++  if (!IsEmptyPPID(message.ppid()) && message.payload().size() > 16 * 1024) {
++    if (data_channel_sink_) data_channel_sink_->OnTransportClosed(
++        RTCError(RTCErrorType::RESOURCE_EXHAUSTED, "Native carrier SCTP message budget exhausted"));
++    return;
++  }
++  receive_buffer_ = IsEmptyPPID(message.ppid()) ? CopyOnWriteBuffer() :
++      CopyOnWriteBuffer(message.payload().data(), message.payload().size());
+ 
+   if (data_channel_sink_) {
+     data_channel_sink_->OnDataReceived(message.stream_id().value(), *type,
+@@ -784,11 +787,14 @@
+   // Don't close the connection automatically on too many retransmissions.
+   dcsctp_options.max_retransmissions = std::nullopt;
+   dcsctp_options.max_init_retransmits = std::nullopt;
+-  dcsctp_options.per_stream_send_queue_limit =
+-      DataChannelInterface::MaxSendQueueSize();
+-  dcsctp_options.announced_maximum_outgoing_streams = options.max_sctp_streams;
+-  // This is just set to avoid denial-of-service. Practically unlimited.
+-  dcsctp_options.max_send_buffer_size = std::numeric_limits<size_t>::max();
++  dcsctp_options.max_receiver_window_buffer_size = 256 * 1024;
++  dcsctp_options.max_send_buffer_size = 256 * 1024;
++  dcsctp_options.per_stream_send_queue_limit = 256 * 1024;
++  dcsctp_options.max_total_send_buffer_size = 256 * 1024;
++  dcsctp_options.max_retained_send_chunks = 1024;
++  dcsctp_options.total_buffered_amount_low_threshold = 128 * 1024;
++  dcsctp_options.announced_maximum_incoming_streams = 2;
++  dcsctp_options.announced_maximum_outgoing_streams = 2;
+   dcsctp_options.enable_message_interleaving =
+       field_trials.IsEnabled("WebRTC-DataChannelMessageInterleaving");
+ 
+diff --git a/net/dcsctp/packet/BUILD.gn b/net/dcsctp/packet/BUILD.gn
+--- a/net/dcsctp/packet/BUILD.gn
++++ b/net/dcsctp/packet/BUILD.gn
+@@ -34,6 +34,7 @@
+ rtc_source_set("data") {
+   deps = [
+     "../../../rtc_base:strong_alias",
++    "../../../rtc_base:queued_resource_budget",
+     "../common:internal_types",
+     "../public:types",
+   ]
+diff --git a/net/dcsctp/packet/data.h b/net/dcsctp/packet/data.h
+--- a/net/dcsctp/packet/data.h
++++ b/net/dcsctp/packet/data.h
+@@ -18,6 +18,7 @@
+ #include "net/dcsctp/common/internal_types.h"
+ #include "net/dcsctp/public/types.h"
+ #include "rtc_base/strong_alias.h"
++#include "rtc_base/queued_resource_budget.h"
+ 
+ namespace dcsctp {
+ 
+@@ -91,6 +92,7 @@
+   // Payload Protocol Identifier (PPID).
+   PPID ppid;
+ 
++  std::optional<webrtc::QueuedResourceBudget::Ticket> receive_credit;
+   // The actual data payload.
+   std::vector<uint8_t> payload;
+ 
+diff --git a/net/dcsctp/public/dcsctp_options.h b/net/dcsctp/public/dcsctp_options.h
+--- a/net/dcsctp/public/dcsctp_options.h
++++ b/net/dcsctp/public/dcsctp_options.h
+@@ -12,6 +12,7 @@
+ 
+ #include <cstddef>
+ #include <cstdint>
++#include <limits>
+ #include <optional>
+ 
+ #include "net/dcsctp/public/types.h"
+@@ -98,6 +99,11 @@
+   // Per stream send queue size limit. Similar to `max_send_buffer_size`, but
+   // limiting the size of individual streams.
+   size_t per_stream_send_queue_limit = 2'000'000;
++
++  // Combined unsent and retained retransmission payload, including gap-ACKed DATA.
++  size_t max_total_send_buffer_size = std::numeric_limits<size_t>::max();
++  // Bound zero/small-payload retained chunk metadata separately from payload bytes.
++  size_t max_retained_send_chunks = std::numeric_limits<size_t>::max();
+ 
+   // A threshold that, when the amount of data in the send buffer goes below
+   // this value, will trigger `DcSctpCallbacks::OnTotalBufferedAmountLow`.
+diff --git a/net/dcsctp/rx/reassembly_queue.cc b/net/dcsctp/rx/reassembly_queue.cc
+--- a/net/dcsctp/rx/reassembly_queue.cc
++++ b/net/dcsctp/rx/reassembly_queue.cc
+@@ -50,10 +50,12 @@
+ 
+ ReassemblyQueue::ReassemblyQueue(absl::string_view log_prefix,
+                                  size_t max_size_bytes,
+-                                 bool use_message_interleaving)
++                                 bool use_message_interleaving,
++                                 size_t max_streams)
+     : log_prefix_(log_prefix),
+       max_size_bytes_(max_size_bytes),
+       watermark_bytes_(max_size_bytes * kHighWatermarkLimit),
++      max_streams_(max_streams),
+       streams_(CreateStreams(
+           log_prefix_,
+           [this](std::span<const UnwrappedTSN> tsns, DcSctpMessage message) {
+@@ -62,6 +64,16 @@
+           use_message_interleaving)) {}
+ 
+ void ReassemblyQueue::Add(TSN tsn, Data data) {
++  if (resource_exhausted_ || *data.stream_id >= max_streams_ ||
++      queued_bytes_ > max_size_bytes_ || data.size() > max_size_bytes_ - queued_bytes_) {
++    resource_exhausted_ = true;
++    return;
++  }
++  if (!data.receive_credit) {
++    auto credit = fragment_budget_.Reserve(128);
++    if (!credit) { resource_exhausted_ = true; return; }
++    data.receive_credit = std::move(*credit);
++  }
+   RTC_DLOG(LS_VERBOSE) << log_prefix_ << "added tsn=" << *tsn
+                        << ", stream=" << *data.stream_id << ":" << *data.mid
+                        << ":" << *data.fsn << ", type="
+@@ -87,6 +99,7 @@
+     // Sender's Last Assigned TSN for the affected stream(s) MUST be queued
+     // locally and held until the cumulative acknowledgment point reaches the
+     // Sender's Last Assigned TSN."
++    if (!ReserveDeferred(128)) return;
+     queued_bytes_ += data.size();
+     deferred_reset_streams_->deferred_actions.push_back(
+         [this, tsn, data = std::move(data)]() mutable {
+@@ -110,6 +123,10 @@
+ 
+ void ReassemblyQueue::ResetStreamsAndLeaveDeferredReset(
+     std::span<const StreamID> stream_ids) {
++  for (StreamID id : stream_ids) if (*id >= max_streams_) {
++    resource_exhausted_ = true;
++    return;
++  }
+   RTC_DLOG(LS_VERBOSE) << log_prefix_ << "Resetting streams: ["
+                        << webrtc::StrJoin(stream_ids, ",",
+                                           [](webrtc::StringBuilder& sb,
+@@ -142,6 +159,10 @@
+ 
+ void ReassemblyQueue::EnterDeferredReset(TSN sender_last_assigned_tsn,
+                                          std::span<const StreamID> streams) {
++  for (StreamID id : streams) if (*id >= max_streams_) {
++    resource_exhausted_ = true;
++    return;
++  }
+   if (!deferred_reset_streams_.has_value()) {
+     RTC_DLOG(LS_VERBOSE) << log_prefix_
+                          << "Entering deferred reset; sender_last_assigned_tsn="
+@@ -182,12 +203,17 @@
+ void ReassemblyQueue::HandleForwardTsn(
+     TSN new_cumulative_tsn,
+     std::span<const AnyForwardTsnChunk::SkippedStream> skipped_streams) {
++  for (const auto& skipped : skipped_streams) if (*skipped.stream_id >= max_streams_) {
++    resource_exhausted_ = true;
++    return;
++  }
+   UnwrappedTSN tsn = tsn_unwrapper_.Unwrap(new_cumulative_tsn);
+ 
+   if (deferred_reset_streams_.has_value() &&
+       tsn > deferred_reset_streams_->sender_last_assigned_tsn) {
+     RTC_DLOG(LS_VERBOSE) << log_prefix_ << "ForwardTSN to " << *tsn.Wrap()
+                          << "- deferring.";
++    if (!ReserveDeferred(128 + skipped_streams.size() * sizeof(AnyForwardTsnChunk::SkippedStream))) return;
+     deferred_reset_streams_->deferred_actions.emplace_back(
+         [this, new_cumulative_tsn,
+          streams = std::vector<AnyForwardTsnChunk::SkippedStream>(
+@@ -204,11 +230,19 @@
+   RTC_DCHECK(IsConsistent());
+ }
+ 
++bool ReassemblyQueue::ReserveDeferred(size_t bytes) {
++  auto& pending = *deferred_reset_streams_;
++  constexpr size_t kMetadataLimit = 64 * 1024;
++  if (pending.deferred_actions.size() >= 128 || bytes > kMetadataLimit - pending.metadata_bytes) {
++    resource_exhausted_ = true;
++    return false;
++  }
++  pending.metadata_bytes += bytes;
++  return true;
++}
++
+ bool ReassemblyQueue::IsConsistent() const {
+-  // Allow queued_bytes_ to be larger than max_size_bytes, as it's not actively
+-  // enforced in this class. But in case it wraps around (becomes negative, but
+-  // as it's unsigned, that would wrap to very big), this would trigger.
+-  return (queued_bytes_ <= 2 * max_size_bytes_);
++  return queued_bytes_ <= max_size_bytes_;
+ }
+ 
+ HandoverReadinessStatus ReassemblyQueue::GetHandoverReadiness() const {
+diff --git a/net/dcsctp/rx/reassembly_queue.h b/net/dcsctp/rx/reassembly_queue.h
+--- a/net/dcsctp/rx/reassembly_queue.h
++++ b/net/dcsctp/rx/reassembly_queue.h
+@@ -70,7 +70,8 @@
+ 
+   ReassemblyQueue(absl::string_view log_prefix,
+                   size_t max_size_bytes,
+-                  bool use_message_interleaving = false);
++                  bool use_message_interleaving = false,
++                  size_t max_streams = 65536);
+ 
+   // Adds a data chunk to the queue, with a `tsn` and other parameters in
+   // `data`.
+@@ -109,7 +110,7 @@
+   size_t queued_bytes() const { return queued_bytes_; }
+ 
+   // The remaining bytes until the queue has reached the watermark limit.
+-  size_t remaining_bytes() const { return watermark_bytes_ - queued_bytes_; }
++  size_t remaining_bytes() const { return queued_bytes_ >= watermark_bytes_ ? 0 : watermark_bytes_ - queued_bytes_; }
+ 
+   // Indicates if the queue is full. Data should not be added to the queue when
+   // it's full.
+@@ -121,6 +122,7 @@
+ 
+   // Returns the watermark limit, in bytes.
+   size_t watermark_bytes() const { return watermark_bytes_; }
++  bool resource_exhausted() const { return resource_exhausted_; }
+ 
+   HandoverReadinessStatus GetHandoverReadiness() const;
+ 
+@@ -137,15 +139,19 @@
+     UnwrappedTSN sender_last_assigned_tsn;
+     webrtc::flat_set<StreamID> streams;
+     std::vector<absl::AnyInvocable<void(void)>> deferred_actions;
++    size_t metadata_bytes = 0;
+   };
+ 
+   bool IsConsistent() const;
++  bool ReserveDeferred(size_t metadata_bytes);
+   void AddReassembledMessage(std::span<const UnwrappedTSN> tsns,
+                              DcSctpMessage message);
+ 
+   const absl::string_view log_prefix_;
+   const size_t max_size_bytes_;
+   const size_t watermark_bytes_;
++  const size_t max_streams_;
++  bool resource_exhausted_ = false;
+   UnwrappedTSN::Unwrapper tsn_unwrapper_;
+ 
+   // Messages that have been reassembled, and will be consumed from by
+@@ -157,6 +163,7 @@
+ 
+   // The number of "payload bytes" that are in this queue, in total.
+   size_t queued_bytes_ = 0;
++  webrtc::QueuedResourceBudget fragment_budget_{1024, 1024 * 128};
+ 
+   // The actual implementation of ReassemblyStreams.
+   std::unique_ptr<ReassemblyStreams> streams_;
+diff --git a/net/dcsctp/rx/reassembly_queue_test.cc b/net/dcsctp/rx/reassembly_queue_test.cc
+--- a/net/dcsctp/rx/reassembly_queue_test.cc
++++ b/net/dcsctp/rx/reassembly_queue_test.cc
+@@ -393,5 +393,55 @@
+               ElementsAre(SctpMessageIs(kStreamID, kPPID, kMessage2Payload)));
+ }
+ 
++TEST_F(ReassemblyQueueTest, NativeCarrierReservesActualRemainingReceiveBytes) {
++  ReassemblyQueue reasm("bounded", 1024, false, 2);
++  reasm.Add(TSN(10), gen_.Ordered(std::vector<uint8_t>(1020), "B"));
++  EXPECT_EQ(reasm.queued_bytes(), 1020u);
++  EXPECT_EQ(reasm.remaining_bytes(), 0u);
++  reasm.Add(TSN(11), gen_.Ordered(std::vector<uint8_t>(5), "E"));
++  EXPECT_TRUE(reasm.resource_exhausted());
++  EXPECT_EQ(reasm.queued_bytes(), 1020u);
++}
++
++TEST_F(ReassemblyQueueTest, NativeCarrierZeroPayloadDeferredControlIsBounded) {
++  ReassemblyQueue reasm("bounded-control", 256 * 1024, false, 2);
++  StreamID ids[] = {StreamID(1)};
++  reasm.EnterDeferredReset(TSN(10), ids);
++  for (uint32_t i = 0; i < 128; ++i) {
++    reasm.HandleForwardTsn(TSN(11 + i), {});
++    ASSERT_FALSE(reasm.resource_exhausted());
++    ASSERT_EQ(reasm.queued_bytes(), 0u);
++  }
++  reasm.HandleForwardTsn(TSN(139), {});
++  EXPECT_TRUE(reasm.resource_exhausted());
++  EXPECT_EQ(reasm.queued_bytes(), 0u);
++}
++
++TEST_F(ReassemblyQueueTest, NativeCarrierRejectsUnnegotiatedStreamMetadata) {
++  ReassemblyQueue reasm("bounded-streams", 1024, false, 2);
++  reasm.Add(TSN(10), gen_.Ordered({42}, "BE", {.stream_id = StreamID(2)}));
++  EXPECT_TRUE(reasm.resource_exhausted());
++  EXPECT_EQ(reasm.queued_bytes(), 0u);
++}
++
++TEST_F(ReassemblyQueueTest, NativeCarrierFragmentSlotsReleaseOnRealForwardDiscard) {
++  ReassemblyQueue reasm("bounded-fragments", 256 * 1024, false, 2);
++  for (uint32_t i = 0; i < 1024; ++i) {
++    reasm.Add(TSN(10 + i), gen_.Ordered({42}, "", {.mid = MID(1)}));
++    ASSERT_FALSE(reasm.resource_exhausted());
++  }
++  EXPECT_EQ(reasm.queued_bytes(), 1024u);
++  SkippedStream skipped[] = {{StreamID(1), SSN(1)}};
++  reasm.HandleForwardTsn(TSN(1033), skipped);
++  EXPECT_EQ(reasm.queued_bytes(), 0u);
++  for (uint32_t i = 0; i < 1024; ++i) {
++    reasm.Add(TSN(1034 + i), gen_.Ordered({42}, "", {.mid = MID(3)}));
++    ASSERT_FALSE(reasm.resource_exhausted());
++  }
++  reasm.Add(TSN(2058), gen_.Ordered({42}, "", {.mid = MID(3)}));
++  EXPECT_TRUE(reasm.resource_exhausted());
++  EXPECT_EQ(reasm.queued_bytes(), 1024u);
++}
++
+ }  // namespace
+ }  // namespace dcsctp
+diff --git a/net/dcsctp/socket/BUILD.gn b/net/dcsctp/socket/BUILD.gn
+--- a/net/dcsctp/socket/BUILD.gn
++++ b/net/dcsctp/socket/BUILD.gn
+@@ -211,6 +211,7 @@
+       "../../../api/units:timestamp",
+       "../../../rtc_base:copy_on_write_buffer",
+       "../../../rtc_base:logging",
++      "../../../rtc_base:queued_resource_budget",
+       "../../../rtc_base:random",
+       "../../../rtc_base:socket_address",
+       "../../../rtc_base:stringutils",
+diff --git a/net/dcsctp/socket/dcsctp_socket.cc b/net/dcsctp/socket/dcsctp_socket.cc
+--- a/net/dcsctp/socket/dcsctp_socket.cc
++++ b/net/dcsctp/socket/dcsctp_socket.cc
+@@ -606,6 +606,19 @@
+                        "Unable to send message as the socket is shutting down");
+     return SendStatus::kErrorShuttingDown;
+   }
++  const size_t queued = send_queue_.total_buffered_amount();
++  const size_t retained = tcb_ ? tcb_->retransmission_queue().retained_payload_bytes() : 0;
++  const size_t budget = options_.max_total_send_buffer_size;
++  if (queued > budget || retained > budget - queued ||
++      message.payload().size() > budget - queued - retained) {
++    retained_budget_blocked_ = true;
++    if (lifecycle_id.IsSet()) {
++      callbacks_.OnLifecycleEnd(lifecycle_id);
++    }
++    callbacks_.OnError(ErrorKind::kResourceExhaustion,
++                       "Combined send and retained payload budget exhausted");
++    return SendStatus::kErrorResourceExhaustion;
++  }
+   if (send_queue_.total_buffered_amount() >= options_.max_send_buffer_size ||
+       send_queue_.buffered_amount(message.stream_id()) >=
+           options_.per_stream_send_queue_limit) {
+@@ -1193,6 +1206,10 @@
+ 
+   if (tcb_->data_tracker().Observe(tsn, immediate_ack)) {
+     tcb_->reassembly_queue().Add(tsn, std::move(data));
++    if (tcb_->reassembly_queue().resource_exhausted()) {
++      InternalClose(ErrorKind::kResourceExhaustion, "Receive resource budget exhausted");
++      return;
++    }
+     MaybeDeliverMessages();
+   }
+ }
+@@ -1604,6 +1621,13 @@
+       // Receiving an ACK will decrease outstanding bytes (maybe now below
+       // cwnd?) or indicate packet loss that may result in sending FORWARD-TSN.
+       tcb_->SendBufferedPackets(now);
++      if (retained_budget_blocked_ &&
++          send_queue_.total_buffered_amount() +
++                  tcb_->retransmission_queue().retained_payload_bytes() <=
++              options_.total_buffered_amount_low_threshold) {
++        retained_budget_blocked_ = false;
++        callbacks_.OnTotalBufferedAmountLow();
++      }
+     } else {
+       RTC_DLOG(LS_VERBOSE) << log_prefix()
+                            << "Dropping out-of-order SACK with TSN "
+@@ -1678,6 +1702,10 @@
+   std::optional<ReConfigChunk> chunk = ReConfigChunk::Parse(descriptor.data);
+   if (ValidateParseSuccess(chunk) && ValidateHasTCB()) {
+     tcb_->stream_reset_handler().HandleReConfig(*std::move(chunk));
++    if (tcb_->reassembly_queue().resource_exhausted()) {
++      InternalClose(ErrorKind::kResourceExhaustion, "Reset resource budget exhausted");
++      return;
++    }
+     // Handling this response may result in outgoing stream resets finishing
+     // (either successfully or with failure). If there still are pending streams
+     // that were waiting for this request to finish, continue resetting them.
+@@ -1830,6 +1858,10 @@
+   if (tcb_->data_tracker().HandleForwardTsn(chunk.new_cumulative_tsn())) {
+     tcb_->reassembly_queue().HandleForwardTsn(chunk.new_cumulative_tsn(),
+                                               chunk.skipped_streams());
++    if (tcb_->reassembly_queue().resource_exhausted()) {
++      InternalClose(ErrorKind::kResourceExhaustion, "Deferred control resource budget exhausted");
++      return;
++    }
+   }
+ 
+   // A forward TSN - for ordered streams - may allow messages to be delivered.
+diff --git a/net/dcsctp/socket/dcsctp_socket.h b/net/dcsctp/socket/dcsctp_socket.h
+--- a/net/dcsctp/socket/dcsctp_socket.h
++++ b/net/dcsctp/socket/dcsctp_socket.h
+@@ -278,6 +278,7 @@
+   // The actual SendQueue implementation. As data can be sent on a socket before
+   // the connection is established, this component is not in the TCB.
+   RRSendQueue send_queue_;
++  bool retained_budget_blocked_ = false;
+ 
+   // Contains verification tag and initial TSN between having sent the INIT
+   // until the connection is established (there is no TCB at this point).
+diff --git a/net/dcsctp/socket/dcsctp_socket_test.cc b/net/dcsctp/socket/dcsctp_socket_test.cc
+--- a/net/dcsctp/socket/dcsctp_socket_test.cc
++++ b/net/dcsctp/socket/dcsctp_socket_test.cc
+@@ -62,6 +62,8 @@
+ #include "rtc_base/logging.h"
+ #include "test/gmock.h"
+ #include "test/gtest.h"
++#include "rtc_base/queued_resource_budget.h"
++#include "api/task_queue/pending_task_safety_flag.h"
+ 
+ ABSL_FLAG(bool, dcsctp_capture_packets, false, "Print packet capture.");
+ 
+@@ -3587,5 +3589,96 @@
+       z->socket.ConnectWithConnectionToken(socket_z_data, socket_a_data));
+ }
+ 
++TEST(DcSctpSocketTest, NativeCarrierLargeRwndGapAckCannotBypassRetainedBudget) {
++  DcSctpOptions options = {.max_send_buffer_size = 2048,
++                           .per_stream_send_queue_limit = 2048,
++                           .max_total_send_buffer_size = 2048,
++                           .total_buffered_amount_low_threshold = 1024};
++  SocketUnderTest a("bounded", options);
++  SocketUnderTest z("large-rwnd", {.max_receiver_window_buffer_size = 0xffffffffu});
++  ConnectSockets(a, z);
++  std::vector<TSN> sent;
++  for (int i = 0; i < 4; ++i) {
++    ASSERT_EQ(a.socket.Send(DcSctpMessage(StreamID(1), PPID(53), std::vector<uint8_t>(512)), kSendOptions), SendStatus::kSuccess);
++    ASSERT_HAS_VALUE_AND_ASSIGN(SctpPacket packet, SctpPacket::Parse(a.cb.ConsumeSentPacket(), a.options));
++    ASSERT_HAS_VALUE_AND_ASSIGN(DataChunk chunk, DataChunk::Parse(packet.descriptors()[0].data));
++    sent.push_back(chunk.tsn());
++  }
++  EXPECT_EQ(a.socket.buffered_amount(StreamID(1)), 0u);
++  EXPECT_CALL(a.cb, OnTotalBufferedAmountLow()).Times(0);
++  auto ack = [&](TSN cumulative, std::vector<SackChunk::GapAckBlock> gaps) {
++    a.socket.ReceivePacket(SctpPacket::Builder(a.socket.verification_tag(), a.options)
++        .Add(SackChunk(cumulative, 0xffffffffu, std::move(gaps), {})).Build());
++  };
++  ack(TSN(*sent.front() - 1), {{2, 4}});
++  EXPECT_EQ(a.socket.Send(DcSctpMessage(StreamID(1), PPID(53), std::vector<uint8_t>(1)), kSendOptions), SendStatus::kErrorResourceExhaustion);
++  ack(TSN(*sent.front() - 1), {{2, 4}});
++  testing::Mock::VerifyAndClearExpectations(&a.cb);
++  EXPECT_CALL(a.cb, OnTotalBufferedAmountLow()).Times(1);
++  ack(sent.back(), {});
++  ack(sent.back(), {});
++  testing::Mock::VerifyAndClearExpectations(&a.cb);
++  for (uint32_t i = 1; i <= 64; ++i) {
++    ASSERT_EQ(a.socket.Send(DcSctpMessage(StreamID(1), PPID(53), std::vector<uint8_t>(512)), kSendOptions), SendStatus::kSuccess);
++    ASSERT_FALSE(a.cb.ConsumeSentPacket().empty());
++    ack(TSN(*sent.back() + i), {});
++  }
++  EXPECT_EQ(a.socket.buffered_amount(StreamID(1)), 0u);
++  a.socket.Close();
++  EXPECT_EQ(a.socket.state(), SocketState::kClosed);
++}
++
++TEST(DcSctpSocketTest, NativeCarrierRetainedMetadataBackpressuresTinyMessages) {
++  DcSctpOptions options = {.max_total_send_buffer_size = 2048, .max_retained_send_chunks = 2};
++  SocketUnderTest a("bounded-metadata", options), z("receiver");
++  ConnectSockets(a, z);
++  std::vector<TSN> sent;
++  for (int i = 0; i < 2; ++i) {
++    ASSERT_EQ(a.socket.Send(DcSctpMessage(StreamID(1), PPID(53), {42}), kSendOptions), SendStatus::kSuccess);
++    ASSERT_HAS_VALUE_AND_ASSIGN(SctpPacket packet, SctpPacket::Parse(a.cb.ConsumeSentPacket(), a.options));
++    ASSERT_HAS_VALUE_AND_ASSIGN(DataChunk chunk, DataChunk::Parse(packet.descriptors()[0].data));
++    sent.push_back(chunk.tsn());
++  }
++  ASSERT_EQ(a.socket.Send(DcSctpMessage(StreamID(1), PPID(53), {42}), kSendOptions), SendStatus::kSuccess);
++  EXPECT_EQ(a.socket.buffered_amount(StreamID(1)), 1u);
++  EXPECT_TRUE(a.cb.ConsumeSentPacket().empty());
++  a.socket.ReceivePacket(SctpPacket::Builder(a.socket.verification_tag(), a.options)
++      .Add(SackChunk(sent.front(), 0xffffffffu, {}, {})).Build());
++  EXPECT_EQ(a.socket.buffered_amount(StreamID(1)), 0u);
++  EXPECT_FALSE(a.cb.ConsumeSentPacket().empty());
++}
++
++TEST(DcSctpSocketTest, NativeCarrierCanceledTaskKeepsCreditsUntilDestruction) {
++  webrtc::QueuedResourceBudget budget(1, 128);
++  webrtc::ScopedTaskSafety lifetime;
++  bool called = false;
++  auto credit = budget.Reserve(128);
++  ASSERT_TRUE(credit.has_value());
++  absl::AnyInvocable<void() &&> task = webrtc::SafeTask(
++      lifetime.flag(), [credit = std::move(*credit), &called]() { called = true; });
++  lifetime.flag()->SetNotAlive();
++  EXPECT_FALSE(budget.Reserve(0).has_value());
++  std::move(task)();
++  EXPECT_FALSE(called);
++  task = nullptr;
++  EXPECT_TRUE(budget.Reserve(128).has_value());
++}
++
++TEST(DcSctpSocketTest, NativeCarrierQueueCreditsCountBytesAndMoveExactlyOnce) {
++  webrtc::QueuedResourceBudget budget(2, 5);
++  auto first = budget.Reserve(3);
++  auto second = budget.Reserve(2);
++  ASSERT_TRUE(first.has_value());
++  ASSERT_TRUE(second.has_value());
++  EXPECT_FALSE(budget.Reserve(0).has_value());
++  first.reset();
++  EXPECT_FALSE(budget.Reserve(4).has_value());
++  auto replacement = budget.Reserve(3);
++  ASSERT_TRUE(replacement.has_value());
++  second.reset();
++  replacement.reset();
++  EXPECT_TRUE(budget.Reserve(5).has_value());
++}
++
+ }  // namespace
+ }  // namespace dcsctp
+diff --git a/net/dcsctp/socket/transmission_control_block.cc b/net/dcsctp/socket/transmission_control_block.cc
+--- a/net/dcsctp/socket/transmission_control_block.cc
++++ b/net/dcsctp/socket/transmission_control_block.cc
+@@ -99,7 +99,8 @@
+       data_tracker_(log_prefix, delayed_ack_timer_.get(), peer_initial_tsn),
+       reassembly_queue_(log_prefix,
+                         options.max_receiver_window_buffer_size,
+-                        capabilities.message_interleaving),
++                        capabilities.message_interleaving,
++                        options.announced_maximum_incoming_streams),
+       retransmission_queue_(
+           log_prefix,
+           &callbacks_,
+diff --git a/net/dcsctp/tx/outstanding_data.cc b/net/dcsctp/tx/outstanding_data.cc
+--- a/net/dcsctp/tx/outstanding_data.cc
++++ b/net/dcsctp/tx/outstanding_data.cc
+@@ -194,6 +194,7 @@
+         ack_info.acked_lifecycle_ids.push_back(item.lifecycle_id());
+       }
+     }
++    retained_payload_bytes_ -= item.data().size();
+     outstanding_data_.pop_front();
+     last_cumulative_tsn_ack_.Increment();
+   }
+@@ -471,6 +472,7 @@
+   Item& item = outstanding_data_.emplace_back(message_id, data.Clone(),
+                                               time_sent, max_retransmissions,
+                                               expires_at, lifecycle_id);
++  retained_payload_bytes_ += item.data().size();
+ 
+   if (item.has_expired(time_sent)) {
+     // No need to send it - it was expired when it was in the send
+diff --git a/net/dcsctp/tx/outstanding_data.h b/net/dcsctp/tx/outstanding_data.h
+--- a/net/dcsctp/tx/outstanding_data.h
++++ b/net/dcsctp/tx/outstanding_data.h
+@@ -110,6 +110,9 @@
+   // How many inflight bytes there are, counting only the payload.
+   size_t unacked_payload_bytes() const { return unacked_payload_bytes_; }
+ 
++  size_t retained_payload_bytes() const { return retained_payload_bytes_; }
++  size_t retained_items() const { return outstanding_data_.size(); }
++
+   // Returns the number of DATA chunks that are in-flight (not acked or nacked).
+   size_t unacked_items() const { return unacked_items_; }
+ 
+@@ -370,6 +373,8 @@
+   std::deque<Item> outstanding_data_;
+   // The number of bytes that are in-flight, counting only the payload.
+   size_t unacked_payload_bytes_ = 0;
++  // Payload is immutable and remains allocated after gap ACK or abandonment.
++  size_t retained_payload_bytes_ = 0;
+   // The number of bytes that are in-flight, as sent on the wire (as packets).
+   size_t unacked_packet_bytes_ = 0;
+   // The number of DATA chunks that are in-flight (sent but not yet acked or
+diff --git a/net/dcsctp/tx/outstanding_data_test.cc b/net/dcsctp/tx/outstanding_data_test.cc
+--- a/net/dcsctp/tx/outstanding_data_test.cc
++++ b/net/dcsctp/tx/outstanding_data_test.cc
+@@ -772,5 +772,32 @@
+   EXPECT_EQ(buf_.unacked_items(), 2u);  // 13, 15
+ }
+ 
++TEST_F(OutstandingDataTest, NativeCarrierRetainsGapAckedPayloadUntilCumulativeAck) {
++  buf_.Insert(kMessageId, gen_.Ordered({1, 2}, "B"), kNow);
++  buf_.Insert(kMessageId, gen_.Ordered({3, 4}, "E"), kNow);
++  EXPECT_EQ(buf_.retained_payload_bytes(), 4u);
++  EXPECT_EQ(buf_.retained_items(), 2u);
++  SackChunk::GapAckBlock gap[] = {{2, 2}};
++  buf_.HandleSack(unwrapper_.Unwrap(TSN(9)), gap, false);
++  EXPECT_EQ(buf_.unacked_payload_bytes(), 2u);
++  EXPECT_EQ(buf_.retained_payload_bytes(), 4u);
++  buf_.HandleSack(unwrapper_.Unwrap(TSN(11)), {}, false);
++  EXPECT_EQ(buf_.retained_payload_bytes(), 0u);
++  EXPECT_EQ(buf_.retained_items(), 0u);
++}
++
++TEST_F(OutstandingDataTest, NativeCarrierAbandonKeepsActualPayloadUntilForwardAck) {
++  buf_.Insert(kMessageId, gen_.Ordered({1, 2}, "B"), kNow, MaxRetransmits(0));
++  buf_.Insert(kMessageId, gen_.Ordered({3, 4}, "E"), kNow, MaxRetransmits(0));
++  EXPECT_CALL(on_discard_, Call(StreamID(1), kMessageId)).WillOnce(Return(false));
++  buf_.NackAll();
++  EXPECT_EQ(buf_.unacked_payload_bytes(), 0u);
++  EXPECT_EQ(buf_.retained_payload_bytes(), 4u);
++  EXPECT_TRUE(buf_.ShouldSendForwardTsn());
++  buf_.HandleSack(unwrapper_.Unwrap(TSN(11)), {}, false);
++  EXPECT_EQ(buf_.retained_payload_bytes(), 0u);
++  EXPECT_EQ(buf_.retained_items(), 0u);
++}
++
+ }  // namespace
+ }  // namespace dcsctp
+diff --git a/net/dcsctp/tx/retransmission_queue.cc b/net/dcsctp/tx/retransmission_queue.cc
+--- a/net/dcsctp/tx/retransmission_queue.cc
++++ b/net/dcsctp/tx/retransmission_queue.cc
+@@ -494,6 +494,9 @@
+   }
+ 
+   while (max_bytes > data_chunk_header_size_) {
++    if (outstanding_data_.retained_items() >= options_.max_retained_send_chunks) {
++      break;
++    }
+     RTC_DCHECK(IsDivisibleBy4(max_bytes));
+     std::optional<SendQueue::DataToSend> chunk_opt =
+         send_queue_.Produce(now, max_bytes - data_chunk_header_size_);
+diff --git a/net/dcsctp/tx/retransmission_queue.h b/net/dcsctp/tx/retransmission_queue.h
+--- a/net/dcsctp/tx/retransmission_queue.h
++++ b/net/dcsctp/tx/retransmission_queue.h
+@@ -128,6 +128,9 @@
+   // Returns the number of DATA chunks that are in-flight.
+   size_t unacked_items() const { return outstanding_data_.unacked_items(); }
+ 
++  size_t retained_payload_bytes() const { return outstanding_data_.retained_payload_bytes(); }
++  size_t retained_items() const { return outstanding_data_.retained_items(); }
++
+   // Given the current time `now`, it will evaluate if there are chunks that
+   // have expired and that need to be discarded. It returns true if a
+   // FORWARD-TSN should be sent.
+diff --git a/p2p/BUILD.gn b/p2p/BUILD.gn
+--- a/p2p/BUILD.gn
++++ b/p2p/BUILD.gn
+@@ -742,6 +742,8 @@
+     "../rtc_base:logging",
+     "../rtc_base:macromagic",
+     "../rtc_base:stringutils",
++    "../rtc_base:queued_resource_budget",
++    "//third_party/abseil-cpp/absl/base:no_destructor",
+     "//third_party/abseil-cpp/absl/memory",
+     "//third_party/abseil-cpp/absl/strings:string_view",
+   ]
+diff --git a/p2p/base/p2p_transport_channel.cc b/p2p/base/p2p_transport_channel.cc
+--- a/p2p/base/p2p_transport_channel.cc
++++ b/p2p/base/p2p_transport_channel.cc
+@@ -1102,6 +1102,12 @@
+     }
+   }
+ 
++  if (native_pairs_created_ >= 128) {
++    port->SendBindingErrorResponse(stun_msg, address, STUN_ERROR_SERVER_ERROR,
++                                   STUN_ERROR_REASON_SERVER_ERROR);
++    return;
++  }
++  ++native_pairs_created_;
+   Connection* connection =
+       port->CreateConnection(remote_candidate, PortInterface::ORIGIN_THIS_PORT);
+   if (!connection) {
+@@ -1487,6 +1493,8 @@
+     if (origin == PortInterface::ORIGIN_MESSAGE && incoming_only_) {
+       return false;
+     }
++    if (native_pairs_created_ >= 128) return false;
++    ++native_pairs_created_;
+     Connection* new_connection =
+         port->CreateConnection(remote_candidate, origin);
+     if (!new_connection) {
+diff --git a/p2p/base/p2p_transport_channel.h b/p2p/base/p2p_transport_channel.h
+--- a/p2p/base/p2p_transport_channel.h
++++ b/p2p/base/p2p_transport_channel.h
+@@ -502,6 +502,7 @@
+ 
+   // Number of times the selected_connection_ has been modified.
+   uint32_t selected_candidate_pair_changes_ = 0;
++  size_t native_pairs_created_ RTC_GUARDED_BY(&network_thread_) = 0;
+ 
+   // When was last data received on a existing connection,
+   // from connection->last_data_received() that uses TimeMillis().
+diff --git a/p2p/base/stun_request.cc b/p2p/base/stun_request.cc
+--- a/p2p/base/stun_request.cc
++++ b/p2p/base/stun_request.cc
+@@ -63,6 +63,10 @@
+ void StunRequestManager::Send(std::unique_ptr<StunRequest> request,
+                               TimeDelta delay) {
+   RTC_DCHECK_RUN_ON(thread_);
++  if (requests_.size() >= 32 || request->msg()->length() > 4076) {
++    request->OnTimeout();
++    return;
++  }
+   RTC_DCHECK_EQ(this, request->manager());
+   RTC_DCHECK(!request->AuthenticationRequired() ||
+              request->msg()->integrity() !=
+@@ -308,8 +312,16 @@
+ }
+ 
+ void StunRequest::SendDelayed(TimeDelta delay) {
++  auto credit = manager_.ReserveTimeoutTask();
++  auto global_credit = credit ? StunRequestManager::ReserveGlobalTimeoutTask() : std::nullopt;
++  if (!credit || !global_credit) {
++    OnTimeout();
++    manager_.OnRequestTimedOut(this);
++    return;
++  }
+   network_thread()->PostDelayedTask(
+-      SafeTask(task_safety_.flag(), [this]() { SendInternal(); }), delay);
++      SafeTask(task_safety_.flag(), [this, credit = std::move(*credit),
++          global_credit = std::move(*global_credit)]() { SendInternal(); }), delay);
+ }
+ 
+ void StunRequest::Send(TimeDelta delay) {
+diff --git a/p2p/base/stun_request.h b/p2p/base/stun_request.h
+--- a/p2p/base/stun_request.h
++++ b/p2p/base/stun_request.h
+@@ -19,6 +19,7 @@
+ #include <span>
+ #include <string>
+ 
++#include "absl/base/no_destructor.h"
+ #include "api/environment/environment.h"
+ #include "api/task_queue/pending_task_safety_flag.h"
+ #include "api/task_queue/task_queue_base.h"
+@@ -26,6 +27,7 @@
+ #include "api/units/time_delta.h"
+ #include "api/units/timestamp.h"
+ #include "rtc_base/thread_annotations.h"
++#include "rtc_base/queued_resource_budget.h"
+ 
+ namespace webrtc {
+ 
+@@ -80,6 +82,13 @@
+   TaskQueueBase* network_thread() const { return thread_; }
+ 
+   void SendPacket(std::span<const uint8_t> data, StunRequest* request);
++  std::optional<QueuedResourceBudget::Ticket> ReserveTimeoutTask() {
++    return pending_timeout_tasks_.Reserve(128);
++  }
++  static std::optional<QueuedResourceBudget::Ticket> ReserveGlobalTimeoutTask() {
++    static absl::NoDestructor<QueuedResourceBudget> budget(4096, 4096 * 128);
++    return budget->Reserve(128);
++  }
+ 
+  private:
+   typedef std::map<std::string, std::unique_ptr<StunRequest>, std::less<>>
+@@ -87,6 +96,7 @@
+ 
+   TaskQueueBase* const thread_;
+   RequestMap requests_ RTC_GUARDED_BY(thread_);
++  QueuedResourceBudget pending_timeout_tasks_{256, 256 * 128};
+   const std::function<void(std::span<const uint8_t>, StunRequest*)>
+       send_packet_;
+ };
+diff --git a/p2p/base/turn_port.cc b/p2p/base/turn_port.cc
+--- a/p2p/base/turn_port.cc
++++ b/p2p/base/turn_port.cc
+@@ -834,6 +834,8 @@
+ 
+ // Update current server address port with the alternate server address port.
+ bool TurnPort::SetAlternateServer(const SocketAddress& address) {
++  // ICE metadata is confined to the operator-declared endpoint, without redirects.
++  if (address != server_address_.address) return false;
+   // Check if we have seen this address before and reject if we did.
+   AttemptedServerSet::iterator iter = attempted_server_addresses_.find(address);
+   if (iter != attempted_server_addresses_.end()) {
+diff --git a/p2p/base/wrapping_active_ice_controller.cc b/p2p/base/wrapping_active_ice_controller.cc
+--- a/p2p/base/wrapping_active_ice_controller.cc
++++ b/p2p/base/wrapping_active_ice_controller.cc
+@@ -192,14 +192,17 @@
+                                     reason_for_switch);
+   }
+ 
+-  if (result.recheck_event.has_value()) {
++  if (result.recheck_event.has_value() && !recheck_pending_) {
+     // If we do not switch to the connection because it missed the receiving
+     // threshold, the new connection is in a better receiving state than the
+     // currently selected connection. So we need to re-check whether it needs
+     // to be switched at a later time.
++    recheck_pending_ = true;
+     network_thread_->PostDelayedTask(
+         SafeTask(task_safety_.flag(),
+                  [this, recheck_reason = result.recheck_event->reason]() {
++                   RTC_DCHECK_RUN_ON(network_thread_);
++                   recheck_pending_ = false;
+                    SortAndSwitchToBestConnection(recheck_reason);
+                  }),
+         TimeDelta::Millis(result.recheck_event->recheck_delay_ms));
+diff --git a/p2p/base/wrapping_active_ice_controller.h b/p2p/base/wrapping_active_ice_controller.h
+--- a/p2p/base/wrapping_active_ice_controller.h
++++ b/p2p/base/wrapping_active_ice_controller.h
+@@ -83,6 +83,7 @@
+ 
+   bool started_pinging_ RTC_GUARDED_BY(network_thread_) = false;
+   bool sort_pending_ RTC_GUARDED_BY(network_thread_) = false;
++  bool recheck_pending_ RTC_GUARDED_BY(network_thread_) = false;
+   const Connection* selected_connection_ RTC_GUARDED_BY(network_thread_) =
+       nullptr;
+ 
+diff --git a/p2p/client/basic_port_allocator.cc b/p2p/client/basic_port_allocator.cc
+--- a/p2p/client/basic_port_allocator.cc
++++ b/p2p/client/basic_port_allocator.cc
+@@ -11,6 +11,7 @@
+ #include "p2p/client/basic_port_allocator.h"
+ 
+ #include <algorithm>
++#include <cerrno>
+ #include <cstddef>
+ #include <cstdint>
+ #include <functional>
+@@ -798,6 +799,8 @@
+   bool done_signal_needed = false;
+   std::vector<const Network*> networks = GetNetworks();
+   if (networks.empty()) {
++    NotifyCandidateError(this, IceCandidateErrorEvent(
++        "", 0, "", 701, "Native ICE network enumeration returned no interfaces"));
+     RTC_LOG(LS_WARNING)
+         << "Machine has no networks; no ports will be allocated";
+     done_signal_needed = true;
+@@ -808,6 +811,9 @@
+     for (uint32_t i = 0; i < networks.size(); ++i) {
+       uint32_t sequence_flags = flags();
+       if ((sequence_flags & DISABLE_ALL_PHASES) == DISABLE_ALL_PHASES) {
++        NotifyCandidateError(this, IceCandidateErrorEvent(
++            "", 0, "", 701, "Native ICE allocation phases disabled (flags=" +
++                               std::to_string(sequence_flags) + ")"));
+         // If all the ports are disabled we should just fire the allocation
+         // done event and return.
+         done_signal_needed = true;
+@@ -841,6 +847,7 @@
+         continue;
+       }
+ 
++      if (sequences_.size() >= 16) break;
+       AllocationSequence* sequence =
+           new AllocationSequence(this, networks[i], config, sequence_flags,
+                                  [this, safety_flag = network_safety_.flag()] {
+@@ -1010,6 +1017,11 @@
+   RTC_DCHECK_RUN_ON(network_thread_);
+   RTC_DCHECK(FindPort(port));
+   if (event.address.empty()) {
++    if (candidate_error_events_.size() >= 64) {
++      StopGettingPorts();
++      NotifyCandidateError(this, event);
++      return;
++    }
+     candidate_error_events_.push_back(event);
+   } else {
+     NotifyCandidateError(this, event);
+@@ -1445,6 +1457,7 @@
+ 
+   // TODO(mallinath) - Remove UDPPort creating socket after shared socket
+   // is enabled completely.
++  if (!session_->ReserveNativePort()) return;
+   std::unique_ptr<UDPPort> port;
+   bool emit_local_candidate_for_anyaddress =
+       !IsFlagSet(PORTALLOCATOR_DISABLE_DEFAULT_LOCAL_CANDIDATE);
+@@ -1497,6 +1510,10 @@
+     }
+ 
+     session_->AddAllocatedPort(port.release(), this);
++  } else {
++    session_->NotifyCandidateError(session_, IceCandidateErrorEvent(
++        "", 0, "", 701, "Native UDP port initialization failed (errno=" +
++                           std::to_string(errno) + ")"));
+   }
+ }
+ 
+@@ -1506,6 +1523,7 @@
+     return;
+   }
+ 
++  if (!session_->ReserveNativePort()) return;
+   std::unique_ptr<Port> port = TCPPort::Create(
+       {.env = session_->allocator()->env(),
+        .network_thread = session_->network_thread(),
+@@ -1540,6 +1558,7 @@
+     return;
+   }
+ 
++  if (!session_->ReserveNativePort()) return;
+   std::unique_ptr<StunPort> port = StunPort::Create(
+       {.env = session_->allocator()->env(),
+        .network_thread = session_->network_thread(),
+@@ -1611,6 +1630,7 @@
+       continue;
+     }
+ 
++    if (!session_->ReserveNativePort()) return;
+     CreateRelayPortArgs args = {.env = session_->allocator()->env()};
+     args.network_thread = session_->network_thread();
+     args.socket_factory = session_->socket_factory();
+diff --git a/p2p/client/basic_port_allocator.h b/p2p/client/basic_port_allocator.h
+--- a/p2p/client/basic_port_allocator.h
++++ b/p2p/client/basic_port_allocator.h
+@@ -259,6 +259,11 @@
+                                PortConfiguration* config,
+                                uint32_t* flags);
+   void AddAllocatedPort(Port* port, AllocationSequence* seq);
++  bool ReserveNativePort() {
++    if (native_ports_created_ >= 16) return false;
++    ++native_ports_created_;
++    return true;
++  }
+   void OnCandidateReady(Port* port, const Candidate& c);
+   void OnCandidateError(Port* port, const IceCandidateErrorEvent& event);
+   void OnPortComplete(Port* port);
+@@ -300,6 +305,7 @@
+   std::vector<std::unique_ptr<PortConfiguration>> configs_;
+   std::vector<AllocationSequence*> sequences_;
+   std::vector<PortData> ports_;
++  size_t native_ports_created_ = 0;
+   std::vector<IceCandidateErrorEvent> candidate_error_events_;
+   uint32_t candidate_filter_ = CF_ALL;
+   // Policy on how to prune turn ports, taken from the port allocator.
+diff --git a/p2p/dtls/dtls_transport.cc b/p2p/dtls/dtls_transport.cc
+--- a/p2p/dtls/dtls_transport.cc
++++ b/p2p/dtls/dtls_transport.cc
+@@ -892,6 +892,10 @@
+                                              bool piggybacked) {
+   RTC_DCHECK_RUN_ON(&thread_checker_);
+   RTC_DCHECK(transport == ice_transport());
++  if (packet.payload().size() > kMaxDtlsPacketLen) {
++    set_dtls_state(DtlsTransportState::kFailed);
++    return;
++  }
+ 
+   if (!dtls_active_) {
+     // Not doing DTLS.
+diff --git a/pc/BUILD.gn b/pc/BUILD.gn
+--- a/pc/BUILD.gn
++++ b/pc/BUILD.gn
+@@ -1296,6 +1296,7 @@
+     "peer_connection.h",
+   ]
+   deps = [
++    "../rtc_base:queued_resource_budget",
+     ":channel_interface",
+     ":codec_vendor",
+     ":connection_context",
+diff --git a/pc/data_channel_controller.cc b/pc/data_channel_controller.cc
+--- a/pc/data_channel_controller.cc
++++ b/pc/data_channel_controller.cc
+@@ -311,6 +311,10 @@
+     const CopyOnWriteBuffer& buffer) {
+   if (type != DataMessageType::kControl || !IsOpenMessage(buffer))
+     return false;
++  if (native_carrier_created_) {
++    OnTransportClosed(RTCError(RTCErrorType::RESOURCE_EXHAUSTED, "Unexpected native carrier channel"));
++    return true;
++  }
+ 
+   // Received OPEN message; parse and signal that a new data channel should
+   // be created.
+@@ -390,6 +394,9 @@
+ RTCErrorOr<scoped_refptr<SctpDataChannel>>
+ DataChannelController::CreateDataChannel(absl::string_view label,
+                                          InternalDataChannelInit& config) {
++  if (native_carrier_created_) {
++    return RTCError(RTCErrorType::RESOURCE_EXHAUSTED, "One native carrier channel per PeerConnection");
++  }
+   std::optional<StreamId> sid = std::nullopt;
+   if (config.id != -1) {
+     if (config.id < 0 || config.id > kMaxSctpSid) {
+@@ -423,6 +430,7 @@
+       network_thread());
+ 
+   sctp_data_channels_n_.push_back(channel);
++  native_carrier_created_ = true;
+   return channel;
+ }
+ 
+diff --git a/pc/data_channel_controller.h b/pc/data_channel_controller.h
+--- a/pc/data_channel_controller.h
++++ b/pc/data_channel_controller.h
+@@ -167,6 +167,7 @@
+   SctpSidAllocator sid_allocator_ RTC_GUARDED_BY(network_thread());
+   std::vector<scoped_refptr<SctpDataChannel>> sctp_data_channels_n_
+       RTC_GUARDED_BY(network_thread());
++  bool native_carrier_created_ RTC_GUARDED_BY(network_thread()) = false;
+   enum class DataChannelUsage : uint8_t {
+     kNeverUsed = 0,
+     kHaveBeenUsed,
+diff --git a/pc/data_channel_utils.h b/pc/data_channel_utils.h
+--- a/pc/data_channel_utils.h
++++ b/pc/data_channel_utils.h
+@@ -27,6 +27,7 @@
+ class PacketQueue final {
+  public:
+   size_t byte_count() const { return byte_count_; }
++  size_t packet_count() const { return packets_.size(); }
+ 
+   bool Empty() const;
+ 
+diff --git a/pc/peer_connection.cc b/pc/peer_connection.cc
+--- a/pc/peer_connection.cc
++++ b/pc/peer_connection.cc
+@@ -127,6 +127,14 @@
+ namespace webrtc {
+ 
+ namespace {
++size_t NativeCandidateQueueCost(const Candidate& c) {
++  return sizeof(Candidate) + 2 * (c.id().size() + c.protocol().size() +
++      c.relay_protocol().size() + c.address().hostname().size() +
++      c.username().size() + c.password().size() + c.network_name().size() +
++      c.foundation().size() + c.related_address().hostname().size() +
++      c.tcptype().size() + c.url().size());
++}
++
+ const int REPORT_USAGE_PATTERN_DELAY_MS = 60000;
+ 
+ class CodecLookupHelperForPeerConnection : public CodecLookupHelper {
+@@ -640,17 +648,24 @@
+       [this](absl::string_view transport,
+              const std::vector<Candidate>& candidates) {
+         RTC_DCHECK_RUN_ON(network_thread());
++        size_t charge = 2 * transport.size();
++        if (candidates.size() > 64) { ReserveNativeObserver(128 * 1024 + 1); return; }
++        for (const auto& c : candidates) charge += NativeCandidateQueueCost(c);
++        auto credit = ReserveNativeObserver(charge);
++        if (!credit) return;
+         signaling_thread()->PostTask(
+             SafeTask(signaling_thread_safety_.flag(),
+-                     [this, t = std::string(transport), c = candidates]() {
++                     [this, credit = std::move(*credit), t = std::string(transport), c = candidates]() {
+                        RTC_DCHECK_RUN_ON(signaling_thread());
+                        OnTransportControllerCandidatesGathered(t, c);
+                      }));
+       };
+   config.signal_ice_connection_state = [this](webrtc::IceConnectionState s) {
+     RTC_DCHECK_RUN_ON(network_thread());
++    auto credit = ReserveNativeObserver(0);
++    if (!credit) return;
+     signaling_thread()->PostTask(
+-        SafeTask(signaling_thread_safety_.flag(), [this, s]() {
++        SafeTask(signaling_thread_safety_.flag(), [this, credit = std::move(*credit), s]() {
+           RTC_DCHECK_RUN_ON(signaling_thread());
+           OnTransportControllerConnectionState(s);
+         }));
+@@ -658,8 +673,10 @@
+   config.signal_connection_state =
+       [this](PeerConnectionInterface::PeerConnectionState s) {
+         RTC_DCHECK_RUN_ON(network_thread());
++        auto credit = ReserveNativeObserver(0);
++        if (!credit) return;
+         signaling_thread()->PostTask(
+-            SafeTask(signaling_thread_safety_.flag(), [this, s]() {
++            SafeTask(signaling_thread_safety_.flag(), [this, credit = std::move(*credit), s]() {
+               RTC_DCHECK_RUN_ON(signaling_thread());
+               SetConnectionState(s);
+             }));
+@@ -667,16 +684,20 @@
+   config.signal_standardized_ice_connection_state =
+       [this](PeerConnectionInterface::IceConnectionState s) {
+         RTC_DCHECK_RUN_ON(network_thread());
++        auto credit = ReserveNativeObserver(0);
++        if (!credit) return;
+         signaling_thread()->PostTask(
+-            SafeTask(signaling_thread_safety_.flag(), [this, s]() {
++            SafeTask(signaling_thread_safety_.flag(), [this, credit = std::move(*credit), s]() {
+               RTC_DCHECK_RUN_ON(signaling_thread());
+               SetStandardizedIceConnectionState(s);
+             }));
+       };
+   config.signal_ice_gathering_state = [this](::webrtc::IceGatheringState s) {
+     RTC_DCHECK_RUN_ON(network_thread());
++    auto credit = ReserveNativeObserver(0);
++    if (!credit) return;
+     signaling_thread()->PostTask(
+-        SafeTask(signaling_thread_safety_.flag(), [this, s]() {
++        SafeTask(signaling_thread_safety_.flag(), [this, credit = std::move(*credit), s]() {
+           RTC_DCHECK_RUN_ON(signaling_thread());
+           OnTransportControllerGatheringState(s);
+         }));
+@@ -684,8 +705,10 @@
+   config.signal_ice_candidate_error =
+       [this](const IceCandidateErrorEvent& event) {
+         RTC_DCHECK_RUN_ON(network_thread());
++        auto credit = ReserveNativeObserver(sizeof(event) + 2 * (event.address.size() + event.url.size() + event.error_text.size()));
++        if (!credit) return;
+         signaling_thread()->PostTask(
+-            SafeTask(signaling_thread_safety_.flag(), [this, event = event]() {
++            SafeTask(signaling_thread_safety_.flag(), [this, credit = std::move(*credit), event = event]() {
+               RTC_DCHECK_RUN_ON(signaling_thread());
+               OnTransportControllerCandidateError(event);
+             }));
+@@ -693,9 +716,14 @@
+   config.signal_ice_candidates_removed =
+       [this](IceTransportInternal* transport, const std::vector<Candidate>& c) {
+         RTC_DCHECK_RUN_ON(network_thread());
+-        std::string mid = transport->transport_name();
++        const auto& mid = transport->transport_name();
++        size_t charge = 2 * mid.size();
++        if (c.size() > 64) { ReserveNativeObserver(128 * 1024 + 1); return; }
++        for (const auto& candidate : c) charge += NativeCandidateQueueCost(candidate);
++        auto credit = ReserveNativeObserver(charge);
++        if (!credit) return;
+         signaling_thread()->PostTask(SafeTask(
+-            signaling_thread_safety_.flag(), [this, mid = mid, c = c]() {
++            signaling_thread_safety_.flag(), [this, credit = std::move(*credit), mid = mid, c = c]() {
+               RTC_DCHECK_RUN_ON(signaling_thread());
+               OnTransportControllerCandidatesRemoved(mid, c);
+             }));
+@@ -703,8 +731,12 @@
+   config.signal_ice_candidate_pair_changed =
+       [this](const CandidatePairChangeEvent& event) {
+         RTC_DCHECK_RUN_ON(network_thread());
++        auto credit = ReserveNativeObserver(sizeof(event) + 2 * (event.transport_name.size() + event.reason.size()) +
++            NativeCandidateQueueCost(event.selected_candidate_pair.local_candidate()) +
++            NativeCandidateQueueCost(event.selected_candidate_pair.remote_candidate()));
++        if (!credit) return;
+         signaling_thread()->PostTask(
+-            SafeTask(signaling_thread_safety_.flag(), [this, event = event]() {
++            SafeTask(signaling_thread_safety_.flag(), [this, credit = std::move(*credit), event = event]() {
+               RTC_DCHECK_RUN_ON(signaling_thread());
+               OnTransportControllerCandidateChanged(event);
+             }));
+diff --git a/pc/peer_connection.h b/pc/peer_connection.h
+--- a/pc/peer_connection.h
++++ b/pc/peer_connection.h
+@@ -21,6 +21,7 @@
+ #include <string>
+ #include <utility>
+ #include <vector>
++#include "rtc_base/queued_resource_budget.h"
+ 
+ #include "absl/functional/any_invocable.h"
+ #include "absl/strings/string_view.h"
+@@ -718,6 +719,19 @@
+   // The DataChannelController is accessed from both the signaling thread
+   // and networking thread. It is a thread-aware object.
+   DataChannelController data_channel_controller_;
++  QueuedResourceBudget native_observer_budget_{64, 128 * 1024};
++  bool native_observer_exhausted_ RTC_GUARDED_BY(network_thread()) = false;
++  std::optional<QueuedResourceBudget::Ticket> ReserveNativeObserver(size_t bytes) {
++    RTC_DCHECK_RUN_ON(network_thread());
++    if (native_observer_exhausted_) return std::nullopt;
++    auto credit = bytes <= 128 * 1024 - 128 ? native_observer_budget_.Reserve(bytes + 128) : std::nullopt;
++    if (!credit) {
++      native_observer_exhausted_ = true;
++      data_channel_controller_.OnTransportClosed(
++          RTCError(RTCErrorType::RESOURCE_EXHAUSTED, "Native observer resource budget exhausted"));
++    }
++    return credit;
++  }
+ 
+   // Machinery for handling messages posted to oneself
+   PeerConnectionMessageHandler message_handler_
+diff --git a/pc/sctp_data_channel.cc b/pc/sctp_data_channel.cc
+--- a/pc/sctp_data_channel.cc
++++ b/pc/sctp_data_channel.cc
+@@ -45,7 +45,7 @@
+ 
+ namespace {
+ 
+-size_t kMaxQueuedReceivedDataBytes = 16 * 1024 * 1024;
++size_t kMaxQueuedReceivedDataBytes = 256 * 1024;
+ 
+ std::atomic<int> g_unique_id{0};
+ 
+@@ -722,6 +722,14 @@
+     handshake_state_ = kHandshakeReady;
+   }
+ 
++  if (type != DataMessageType::kBinary || payload.empty() || payload.size() > 16 * 1024 ||
++      ((state_ != kOpen || !observer_) &&
++          (queued_received_data_.packet_count() >= 64 ||
++           payload.size() > kMaxQueuedReceivedDataBytes - queued_received_data_.byte_count()))) {
++    queued_received_data_.Clear();
++    CloseAbruptlyWithError(RTCError(RTCErrorType::RESOURCE_EXHAUSTED, "Native carrier receive budget exhausted"));
++    return;
++  }
+   bool binary = (type == DataMessageType::kBinary);
+   auto buffer = std::make_unique<DataBuffer>(payload, binary);
+   if (state_ == kOpen && observer_) {
+diff --git a/rtc_base/BUILD.gn b/rtc_base/BUILD.gn
+--- a/rtc_base/BUILD.gn
++++ b/rtc_base/BUILD.gn
+@@ -1774,6 +1774,7 @@
+     ":checks",
+     ":digest",
+     ":logging",
++    ":queued_resource_budget",
+     ":safe_conversions",
+     ":socket",
+     ":socket_address",
+@@ -2510,3 +2511,7 @@
+     visibility = [ "*" ]
+   }
+ }
++
++rtc_source_set("queued_resource_budget") {
++  sources = [ "queued_resource_budget.h" ]
++}
+diff --git a/rtc_base/openssl_stream_adapter.cc b/rtc_base/openssl_stream_adapter.cc
+--- a/rtc_base/openssl_stream_adapter.cc
++++ b/rtc_base/openssl_stream_adapter.cc
+@@ -16,6 +16,7 @@
+ #include <openssl/stack.h>
+ #include <openssl/tls1.h>
+ 
++#include <algorithm>
+ #include <cstddef>
+ #include <cstdint>
+ #include <cstring>
+@@ -44,6 +45,7 @@
+ #include "rtc_base/openssl_adapter.h"
+ #include "rtc_base/openssl_digest.h"
+ #include "rtc_base/openssl_utility.h"
++#include "rtc_base/queued_resource_budget.h"
+ #include "rtc_base/span_helpers.h"
+ #include "rtc_base/ssl_certificate.h"
+ #include "rtc_base/ssl_identity.h"
+@@ -891,36 +893,35 @@
+   RTC_DCHECK_GE(delay_ms, 0);
+   RTC_DCHECK(!timeout_task_.Running());
+ 
++  static absl::NoDestructor<QueuedResourceBudget> queued_timers(32, 32 * 128);
++  auto credit = queued_timers->Reserve(128);
++  if (!credit) {
++    Error("DTLS timer resource budget exhausted", -1, 0, true);
++    return;
++  }
+   timeout_task_ = RepeatingTaskHandle::DelayedStart(
+-      owner_, TimeDelta::Millis(delay_ms),
+-      [flag = task_safety_.flag(), this]() {
+-        if (flag->alive()) {
+-          RTC_DLOG(LS_INFO) << "DTLS timeout expired";
++      owner_, TimeDelta::Millis(std::min(delay_ms, 20)),
++      [flag = task_safety_.flag(), this, credit = std::move(*credit)]() {
++        if (!flag->alive()) return TimeDelta::PlusInfinity();
++        if (!ssl_ || (state_ != SSL_CONNECTING && state_ != SSL_CONNECTED)) {
+           timeout_task_.Stop();
+-          int res = DTLSv1_handle_timeout(ssl_);
+-          if (res > 0) {
+-            retransmission_count_++;
+-            RTC_LOG(LS_INFO) << "DTLS retransmission";
+-          } else if (res < 0) {
+-            RTC_LOG(LS_INFO) << "DTLSv1_handle_timeout() return -1";
+-            Error("DTLSv1_handle_timeout", res, -1, true);
+-            return TimeDelta::PlusInfinity();
+-          }
+-          // We check the timer even after SSL_CONNECTED,
+-          // but ContinueSSL() is only needed when SSL_CONNECTING
+-          if (state_ == SSL_CONNECTING) {
+-            // Note: timeout is set inside ContinueSSL()
+-            ContinueSSL();
+-          } else if (state_ == SSL_CONNECTED) {
+-            MaybeSetTimeout();
+-          } else {
+-            RTC_DCHECK_NOTREACHED() << "state_: " << state_;
+-          }
+-        } else {
+-          RTC_DCHECK_NOTREACHED() << "flag->alive() == false";
++          return TimeDelta::PlusInfinity();
+         }
+-        // This callback will never run again (stopped above).
+-        return TimeDelta::PlusInfinity();
++        struct timeval remaining;
++        if (!DTLSv1_get_timeout(ssl_, &remaining)) {
++          timeout_task_.Stop();
++          return TimeDelta::PlusInfinity();
++        }
++        const int delay = remaining.tv_sec * 1000 + remaining.tv_usec / 1000;
++        if (delay > 0) return TimeDelta::Millis(std::min(delay, 20));
++        const int result = DTLSv1_handle_timeout(ssl_);
++        if (result < 0) {
++          Error("DTLSv1_handle_timeout", result, -1, true);
++          return TimeDelta::PlusInfinity();
++        }
++        if (result > 0) ++retransmission_count_;
++        if (state_ == SSL_CONNECTING) ContinueSSL();
++        return TimeDelta::Millis(20);
+       });
+ }
+ 
+@@ -984,8 +985,6 @@
+   RTC_DLOG(LS_VERBOSE) << "ContinueSSL";
+   RTC_DCHECK_EQ(state_, SSL_CONNECTING);
+ 
+-  // Clear the DTLS timer
+-  timeout_task_.Stop();
+ 
+   const int code = (role_ == SSL_CLIENT) ? SSL_connect(ssl_) : SSL_accept(ssl_);
+   const int ssl_error = SSL_get_error(ssl_, code);
+@@ -1153,6 +1152,7 @@
+   if (ctx == nullptr) {
+     return nullptr;
+   }
++  SSL_CTX_set_max_cert_list(ctx, 16 * 1024);
+ 
+   auto min_version =
+       ssl_mode_ == SSL_MODE_DTLS ? DTLS1_2_VERSION : TLS1_2_VERSION;
+diff --git a/rtc_base/queued_resource_budget.h b/rtc_base/queued_resource_budget.h
+new file mode 100644
+--- /dev/null
++++ b/rtc_base/queued_resource_budget.h
+@@ -0,0 +1,81 @@
++/*
++ * Copyright 2026 TokenWorks contributors. All rights reserved.
++ * Use of this source code is governed by a BSD-style license that can be
++ * found in the LICENSE file in the root of the source tree.
++ */
++#ifndef RTC_BASE_QUEUED_RESOURCE_BUDGET_H_
++#define RTC_BASE_QUEUED_RESOURCE_BUDGET_H_
++
++#include <atomic>
++#include <cstddef>
++#include <memory>
++#include <optional>
++#include <utility>
++
++namespace webrtc {
++
++// A credit lives in the queued closure, including cancellation, until its real destruction.
++class QueuedResourceBudget final {
++ private:
++  struct State {
++    State(size_t count_limit, size_t byte_limit)
++        : count_limit(count_limit), byte_limit(byte_limit) {}
++    const size_t count_limit;
++    const size_t byte_limit;
++    std::atomic<size_t> count{0};
++    std::atomic<size_t> bytes{0};
++  };
++
++ public:
++  class Ticket final {
++   public:
++    Ticket(std::shared_ptr<State> state, size_t bytes)
++        : state_(std::move(state)), bytes_(bytes) {}
++    Ticket(Ticket&&) = default;
++    Ticket& operator=(Ticket&& other) noexcept {
++      if (this != &other) {
++        Release();
++        state_ = std::move(other.state_);
++        bytes_ = other.bytes_;
++      }
++      return *this;
++    }
++    Ticket(const Ticket&) = delete;
++    Ticket& operator=(const Ticket&) = delete;
++    ~Ticket() { Release(); }
++
++   private:
++    void Release() {
++      if (state_) {
++        state_->bytes.fetch_sub(bytes_);
++        state_->count.fetch_sub(1);
++        state_.reset();
++      }
++    }
++    std::shared_ptr<State> state_;
++    size_t bytes_;
++  };
++
++  QueuedResourceBudget(size_t count_limit, size_t byte_limit)
++      : state_(std::make_shared<State>(count_limit, byte_limit)) {}
++
++  std::optional<Ticket> Reserve(size_t bytes) {
++    if (bytes > state_->byte_limit) return std::nullopt;
++    if (state_->count.fetch_add(1) >= state_->count_limit) {
++      state_->count.fetch_sub(1);
++      return std::nullopt;
++    }
++    const size_t prior = state_->bytes.fetch_add(bytes);
++    if (prior > state_->byte_limit - bytes) {
++      state_->bytes.fetch_sub(bytes);
++      state_->count.fetch_sub(1);
++      return std::nullopt;
++    }
++    return Ticket(state_, bytes);
++  }
++
++ private:
++  const std::shared_ptr<State> state_;
++};
++}  // namespace webrtc
++#endif  // RTC_BASE_QUEUED_RESOURCE_BUDGET_H_
+diff --git a/sdk/android/AndroidManifest.xml b/sdk/android/AndroidManifest.xml
+--- a/sdk/android/AndroidManifest.xml
++++ b/sdk/android/AndroidManifest.xml
+@@ -10,5 +10,5 @@
+ -->
+ <manifest xmlns:android="http://schemas.android.com/apk/res/android"
+     package="org.webrtc">
+-  <uses-sdk android:minSdkVersion="21" android:targetSdkVersion="23" />
++  <uses-sdk android:minSdkVersion="26" android:targetSdkVersion="36" />
+ </manifest>
+diff --git a/sdk/android/BUILD.gn b/sdk/android/BUILD.gn
+--- a/sdk/android/BUILD.gn
++++ b/sdk/android/BUILD.gn
+@@ -134,6 +134,7 @@
+     ldflags = [
+       "-lEGL",
+       "-Wl,--build-id",
++      "-Wl,-z,max-page-size=16384",
+     ]
+ 
+     deps = [
+diff --git a/sdk/android/api/org/webrtc/NetworkMonitorAutoDetect.java b/sdk/android/api/org/webrtc/NetworkMonitorAutoDetect.java
+--- a/sdk/android/api/org/webrtc/NetworkMonitorAutoDetect.java
++++ b/sdk/android/api/org/webrtc/NetworkMonitorAutoDetect.java
+@@ -371,11 +371,14 @@
+ 
+     @Nullable
+     List<NetworkInformation> getActiveNetworkList() {
+-      if (!supportNetworkCallback()) {
++      if (connectivityManager == null) {
+         return null;
+       }
+       ArrayList<NetworkInformation> netInfoList = new ArrayList<NetworkInformation>();
+-      for (Network network : getAllNetworks()) {
++      // Native Start requests this snapshot before NetworkCallback has populated
++      // availableNetworks. The initial snapshot must come from the actual system,
++      // otherwise a non-trickle gather may finish with only ignored loopback NICs.
++      for (Network network : connectivityManager.getAllNetworks()) {
+         NetworkInformation info = networkToInfo(network);
+         if (info != null) {
+           netInfoList.add(info);
+diff --git a/sdk/android/api/org/webrtc/PeerConnectionFactory.java b/sdk/android/api/org/webrtc/PeerConnectionFactory.java
+--- a/sdk/android/api/org/webrtc/PeerConnectionFactory.java
++++ b/sdk/android/api/org/webrtc/PeerConnectionFactory.java
+@@ -282,21 +282,16 @@
+     public PeerConnectionFactory createPeerConnectionFactory() {
+       checkInitializeHasBeenCalled();
+       try (Environment env = envBuilder.build()) {
+-        if (audioDeviceModule == null) {
+-          audioDeviceModule = JavaAudioDeviceModule.builder(ContextUtils.getApplicationContext())
+-                                  .createAudioDeviceModule();
+-        }
+-        AudioDeviceModule adm = audioDeviceModule;
+         PeerConnectionFactory factory = nativeCreatePeerConnectionFactory(
+             ContextUtils.getApplicationContext(),
+             options,
+             env.ref(),
+-            adm.getNative(env.ref()),
+-            audioEncoderFactoryFactory.createNativeAudioEncoderFactory(),
+-            audioDecoderFactoryFactory.createNativeAudioDecoderFactory(),
+-            videoEncoderFactory,
+-            videoDecoderFactory,
+-            audioProcessingFactory == null ? 0 : audioProcessingFactory.createNative(env.ref()),
++            0,
++            0,
++            0,
++            null,
++            null,
++            0,
+             fecControllerFactoryFactory == null ? 0 : fecControllerFactoryFactory.createNative(),
+             networkControllerFactoryFactory == null
+                 ? 0
+@@ -304,13 +299,8 @@
+             networkStatePredictorFactoryFactory == null
+                 ? 0
+                 : networkStatePredictorFactoryFactory.createNativeNetworkStatePredictorFactory(),
+-            neteqFactoryFactory == null ? 0 : neteqFactoryFactory.createNativeNetEqFactory(),
+-            audioFrameProcessor == null ? 0 : audioFrameProcessor.getNativeAudioFrameProcessor());
+-        if (adm instanceof JavaAudioDeviceModule) {
+-          factory.audioProcessingPlatformPolicy =
+-              AudioTrack.AudioProcessingPlatformPolicy.fromJavaAudioDeviceModule(
+-                  (JavaAudioDeviceModule) adm);
+-        }
++            0,
++            0);
+         return factory;
+       }
+     }
+diff --git a/sdk/android/api/org/webrtc/WrappedVideoDecoderFactory.java b/sdk/android/api/org/webrtc/WrappedVideoDecoderFactory.java
+--- a/sdk/android/api/org/webrtc/WrappedVideoDecoderFactory.java
++++ b/sdk/android/api/org/webrtc/WrappedVideoDecoderFactory.java
+@@ -63,7 +63,7 @@
+ 
+     @Override
+     public VideoCodecInfo[] getSupportedCodecs() {
+-        LinkedHashSet<VideoCodecInfo> supportedCodecInfos = new LinkedHashSet();
++        LinkedHashSet<VideoCodecInfo> supportedCodecInfos = new LinkedHashSet<>();
+         supportedCodecInfos.addAll(Arrays.asList(this.softwareVideoDecoderFactory.getSupportedCodecs()));
+         supportedCodecInfos.addAll(Arrays.asList(this.hardwareVideoDecoderFactory.getSupportedCodecs()));
+         if (this.platformSoftwareVideoDecoderFactory != null) {
+diff --git a/sdk/android/src/jni/pc/data_channel.cc b/sdk/android/src/jni/pc/data_channel.cc
+--- a/sdk/android/src/jni/pc/data_channel.cc
++++ b/sdk/android/src/jni/pc/data_channel.cc
+@@ -43,6 +43,7 @@
+   void OnBufferedAmountChange(uint64_t previous_amount) override;
+   void OnStateChange() override;
+   void OnMessage(const DataBuffer& buffer) override;
++  bool IsOkToCallOnTheNetworkThread() override { return true; }
+ 
+  private:
+   const jni_zero::ScopedJavaGlobalRef<jobject> j_observer_global_;
+diff --git a/sdk/android/src/jni/pc/peer_connection_factory.cc b/sdk/android/src/jni/pc/peer_connection_factory.cc
+--- a/sdk/android/src/jni/pc/peer_connection_factory.cc
++++ b/sdk/android/src/jni/pc/peer_connection_factory.cc
+@@ -315,24 +315,6 @@
+         std::make_unique<AndroidNetworkMonitorFactory>();
+   }
+ 
+-  dependencies.adm = std::move(audio_device_module);
+-  dependencies.audio_encoder_factory = std::move(audio_encoder_factory);
+-  dependencies.audio_decoder_factory = std::move(audio_decoder_factory);
+-  dependencies.audio_frame_processor = std::move(audio_frame_processor);
+-  if (audio_processor != nullptr) {
+-    dependencies.audio_processing_builder =
+-        CustomAudioProcessing(std::move(audio_processor));
+-#ifndef WEBRTC_EXCLUDE_AUDIO_PROCESSING_MODULE
+-  } else {
+-    dependencies.audio_processing_builder =
+-        std::make_unique<BuiltinAudioProcessingBuilder>();
+-#endif
+-  }
+-  dependencies.video_encoder_factory =
+-      absl::WrapUnique(CreateVideoEncoderFactory(jni, jencoder_factory));
+-  dependencies.video_decoder_factory =
+-      absl::WrapUnique(CreateVideoDecoderFactory(jni, jdecoder_factory));
+-  EnableMedia(dependencies);
+ 
+   scoped_refptr<PeerConnectionFactoryInterface> factory =
+       CreateModularPeerConnectionFactory(std::move(dependencies));

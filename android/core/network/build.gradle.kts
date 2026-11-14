@@ -15,8 +15,12 @@ tasks.register("writeFixtureClasspath") {
 kotlin { jvmToolchain(17) }
 dependencies {
     api(project(":core:auth"))
-    api(project(":core:session"))
+    implementation(project(":core:session"))
+    implementation(project(":core:dsh-client"))
     implementation(libs.okhttp)
+    implementation(libs.httpcore5)
+    implementation(libs.java.websocket)
+    runtimeOnly(libs.slf4j.nop)
     api(libs.coroutines.core)
     testImplementation(libs.junit)
     testImplementation(libs.okhttp.mockwebserver)
@@ -24,14 +28,9 @@ dependencies {
     testImplementation(libs.okhttp.tls)
     testImplementation(libs.nimbus.jose)
 }
-tasks.test {
-}
 
 tasks.test {
-    inputs.dir(rootProject.file("../contracts").resolve("ws/v1"))
-    inputs.dir(rootProject.file("../contracts").resolve("security"))
-    inputs.dir(rootProject.file("../contracts").resolve("files/v1"))
-    inputs.dir(rootProject.file("../contracts").resolve("push/v1"))
-    inputs.file(rootProject.file("../contracts").resolve("golden/app-release-selection.json"))
-    systemProperty("contracts.root", rootProject.file("../contracts").absolutePath)
+    dependsOn(":core:crypto:buildNoiseJvm")
+    systemProperty("tokenworks.noise.library", rootProject.file("../.local/noise/jvm/" + System.mapLibraryName("tokenworks_noise")).absolutePath)
+    systemProperty("noise.repository", rootProject.projectDir.parentFile.absolutePath)
 }

@@ -58,7 +58,7 @@ import kotlinx.coroutines.CancellationException
 /** Actions use only the current display text; a quote is an editable local draft, not a server relation. */
 @Composable
 internal fun ConversationMessage(item: ConversationItem, onQuote: ((String) -> Unit)?, onMessageAction: ((String) -> Unit)? = null,
-    onPreviewMedia: ((VisibleMediaReference) -> Unit)? = null, interactive: Boolean = true) {
+    onPreviewMedia: ((NativeImageReference) -> Unit)? = null, interactive: Boolean = true) {
     val currentItem by rememberUpdatedState(item)
     val currentOnQuote by rememberUpdatedState(onQuote)
     val currentOnMessageAction by rememberUpdatedState(onMessageAction)
@@ -110,9 +110,10 @@ internal fun ConversationMessage(item: ConversationItem, onQuote: ((String) -> U
                             forceExpanded = item.hasError, interactive = interactive)
                         BlockKind.IMAGE -> {
                             val reference = block.media!!
-                            val label = stringResource(R.string.media_message_preview, reference.manifest.name)
+                            val name = reference.name ?: "图片"
+                            val label = stringResource(R.string.media_message_preview, name)
                             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                                Text(reference.manifest.name, style = MaterialTheme.typography.bodyMedium)
+                                Text("$name · ${reference.width} × ${reference.height} · ${reference.bytes} 字节", style = MaterialTheme.typography.bodyMedium)
                                 if (interactive) TextButton({
                                     if (currentItem.persisted && !currentItem.live && currentItem.blocks.any { it.media === reference }) currentOnPreviewMedia?.invoke(reference)
                                 }, enabled = item.persisted && !item.live && onPreviewMedia != null,

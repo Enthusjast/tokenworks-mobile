@@ -6,17 +6,19 @@ import (
 	"crypto/x509"
 	"errors"
 	"net/http"
-	"net/http/httputil"
-	"net/url"
+	"time"
+
+	"github.com/coder/websocket"
 
 	"tokenworks-mobile/services/remote/internal/requestlog"
 	"tokenworks-mobile/services/remote/internal/store"
 )
 
-const privateRelayPath = "/internal/relay/v2/device"
+const privateRelayPath = "/internal/relay/v2/carrier"
 const relayNodeHeader = "X-TokenWorks-Mobile-Relay-Node"
 const relayGenerationHeader = "X-TokenWorks-Mobile-Relay-Generation"
-const relayRouteHeader = "X-TokenWorks-Mobile-Relay-Route"
+const relayEpochHeader = "X-TokenWorks-Mobile-Relay-Epoch"
+const relayConnectionHeader = "X-TokenWorks-Mobile-Relay-Connection"
 const relayRuntimeHeader = "X-TokenWorks-Runtime"
 const leaseHeader = "X-TokenWorks-Lease"
 
@@ -35,6 +37,7 @@ type RoutingConfig struct {
 type nodeRouting struct {
 	RoutingConfig
 	identity store.RelayNode
+	slots chan struct{}
 }
 
 // A dedicated cluster CA must issue exactly one node URI SAN in each leaf.
@@ -84,60 +87,83 @@ func (server *Server) ConfigureRouting(config RoutingConfig) error {
 	} else if identity.Origin != "" {
 		return errors.New("relay: private origin requires mutual TLS")
 	}
-	server.routing = &nodeRouting{config, identity}
+	server.routing = &nodeRouting{RoutingConfig: config, identity: identity, slots: make(chan struct{}, config.MaxProxyConnections)}
 	return nil
 }
 
-func (server *Server) localRoute(runtimeID string) bool {
-	return server.routing != nil && server.OwnsRuntime(runtimeID)
-}
 
-// ForwardNode sends one admitted phone request to the node that owns the
-// runtime tunnel. The bytes are forwarded once; a disconnect is never replayed.
-func (server *Server) ForwardNode(response http.ResponseWriter, request *http.Request, route store.RuntimeRoute) {
+// ForwardNode opens one mTLS carrier WS to the current owning generation.
+// Only opaque binary bytes cross this hop; it never retries or reroutes.
+func (server *Server) ForwardNode(response http.ResponseWriter, request *http.Request, route store.RuntimeRoute, lease store.TunnelLeaseIdentity, secret string) {
 	routing := server.routing
-	if routing == nil || routing.ClientTLS == nil || route.Origin == "" ||
+	if !validCarrierRequest(request) {
+		writeError(response, http.StatusBadRequest, "protocol.invalid")
+		return
+	}
+	if routing == nil || routing.ClientTLS == nil || !store.ValidRelayOrigin(route.Origin) || route.RuntimeID != lease.RuntimeID ||
+		!uuidPattern.MatchString(route.RuntimeEpoch) || !uuidPattern.MatchString(route.ConnectionID) ||
 		route.NodeID == routing.identity.NodeID && route.Generation == routing.identity.Generation {
 		writeError(response, http.StatusServiceUnavailable, "runtime.offline")
 		return
 	}
-	origin, err := url.Parse(route.Origin)
-	if err != nil || origin.Scheme != "https" {
-		writeError(response, http.StatusServiceUnavailable, "internal")
-		return
+	select { case routing.slots <- struct{}{}: defer func() { <-routing.slots }()
+	default: writeError(response, http.StatusServiceUnavailable, "runtime.offline"); return }
+	ctx, cancel := context.WithDeadline(request.Context(), lease.ExpiresAt)
+	defer cancel()
+	if err := routing.Directory.ValidateRelayNode(ctx, route.NodeID, route.Generation); err != nil {
+		writeError(response, http.StatusConflict, "runtime.changed"); return
 	}
-	proxy := httputil.ReverseProxy{
-		Transport: &http.Transport{
-			TLSClientConfig:     routing.ClientTLS.Clone(),
-			MaxIdleConnsPerHost: 32,
-			MaxConnsPerHost:     routing.MaxProxyConnections,
-			ForceAttemptHTTP2:   true,
-		},
-		FlushInterval: -1,
-		Rewrite: func(proxy *httputil.ProxyRequest) {
-			proxy.Out.URL.Scheme = "https"
-			proxy.Out.URL.Host = origin.Host
-			proxy.Out.URL.Path = privateRelayPath
-			proxy.Out.URL.RawPath = ""
-			proxy.Out.URL.RawQuery = ""
-			proxy.Out.Host = origin.Host
-			proxy.Out.Header.Set(relayNodeHeader, routing.identity.NodeID)
-			proxy.Out.Header.Set(relayGenerationHeader, routing.identity.Generation)
-			proxy.Out.Header.Set(relayRouteHeader, request.URL.Path)
-			proxy.Out.Header.Del("Cookie")
-		},
-		ErrorHandler: func(w http.ResponseWriter, _ *http.Request, _ error) {
-			writeError(w, http.StatusServiceUnavailable, "runtime.offline")
-		},
+	tlsConfig := routing.ClientTLS.Clone()
+	verify := tlsConfig.VerifyConnection
+	tlsConfig.VerifyConnection = func(state tls.ConnectionState) error {
+		if verify != nil { if err := verify(state); err != nil { return err } }
+		if len(state.PeerCertificates) == 0 { return errors.New("relay: missing node certificate") }
+		node, err := RelayCertificateNode(state.PeerCertificates[0])
+		if err != nil || node != route.NodeID { return errors.New("relay: wrong owning node certificate") }
+		return nil
 	}
-	proxy.ServeHTTP(response, request)
+	protocols := new(http.Protocols)
+	protocols.SetHTTP1(true)
+	transport := &http.Transport{TLSClientConfig: tlsConfig, Protocols: protocols, DisableCompression: true,
+		MaxConnsPerHost: 1, MaxResponseHeaderBytes: 16 << 10, ResponseHeaderTimeout: 15*time.Second}
+	defer transport.CloseIdleConnections()
+	headers := make(http.Header)
+	headers.Set(relayNodeHeader, routing.identity.NodeID)
+	headers.Set(relayGenerationHeader, routing.identity.Generation)
+	headers.Set(relayRuntimeHeader, lease.RuntimeID)
+	headers.Set(relayEpochHeader, route.RuntimeEpoch)
+	headers.Set(relayConnectionHeader, route.ConnectionID)
+	headers.Set(leaseHeader, secret)
+	headers.Set("X-TokenWorks-Lease-Id", lease.LeaseID)
+	headers.Set(carrierPurposeHeader, CarrierPurpose(request))
+	timer := time.AfterFunc(15*time.Second, cancel)
+	upstream, upstreamResponse, err := websocket.Dial(ctx, "wss"+route.Origin[len("https"):]+privateRelayPath,
+		&websocket.DialOptions{HTTPClient: &http.Client{Transport: transport, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }},
+			HTTPHeader: headers, CompressionMode: websocket.CompressionDisabled})
+	timer.Stop()
+	if err != nil {
+		if upstreamResponse != nil && upstreamResponse.Body != nil { upstreamResponse.Body.Close() }
+		writeError(response, http.StatusServiceUnavailable, "runtime.offline"); return
+	}
+	defer upstream.CloseNow()
+	socket, err := websocket.Accept(response, request, &websocket.AcceptOptions{CompressionMode: websocket.CompressionDisabled})
+	if err != nil { return }
+	defer socket.CloseNow()
+	closeBoth := func() { socket.CloseNow(); upstream.CloseNow(); cancel() }
+	stop := context.AfterFunc(ctx, closeBoth)
+	defer stop()
+	left := websocket.NetConn(ctx, socket, websocket.MessageBinary)
+	right := websocket.NetConn(ctx, upstream, websocket.MessageBinary)
+	socket.SetReadLimit(carrierWindowBytes)
+	upstream.SetReadLimit(carrierWindowBytes)
+	splice(left, right, closeBoth)
 }
 
 // PrivateRelayHandler serves node-to-node forwarding only after the peer's
 // mutual-TLS node identity and the current route ownership are checked.
 func (server *Server) PrivateRelayHandler(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
-		if request.URL.Path != privateRelayPath || request.Method != "GET" && request.Method != "POST" && request.Method != "HEAD" {
+		if request.URL.Path != privateRelayPath || !validCarrierRequest(request) {
 			writeError(response, http.StatusForbidden, "access.denied")
 			return
 		}
@@ -149,7 +175,7 @@ func (server *Server) PrivateRelayHandler(next http.Handler) http.Handler {
 			return
 		}
 		peerNode, err := RelayCertificateNode(request.TLS.PeerCertificates[0])
-		if err != nil || peerNode != node {
+		if err != nil || peerNode != node || len(request.TLS.VerifiedChains) == 0 {
 			writeError(response, http.StatusForbidden, "access.denied")
 			return
 		}
@@ -158,7 +184,8 @@ func (server *Server) PrivateRelayHandler(next http.Handler) http.Handler {
 			return
 		}
 		route, err := server.routing.Directory.LookupRuntimeRoute(request.Context(), runtimeID)
-		if err != nil || route.NodeID != server.routing.identity.NodeID || route.Generation != server.routing.identity.Generation {
+		if err != nil || route.NodeID != server.routing.identity.NodeID || route.Generation != server.routing.identity.Generation ||
+			route.RuntimeEpoch != singleHeader(request, relayEpochHeader) || route.ConnectionID != singleHeader(request, relayConnectionHeader) {
 			writeError(response, http.StatusConflict, "runtime.changed")
 			return
 		}
@@ -166,13 +193,11 @@ func (server *Server) PrivateRelayHandler(next http.Handler) http.Handler {
 			writeError(response, http.StatusConflict, "runtime.changed")
 			return
 		}
-		path := singleHeader(request, relayRouteHeader)
-		if path == "" || path[0] != '/' || len(path) > 4096 {
-			writeError(response, http.StatusBadRequest, "protocol.invalid")
+		tunnel := server.tunnel(runtimeID)
+		if tunnel == nil || tunnel.epoch != route.RuntimeEpoch || tunnel.connectionID != route.ConnectionID {
+			writeError(response, http.StatusConflict, "runtime.changed")
 			return
 		}
-		request.URL.Path = path
-		request.URL.RawPath = ""
 		requestlog.AdoptForwarded(response, request)
 		next.ServeHTTP(response, request)
 	})
@@ -186,12 +211,4 @@ func singleHeader(request *http.Request, name string) string {
 	return values[0]
 }
 
-// Drain closes live tunnels; pending node forwards finish through their own
-// request contexts and are bounded by the node transport.
-func (server *Server) proxySlots() int {
-	if server.routing == nil || server.routing.MaxProxyConnections == 0 {
-		return 4096
-	}
-	return server.routing.MaxProxyConnections
-}
 

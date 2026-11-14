@@ -1,7 +1,9 @@
 import { strict as assert } from 'node:assert'
 import { test } from 'node:test'
 import { Duplex, PassThrough, Writable } from 'node:stream'
-import { type Server as HttpServer } from 'node:http'
+import { get } from 'node:http'
+import { createServer } from 'node:net'
+import { once } from 'node:events'
 import { NativeGateway } from '../src/native-gateway.js'
 import { REMOTE_STREAM_MUX_PATH } from '@deepseek-ai/dsh-api-gateway/stream-protocol'
 
@@ -50,15 +52,29 @@ function pair(): { socket: Duplex; client: Writable; toClient: PassThrough } {
   return { socket, client, toClient }
 }
 
-function roundTrip(gateway: NativeGateway, raw: string): Promise<string> {
-  const settled = Promise.withResolvers<string>()
-  const { socket, client, toClient } = pair()
-  gateway.accept(socket, OWNER_PEER)
-  const sink: Buffer[] = []
-  toClient.on('data', chunk => sink.push(chunk))
-  client.write(raw)
-  setTimeout(() => settled.resolve(Buffer.concat(sink).toString()), 400)
-  return settled.promise
+async function roundTrip(gateway: NativeGateway, raw: string): Promise<string> {
+  const server = createServer(socket => gateway.accept(socket, OWNER_PEER))
+  server.listen(0, '127.0.0.1')
+  await once(server, 'listening')
+  const address = server.address()
+  assert.ok(address && typeof address === 'object')
+  const result = Promise.withResolvers<string>()
+  const path = raw.split(' ')[1]!
+  get({ hostname: '127.0.0.1', port: address.port, path, agent: false }, response => {
+    const chunks: Buffer[] = []
+    response.on('data', chunk => chunks.push(chunk))
+    response.on('error', result.reject)
+    response.on('end', () => result.resolve(`HTTP/1.1 ${response.statusCode} ${response.statusMessage}\\r\\n${
+      response.rawHeaders.reduce((text, header, index) => text + header + (index % 2 ? '\\r\\n' : ': '), '')
+    }\\r\\n${Buffer.concat(chunks).toString()}`))
+  }).on('error', result.reject)
+  try { return await result.promise }
+  finally {
+    gateway.close()
+    const stopped = Promise.withResolvers<void>()
+    server.close(() => stopped.resolve())
+    await stopped.promise
+  }
 }
 
 test('an admitted socket answers /api requests through sharedFetch', async () => {

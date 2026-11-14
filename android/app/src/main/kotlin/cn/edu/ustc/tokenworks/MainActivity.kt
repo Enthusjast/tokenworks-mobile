@@ -21,7 +21,10 @@ import javax.inject.Inject
 @AndroidEntryPoint
 class MainActivity : FragmentActivity() {
     private val model: HomeViewModel by viewModels()
-    override fun onStart() { super.onStart(); model.foreground(true) }
+    override fun onStart() {
+        super.onStart(); model.foreground(true); model.refreshNotificationPermission()
+        consumeNotificationIntent(intent)
+    }
     override fun onStop() { model.foreground(false); super.onStop() }
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -52,6 +55,16 @@ class MainActivity : FragmentActivity() {
                 }
             }
         }
+    }
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        if (lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)) consumeNotificationIntent(intent)
+    }
+    private fun consumeNotificationIntent(intent: Intent?) {
+        val reference = parseReferenceIntent(intent, System.currentTimeMillis())
+        if (intent?.action == REFERENCE_ACTION) { intent.removeExtra(REFERENCE_EXTRA); intent.action = null }
+        if (reference != null) model.openNotificationReference(reference)
     }
 
 

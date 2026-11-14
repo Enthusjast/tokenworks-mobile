@@ -22,15 +22,20 @@ type TunnelLease struct {
 	GrantVersion int64
 }
 
+// TunnelLeaseIdentity carries current database facts. A grant's role does not
+// imply ownership of the installation.
 type TunnelLeaseIdentity struct {
-	LeaseID        string         `json:"lease_id"`
-	UserID         string         `json:"sub"`
-	DeviceID       string         `json:"device_id"`
-	RuntimeID      string         `json:"runtime_id"`
-	InstallationID string         `json:"installation_id"`
-	GrantVersion   int64          `json:"grant_version"`
-	Bindings       []GrantBinding `json:"bindings"`
-	ExpiresAt      time.Time      `json:"exp"`
+	LeaseID             string         `json:"lease_id"`
+	UserID              string         `json:"sub"`
+	DeviceID            string         `json:"device_id"`
+	RuntimeID           string         `json:"runtime_id"`
+	InstallationID      string         `json:"installation_id"`
+	OrganizationID      string         `json:"organization_id"`
+	Role                string         `json:"role"`
+	IsInstallationOwner bool           `json:"is_installation_owner"`
+	GrantVersion        int64          `json:"grant_version"`
+	Bindings            []GrantBinding `json:"bindings"`
+	ExpiresAt           time.Time      `json:"exp"`
 }
 
 func (postgres *Postgres) IssueTunnelLease(ctx context.Context, identity UserIdentity, deviceID, runtimeID string) (TunnelLease, error) {
@@ -127,7 +132,8 @@ func (postgres *Postgres) InspectTunnelLease(ctx context.Context, installationID
 	var bindingsJSON []byte
 	err = postgres.DB.QueryRowContext(ctx, `
 		select lease.id::text, lease.user_id::text, lease.device_id::text, lease.runtime_id::text,
-		       lease.installation_id::text, lease.grant_version, g.bindings, lease.expires_at
+		       lease.installation_id::text, g.role, i.owner_user_id = lease.user_id,
+		       lease.grant_version, g.bindings, lease.expires_at, h.org_id::text
 		from tunnel_leases lease
 		join runtime_grants g on g.runtime_id = lease.runtime_id and g.user_id = lease.user_id and g.grant_version = lease.grant_version
 		join devices d on d.id = lease.device_id and d.revoked_at is null and d.key_version = lease.device_key_version
@@ -139,7 +145,7 @@ func (postgres *Postgres) InspectTunnelLease(ctx context.Context, installationID
 		  and lease.revoked_at is null and lease.expires_at > clock_timestamp()
 		  and g.revoked_at is null and (g.expires_at is null or g.expires_at > clock_timestamp())`,
 		leaseID, digest[:], installationID).Scan(&identity.LeaseID, &identity.UserID, &identity.DeviceID, &identity.RuntimeID,
-		&identity.InstallationID, &identity.GrantVersion, &bindingsJSON, &identity.ExpiresAt)
+		&identity.InstallationID, &identity.Role, &identity.IsInstallationOwner, &identity.GrantVersion, &bindingsJSON, &identity.ExpiresAt, &identity.OrganizationID)
 	if errors.Is(err, sql.ErrNoRows) {
 		return TunnelLeaseIdentity{}, ErrTunnelLeaseInvalid
 	}
@@ -162,20 +168,31 @@ func (postgres *Postgres) VerifyTunnelLease(ctx context.Context, identity UserId
 	ctx, cancel := context.WithTimeout(ctx, 2*time.Second)
 	defer cancel()
 	var lease TunnelLeaseIdentity
+	var bindingsJSON []byte
 	err := postgres.DB.QueryRowContext(ctx, `
 		select lease.id::text, lease.user_id::text, lease.device_id::text, lease.runtime_id::text,
-		       lease.installation_id::text, lease.grant_version, lease.expires_at
+		       lease.installation_id::text, g.role, i.owner_user_id = lease.user_id,
+		       lease.grant_version, g.bindings, lease.expires_at, h.org_id::text
 		from tunnel_leases lease
 		join users u on u.id = lease.user_id and u.issuer = $4 and u.subject = $5 and u.status = 'active'
 		join devices d on d.id = lease.device_id and d.user_id = u.id and d.revoked_at is null and d.key_version = lease.device_key_version
+		join runtime_grants g on g.runtime_id = lease.runtime_id and g.user_id = lease.user_id and g.grant_version = lease.grant_version
+		join runtimes r on r.id = lease.runtime_id and r.revoked_at is null and `+runtimeEnrollmentApprovedSQL+`
+		join installations i on i.id = r.installation_id and i.id = lease.installation_id and i.revoked_at is null
+		join hosts h on h.id = i.host_id and h.state = 'active'
+		join org_memberships m on m.org_id = h.org_id and m.user_id = lease.user_id
 		where lease.secret_sha256 = $1 and lease.device_id = $2 and lease.runtime_id = $3
-		  and lease.revoked_at is null and lease.expires_at > clock_timestamp()`,
+		  and lease.revoked_at is null and lease.expires_at > clock_timestamp()
+		  and g.revoked_at is null and (g.expires_at is null or g.expires_at > clock_timestamp())`,
 		digest[:], deviceID, runtimeID, identity.Issuer, identity.Subject).Scan(&lease.LeaseID, &lease.UserID, &lease.DeviceID,
-		&lease.RuntimeID, &lease.InstallationID, &lease.GrantVersion, &lease.ExpiresAt)
+		&lease.RuntimeID, &lease.InstallationID, &lease.Role, &lease.IsInstallationOwner, &lease.GrantVersion, &bindingsJSON, &lease.ExpiresAt, &lease.OrganizationID)
 	if errors.Is(err, sql.ErrNoRows) {
 		return TunnelLeaseIdentity{}, ErrTunnelLeaseInvalid
 	}
 	if err != nil {
+		return TunnelLeaseIdentity{}, ErrDatabaseUnavailable
+	}
+	if json.Unmarshal(bindingsJSON, &lease.Bindings) != nil {
 		return TunnelLeaseIdentity{}, ErrDatabaseUnavailable
 	}
 	return lease, nil

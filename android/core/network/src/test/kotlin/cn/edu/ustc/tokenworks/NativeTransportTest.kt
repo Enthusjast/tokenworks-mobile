@@ -5,7 +5,7 @@ import com.nimbusds.jose.crypto.ECDSASigner
 import com.nimbusds.jose.jwk.Curve
 import com.nimbusds.jose.jwk.ECKey
 import com.nimbusds.jose.jwk.gen.ECKeyGenerator
-import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.runBlocking
 import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
 import okhttp3.mockwebserver.SocketPolicy
@@ -16,7 +16,7 @@ import org.junit.Assert.*
 import org.junit.Before
 import org.junit.Test
 
-/** Drives the real HTTP path: RemoteApi.native / nativeLease against a TLS mock Relay. */
+/** Native HTTP regression scripts run behind a real TLS+JNI Noise splice, never a public /api client. */
 class NativeTransportTest {
     private val now = System.currentTimeMillis()
     private val runtimeId = "44444444-4444-4444-8444-444444444444"
@@ -34,6 +34,13 @@ class NativeTransportTest {
     private lateinit var config: LoginConfiguration
     private lateinit var session: LoginSession
     private lateinit var api: RemoteApi
+    private lateinit var credentials: LanCredentials
+    private lateinit var native: DshTransport
+    private lateinit var operatorClient: okhttp3.OkHttpClient
+    private val replies = java.util.concurrent.LinkedBlockingQueue<MockResponse>()
+    private var scripted: okhttp3.mockwebserver.Dispatcher? = null
+    private fun enqueue(response: MockResponse) { replies.put(response) }
+    private val auths = java.util.concurrent.LinkedBlockingQueue<JsonObject>()
 
     @Before fun start() {
         val certificate = HeldCertificate.Builder()
@@ -41,6 +48,7 @@ class NativeTransportTest {
         val certificates = HandshakeCertificates.Builder().heldCertificate(certificate)
             .addTrustedCertificate(certificate.certificate).build()
         val client = okhttp3.OkHttpClient.Builder().sslSocketFactory(certificates.sslSocketFactory(), certificates.trustManager).build()
+        operatorClient = client
         server = MockWebServer()
         server.useHttps(certificates.sslSocketFactory(), false)
         server.start()
@@ -70,11 +78,35 @@ class NativeTransportTest {
         session = TokenVerifier.authorizationCodeResponse(JsonDocument.of(response).canonicalBytes(),
             login.acceptCallback(config.redirectUri + "?state=${login.state}&code=opaque-test-code", now),
             issuerKeys(), now)
-        http = LoginHttp.forTests(client)
+        http = LoginHttp.create(client)
         api = http.resource(config, session, signer)
+        val hostKeys = E2eSession.generateStatic()
+        val installation = "55555555-5555-4555-8555-555555555555"
+        val owner = LocalDataOwner(config.organizationId, config.organizationId, config.fingerprint, runtimeId, "66666666-6666-4666-8666-666666666666")
+        val descriptor = LanPairingDescriptor.parse(JsonDocument.of(jsonObject("version" to 2L.json(), "origin" to server.url("/").toString().removeSuffix("/").json(),
+            "runtimeId" to runtimeId.json(), "installationId" to installation.json(), "tlsPin" to okhttp3.CertificatePinner.pin(certificate.certificate).json(),
+            "code" to "12345678".json(), "expiresAt" to (System.currentTimeMillis() + 60000).json(), "carrierVersion" to 1L.json(),
+            "suite" to E2eSession.SUITE.json(), "hostStaticPublicKey" to Contract.base64url(hostKeys.publicKey).json(), "hostKeyEpoch" to 1L.json(), "minimumEncrypted" to JsonBoolean(true))).canonicalText())
+        credentials = LanPairingIntent.create(descriptor, "JVM", owner, signer, jsonObject("issuer" to config.remoteOrigin.json(), "organizationId" to owner.organizationId.json(),
+            "deploymentSha256" to owner.deploymentHash.json(), "userId" to owner.userId.json(), "deviceId" to owner.deviceId.json())).credentials
+        server.dispatcher = object : okhttp3.mockwebserver.Dispatcher() {
+            override fun dispatch(request: okhttp3.mockwebserver.RecordedRequest): MockResponse {
+                if (request.path in setOf("/v2/runtimes/$runtimeId/carrier", "/carrier")) return MockResponse().withWebSocketUpgrade(NoiseTlsTestBridge(hostKeys, { credentials }, {
+                    (operatorClient.sslSocketFactory.createSocket("localhost", server.port) as javax.net.ssl.SSLSocket).also { socket ->
+                        socket.sslParameters = socket.sslParameters.also { it.endpointIdentificationAlgorithm = "HTTPS" }; socket.startHandshake()
+                    }
+                }, routeKind = if (request.path == "/carrier") "lan" else "relay",
+                    purpose = request.getHeader("X-TokenWorks-Carrier-Purpose") ?: "native", onAuth = { auths.put(it) }))
+                return scripted?.dispatch(request) ?: replies.take()
+            }
+        }
+        val lease = DshLease("A".repeat(43), installation, System.currentTimeMillis() + 300_000)
+        native = EncryptedRoute(runtimeId, DshTransportPath.RELAY, NativeHttpClient(CarrierDialer { purpose -> api.openCarrier(runtimeId, lease, credentials, purpose) }))
     }
 
     @After fun stop() {
+        native.close()
+        operatorClient.connectionPool.evictAll(); operatorClient.dispatcher.executorService.shutdown()
         server.shutdown()
     }
 
@@ -125,9 +157,9 @@ class NativeTransportTest {
     }
     private fun json(bytes: ByteArray) = JsonDocument.parse(bytes).root
 
-    @Test fun nativeLeaseParsesAServerIssuedSecret() = runTest {
+    @Test fun nativeLeaseParsesAServerIssuedSecret() = runBlocking {
         val token = "A".repeat(43)
-        server.enqueue(MockResponse().setBody(JsonDocument.of(leaseBody(token, "55555555-5555-4555-8555-555555555555")).canonicalText())
+        enqueue(MockResponse().setBody(JsonDocument.of(leaseBody(token, "55555555-5555-4555-8555-555555555555")).canonicalText())
             .addHeader("Content-Type: application/json").addHeader("DPoP-Nonce: ${"B".repeat(32)}"))
         val lease = api.nativeLease(runtimeId)
         assertEquals(token, lease.token)
@@ -140,7 +172,7 @@ class NativeTransportTest {
         assertNotNull(request.getHeader("DPoP"))
     }
 
-    @Test fun nativeLeaseRejectsMalformedLeaseResponses() = runTest {
+    @Test fun nativeLeaseRejectsMalformedLeaseResponses() = runBlocking {
         val bad = listOf(
             leaseBody("short", "55555555-5555-4555-8555-555555555555"),
             leaseBody("A".repeat(43), "not-a-uuid"),
@@ -151,17 +183,17 @@ class NativeTransportTest {
             jsonObject("ok" to JsonBoolean(false), "data" to JsonNull),
         )
         for (body in bad) {
-            server.enqueue(MockResponse().setBody(JsonDocument.of(body).canonicalText()).addHeader("Content-Type: application/json"))
+            enqueue(MockResponse().setBody(JsonDocument.of(body).canonicalText()).addHeader("Content-Type: application/json"))
             try { kotlinx.coroutines.runBlocking { api.nativeLease(runtimeId) }; fail("malformed lease accepted") }
             catch (expected: Exception) { assertTrue("unexpected: $expected", expected is RemoteRequestException || expected is ProtocolException) }
         }
         assertEquals(bad.size, server.requestCount)
     }
 
-    @Test fun nativeCallReturnsServerValueAndVerifiesEnvelope() = runTest {
-        server.dispatcher = echoDispatcher(listOf(valueReply(jsonObject("items" to JsonArray(emptyList())))))
+    @Test fun nativeCallReturnsServerValueAndVerifiesEnvelope() = runBlocking {
+        scripted = echoDispatcher(listOf(valueReply(jsonObject("items" to JsonArray(emptyList())))))
         val issued = api.nativeLease(runtimeId)
-        val value = api.native("session/list", jsonObject(), runtimeId, issued)
+        val value = native.native("session/list", jsonObject())
         assertTrue(value is JsonObject)
         // Recorded order: lease POST then native POST.
         val leaseRequest = server.takeRequest()
@@ -170,25 +202,27 @@ class NativeTransportTest {
         var nativeRequest: okhttp3.mockwebserver.RecordedRequest? = null
         repeat(4) {
             val recorded = server.takeRequest(1000, java.util.concurrent.TimeUnit.MILLISECONDS) ?: return@repeat
-            println("RECORDED: " + recorded.method + " " + recorded.path + " body=" + recorded.body.readByteArray().toString(Charsets.UTF_8).take(80))
             if (recorded.path == "/api/session/list" && nativeRequest == null) nativeRequest = recorded
         }
         nativeRequest!!
-        assertEquals(issued.token, nativeRequest!!.getHeader("X-TokenWorks-Lease"))
-        assertEquals(runtimeId, nativeRequest!!.getHeader("X-TokenWorks-Runtime"))
+        assertNull(nativeRequest!!.getHeader("X-TokenWorks-Lease"))
+        assertNull(nativeRequest!!.getHeader("X-TokenWorks-Runtime"))
+        val authLease = auths.take().obj("relayLease")
+        assertEquals(issued.id, authLease.string("leaseId"))
+        assertEquals(issued.token, authLease.string("token"))
     }
     private fun leaseReply(token: String = "A".repeat(43), id: String = "55555555-5555-4555-8555-555555555555"): (JsonObject) -> String = { _ ->
         JsonDocument.of(leaseBody(token, id)).canonicalText()
     }
 
-    @Test fun nativeSurveysServerErrorsAsDshFailureCodes() = runTest {
+    @Test fun nativeSurveysServerErrorsAsDshFailureCodes() = runBlocking {
         val lease = DshLease("A".repeat(43), "55555555-5555-4555-8555-555555555555", System.currentTimeMillis() + 300_000)
-        server.dispatcher = echoDispatcher(listOf(errorReply("lease.expired")))
-        try { kotlinx.coroutines.runBlocking { api.native("session/list", jsonObject(), runtimeId, lease) }; fail("server error accepted") }
+        scripted = echoDispatcher(listOf(errorReply("lease.expired")))
+        try { kotlinx.coroutines.runBlocking { native.native("session/list", jsonObject()) }; fail("server error accepted") }
         catch (expected: DshFailure) { assertEquals("lease.expired", expected.code) }
     }
 
-    @Test fun nativeRejectsMismatchedOrAlienEnvelopes() = runTest {
+    @Test fun nativeRejectsMismatchedOrAlienEnvelopes() = runBlocking {
         val lease = DshLease("A".repeat(43), "55555555-5555-4555-8555-555555555555", System.currentTimeMillis() + 300_000)
         val envelopes = listOf(
             jsonObject("type" to "server-response".json(), "rpcId" to "other".json(), "result" to jsonObject("ok" to JsonBoolean(true))),
@@ -198,39 +232,72 @@ class NativeTransportTest {
             jsonObject("type" to "server-response".json(), "rpcId" to "ignored".json(), "result" to jsonObject("ok" to "yes".json())),
         )
         for (envelope in envelopes) {
-            server.enqueue(MockResponse().setBody(JsonDocument.of(envelope).canonicalText()).addHeader("Content-Type: application/json"))
-            assertThrows(RemoteRequestException::class.java) { kotlinx.coroutines.runBlocking { api.native("session/list", jsonObject(), runtimeId, lease) } }
+            enqueue(MockResponse().setBody(JsonDocument.of(envelope).canonicalText()).addHeader("Content-Type: application/json"))
+            assertThrows(DshFailure::class.java) { kotlinx.coroutines.runBlocking { native.native("session/list", jsonObject()) } }
         }
-        assertEquals(envelopes.size, server.requestCount)
+        assertEquals(envelopes.size * 2, server.requestCount)
     }
 
-    @Test fun nativeRejectsInvalidEndpointShapesBeforeSending() = runTest {
+    @Test fun nativeRejectsInvalidEndpointShapesBeforeSending() = runBlocking {
         val lease = DshLease("A".repeat(43), "55555555-5555-4555-8555-555555555555", System.currentTimeMillis() + 300_000)
         for (endpoint in listOf("session", "/session/list", "session/", "session/../admin", "has space/list")) {
-            assertThrows(RemoteRequestException::class.java) { kotlinx.coroutines.runBlocking { api.native(endpoint, jsonObject(), runtimeId, lease) } }
+            assertThrows(DshFailure::class.java) { kotlinx.coroutines.runBlocking { native.native(endpoint, jsonObject()) } }
         }
         assertEquals(0, server.requestCount)
     }
 
-    @Test fun leaseFailureCodesInvalidateCachedSecretsForRetries() = runTest {
-        val client = DshSessionClient(api)
+    @Test fun leaseFailureEndsTheRouteWithoutImplicitCommandReplay() = runBlocking {
+        val transport = DshRelayTransport(api, credentials)
+        val client = DshSessionClient(transport)
         try {
-            server.dispatcher = echoDispatcher(listOf(
+            scripted = echoDispatcher(listOf(
                 valueReply(jsonObject("items" to JsonArray(emptyList()))),
-                errorReply("lease.expired"),
-                valueReply(jsonObject("items" to JsonArray(emptyList())))))
-            client.sessions(runtimeId)
-            // The second call's server error must evict the cached secret...
-            assertThrows(DshFailure::class.java) { kotlinx.coroutines.runBlocking { client.sessions(runtimeId) } }
-            // ...so the third call mints a fresh lease and succeeds.
-            client.sessions(runtimeId)
-        } finally { client.close() }
+                errorReply("lease.expired")))
+            client.sessions()
+            val before = server.requestCount
+            assertThrows(DshFailure::class.java) { kotlinx.coroutines.runBlocking { client.sessions() } }
+            assertEquals(DshTransportPhase.AUTH_REQUIRED, transport.state.value.phase)
+            assertEquals(before + 1, server.requestCount)
+        } finally { transport.close() }
     }
 
-    @Test fun transportLossStaysAmbiguousAndNeverBecomesProtocolFailure() = runTest {
+    @Test fun boundLanReusesOneActualLeaseAcrossItsNativePool() = runBlocking {
+        scripted = echoDispatcher(List(2) { valueReply(jsonObject("items" to JsonArray(emptyList()))) })
+        LanConnectionFactory.withOperatorClient(operatorClient).transport(credentials, signer, api).use { route ->
+            repeat(2) { assertTrue(route.native("session/list", jsonObject()) is JsonObject) }
+            val auth = auths.take()
+            assertEquals("A".repeat(43), auth.obj("relayLease").string("token"))
+            assertEquals("55555555-5555-4555-8555-555555555555", auth.obj("relayLease").string("leaseId"))
+            assertTrue(auths.isEmpty())
+            val paths = List(server.requestCount) { server.takeRequest().path }
+            assertEquals(1, paths.count { it == "/v2/runtimes/$runtimeId/leases" })
+            assertEquals(1, paths.count { it == "/carrier" })
+            assertEquals(2, paths.count { it == "/api/session/list" })
+        }
+    }
+
+    @Test fun boundLanAndRtcWithoutAuthorityFailBeforeOpeningAnyCarrier() = runBlocking {
+        val factory = LanConnectionFactory.withOperatorClient(operatorClient)
+        val outer = CarrierOuterDialer { _, _ -> error("bound RTC cannot dial without authority") }
+        val routes = listOf(factory.transport(credentials, signer),
+            factory.encryptedTransport(credentials, signer, "p2p", DshTransportPath.P2P, outer, null))
+        routes.forEach { route ->
+            route.use {
+                val error = runCatching { route.probeIdentity() }.exceptionOrNull()
+                assertTrue(error is DshFailure)
+                assertEquals("e2e.relay_authority_required", (error as DshFailure).code)
+            }
+        }
+        assertEquals("e2e.relay_authority_required", assertThrows(DshFailure::class.java) {
+            factory.pairingControl(credentials, signer, null)
+        }.code)
+        assertEquals(0, server.requestCount)
+    }
+
+    @Test fun transportLossStaysAmbiguousAndNeverBecomesProtocolFailure() = runBlocking {
         val lease = DshLease("A".repeat(43), "55555555-5555-4555-8555-555555555555", System.currentTimeMillis() + 300_000)
-        server.enqueue(MockResponse().setSocketPolicy(SocketPolicy.DISCONNECT_AT_START))
-        val error = assertThrows(RemoteRequestException::class.java) { kotlinx.coroutines.runBlocking { api.native("session/list", jsonObject(), runtimeId, lease) } }
+        enqueue(MockResponse().setSocketPolicy(SocketPolicy.DISCONNECT_AFTER_REQUEST))
+        val error = assertThrows(RemoteRequestException::class.java) { kotlinx.coroutines.runBlocking { native.native("session/list", jsonObject()) } }
         assertEquals("network.unavailable", error.code)
     }
 }

@@ -15,7 +15,7 @@ import sys
 import tarfile
 import tempfile
 
-FORMAT = "tokenworks-mobile-host-bundle/v1"
+FORMAT = "tokenworks-mobile-host-bundle/v2"
 DSH = "0.2.1-rc.5"
 MAX_FILE = 8 << 20
 MAX_TOTAL = 32 << 20
@@ -26,7 +26,10 @@ MAX_TAR = MAX_TOTAL + MAX_FILES * 1024 + 10240
 HEX = re.compile(r"^[0-9a-f]{64}$")
 VERSION = re.compile(r"^[0-9]+\.[0-9]+\.[0-9]+(?:-[a-zA-Z0-9.]+)?$")
 INPUTS = ["package.json", "package-lock.json", "tsconfig.json", "host/remote-control/package.json",
-          "host/remote-control/tsconfig.build.json", "host/remote-control/README.md", "host/remote-control/src", "host/remote-control/client", "contracts"]
+          "host/remote-control/tsconfig.build.json", "host/remote-control/README.md", "host/remote-control/src", "host/remote-control/client", "contracts",
+          "native/noise-carrier/Cargo.toml", "native/noise-carrier/Cargo.lock", "native/noise-carrier/build.rs",
+          "native/noise-carrier/rust-toolchain.toml", "native/noise-carrier/src", "tools/native/build-noise.py", "tools/native/verify-noise.py"]
+NATIVE = "package/lib/native/tokenworks_noise.node"
 
 class BundleError(Exception):
     pass
@@ -74,7 +77,7 @@ def package_path(value):
             and not any(ord(char) < 32 or ord(char) == 127 for char in value))
     path = PurePosixPath(value)
     require(not path.is_absolute() and path.as_posix() == value and ".." not in path.parts)
-    return value in ("package/package.json", "package/README.md", "package/client/index.js") or (
+    return value in ("package/package.json", "package/README.md", "package/client/index.js", NATIVE) or (
         value.startswith("package/lib/") and len(path.parts) >= 3
         and value.endswith((".js", ".js.map", ".d.ts")))
 
@@ -106,7 +109,9 @@ def inspect_archive(raw):
         require(len(unpacked) >= end + 1024 and not any(unpacked[end:]))
     except (tarfile.TarError, OSError, EOFError) as cause:
         raise BundleError("invalid archive") from cause
-    require(all(name in files for name in ["package/package.json", "package/README.md", "package/lib/index.js", "package/lib/index.d.ts"]))
+    require(all(name in files for name in ["package/package.json", "package/README.md", "package/lib/index.js", "package/lib/index.d.ts", NATIVE]))
+    native = files[NATIVE]
+    require(len(native) >= 64 and (native.startswith(b"\x7fELF") or native[:4] in (b"\xcf\xfa\xed\xfe", b"\xce\xfa\xed\xfe") or native.startswith(b"MZ")))
     package = parse_json(files["package/package.json"])
     require(package.get("name") == "tokenworks-mobile" and VERSION.fullmatch(package.get("version", ""))
             and package.get("type") == "module" and package.get("main") == "lib/index.js"
@@ -141,7 +146,7 @@ def validate(manifest_raw, archive_raw, expected):
         require(isinstance(entry, dict) and set(entry) == {"path", "sha256", "size"}
                 and isinstance(entry["path"], str) and not PurePosixPath(entry["path"]).is_absolute()
                 and ".." not in PurePosixPath(entry["path"]).parts and "\\" not in entry["path"]
-                and (entry["path"] in INPUTS or any(entry["path"].startswith(prefix + "/") for prefix in ["host/remote-control/src", "host/remote-control/client", "contracts"]))
+                and (entry["path"] in INPUTS or any(entry["path"].startswith(prefix + "/") for prefix in ["host/remote-control/src", "host/remote-control/client", "contracts", "native/noise-carrier/src"]))
                 and HEX.fullmatch(entry["sha256"])
                 and type(entry["size"]) is int and entry["size"] >= 0)
     artifact = manifest["artifact"]
@@ -158,13 +163,14 @@ def validate(manifest_raw, archive_raw, expected):
                 and type(entry["size"]) is int and type(entry["mode"]) is int)
     require(artifact["files"] == [file_record(name, files[name]) for name in sorted(files)])
     toolchain = manifest["toolchain"]
-    require(isinstance(toolchain, dict) and set(toolchain) == {"node", "npm", "typescript", "dsh", "installed_dependencies", "platform", "architecture"}
+    require(isinstance(toolchain, dict) and set(toolchain) == {"node", "node_api", "rust", "npm", "typescript", "dsh", "installed_dependencies", "platform", "architecture"}
             and isinstance(toolchain["dsh"], dict) and set(toolchain["dsh"]) == {"version", "entry_sha256"} and toolchain["dsh"].get("version") == DSH
             and HEX.fullmatch(toolchain["dsh"].get("entry_sha256", "")))
     require(isinstance(toolchain["node"], str) and re.fullmatch(r"v24\.[0-9]+\.[0-9]+", toolchain["node"])
             and int(toolchain["node"].split(".")[1]) >= 15
             and isinstance(toolchain["npm"], str) and VERSION.fullmatch(toolchain["npm"])
             and isinstance(toolchain["typescript"], str) and VERSION.fullmatch(toolchain["typescript"]))
+    require(toolchain["node_api"] == 8 and isinstance(toolchain["rust"], str) and re.fullmatch(r"rustc 1\.96\.0 \([0-9a-f]+ [0-9-]+\)", toolchain["rust"]))
     require(isinstance(toolchain["platform"], str) and re.fullmatch(r"[a-z0-9_]+", toolchain["platform"])
             and isinstance(toolchain["architecture"], str) and re.fullmatch(r"[A-Za-z0-9_]+", toolchain["architecture"]))
     require(toolchain["installed_dependencies"] == {**package["dependencies"], **package["peerDependencies"]})
@@ -260,6 +266,8 @@ def build(root, output, dsh):
     audit_imports(root, inputs, expected)
     node = run(["node", "--version"], root).decode().strip()
     require(re.fullmatch(r"v24\.[0-9]+\.[0-9]+", node) and int(node.split(".")[1]) >= 15)
+    rust = run(["rustc", "+1.96.0", "--version"], root).decode().strip()
+    require(re.fullmatch(r"rustc 1\.96\.0 \([0-9a-f]+ [0-9-]+\)", rust))
     dsh_hash = digest(dsh.read_bytes())
     dsh_version = run([str(dsh), "--version"], root, timeout=5).decode().strip()
     require(dsh_version == DSH)
@@ -285,6 +293,8 @@ process.stdout.write(JSON.stringify(result));"""
         (staged / "README.md").write_bytes((root / "host/remote-control/README.md").read_bytes())
         run(["node", str(root / "node_modules/typescript/bin/tsc"), "--project", "host/remote-control/tsconfig.build.json",
              "--outDir", str(staged / "lib"), "--sourceRoot", "../src/"], root, log)
+        run(["python3", "tools/native/build-noise.py", "node", "--node-output", str(staged / "lib/native/tokenworks_noise.node")], root, log, timeout=300)
+        run(["node", "-e", "const n=require(process.argv[1]); if(Number(process.versions.napi)<8)throw Error('e2e/unsupported'); const k=n.generateStatic(); if(k.privateKey.length!==32||k.publicKey.length!==32)throw Error('e2e/key'); const h=n.create(false,k.privateKey,null,new Uint8Array()); k.privateKey.fill(0); n.close(h); n.close(h);", str(staged / "lib/native/tokenworks_noise.node")], root, log)
         packed = parse_json(run(["npm", "pack", ".", "--offline", "--ignore-scripts", "--json", "--pack-destination", str(output)], staged, log))
         if isinstance(packed, dict):
             require(set(packed) == {package["name"]})
@@ -306,7 +316,7 @@ process.stdout.write(JSON.stringify(result));"""
     manifest = {"format": FORMAT, "source": {"commit": commit, "inputs": inputs},
                 "builder_sha256": builder_hash,
                 "package": {key: descriptor[key] for key in ["name", "version", "dependencies", "peerDependencies", "type"]},
-                "toolchain": {"node": node, "npm": run(["npm", "--version"], root).decode().strip(), "typescript": typescript,
+                "toolchain": {"node": node, "node_api": 8, "rust": rust, "npm": run(["npm", "--version"], root).decode().strip(), "typescript": typescript,
                               "dsh": {"version": dsh_version, "entry_sha256": dsh_hash}, "installed_dependencies": installed,
                               "platform": sys.platform, "architecture": platform.machine()},
                 "artifact": {"file": filename, "sha256": digest(raw), "size": len(raw),

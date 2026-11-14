@@ -1,4 +1,5 @@
 import type { Context } from '@deepseek-ai/cordis'
+import { join } from 'node:path'
 import z from '@deepseek-ai/schemastery'
 import type {} from '@deepseek-ai/dsh-client-connection'
 import type {} from '@deepseek-ai/dsh-api-gateway'
@@ -11,6 +12,20 @@ import { RelayTunnel } from './relay-tunnel.js'
 import type { HostCredentialProvider } from './host-connection-credential.js'
 import { HostEnrolledRuntimeError, verifyEnrolledHostRuntime, type HostEnrolledRuntimeOptions } from './host-enrolled-runtime.js'
 import { registerDesktopUI } from './desktop-ui.js'
+import { LanPairing } from './lan-pairing.js'
+import { LanPairingStore } from './lan-pairing-store.js'
+import { NoiseCarrier } from './noise-carrier.js'
+import { RtcCarrierHost } from './rtc-carrier.js'
+import { loadRtcConfig } from './rtc-config.js'
+import { installRemoteTools } from './remote-tools.js'
+import { NotificationReferences } from './notification-references.js'
+export { NotificationReferences } from './notification-references.js'
+export type { NotificationReferenceOptions, NotificationReferenceStatus } from './notification-references.js'
+import type { JournalKeyProtector } from './journal-key-protection.js'
+export { LanPairing } from './lan-pairing.js'
+export { LanPairingStore } from './lan-pairing-store.js'
+export type { LanPairingDescriptor, LanPairingIdentity } from './lan-pairing.js'
+export interface LanSecurity { pairingProtector: JournalKeyProtector }
 export type { HostConnectionCredential, HostCredentialProvider, HostHandshakeSigner, InstallationPublicJwk } from './host-connection-credential.js'
 export { HostRestCredentialProvider, HostCredentialError } from './host-credentials.js'
 export type { HostResourceIdentity, HostResourceAccess, HostResourceRequest, HostResourceAccessProvider, HostRestCredentialOptions } from './host-credentials.js'
@@ -51,8 +66,13 @@ export interface Config {
   applicationVersion?: string
   dshVersion?: string
   pluginVersion?: string
-  /** F-03/N-8: experimental LAN direct connection; disabled unless fully configured. */
-  lan?: { host: string; port: number; certificateCert: string; certificateKey: string; deviceToken: string }
+  /** Operator opt-in; disabled unless the service also configures a push provider. */
+  push?: { enabled?: boolean; ttlSeconds?: number }
+  /** Pairing trust root exists even with the LAN listener disabled. */
+  pairing?: { directory: string; origin: string; certificateCert: string }
+  lan?: { host: string; port: number; certificateKey: string }
+  /** Operator-owned private RTC settings; never accepts model-supplied ICE credentials. */
+  rtcConfigFile?: string
 }
 export const Config: z<Config> = z.object({
   enabled: z.boolean().default(false),
@@ -61,14 +81,13 @@ export const Config: z<Config> = z.object({
   applicationVersion: z.string().default(''),
   dshVersion: z.string().default(''),
   pluginVersion: z.string().default(''),
-  lan: z.object({
-    host: z.string(), port: z.number(),
-    certificateCert: z.string(), certificateKey: z.string(),
-    deviceToken: z.string(),
-  }),
+  push: z.object({ enabled: z.boolean().default(false), ttlSeconds: z.number().default(300) }),
+  pairing: z.object({ directory: z.string(), origin: z.string(), certificateCert: z.string() }),
+  lan: z.object({ host: z.string(), port: z.number(), certificateKey: z.string() }),
+  rtcConfigFile: z.string(),
 })
 
-export async function apply(ctx: Context, config: Config = {}, credentials?: HostCredentialProvider): Promise<void> {
+export async function apply(ctx: Context, config: Config = {}, credentials?: HostCredentialProvider, security?: LanSecurity): Promise<void> {
   if (!config.enabled) return
   const options = Config(config)
   if (!credentials || !options.relayUrl || !options.applicationVersion || !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(options.runtimeId ?? '')) throw new Error('authenticated Relay and stable runtime identity required')
@@ -76,37 +95,49 @@ export async function apply(ctx: Context, config: Config = {}, credentials?: Hos
   const versions = Object.freeze({ dsh: options.dshVersion ?? '', application: options.applicationVersion ?? '', plugin: options.pluginVersion ?? '' })
   if (credentials.origin && credentials.origin !== origin) throw new Error('installation origin changed')
   const child = ctx.plugin({ name: 'tokenworks-mobile-tunnel', inject, async apply(scope: Context) {
+    if (!security?.pairingProtector || !options.pairing) throw new Error('encrypted carrier requires protected pairing configuration')
+    const rtcConfig = await loadRtcConfig(options.rtcConfigFile)
+    const installationId = (await credentials.acquire(new AbortController().signal)).installationId
+    const store = new LanPairingStore(options.pairing.directory, options.runtimeId!, installationId, security.pairingProtector)
+    const pairing = await LanPairing.open({ origin: options.pairing.origin, runtimeId: options.runtimeId!, installationId }, options.pairing.certificateCert, store, scope.connection)
     const gateway = new NativeGateway(scope.connection, scope.typertGateway)
-    const tunnel = new RelayTunnel({ origin, runtimeId: options.runtimeId!, versions, credentials, connection: scope.connection, remoteAccess: scope.remoteAccess, gateway,
+    const carrier = new NoiseCarrier(pairing, gateway, versions.dsh, origin)
+    carrier.setRtcControl(new RtcCarrierHost(pairing, carrier, rtcConfig))
+    const tunnel = new RelayTunnel({ origin, runtimeId: options.runtimeId!, installationId, versions, credentials, connection: scope.connection, remoteAccess: scope.remoteAccess, gateway, carrier,
       resources: () => ({ sessions: scope.sessions.list().map(session => session.id), workspaces: scope.workspaceRegistry.list().map(workspace => workspace.id) }) })
+    carrier.setRelayAuthority((id, secret, owner) => tunnel.admitFresh(id, secret, owner))
+    const references = new NotificationReferences(scope, { origin, runtimeId: options.runtimeId!, credentials,
+      enabled: options.push?.enabled === true, ttlSeconds: options.push?.ttlSeconds ?? 300 })
     let lan: LanGateway | undefined
+    scope.effect(() => async () => {
+      carrier.close()
+      await carrier.drain()
+      pairing.close(); gateway.close()
+      await Promise.all([tunnel.close(), references.close(), lan?.close()])
+    }, 'remote-control.native-tunnel')
+    await installRemoteTools(scope, { dataDir: join(options.pairing.directory, 'remote-tools'),
+      sourceInstallationId: installationId, sourceRuntimeId: options.runtimeId!,
+      protector: security.pairingProtector, ...(credentials.signal ? { ownerSignal: credentials.signal } : {}) })
     if (options.lan) {
-      const lanConfig = options.lan
-      if (!/^[A-Za-z0-9_-]{43}$/.test(lanConfig.deviceToken)) throw new Error('lan deviceToken must be 43 url-safe chars')
-      if (!Number.isInteger(lanConfig.port) || lanConfig.port < 1 || lanConfig.port > 65535) throw new Error('lan port out of range')
-      if (lanConfig.host === '0.0.0.0' || lanConfig.host === '::' || lanConfig.host === '') throw new Error('lan host must be a specific address')
-      lan = new LanGateway({ host: options.lan.host, port: options.lan.port, runtimeId: options.runtimeId!,
-        installationId: (await credentials.acquire(new AbortController().signal)).installationId, connection: scope.connection, remoteAccess: scope.remoteAccess,
-        gateway, resources: () => ({ sessions: scope.sessions.list().map(session => session.id), workspaces: scope.workspaceRegistry.list().map(workspace => workspace.id) }),
-        certificate: { cert: options.lan.certificateCert, key: options.lan.certificateKey },
-        deviceToken: () => options.lan!.deviceToken })
-      void lan.listen().then(() => console.log('lan: listening on', `${options.lan!.host}:${options.lan!.port}`))
-        .catch(error => console.error('lan: listen failed', error))
+      if (!Number.isInteger(options.lan.port) || options.lan.port < 1 || options.lan.port > 65535) throw new Error('lan port out of range')
+      lan = new LanGateway({ host: options.lan.host, port: options.lan.port, connection: scope.connection, gateway, carrier,
+        certificate: { cert: options.pairing.certificateCert, key: options.lan.certificateKey }, pairing })
+      await lan.listen()
     }
     registerDesktopUI(scope, () => ({ runtimeId: options.runtimeId!, relay: { origin, phase: tunnel.status() },
-      lan: lan ? { host: options.lan!.host, port: options.lan!.port, phase: lan.phase() } : null,
-      development: options.applicationVersion === 'local-development-fixture' }))
-    scope.effect(() => async () => { gateway.close(); await tunnel.close(); await lan?.close() }, 'remote-control.native-tunnel')
+      lan: lan ? { host: options.lan!.host, port: options.lan!.port, phase: lan.phase(), ...pairing!.identity } : null,
+      push: { phase: references.status() },
+      development: options.applicationVersion === 'local-development-fixture' }), pairing)
   } })
   await child.await()
 }
 
 /** The distribution supplies installation credentials backed by its protected key owner. */
-export function createRemoteControlPlugin(credentials: HostCredentialProvider) {
-  return { name, inject, apply(ctx: Context, config: Config = {}) { return apply(ctx, config, credentials) } }
+export function createRemoteControlPlugin(credentials: HostCredentialProvider, security?: LanSecurity) {
+  return { name, inject, apply(ctx: Context, config: Config = {}) { return apply(ctx, config, credentials, security) } }
 }
 
-export function createEnrolledRemoteControlPlugin(enrollment: HostEnrolledRuntimeOptions) {
+export function createEnrolledRemoteControlPlugin(enrollment: HostEnrolledRuntimeOptions, security?: LanSecurity) {
   if (!enrollment || !(enrollment.client?.signal instanceof AbortSignal) || !(enrollment.binding?.signal instanceof AbortSignal) || !(enrollment.credentials?.signal instanceof AbortSignal)) throw new HostEnrolledRuntimeError('host.enrolled_runtime.invalid_config')
   const lifetime = AbortSignal.any([enrollment.client.signal, enrollment.binding.signal, enrollment.credentials.signal])
   const credentials: HostCredentialProvider = {
@@ -116,6 +147,6 @@ export function createEnrolledRemoteControlPlugin(enrollment: HostEnrolledRuntim
   return { name, inject, async apply(ctx: Context, config: Config = {}) {
     if (!config.enabled) return
     await verifyEnrolledHostRuntime(enrollment, config.runtimeId ?? '', lifetime)
-    return apply(ctx, config, credentials)
+    return apply(ctx, config, credentials, security)
   } }
 }

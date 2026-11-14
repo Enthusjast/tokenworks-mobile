@@ -1,0 +1,11 @@
+{
+  "lib/index.mjs": { "original": "ac6fba0934023c645c63ea6c67a8bcf322f37cac18fbd50a91bcb8aece4cb164", "patched": "ccd956d6a0b572e3ec086438e75cc53f7f57416b8f21fd891964e8bca47b6722" },
+  "lib/sctp/src/sctp.js": { "original": "cfc6149930815571bc1cf294ae65cf49806b0599bec42f7439d673068b719a4b", "patched": "8b8c1ce08579fe672c2c820605f58594226e9d78333763a00f632efaeec875de" },
+  "lib/dtls/src/socket.js": { "original": "22588d39e6d208a05e02a2ef8a2a070e946213c2d51720d3390eba4fc87f60cd", "patched": "a93e158e634d2216f1e4510153b0e0ca48e9ef88e34a2b357d07440e4d0a235d" },
+  "lib/webrtc/src/transport/sctp.js": { "original": "ab710a82a342c656b91220de19f29f98123f0f38a8f6602a93d36649fe9c7038", "patched": "355dcc9194c2918733fa6dd4c857aac943aca5ec3918e2de3431826dba62f349" },
+  "lib/webrtc/src/transport/dtls.js": { "original": "3b51c2b966926bd9103b67e39fdc68ae530d3ac15bf0cd3e90b9caa5de85f02e", "patched": "d9c138b21df9eaae48651fc2952bcdc4c59d50fbfdb046c051e85ae43d8f6ed1" },
+  "lib/webrtc/src/peerConnection.js": { "original": "b52b96cdc1ad92bea12a716326708017a4e78a03f4e08645aa639dbab066ba56", "patched": "1b059ffbe9b843de1ae1f20b172c5fc0ef7f4e9960757ac8dd9bcc810722f427" },
+  "lib/ice/src/ice.js": { "original": "d4ca708aeef410580a1ac09d3a2881060dcee0b455e1bb45cb33f2b536f4235c", "patched": "2f29d8b461f76f62e17e1d461e308d78256481a22101639e2e3d6e40375e215a" },
+  "lib/common/src/transport.js": { "original": "df45bf5f2f732a8ea3d3b5ae99977c372e6792c6e6aaa78db383ab2655c0bc2c", "patched": "7434d1c523301897618f34ec833f8ab888910d16dcef118ed9d1fb4fc3659d9d" },
+  "lib/webrtc/src/transport/sctp.d.ts": { "original": "27bc7fc755738bb58c37dbf5e8d42edbe29e8926681025b5f1e60fb603aa9cba", "patched": "997a91ea2c052370a1bd0a2920dd29ba198be1beb3241e5f3da53bb19a2ef546" }
+}

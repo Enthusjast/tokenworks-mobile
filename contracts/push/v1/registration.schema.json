@@ -1,36 +1,16 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "type": "object",
-  "properties": {
-    "binding_id": {
-      "type": "string",
-      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
-    },
-    "organization_id": {
-      "type": "string",
-      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
-    },
-    "provider": {
-      "type": "string",
-      "const": "fcm"
-    },
-    "address": {
-      "type": "string",
-      "pattern": "^[A-Za-z0-9_-]{22}$"
-    },
-    "revoke_secret_sha256": {
-      "type": "string",
-      "pattern": "^[0-9a-f]{64}$"
-    }
-  },
-  "required": [
-    "binding_id",
-    "organization_id",
-    "provider",
-    "address",
-    "revoke_secret_sha256"
-  ],
-  "additionalProperties": false,
   "$id": "urn:tokenworks-mobile:push:registration:v1",
-  "description": "Minimal notification references, not execution authority. FCM delivery is data only and never carries tool arguments, question text, signed decisions or file contents. Confirmation requires the original authenticated device and a fresh provider-delivered challenge. Interaction details and all actions require current authorization and native state."
+  "description": "Authenticated registered-device FCM binding. The server binds the supplied local account and verified organization to the current user/device and deployment, and checks the canonical full-owner fingerprint. Rotation replaces the old binding and cancels its pending references. Provider tokens are encrypted at rest and never logged.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["provider", "token", "account_id", "organization_id", "deployment_sha256", "owner_fingerprint"],
+  "properties": {
+    "provider": {"type": "string", "const": "fcm"},
+    "token": {"type": "string", "minLength": 1, "maxLength": 4096, "pattern": "^[!-~]+$"},
+    "account_id": {"type": "string", "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"},
+    "organization_id": {"type": "string", "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"},
+    "deployment_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "owner_fingerprint": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+  }
 }

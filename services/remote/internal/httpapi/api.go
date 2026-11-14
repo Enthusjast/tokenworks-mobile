@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"tokenworks-mobile/services/remote/internal/auth"
+	"tokenworks-mobile/services/remote/internal/push"
 	"tokenworks-mobile/services/remote/internal/relay"
 	"tokenworks-mobile/services/remote/internal/releases"
 	"tokenworks-mobile/services/remote/internal/store"
@@ -61,6 +62,7 @@ type API struct {
 	hostClients map[string]struct{}
 	realtime    *relay.Server
 	releases    *releases.Catalog
+	push        *push.Service
 }
 
 type Handler struct {
@@ -100,6 +102,7 @@ type installationContextKey struct{}
 type Config struct {
 	HostClientIDs []string
 	Releases      *releases.Catalog
+	Push          *push.Service
 }
 
 type deviceRequest struct {
@@ -147,6 +150,7 @@ func New(database Repository, identity *auth.Authenticator, configs ...Config) *
 			}
 		}
 		api.releases = configs[0].Releases
+		api.push = configs[0].Push
 	}
 	realtime := relay.New(database)
 	api.realtime = realtime
@@ -157,6 +161,9 @@ func New(database Repository, identity *auth.Authenticator, configs ...Config) *
 	if api.releases != nil {
 		mux.Handle("GET /v1/app/releases/latest", api.protected(http.HandlerFunc(api.appRelease)))
 	}
+	mux.Handle("POST /v1/push/registrations", api.protected(http.HandlerFunc(api.registerPush)))
+	mux.Handle("DELETE /v1/push/registrations/{id}", api.protected(http.HandlerFunc(api.revokePush)))
+	mux.Handle("POST /v1/push/references", api.installationAuthenticated(http.HandlerFunc(api.emitPush)))
 	mux.Handle("POST /v1/devices", api.phoneAuthenticated(http.HandlerFunc(api.registerDevice)))
 	mux.Handle("GET /v1/devices", api.protected(http.HandlerFunc(api.listDevices)))
 	mux.Handle("GET /v1/installations", api.protected(http.HandlerFunc(api.listInstallations)))
@@ -188,7 +195,7 @@ func New(database Repository, identity *auth.Authenticator, configs ...Config) *
 	mux.Handle("POST /v2/runtimes/{id}/leases", api.protected(http.HandlerFunc(api.issueTunnelLease)))
 	mux.Handle("GET /v2/tunnel-leases/{lease_id}", api.installationAuthenticated(http.HandlerFunc(api.inspectTunnelLease)))
 	mux.Handle("GET /v2/runtimes/{id}/tunnel", api.installationAuthenticated(http.HandlerFunc(api.hostTunnel)))
-	mux.Handle("/api/", api.phoneAuthenticated(http.HandlerFunc(api.deviceAPI)))
+	mux.Handle("GET /v2/runtimes/{id}/carrier", api.phoneAuthenticated(http.HandlerFunc(api.carrier)))
 	return &Handler{router: routerWithJSONErrors(mux), realtime: realtime, api: api}
 }
 
@@ -336,7 +343,9 @@ func (api *API) inspectTunnelLease(response http.ResponseWriter, request *http.R
 		"active": true, "sub": lease.UserID, "aud": lease.RuntimeID,
 		"exp": lease.ExpiresAt.Unix(), "client_id": lease.DeviceID,
 		"device_id": lease.DeviceID, "runtime_id": lease.RuntimeID, "installation_id": lease.InstallationID,
+		"organization_id": lease.OrganizationID,
 		"grant_version": lease.GrantVersion, "bindings": lease.Bindings,
+		"role": lease.Role, "is_installation_owner": lease.IsInstallationOwner,
 	})
 }
 
@@ -349,37 +358,33 @@ func (api *API) hostTunnel(response http.ResponseWriter, request *http.Request) 
 	api.realtime.ServeTunnel(request.PathValue("id"), identity, response, request)
 }
 
-// deviceAPI forwards the whole native request. The Relay never decodes it.
-func (api *API) deviceAPI(response http.ResponseWriter, request *http.Request) {
+// carrier admits only authenticated opaque binary WebSocket transport.
+func (api *API) carrier(response http.ResponseWriter, request *http.Request) {
 	principal, _ := auth.PrincipalFromContext(request.Context())
-	runtimeID := singleHeader(request, "X-TokenWorks-Runtime")
+	runtimeID := request.PathValue("id")
 	secret := singleHeader(request, "X-TokenWorks-Lease")
-	if !uuidPattern.MatchString(runtimeID) || len(secret) != 43 {
+	if !uuidPattern.MatchString(runtimeID) || len(secret) != 43 || request.URL.RawQuery != "" || request.URL.ForceQuery || relay.CarrierPurpose(request) == "" {
 		writeError(response, http.StatusBadRequest, "protocol.invalid")
 		return
 	}
 	lease, forwarded, err := api.admitAndRoute(response, request, store.UserIdentity{Issuer: principal.Issuer, Subject: principal.Subject}, runtimeID, secret)
-	if err != nil || forwarded {
-		return
-	}
-	api.realtime.Proxy(response, request, lease, secret)
+	if err != nil || forwarded { return }
+	api.realtime.Carrier(response, request, lease, secret)
 }
 
-// forwardedDeviceAPI serves requests from another Relay node. The peer is
-// already authenticated by mutual TLS; the lease still proves the device.
-func (api *API) forwardedDeviceAPI(response http.ResponseWriter, request *http.Request) {
+// forwardedCarrier is reachable only behind node mTLS and route fencing.
+// The owning installation independently inspects all current lease facts.
+func (api *API) forwardedCarrier(response http.ResponseWriter, request *http.Request) {
 	runtimeID := singleHeader(request, "X-TokenWorks-Runtime")
 	secret := singleHeader(request, "X-TokenWorks-Lease")
-	if !uuidPattern.MatchString(runtimeID) || len(secret) != 43 {
+	leaseID := singleHeader(request, "X-TokenWorks-Lease-Id")
+	if !uuidPattern.MatchString(runtimeID) || !uuidPattern.MatchString(leaseID) || len(secret) != 43 {
 		writeError(response, http.StatusBadRequest, "protocol.invalid")
 		return
 	}
-	lease, err := api.realtime.AdmitPhone(request.Context(), store.UserIdentity{}, "", runtimeID, secret)
-	if err != nil {
-		api.writeStoreError(response, err)
-		return
-	}
-	api.realtime.Proxy(response, request, lease, secret)
+	lease, err := api.realtime.AdmitForwarded(request.Context(), runtimeID, leaseID, secret)
+	if err != nil { api.writeStoreError(response, err); return }
+	api.realtime.Carrier(response, request, lease, secret)
 }
 
 func (api *API) admitAndRoute(response http.ResponseWriter, request *http.Request, identity store.UserIdentity, runtimeID, secret string) (store.TunnelLeaseIdentity, bool, error) {
@@ -406,14 +411,13 @@ func (api *API) admitAndRoute(response http.ResponseWriter, request *http.Reques
 		api.writeStoreError(response, err)
 		return store.TunnelLeaseIdentity{}, false, err
 	}
-	api.realtime.ForwardNode(response, request, route)
+	api.realtime.ForwardNode(response, request, route, lease, secret)
 	return store.TunnelLeaseIdentity{}, true, nil
 }
 
-// ForwardedDeviceHandler serves node-to-node requests after the Relay's mTLS
-// node admission; it must not be mounted on the public listener.
-func (handler *Handler) ForwardedDeviceHandler() http.Handler {
-	return http.HandlerFunc(handler.api.forwardedDeviceAPI)
+// ForwardedCarrierHandler must only be mounted on the private mTLS listener.
+func (handler *Handler) ForwardedCarrierHandler() http.Handler {
+	return http.HandlerFunc(handler.api.forwardedCarrier)
 }
 
 func (api *API) routingRoute(ctx context.Context, runtimeID string) (store.RuntimeRoute, error) {

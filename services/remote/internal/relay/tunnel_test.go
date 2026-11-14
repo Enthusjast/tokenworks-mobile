@@ -3,255 +3,195 @@ package relay
 import (
 	"bytes"
 	"context"
-	"errors"
+	"crypto/rand"
 	"io"
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"strings"
+	"sync"
 	"testing"
 	"time"
 
 	"github.com/coder/websocket"
+	"tokenworks-mobile/services/remote/internal/store"
 )
 
 const (
-	testRuntimeID  = "aaaaaaaa-1111-4111-8111-111111111111"
-	testDeviceID   = "bbbbbbbb-2222-4222-8222-222222222222"
-	testUserID     = "cccccccc-3333-4333-8333-333333333333"
-	testLeaseID    = "dddddddd-4444-4444-8444-444444444444"
+	testRuntimeID = "aaaaaaaa-1111-4111-8111-111111111111"
+	testDeviceID = "bbbbbbbb-2222-4222-8222-222222222222"
+	testUserID = "cccccccc-3333-4333-8333-333333333333"
+	testLeaseID = "dddddddd-4444-4444-8444-444444444444"
 	testInstanceID = "eeeeeeee-5555-4555-8555-555555555555"
 )
 
-func futureLease() TunnelLease {
-	return TunnelLease{ID: testLeaseID, DeviceID: testDeviceID, UserID: testUserID,
-		RuntimeID: testRuntimeID, GrantVersion: 7, ExpiresAt: time.Now().Add(time.Minute)}
+func futureLease() store.TunnelLeaseIdentity {
+	return store.TunnelLeaseIdentity{LeaseID: testLeaseID, DeviceID: testDeviceID, UserID: testUserID,
+		RuntimeID: testRuntimeID, InstallationID: testInstanceID, GrantVersion: 7, Role: "owner", IsInstallationOwner: true,
+		ExpiresAt: time.Now().Add(time.Minute)}
 }
 
-// A silent host socket: the tunnel never needs a real dsh peer to assert
-// admission and revocation behavior.
-func newTestRuntime(t *testing.T) (*TunnelRuntime, *websocket.Conn) {
+// This fixture carries real HTTP/2 over a real binary WebSocket. Its endpoint
+// handles CONNECT bytes only, so native-looking input cannot become outer HTTP.
+func newTestRuntime(t *testing.T, handler http.Handler) *TunnelRuntime {
 	t.Helper()
-	ready := make(chan *websocket.Conn, 1)
+	protocols := new(http.Protocols)
+	protocols.SetUnencryptedHTTP2(true)
+	host := &http.Server{Handler: handler, Protocols: protocols}
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		socket, err := websocket.Accept(w, r, nil)
-		if err != nil {
-			return
-		}
-		ready <- socket
-		defer socket.Close(websocket.StatusNormalClosure, "test done")
-		for {
-			if _, _, err := socket.Read(r.Context()); err != nil {
-				return
-			}
-		}
+		socket, err := websocket.Accept(w, r, &websocket.AcceptOptions{CompressionMode: websocket.CompressionDisabled})
+		if err != nil { return }
+		defer socket.CloseNow()
+		conn := websocket.NetConn(context.Background(), socket, websocket.MessageBinary)
+		_ = host.Serve(&oneConnListener{conn: conn, done: make(chan struct{})})
 	}))
 	t.Cleanup(server.Close)
-	request, err := http.NewRequest(http.MethodGet, server.URL, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-	request.Header.Set("Connection", "Upgrade")
-	request.Header.Set("Upgrade", "websocket")
-	request.Header.Set("Sec-WebSocket-Version", "13")
-	request.Header.Set("Sec-WebSocket-Key", "dGhlIHNhbXBsZSBub25jZQ==")
-	response, err := http.DefaultClient.Do(request)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer response.Body.Close()
-	socket := <-ready
-	t.Cleanup(func() { socket.CloseNow() })
+	t.Cleanup(func() { host.Close() })
+	socket, _, err := websocket.Dial(context.Background(), server.URL, nil)
+	if err != nil { t.Fatal(err) }
 	runtime := NewTunnelRuntime(context.Background(), socket)
 	t.Cleanup(runtime.Close)
-	return runtime, socket
+	return runtime
 }
 
-func TestTunnelRuntimeProxyRejectsRefusedLeases(t *testing.T) {
-	runtime, _ := newTestRuntime(t)
-	request := httptest.NewRequest(http.MethodGet, "http://dsh-api/session/list", nil)
-
-	lease := futureLease()
-	lease.ID = ""
-	recorder := httptest.NewRecorder()
-	runtime.Proxy(recorder, request, lease, "secret")
-	if recorder.Code != http.StatusUnauthorized {
-		t.Fatalf("empty lease id: got %d", recorder.Code)
-	}
-
-	recorder = httptest.NewRecorder()
-	runtime.Proxy(recorder, request, lease, "")
-	if recorder.Code != http.StatusUnauthorized {
-		t.Fatalf("empty secret: got %d", recorder.Code)
-	}
-
-	expired := futureLease()
-	expired.ExpiresAt = time.Now().Add(-time.Second)
-	recorder = httptest.NewRecorder()
-	runtime.Proxy(recorder, request, expired, "secret")
-	if recorder.Code != http.StatusUnauthorized {
-		t.Fatalf("expired lease: got %d", recorder.Code)
-	}
+type oneConnListener struct {
+	conn net.Conn
+	mu sync.Mutex
+	done chan struct{}
+	once sync.Once
 }
-
-func TestTunnelRuntimeProxyRejectsClosedRuntime(t *testing.T) {
-	runtime, _ := newTestRuntime(t)
-	runtime.Close()
-	recorder := httptest.NewRecorder()
-	runtime.Proxy(recorder, httptest.NewRequest(http.MethodGet, "http://dsh-api/x", nil), futureLease(), "secret")
-	if recorder.Code != http.StatusServiceUnavailable {
-		t.Fatalf("closed runtime: got %d", recorder.Code)
-	}
+func (listener *oneConnListener) Accept() (net.Conn, error) {
+	listener.mu.Lock()
+	if listener.conn != nil { conn := listener.conn; listener.conn = nil; listener.mu.Unlock(); return conn, nil }
+	listener.mu.Unlock()
+	<-listener.done
+	return nil, net.ErrClosed
 }
-
-func TestTunnelRuntimeProxyRejectsChangedLeaseIdentity(t *testing.T) {
-	runtime, _ := newTestRuntime(t)
-	lease := futureLease()
-	// Seed a pool under one grant version, then present different facts.
-	runtime.mu.Lock()
-	runtime.pools[lease.ID] = &tunnelPool{lease: lease, conns: make(map[*connectConn]struct{}), expiry: time.AfterFunc(time.Hour, func() {}), transport: &http.Transport{}}
-	runtime.mu.Unlock()
-	defer runtime.RevokeLease(lease.ID)
-
-	mutated := futureLease()
-	mutated.GrantVersion++
-	recorder := httptest.NewRecorder()
-	runtime.Proxy(recorder, httptest.NewRequest(http.MethodGet, "http://dsh-api/x", nil), mutated, "secret")
-	if recorder.Code != http.StatusUnauthorized {
-		t.Fatalf("changed grant version: got %d", recorder.Code)
-	}
-
-	mutated = futureLease()
-	mutated.DeviceID = testInstanceID
-	recorder = httptest.NewRecorder()
-	runtime.Proxy(recorder, httptest.NewRequest(http.MethodGet, "http://dsh-api/x", nil), mutated, "secret")
-	if recorder.Code != http.StatusUnauthorized {
-		t.Fatalf("changed device: got %d", recorder.Code)
-	}
-}
-
-func TestTunnelRuntimeConnectRefusesMissingSecret(t *testing.T) {
-	runtime, _ := newTestRuntime(t)
-	runtime.mu.Lock()
-	runtime.pools[testLeaseID] = &tunnelPool{lease: futureLease(), conns: make(map[*connectConn]struct{}), expiry: time.AfterFunc(time.Hour, func() {}), transport: &http.Transport{}}
-	runtime.mu.Unlock()
-	defer runtime.RevokeLease(testLeaseID)
-
-	if _, err := runtime.connect(context.Background(), testLeaseID, ""); !errors.Is(err, ErrTunnelAdmission) {
-		t.Fatalf("missing secret: got %v", err)
-	}
-}
-
-func TestTunnelRuntimeConnectEnforcesLeaseBudget(t *testing.T) {
-	runtime, _ := newTestRuntime(t)
-	pool := &tunnelPool{lease: futureLease(), conns: make(map[*connectConn]struct{}), expiry: time.AfterFunc(time.Hour, func() {}), transport: &http.Transport{}}
-	for range maxConnectsPerLease {
-		pool.conns[&connectConn{}] = struct{}{}
-	}
-	runtime.active = maxConnectsPerLease
-	runtime.mu.Lock()
-	runtime.pools[testLeaseID] = pool
-	runtime.mu.Unlock()
-	defer runtime.RevokeLease(testLeaseID)
-
-	if _, err := runtime.connect(context.Background(), testLeaseID, "secret"); !errors.Is(err, ErrTunnelAdmission) {
-		t.Fatalf("full lease budget admitted: %v", err)
-	}
-
-	runtime.mu.Lock()
-	pool.conns = make(map[*connectConn]struct{})
-	runtime.pools[testLeaseID] = pool
-	runtime.mu.Unlock()
-
-	for range maxConnectsPerRuntime {
-		runtime.active++
-	}
-	if _, err := runtime.connect(context.Background(), testLeaseID, "secret"); !errors.Is(err, ErrTunnelAdmission) {
-		t.Fatalf("full runtime budget admitted: %v", err)
-	}
-}
-
-func TestTunnelRuntimeRevokeDeviceDropsOnlyOwnLeases(t *testing.T) {
-	runtime, _ := newTestRuntime(t)
-	own := futureLease()
-	other := futureLease()
-	other.DeviceID = testInstanceID
-	other.ID = testInstanceID
-	runtime.mu.Lock()
-	runtime.pools[own.ID] = &tunnelPool{lease: own, conns: make(map[*connectConn]struct{}), expiry: time.AfterFunc(time.Hour, func() {}), transport: &http.Transport{}}
-	runtime.pools[other.ID] = &tunnelPool{lease: other, conns: make(map[*connectConn]struct{}), expiry: time.AfterFunc(time.Hour, func() {}), transport: &http.Transport{}}
-	runtime.mu.Unlock()
-
-	runtime.RevokeDevice(testDeviceID)
-
-	runtime.mu.Lock()
-	_, ownLeft := runtime.pools[own.ID]
-	_, otherLeft := runtime.pools[other.ID]
-	runtime.mu.Unlock()
-	if ownLeft {
-		t.Fatal("own device lease survived revocation")
-	}
-	if !otherLeft {
-		t.Fatal("unrelated lease was revoked")
-	}
-}
-
-func TestTunnelRuntimeRevokeLeaseClosesConnections(t *testing.T) {
-	runtime, _ := newTestRuntime(t)
-	runtime.mu.Lock()
-	runtime.pools[testLeaseID] = &tunnelPool{lease: futureLease(), conns: make(map[*connectConn]struct{}), expiry: time.AfterFunc(time.Hour, func() {}), transport: &http.Transport{}}
-	runtime.mu.Unlock()
-
-	conn := &connectConn{reader: io.NopCloser(bytes.NewReader(nil))}
-	closed := make(chan struct{})
-	conn.onClose = func() { close(closed) }
-	runtime.mu.Lock()
-	runtime.pools[testLeaseID].conns[conn] = struct{}{}
-	runtime.active++
-	runtime.mu.Unlock()
-
-	runtime.RevokeLease(testLeaseID)
-	select {
-	case <-closed:
-	case <-time.After(time.Second):
-		t.Fatal("revoked lease did not close its connection")
-	}
-	runtime.mu.Lock()
-	active := runtime.active
-	pools := len(runtime.pools)
-	runtime.mu.Unlock()
-	if active != 0 || pools != 0 {
-		t.Fatalf("bookkeeping leaked: active=%d pools=%d", active, pools)
-	}
-}
-
-func TestMessageBoundConnWritesIn64KiBChunks(t *testing.T) {
-	var sizes []int
-	base := writeCounter(func(data []byte) (int, error) {
-		sizes = append(sizes, len(data))
-		return len(data), nil
-	})
-	conn := &messageBoundConn{Conn: base}
-	payload := make([]byte, 64<<10+17)
-	if _, err := conn.Write(payload); err != nil {
-		t.Fatal(err)
-	}
-	if len(sizes) != 2 || sizes[0] != 64<<10 || sizes[1] != 17 {
-		t.Fatalf("unexpected chunking: %v", sizes)
-	}
-}
-
-type writeCounter func([]byte) (int, error)
-
-func (write writeCounter) Read([]byte) (int, error)         { return 0, io.EOF }
-func (write writeCounter) Write(data []byte) (int, error)   { return write(data) }
-func (write writeCounter) Close() error                     { return nil }
-func (write writeCounter) LocalAddr() net.Addr              { return netAddr{} }
-func (write writeCounter) RemoteAddr() net.Addr             { return netAddr{} }
-func (write writeCounter) SetDeadline(time.Time) error      { return nil }
-func (write writeCounter) SetReadDeadline(time.Time) error  { return nil }
-func (write writeCounter) SetWriteDeadline(time.Time) error { return nil }
-
+func (listener *oneConnListener) Close() error { listener.once.Do(func() { close(listener.done) }); return nil }
+func (listener *oneConnListener) Addr() net.Addr { return netAddr{} }
 type netAddr struct{}
-
 func (netAddr) Network() string { return "test" }
-func (netAddr) String() string  { return "test" }
+func (netAddr) String() string { return "test" }
+
+func dialCarrier(t *testing.T, runtime *TunnelRuntime, lease store.TunnelLeaseIdentity) (*websocket.Conn, context.Context) {
+	t.Helper()
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		runtime.Carrier(w, r, lease, strings.Repeat("a", 43))
+	}))
+	t.Cleanup(server.Close)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	t.Cleanup(cancel)
+	socket, _, err := websocket.Dial(ctx, server.URL, &websocket.DialOptions{HTTPHeader: http.Header{carrierPurposeHeader: {"native"}}})
+	if err != nil { t.Fatal(err) }
+	t.Cleanup(func() { socket.CloseNow() })
+	return socket, ctx
+}
+
+func echoConnect(t *testing.T, done chan<- struct{}) http.Handler {
+	t.Helper()
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		defer func() { if done != nil { done <- struct{}{} } }()
+		if r.Method != http.MethodConnect || r.ProtoMajor != 2 || r.Host != tunnelAuthority ||
+			r.Header.Get("Proxy-Authorization") != "Bearer "+strings.Repeat("a", 43) ||
+			r.Header.Get("X-TokenWorks-Lease-Id") != testLeaseID || r.Header.Get(carrierPurposeHeader) != "native" {
+			t.Errorf("wrong carrier CONNECT: %s %s %s %v", r.Method, r.Proto, r.Host, r.Header)
+			w.WriteHeader(http.StatusForbidden); return
+		}
+		w.WriteHeader(http.StatusOK)
+		w.(http.Flusher).Flush()
+		buffer := make([]byte, carrierBufferBytes)
+		for {
+			n, err := r.Body.Read(buffer)
+			if n > 0 { if _, writeErr := w.Write(buffer[:n]); writeErr != nil { return }; w.(http.Flusher).Flush() }
+			if err != nil { return }
+		}
+	})
+}
+
+func TestCarrierOpaqueBinaryRoundTrip(t *testing.T) {
+	done := make(chan struct{}, 1)
+	runtime := newTestRuntime(t, echoConnect(t, done))
+	socket, ctx := dialCarrier(t, runtime, futureLease())
+	payload := make([]byte, 180<<10)
+	if _, err := rand.Read(payload); err != nil { t.Fatal(err) }
+	copy(payload, []byte("GET /api/private HTTP/1.1\r\nAuthorization: cleartext-canary\r\n\r\n\x00\xff"))
+	// Writes and reads run concurrently: larger-than-window traffic must not
+	// depend on an unbounded queue on either side.
+	written := make(chan error, 1)
+	go func() { written <- socket.Write(ctx, websocket.MessageBinary, payload) }()
+	wire := websocket.NetConn(ctx, socket, websocket.MessageBinary)
+	socket.SetReadLimit(carrierWindowBytes)
+	actual := make([]byte, len(payload))
+	if _, err := io.ReadFull(wire, actual); err != nil { t.Fatal(err) }
+	if err := <-written; err != nil { t.Fatal(err) }
+	if !bytes.Equal(actual, payload) { t.Fatal("opaque carrier changed bytes") }
+	socket.CloseNow()
+	select { case <-done: case <-ctx.Done(): t.Fatal("phone cancellation did not close CONNECT") }
+}
+
+func TestCarrierExpiryAndRevocationCloseBothSides(t *testing.T) {
+	for _, revoke := range []bool{false, true} {
+		t.Run(map[bool]string{false:"expiry", true:"revoke"}[revoke], func(t *testing.T) {
+			done := make(chan struct{}, 1)
+			runtime := newTestRuntime(t, echoConnect(t, done))
+			lease := futureLease()
+			if !revoke { lease.ExpiresAt = time.Now().Add(500*time.Millisecond) }
+			socket, ctx := dialCarrier(t, runtime, lease)
+			if err := socket.Write(ctx, websocket.MessageBinary, []byte{0, 255, 1}); err != nil { t.Fatal(err) }
+			if _, _, err := socket.Read(ctx); err != nil { t.Fatal(err) }
+			if revoke { runtime.RevokeDevice(testDeviceID) }
+			if _, _, err := socket.Read(ctx); err == nil { t.Fatal("retired lease left phone WS open") }
+			select { case <-done: case <-ctx.Done(): t.Fatal("retired lease left CONNECT open") }
+			runtime.mu.Lock(); count := len(runtime.streams); runtime.mu.Unlock()
+			if count != 0 { t.Fatalf("retired carrier leaked %d streams", count) }
+		})
+	}
+}
+
+func TestCarrierRejectsTextAndClosesCONNECT(t *testing.T) {
+	done := make(chan struct{}, 1)
+	runtime := newTestRuntime(t, echoConnect(t, done))
+	socket, ctx := dialCarrier(t, runtime, futureLease())
+	if err := socket.Write(ctx, websocket.MessageText, []byte("not binary")); err != nil { t.Fatal(err) }
+	if _, _, err := socket.Read(ctx); err == nil { t.Fatal("text carrier accepted") }
+	select { case <-done: case <-ctx.Done(): t.Fatal("text failure did not close CONNECT") }
+}
+
+func TestCarrierConnectRefusesExpiredAndMissingLease(t *testing.T) {
+	runtime := newTestRuntime(t, echoConnect(t, nil))
+	for _, change := range []func(*store.TunnelLeaseIdentity){
+		func(lease *store.TunnelLeaseIdentity) { lease.LeaseID = "" },
+		func(lease *store.TunnelLeaseIdentity) { lease.ExpiresAt = time.Now().Add(-time.Second) },
+	} {
+		lease := futureLease(); change(&lease)
+		if _, err := runtime.connect(context.Background(), lease, strings.Repeat("a",43), "native"); err == nil { t.Fatal("invalid lease accepted") }
+	}
+}
+
+func TestCarrierDeviceBudgetSpansLeases(t *testing.T) {
+	runtime := newTestRuntime(t, echoConnect(t, nil))
+	lease := futureLease()
+	for range maxConnectsPerLease {
+		stream, err := runtime.connect(context.Background(), lease, strings.Repeat("a",43), "native")
+		if err != nil { t.Fatal(err) }
+		defer stream.Close()
+	}
+	lease.LeaseID = testInstanceID
+	if _, err := runtime.connect(context.Background(), lease, strings.Repeat("a",43), "native"); err == nil { t.Fatal("new lease bypassed device carrier budget") }
+}
+
+func TestCarrierHostEOFClosesPhoneWithoutRetry(t *testing.T) {
+	var calls atomicCounter
+	runtime := newTestRuntime(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls.add()
+		w.WriteHeader(http.StatusOK); w.(http.Flusher).Flush()
+		w.Write([]byte{0, 1, 255}); w.(http.Flusher).Flush()
+	}))
+	socket, ctx := dialCarrier(t, runtime, futureLease())
+	for { if _, _, err := socket.Read(ctx); err != nil { break } }
+	if calls.get() != 1 { t.Fatal("carrier CONNECT retried") }
+}
+
+type atomicCounter struct { mu sync.Mutex; n int }
+func (counter *atomicCounter) add() { counter.mu.Lock(); counter.n++; counter.mu.Unlock() }
+func (counter *atomicCounter) get() int { counter.mu.Lock(); defer counter.mu.Unlock(); return counter.n }

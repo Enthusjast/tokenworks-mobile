@@ -147,7 +147,7 @@ class HostBindingFlow internal constructor(
                 val entries = response.obj("data").array("items").map { RuntimeDirectoryEntry.parse(it as? JsonObject ?: throw ProtocolException()) }
                 val grant = entries.singleOrNull { it.id == details.runtimeId }
                 if (grant != null && grant.organizationId == details.organizationId && grant.hostId == details.hostId &&
-                    (grant.allows("session/list") || grant.allows("host/list")) && (grant.expiresAt == null || grant.expiresAt > System.currentTimeMillis())) {
+                    (grant.allows("session/list") || grant.allows("host/list")) && (grant.expiresAt?.let { it > System.currentTimeMillis() } ?: true)) {
                     publish(stamp, HostBindingState(HostBindingPhase.READY, details.id, details)); onReady(); return
                 }
                 phase = HostBindingPhase.WAITING_ACCESS

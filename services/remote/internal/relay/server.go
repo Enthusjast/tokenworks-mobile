@@ -1,6 +1,5 @@
-// Package relay carries opaque native dsh traffic. It authenticates devices
-// and installations, admits short-lived leases, and forwards whole HTTP/WS
-// requests to the node that owns a runtime tunnel. It never parses dsh bodies.
+// Package relay authenticates transport endpoints and splices opaque binary
+// carriers. Native authentication and all business protocols stay end to end.
 package relay
 
 import (
@@ -33,6 +32,7 @@ type Repository interface {
     TouchRuntimeConnection(context.Context, string, string, string, string) error
     DetachRuntimeConnection(context.Context, string, string, string, string) error
     VerifyTunnelLease(context.Context, store.UserIdentity, string, string, string) (store.TunnelLeaseIdentity, error)
+    InspectTunnelLease(context.Context, string, string, string) (store.TunnelLeaseIdentity, error)
 }
 
 // Server owns the live Host tunnels on this node and the phone forwarding path.
@@ -113,7 +113,7 @@ func (server *Server) ServeTunnel(runtimeID string, installation store.HostCrede
         return
     }
     go server.keepAlive(ctx, tunnel)
-    <-ctx.Done()
+    select { case <-ctx.Done(): case <-tunnel.runtime.ctx.Done(): cancel() }
     tunnel.runtime.Close()
     server.unregister(tunnel)
     close(tunnel.done)
@@ -171,28 +171,40 @@ func (server *Server) keepAlive(ctx context.Context, tunnel *hostTunnel) {
 // AdmitPhone verifies the lease facts before anything is forwarded. The device
 // identity comes from the access token, never from the lease header.
 func (server *Server) AdmitPhone(ctx context.Context, principal store.UserIdentity, deviceID, runtimeID, leaseSecret string) (store.TunnelLeaseIdentity, error) {
-    if !uuidPattern.MatchString(runtimeID) || !uuidPattern.MatchString(deviceID) {
+    if principal.Issuer == "" || principal.Subject == "" || !uuidPattern.MatchString(runtimeID) || !uuidPattern.MatchString(deviceID) {
         return store.TunnelLeaseIdentity{}, ErrTunnelLease
     }
     lease, err := server.database.VerifyTunnelLease(ctx, principal, deviceID, runtimeID, leaseSecret)
     if err != nil {
         return store.TunnelLeaseIdentity{}, ErrTunnelLease
     }
-    if lease.RuntimeID != runtimeID {
+    if lease.RuntimeID != runtimeID || lease.DeviceID != deviceID || !uuidPattern.MatchString(lease.LeaseID) || !lease.ExpiresAt.After(time.Now()) {
         return store.TunnelLeaseIdentity{}, ErrTunnelLease
     }
     return lease, nil
 }
 
-// Proxy sends one phone request over the runtime's tunnel on this node.
-func (server *Server) Proxy(response http.ResponseWriter, request *http.Request, lease store.TunnelLeaseIdentity, secret string) {
+// AdmitForwarded never impersonates a phone with an empty principal. Node mTLS
+// authorizes forwarding only; the owning installation checks the current lease.
+func (server *Server) AdmitForwarded(ctx context.Context, runtimeID, leaseID, secret string) (store.TunnelLeaseIdentity, error) {
+    tunnel := server.tunnel(runtimeID)
+    if tunnel == nil || !uuidPattern.MatchString(leaseID) { return store.TunnelLeaseIdentity{}, store.ErrTunnelLeaseInvalid }
+    lease, err := server.database.InspectTunnelLease(ctx, tunnel.installationID, leaseID, secret)
+    if err != nil { return store.TunnelLeaseIdentity{}, err }
+    if lease.LeaseID != leaseID || lease.RuntimeID != runtimeID || lease.InstallationID != tunnel.installationID ||
+        !uuidPattern.MatchString(lease.DeviceID) || !lease.ExpiresAt.After(time.Now()) {
+        return store.TunnelLeaseIdentity{}, store.ErrTunnelLeaseInvalid
+    }
+    return lease, nil
+}
+
+func (server *Server) Carrier(response http.ResponseWriter, request *http.Request, lease store.TunnelLeaseIdentity, secret string) {
     tunnel := server.tunnel(lease.RuntimeID)
-    if tunnel == nil {
+    if tunnel == nil || tunnel.installationID != lease.InstallationID {
         writeError(response, http.StatusServiceUnavailable, "runtime.offline")
         return
     }
-    tunnel.runtime.Proxy(response, request, TunnelLease{ID: lease.LeaseID, DeviceID: lease.DeviceID, UserID: lease.UserID,
-        RuntimeID: lease.RuntimeID, GrantVersion: lease.GrantVersion, ExpiresAt: lease.ExpiresAt}, secret)
+    tunnel.runtime.Carrier(response, request, lease, secret)
 }
 
 // OwnsRuntime reports whether this node holds the runtime tunnel.
@@ -210,7 +222,13 @@ func (server *Server) ApplyControlEvent(ctx context.Context, event store.Control
         if event.RuntimeID != "" && tunnel.runtimeID != event.RuntimeID {
             continue
         }
-        tunnel.runtime.RevokeDevice(event.DeviceID)
+        tunnel.runtime.revoke(func(lease store.TunnelLeaseIdentity) bool {
+            switch event.Topic {
+            case "device.revoked": return event.DeviceID != "" && lease.DeviceID == event.DeviceID
+            case "runtime.revoked": return lease.RuntimeID == event.RuntimeID
+            default: return event.UserID != "" && lease.UserID == event.UserID
+            }
+        })
         if event.Topic == "runtime.revoked" && event.RuntimeID == tunnel.runtimeID {
             tunnels = append(tunnels, tunnel)
         }
@@ -222,7 +240,19 @@ func (server *Server) ApplyControlEvent(ctx context.Context, event store.Control
     return nil
 }
 
-func (server *Server) RevalidateConnections(ctx context.Context) error { return nil }
+func (server *Server) RevalidateConnections(ctx context.Context) error {
+    server.mu.Lock()
+    tunnels := make([]*hostTunnel, 0, len(server.tunnels))
+    for _, tunnel := range server.tunnels { tunnels = append(tunnels, tunnel) }
+    server.mu.Unlock()
+    var result error
+    for _, tunnel := range tunnels {
+        result = errors.Join(result, tunnel.runtime.Revalidate(ctx, func(ctx context.Context, id, secret string) (store.TunnelLeaseIdentity, error) {
+            return server.database.InspectTunnelLease(ctx, tunnel.installationID, id, secret)
+        }))
+    }
+    return result
+}
 
 func (server *Server) Drain(ctx context.Context) error {
     server.mu.Lock()

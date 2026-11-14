@@ -101,10 +101,34 @@ val prepareLocalDevTrust by tasks.registering {
     }
 }
 
+val noiseJniLibraries = layout.buildDirectory.dir("generated/noise/jniLibs")
+val buildNoiseAndroid by tasks.registering(Exec::class) {
+    val repository = rootProject.projectDir.parentFile
+    workingDir(repository)
+    commandLine("python3", "tools/native/build-noise.py", "android", "--android-output", noiseJniLibraries.get().asFile.absolutePath)
+    inputs.dir(repository.resolve("native/noise-carrier/src"))
+    inputs.files(repository.resolve("native/noise-carrier/Cargo.toml"), repository.resolve("native/noise-carrier/Cargo.lock"),
+        repository.resolve("native/noise-carrier/build.rs"), repository.resolve("native/noise-carrier/rust-toolchain.toml"),
+        repository.resolve("tools/native/build-noise.py"), repository.resolve("tools/native/verify-noise.py"))
+    outputs.dir(noiseJniLibraries)
+}
+
+val boundedRtcAar = layout.buildDirectory.file("generated/webrtc/tokenworks-webrtc.aar")
+val buildWebRtcAndroid by tasks.registering(Exec::class) {
+    val repository = rootProject.projectDir.parentFile
+    workingDir(repository)
+    commandLine("python3", "tools/native/build-webrtc.py", "--output", boundedRtcAar.get().asFile.absolutePath)
+    inputs.files(repository.resolve("native/webrtc/source.lock.json"), repository.resolve("native/webrtc/bounded-carrier.patch"),
+        repository.resolve("tools/native/build-webrtc.py"))
+    outputs.file(boundedRtcAar)
+    outputs.file(layout.buildDirectory.file("generated/webrtc/build-proof.json"))
+}
+
 android {
     namespace = "cn.edu.ustc.tokenworks"
     compileSdk = 36
     buildToolsVersion = "35.0.0"
+    ndkVersion = "28.2.13676358"
     defaultConfig {
         applicationId = "cn.edu.ustc.tokenworks"
         minSdk = 26
@@ -113,6 +137,7 @@ android {
         versionName = "0.1.0-dev"
         manifestPlaceholders["appAuthRedirectScheme"] = "cn.edu.ustc.tokenworks"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        ndk { abiFilters += listOf("arm64-v8a", "armeabi-v7a", "x86", "x86_64") }
         testInstrumentationRunnerArguments["accountFixture"] = providers.gradleProperty("accountFixture").orElse("false").get()
         testInstrumentationRunnerArguments["networkFixture"] = providers.gradleProperty("networkFixture").orElse("false").get()
     }
@@ -120,8 +145,10 @@ android {
     compileOptions { sourceCompatibility = JavaVersion.VERSION_17; targetCompatibility = JavaVersion.VERSION_17 }
     sourceSets.getByName("main").assets.srcDir(deploymentAssets)
     sourceSets.getByName("debug").res.srcDir(localDevTrustResources)
+    sourceSets.getByName("main").jniLibs.srcDir(noiseJniLibraries)
+    packaging { jniLibs { useLegacyPackaging = false } }
 }
-tasks.named("preBuild") { dependsOn(prepareDeployment) }
+tasks.named("preBuild") { dependsOn(prepareDeployment, buildNoiseAndroid) }
 tasks.matching { it.name == "preDebugBuild" }.configureEach { dependsOn(prepareLocalDevTrust) }
 kotlin { jvmToolchain(17) }
 kapt { correctErrorTypes = true }
@@ -129,6 +156,11 @@ dependencies {
     implementation(platform(libs.compose.bom))
     implementation(project(":core:auth"))
     implementation(project(":core:network"))
+    implementation(project(":core:crypto"))
+    implementation(project(":core:protocol"))
+    implementation(project(":core:dsh-protocol"))
+    implementation(project(":core:dsh-client"))
+    implementation(project(":core:session"))
     implementation(project(":core:keystore"))
     implementation(project(":core:ui"))
     implementation(libs.activity.compose)
@@ -138,6 +170,9 @@ dependencies {
     implementation(libs.coroutines.android)
     implementation(libs.androidx.browser)
     implementation(libs.appauth)
+    implementation(libs.firebase.messaging)
+    implementation("androidx.exifinterface:exifinterface:1.4.1")
+    implementation(files(boundedRtcAar).builtBy(buildWebRtcAndroid))
     implementation(libs.hilt.android)
     kapt(libs.hilt.compiler)
     testImplementation(libs.junit)

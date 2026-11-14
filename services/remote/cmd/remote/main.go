@@ -77,6 +77,10 @@ func run() error {
 	if err != nil {
 		return err
 	}
+	apiConfig.Push, err = loadPush(os.Getenv("REMOTE_PUSH_CONFIG_FILE"), database, recovery)
+	if err != nil {
+		return err
+	}
 	consumer, err := database.NewControlConsumer(context.Background(), nodeID)
 	if err != nil {
 		return errors.New("remote control consumer is unavailable or already active")
@@ -106,7 +110,7 @@ func run() error {
 	}
 	accessLog := slog.New(slog.NewJSONHandler(os.Stderr, nil))
 	privateEndpoint, err := startRelayEndpoint(relayConfig,
-		requestlog.Middleware(recovery.Middleware(handler.PrivateRelayHandler(handler.ForwardedDeviceHandler())), "relay", accessLog))
+		requestlog.Middleware(recovery.Middleware(handler.PrivateRelayHandler(handler.ForwardedCarrierHandler())), "relay", accessLog))
 	if err != nil {
 		return err
 	}
@@ -158,6 +162,13 @@ func run() error {
 			proofs.Run(controlCtx)
 		}
 	}()
+	pushDone := make(chan struct{})
+	go func() {
+		defer close(pushDone)
+		if apiConfig.Push != nil {
+			apiConfig.Push.Run(controlCtx)
+		}
+	}()
 	go func() {
 		defer close(controlDone)
 		if err := control.RunConsumer(controlCtx, consumer, handler); err != nil {
@@ -169,6 +180,7 @@ func run() error {
 		<-controlDone
 		<-proofsDone
 		<-recoveryDone
+		<-pushDone
 	}()
 	result := make(chan error, 1)
 	go func() { result <- server.ListenAndServe() }()

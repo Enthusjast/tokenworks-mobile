@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto'
+import { WireDecoder, WireEncoder, WireError, WIRE_FRAME_BYTES, WIRE_LOGICAL_BYTES, WIRE_QUEUE_BYTES, WIRE_QUEUE_COUNT } from './wire-codec.js'
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http'
 import type { Duplex } from 'node:stream'
 import { Readable } from 'node:stream'
@@ -13,11 +13,13 @@ import { parseRemoteStreamClientMessage, REMOTE_STREAM_MUX_PATH } from '@deepsee
 /** HTTP stays inside authenticated CONNECT streams; this server never listens on a port. */
 export class NativeGateway {
   readonly #server = createServer({ maxHeaderSize: 32 * 1024 })
-  readonly #websockets = new WebSocketServer({ noServer: true, maxPayload: 2 * 1024 * 1024, perMessageDeflate: false })
+  readonly #websockets = new WebSocketServer({ noServer: true, maxPayload: WIRE_FRAME_BYTES, perMessageDeflate: false })
   readonly #peers = new WeakMap<object, PeerScope>()
+  readonly #upgraded = new WeakSet<object>()
   readonly #fetch: ConnectionFetchHandler
   readonly #sockets = new Set<Duplex>()
   readonly #gateway: TypertGateway
+  readonly #muxSockets = new Set<WebSocket>()
 
   constructor(connection: HostConnectionHandle, gateway: TypertGateway) {
     this.#fetch = connection.createSharedFetchHandler('/api')
@@ -32,20 +34,18 @@ export class NativeGateway {
         socket.end('HTTP/1.1 404 Not Found\r\nConnection: close\r\n\r\n')
         return
       }
+      this.#upgraded.add(request.socket)
       this.#websockets.handleUpgrade(request, socket, head, ws => this.#mux(ws, peer))
     })
-  }
-
-  /** Shared mux entry for both the HTTP-upgrade path and the LAN gateway. */
-  acceptMux(socket: WebSocket, peer: PeerScope): void {
-    this.#mux(socket, peer)
   }
 
   accept(socket: Duplex, peer: PeerScope): void {
     if (peer.signal.aborted) { socket.destroy(); return }
     this.#peers.set(socket, peer)
     this.#sockets.add(socket)
-    socket.once('close', () => this.#sockets.delete(socket))
+    const revoked = () => { if (!this.#upgraded.has(socket)) socket.destroy(new Error('native/revoked')) }
+    peer.signal.addEventListener('abort', revoked, { once: true })
+    socket.once('close', () => { this.#sockets.delete(socket); peer.signal.removeEventListener('abort', revoked) })
     this.#server.emit('connection', socket)
   }
 
@@ -69,7 +69,17 @@ export class NativeGateway {
       result.headers.forEach((value, key) => { if (key !== 'set-cookie') response.setHeader(key, value) })
       const cookies = result.headers.getSetCookie()
       if (cookies.length) response.setHeader('set-cookie', cookies)
-      if (result.body) await pipeline(Readable.fromWeb(result.body as NodeReadableStream<Uint8Array>), response)
+      if (result.body) await pipeline(
+        Readable.fromWeb(result.body as NodeReadableStream<Uint8Array>),
+        async function* (source: AsyncIterable<Uint8Array>) {
+          // Native file bodies may arrive as one large chunk. Bound each write
+          // before ServerResponse queues it on the encrypted carrier.
+          for await (const chunk of source) {
+            for (let offset = 0; offset < chunk.length; offset += 32 * 1024) yield chunk.subarray(offset, offset + 32 * 1024)
+          }
+        },
+        response,
+      )
       else response.end()
     } catch {
       if (!response.headersSent) response.writeHead(502).end()
@@ -78,74 +88,133 @@ export class NativeGateway {
   }
 
   #mux(socket: WebSocket, peer: PeerScope): void {
-    type Stream = { cancel: AbortController; inbox: unknown[]; bytes: number; ended: boolean; wake?: () => void }
+    type Stream = { cancel: AbortController; inbox: { value: unknown; bytes: number }[]; bytes: number; ended: boolean; wake?: () => void }
+    type Output = { text: string; bytes: number; signal: AbortSignal; resolve: () => void; reject: (error: unknown) => void }
     const streams = new Map<string, Stream>()
-    let closed = false
-    // F-13: the Android mux parses frames with a 128 KiB budget; a larger item
-    // would close the phone-side connection on every reconnect. Serialize,
-    // check, and fragment oversized payloads into session-fragment items the
-    // phone reassembles via SessionFragments.
-    const sendItem = async (streamId: string, value: unknown): Promise<void> => {
-      const direct = JSON.stringify(value === undefined ? { type: 'item', streamId } : { type: 'item', streamId, value })
-      if (Buffer.byteLength(direct) <= 128 * 1024) { await sendText(direct); return }
-      const encoded = Buffer.from(JSON.stringify(value), 'utf8').toString('base64')
-      const chunkSize = 96 * 1024
-      const count = Math.ceil(encoded.length / chunkSize)
-      if (count > 64) { throw new Error('native frame too large to fragment') }
-      for (let index = 0; index < count; index++) {
-        const fragment = { type: 'session.fragment', fragment_id: randomUUID(), index, count,
-          data: encoded.slice(index * chunkSize, (index + 1) * chunkSize) }
-        await sendText(JSON.stringify({ type: 'item', streamId, value: { type: 'session.fragment', event: { ...fragment } } }))
-      }
-    }
-    const send = async (value: unknown): Promise<void> => {
-      if (closed || socket.readyState !== socket.OPEN) throw new Error('native mux closed')
-      if (value && typeof value === 'object' && 'type' in value && (value as { type: string }).type === 'item' && 'streamId' in value) {
-        const { streamId, ...rest } = value as { streamId: string; value?: unknown }
-        await sendItem(streamId, rest.value)
-        return
-      }
-      await sendText(JSON.stringify(value))
-    }
-    const sendText = async (text: string): Promise<void> => {
-      if (closed || socket.readyState !== socket.OPEN) throw new Error('native mux closed')
-      if (socket.bufferedAmount + Buffer.byteLength(text) > 4 * 1024 * 1024) { socket.close(1013, 'receiver too slow'); throw new Error('native mux backpressure') }
-      const sent = Promise.withResolvers<void>()
-      socket.send(text, error => error ? sent.reject(error) : sent.resolve())
-      await sent.promise
-    }
+    const outputs: Output[] = []
+    const encoder = new WireEncoder()
+    const lifetime = new AbortController()
+    let bytes = 0, count = 0, writing = false, closed = false
+    this.#muxSockets.add(socket)
     const dispose = () => {
       if (closed) return
       closed = true
-      for (const stream of streams.values()) { stream.cancel.abort(); stream.wake?.() }
+      lifetime.abort()
+      decoder.close()
+      for (const stream of streams.values()) { stream.cancel.abort(); stream.wake?.(); stream.inbox.length = 0 }
       streams.clear()
+      for (const output of outputs.splice(0)) output.reject(new WireError('wire/closed'))
+      bytes = 0; count = 0
+      this.#muxSockets.delete(socket)
+      peer.signal.removeEventListener('abort', revoked)
       socket.close(1000)
-      peer.signal.removeEventListener('abort', dispose)
     }
-    peer.signal.addEventListener('abort', dispose, { once: true })
+    const rejectPeer = (code: number, reason: string) => { socket.close(code, reason); dispose() }
+    const revoked = () => rejectPeer(1008, 'wire/revoked')
+    const decoder = new WireDecoder(error => rejectPeer(1008, error.code))
+    const sendText = async (text: string): Promise<void> => {
+      if (closed || socket.readyState !== socket.OPEN) throw new WireError('wire/closed')
+      if (bytes + decoder.bufferedBytes + socket.bufferedAmount + Buffer.byteLength(text) > WIRE_QUEUE_BYTES) {
+        rejectPeer(1013, 'wire/slow-peer')
+        throw new WireError('wire/slow-peer')
+      }
+      const sent = Promise.withResolvers<void>()
+      const aborted = () => { sent.reject(new WireError('wire/closed')) }
+      const deadline = setTimeout(() => {
+        rejectPeer(1013, 'wire/slow-peer')
+        sent.reject(new WireError('wire/slow-peer'))
+      }, 30_000)
+      deadline.unref()
+      lifetime.signal.addEventListener('abort', aborted, { once: true })
+      try {
+        socket.send(text, error => { if (error) sent.reject(new WireError('wire/write-failed')); else sent.resolve() })
+        await sent.promise
+      } finally {
+        clearTimeout(deadline)
+        lifetime.signal.removeEventListener('abort', aborted)
+      }
+    }
+    const pump = async () => {
+      if (writing) return
+      writing = true
+      try {
+        while (outputs.length && !closed) {
+          const output = outputs[0]!
+          try {
+            if (output.signal.aborted) throw new WireError('wire/cancelled')
+            // Finish admitted frames even on stream cancellation: partial carriers cannot be interleaved.
+            for (const text of encoder.encode(output.text)) await sendText(text)
+            output.resolve()
+          } catch (error) {
+            output.reject(error)
+            if (!(error instanceof WireError && error.code === 'wire/cancelled')) rejectPeer(1011, 'wire/write-failed')
+          } finally {
+            if (!closed) { outputs.shift(); bytes -= output.bytes; count-- }
+          }
+        }
+      } finally { writing = false }
+    }
+    const send = (value: unknown, signal: AbortSignal): Promise<void> => {
+      const text = JSON.stringify(value)
+      const size = Buffer.byteLength(text)
+      if (size > WIRE_LOGICAL_BYTES) return Promise.reject(new WireError('wire/logical-limit'))
+      if (closed) return Promise.reject(new WireError('wire/closed'))
+      if (bytes + decoder.bufferedBytes + socket.bufferedAmount + size > WIRE_QUEUE_BYTES ||
+          count + (decoder.bufferedBytes > 0 ? 1 : 0) >= WIRE_QUEUE_COUNT) {
+        rejectPeer(1013, 'wire/slow-peer')
+        return Promise.reject(new WireError('wire/slow-peer'))
+      }
+      bytes += size; count++
+      const pending = Promise.withResolvers<void>()
+      outputs.push({ text, bytes: size, signal, resolve: pending.resolve, reject: pending.reject })
+      void pump()
+      return pending.promise
+    }
+    const release = (stream: Stream) => {
+      for (const item of stream.inbox) { bytes -= item.bytes; count-- }
+      stream.inbox.length = 0; stream.bytes = 0
+      stream.cancel.abort(); stream.wake?.()
+      if (closed) return
+      for (let index = outputs.length - 1; index >= 0; index--) {
+        if (writing && index === 0) continue
+        const output = outputs[index]!
+        if (output.signal.aborted) {
+          outputs.splice(index, 1); bytes -= output.bytes; count--
+          output.reject(new WireError('wire/cancelled'))
+        }
+      }
+    }
+    peer.signal.addEventListener('abort', revoked, { once: true })
     socket.once('close', dispose)
     socket.once('error', dispose)
     socket.on('message', (data, binary) => {
-      if (binary) { socket.close(1003, 'text required'); return }
+      if (closed) return
+      if (binary) { rejectPeer(1003, 'wire/text-required'); return }
       try {
-        const message = parseRemoteStreamClientMessage(data.toString())
+        const text = decoder.decode(data.toString())
+        if (bytes + decoder.bufferedBytes + socket.bufferedAmount > WIRE_QUEUE_BYTES || (decoder.bufferedBytes > 0 && count >= WIRE_QUEUE_COUNT)) {
+          rejectPeer(1013, 'wire/slow-peer'); return
+        }
+        if (text === undefined) return
+        const message = parseRemoteStreamClientMessage(text)
         if (message.type === 'open') {
-          if (streams.has(message.streamId) || streams.size >= 128) { socket.close(1008, 'stream admission refused'); return }
+          if (streams.has(message.streamId) || streams.size >= 128) { rejectPeer(1008, 'wire/stream-limit'); return }
           const stream: Stream = { cancel: new AbortController(), inbox: [], bytes: 0, ended: false }
           streams.set(message.streamId, stream)
-          const signal = AbortSignal.any([stream.cancel.signal, peer.signal])
+          const signal = AbortSignal.any([stream.cancel.signal, peer.signal, lifetime.signal])
           const uplink: AsyncIterable<unknown> = { async *[Symbol.asyncIterator]() {
             while (!signal.aborted) {
               if (stream.inbox.length) {
-                const next = stream.inbox.shift()
-                stream.bytes -= Buffer.byteLength(JSON.stringify(next) ?? '')
-                yield next
+                const next = stream.inbox.shift()!
+                stream.bytes -= next.bytes; bytes -= next.bytes; count--
+                yield next.value
               } else if (stream.ended) return
               else {
                 const pending = Promise.withResolvers<void>()
                 stream.wake = pending.resolve
                 if (signal.aborted) pending.resolve()
                 await pending.promise
+                delete stream.wake
               }
             }
           } }
@@ -154,34 +223,45 @@ export class NativeGateway {
               const source = await this.#gateway.wireStream.open(message.endpoint, message.payload, uplink, peer, signal)
               for await (const value of source) {
                 if (signal.aborted || closed) break
-                await send({ type: 'item', streamId: message.streamId, ...(value === undefined ? {} : { value }) })
+                await send({ type: 'item', streamId: message.streamId, ...(value === undefined ? {} : { value }) }, signal)
               }
-              if (!signal.aborted && !closed) await send({ type: 'end', streamId: message.streamId })
+              if (!signal.aborted && !closed) await send({ type: 'end', streamId: message.streamId }, signal)
             } catch (error) {
-              if (!signal.aborted && !closed) await send({ type: 'error', streamId: message.streamId, error: this.#gateway.wireStream.failure(error) }).catch(dispose)
+              if (!signal.aborted && !closed) {
+                const failure = error instanceof WireError
+                  ? { code: error.code, message: error.code, details: {} }
+                  : this.#gateway.wireStream.failure(error)
+                await send({ type: 'error', streamId: message.streamId, error: failure }, signal).catch(() => rejectPeer(1011, 'wire/send-failed'))
+              }
             } finally {
-              stream.cancel.abort(); stream.wake?.()
+              if (!closed) release(stream)
               if (streams.get(message.streamId) === stream) streams.delete(message.streamId)
             }
           })()
         } else {
           const stream = streams.get(message.streamId)
+          // Late frames for a locally completed/cancelled stream are harmless.
           if (!stream) return
-          if (message.type === 'cancel') { stream.cancel.abort(); stream.wake?.(); streams.delete(message.streamId) }
+          if (message.type === 'cancel') { release(stream); streams.delete(message.streamId) }
           else if (message.type === 'end') { stream.ended = true; stream.wake?.() }
           else {
-            if (stream.ended) { socket.close(1008, 'uplink ended'); return }
-            stream.bytes += Buffer.byteLength(JSON.stringify(message.value) ?? '')
-            if (stream.bytes > 2 * 1024 * 1024 || stream.inbox.length >= 1024) { socket.close(1009, 'uplink limit'); return }
-            stream.inbox.push(message.value); stream.wake?.()
+            if (stream.ended) { rejectPeer(1008, 'wire/uplink-ended'); return }
+            const size = Buffer.byteLength(text)
+            if (stream.bytes + size > WIRE_QUEUE_BYTES || stream.inbox.length >= WIRE_QUEUE_COUNT ||
+              bytes + size + socket.bufferedAmount > WIRE_QUEUE_BYTES || count >= WIRE_QUEUE_COUNT) {
+              rejectPeer(1013, 'wire/slow-peer'); return
+            }
+            stream.bytes += size; bytes += size; count++
+            stream.inbox.push({ value: message.value, bytes: size }); stream.wake?.()
           }
         }
-      } catch { socket.close(1008, 'invalid native frame') }
+      } catch (error) { rejectPeer(1008, error instanceof WireError ? error.code : 'wire/invalid-native-frame') }
     })
-    if (peer.signal.aborted) dispose()
+    if (peer.signal.aborted) revoked()
   }
 
   close(): void {
+    for (const socket of this.#muxSockets) socket.terminate()
     for (const socket of this.#sockets) socket.destroy()
     this.#sockets.clear()
     this.#websockets.close()

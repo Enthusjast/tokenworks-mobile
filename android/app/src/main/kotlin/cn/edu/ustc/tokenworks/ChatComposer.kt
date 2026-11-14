@@ -26,6 +26,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.collectAsState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.SolidColor
@@ -52,7 +53,9 @@ internal fun ChatComposer(
     modifier: Modifier = Modifier,
 ) {
     val composer = state.composer
-    val ready = state.reader?.phase == SessionReadPhase.READY
+    val fileState = state.files?.state?.collectAsState()?.value
+    val attachmentCount = (fileState?.uploaded?.size ?: 0) + (fileState?.images?.size ?: 0)
+    val ready = state.reader?.let { !it.readOnly } == true
     val editable = ready && composer != null
     val running = state.reader?.running == true
     val emptyValue = remember { TextFieldValue() }
@@ -121,7 +124,7 @@ internal fun ChatComposer(
                         .testTag("composer-input").semantics { contentDescription = inputLabel },
                     decorationBox = { innerTextField ->
                         Box {
-                            if (value.text.isEmpty()) Text(placeholder, style = inputStyle, color = surfaces.textTertiary)
+                            if (value.text.isEmpty()) Text(if (attachmentCount > 0) "$attachmentCount 个待发送附件" else placeholder, style = inputStyle, color = surfaces.textTertiary)
                             innerTextField()
                         }
                     },
@@ -129,7 +132,7 @@ internal fun ChatComposer(
             }
             FilledIconButton(
                 onClick = if (running) onCancel else onSend,
-                enabled = !state.submitting && if (running) ready else editable && value.text.isNotBlank(),
+                enabled = !state.submitting && if (running) ready else editable && (value.text.isNotBlank() || attachmentCount > 0),
                 modifier = Modifier.sizeIn(
                     minWidth = TokenWorksSpacing.minimumTouchTarget,
                     minHeight = TokenWorksSpacing.minimumTouchTarget,

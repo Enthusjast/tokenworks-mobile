@@ -4,7 +4,7 @@ plugins {
 }
 kotlin { jvmToolchain(17) }
 dependencies {
-    api(project(":core:protocol"))
+    api(project(":core:dsh-protocol"))
     implementation(libs.jackson.core)
     testImplementation(libs.junit)
 }

@@ -1,0 +1,492 @@
+{
+  "dshVersion": "0.2.1-rc.5",
+  "nativeForwardedEventsSha256": "06fef5d6f3dc01633462a5c5626baf48aabf73aa09dc62bc58903c36618e50ce",
+  "nativeResourceSources": {
+    "@deepseek-ai/dsh-api-gateway/lib/types/access.js": "d34e4eb389886576bf4b7a4da55e14305041b54ee09bd3913d580ec3404fdff7",
+    "@deepseek-ai/dsh-api-gateway/lib/types/index.js": "c962a56f93da759ab065c06618887758baae3a425f409153ab709b9a859423d3",
+    "@deepseek-ai/dsh-agent/lib/types/index.js": "cc5de4b13b26bc1c5383c7c9300a074f267b69fe129a0bf74d1fd4ab695f1c52",
+    "@deepseek-ai/dsh-session/lib/types/index.js": "59cced30c7ee65813c62f4858c2fc15c8c636df96507b60c15543468178b72f2",
+    "@deepseek-ai/dsh-api-session-controller/lib/types/index.js": "616ced16623b7448afa908ff65093eb6ef2a478d32e5ef9bc22634bfa9f80472",
+    "@deepseek-ai/dsh-api-workspace-controller/lib/types/index.js": "57666c84169003e5c494f9574001d215af4810e0e5f7246e514150ab330712a6",
+    "@deepseek-ai/dsh-api-remotes/lib/index.js": "2e7068e388541ca63648727a6659bdf24f3a0d1d90f5ef54959787285370a218",
+    "@deepseek-ai/dsh-user-approval/lib/index.js": "6a5ad1ba3c3dc3abbbae52e6c8c4463970ee0c1c8988cebb0d5cf2acd17ee90b"
+  },
+  "actions": {
+    "directoryPicker/createDirectory": {
+      "capability": "directory.write",
+      "resources": [
+        "global"
+      ],
+      "globalCall": true,
+      "selected": false,
+      "descriptorSha256": "15495732223b9f93f6773d6b3a3788dd2ae5fc1b1ee47fc9e33effc3aadb7f3b"
+    },
+    "directoryPicker/list": {
+      "capability": "directory.read",
+      "resources": [
+        "global"
+      ],
+      "globalCall": true,
+      "selected": false,
+      "descriptorSha256": "edf623836b4096a5b9bd7ca24dd8c3177cc71a377d0ffd0c62ff32202fd638a7"
+    },
+    "directoryPicker/pick": {
+      "capability": "directory.read",
+      "resources": [
+        "global"
+      ],
+      "globalCall": true,
+      "selected": false,
+      "descriptorSha256": "88c90a45d32bef0b4f63bab1ec6c6ec7bb4108fafb77d5b87be287bcdc618437"
+    },
+    "fileReferences/list": {
+      "capability": "files.read",
+      "resources": [
+        "session"
+      ],
+      "globalCall": false,
+      "selected": false,
+      "descriptorSha256": "298e37806c235e4deac85d6adba08780e02ced5e6483981ca5342197a941ea29"
+    },
+    "fileUploads/upload": {
+      "capability": "files.write",
+      "resources": [
+        "session"
+      ],
+      "globalCall": false,
+      "selected": true,
+      "descriptorSha256": "325b1ffe78f4b624e54761647eac3c80c4698c3067ee2b9868bcde299e3fcf9b"
+    },
+    "remoteAccess/follow": {
+      "capability": "access.read",
+      "resources": [
+        "global"
+      ],
+      "globalCall": true,
+      "selected": true,
+      "descriptorSha256": "b9ea72cebf2578cf3c9785d2cedc202ca23bf4ec200f0168f9409b143dc4c6a0"
+    },
+    "session/attachment": {
+      "capability": "session.read",
+      "resources": [
+        "session"
+      ],
+      "globalCall": false,
+      "selected": true,
+      "descriptorSha256": "34f9e1a55c6862c00b2ce28e9ccb5f7b3c230524ea4956d227cb2c3359187066"
+    },
+    "session/cancel": {
+      "capability": "session.write",
+      "resources": [
+        "session"
+      ],
+      "globalCall": false,
+      "selected": true,
+      "descriptorSha256": "c09c3c76a16ae6e716e6c77772f52a4ce3109f9454b6bcc5a57224f6c43122f5"
+    },
+    "session/canOpenWorkspacePath": {
+      "capability": "desktop.open",
+      "resources": [
+        "global"
+      ],
+      "globalCall": true,
+      "selected": false,
+      "descriptorSha256": "73f10b8073fe8c4642bf5cdedecdc683eb803b66d7a31d628cc68b474d37ab8a"
+    },
+    "session/control": {
+      "capability": "session.read",
+      "resources": [
+        "global",
+        "session"
+      ],
+      "globalCall": true,
+      "selected": true,
+      "descriptorSha256": "cccd5b5a15b901f68f05bc4a5f03545a377f138632fc33d2e0fa12937e9d1f9f"
+    },
+    "session/create": {
+      "capability": "session.write",
+      "resources": [
+        "global",
+        "session",
+        "workspace"
+      ],
+      "globalCall": true,
+      "selected": true,
+      "descriptorSha256": "8a5a361c9799831de1c47f561fbc3d710b224220421c44ffaffb67cce33ae163"
+    },
+    "session/follow": {
+      "capability": "session.read",
+      "resources": [
+        "session"
+      ],
+      "globalCall": false,
+      "selected": true,
+      "descriptorSha256": "f678e0d8a74f133609c28e2fa3594f02f4c66ec191e3b8b376ed6744f9dca072"
+    },
+    "session/fork": {
+      "capability": "session.write",
+      "resources": [
+        "session"
+      ],
+      "globalCall": false,
+      "selected": true,
+      "descriptorSha256": "549f1fcca6d9b8aa3b5ba4e0a30194730022f969ca98253a6006aa1e1d376301"
+    },
+    "session/initializeDefaultModel": {
+      "capability": "model.write",
+      "resources": [
+        "global"
+      ],
+      "globalCall": true,
+      "selected": false,
+      "descriptorSha256": "fb468285df830cedc599c0dd13640053d9de4627fb0630785905fac0a5446d9c"
+    },
+    "session/list": {
+      "capability": "session.read",
+      "resources": [
+        "global",
+        "session"
+      ],
+      "globalCall": true,
+      "selected": true,
+      "descriptorSha256": "f1498886808f39eaaa6b41328911528037bf62b06d6a3e946f63e86e5d3f35fe"
+    },
+    "session/modelCatalog": {
+      "capability": "model.read",
+      "resources": [
+        "global"
+      ],
+      "globalCall": true,
+      "selected": true,
+      "descriptorSha256": "c00af8a909adb72d2468c197acbc4c308bd65418ce81e76afd7c145c5fc08602"
+    },
+    "session/openWorkspacePath": {
+      "capability": "desktop.open",
+      "resources": [
+        "global"
+      ],
+      "globalCall": true,
+      "selected": false,
+      "descriptorSha256": "1300c3f9476d7a14866bca089b6dcb5f63979affdf1afcd9af5c709f374a1d71"
+    },
+    "session/page": {
+      "capability": "session.read",
+      "resources": [
+        "session"
+      ],
+      "globalCall": false,
+      "selected": true,
+      "descriptorSha256": "8e52dfa4ed370f9484793169a1b3ed6120fa03ba9b1348849cf52177da5c6ec6"
+    },
+    "session/projections": {
+      "capability": "session.read",
+      "resources": [
+        "session"
+      ],
+      "globalCall": false,
+      "selected": true,
+      "descriptorSha256": "02ebacb0acf19d187f01ca20340aa281fbed433d986bbc785ea539f4e9be8512"
+    },
+    "session/prompt": {
+      "capability": "session.write",
+      "resources": [
+        "session"
+      ],
+      "globalCall": false,
+      "selected": true,
+      "descriptorSha256": "c23b493dce16692c440b826d678c0f453663797eec8fb425d5d156ed368c5dfd"
+    },
+    "session/rename": {
+      "capability": "session.write",
+      "resources": [
+        "session"
+      ],
+      "globalCall": false,
+      "selected": true,
+      "descriptorSha256": "45672a1fa62f8cc05d9bf169527f4edc196439ce110526d7fd93bcbfadf38ade"
+    },
+    "session/search": {
+      "capability": "session.read",
+      "resources": [
+        "global",
+        "session"
+      ],
+      "globalCall": true,
+      "selected": true,
+      "descriptorSha256": "9d8d27a226ab6cf95afe0ff158f9267ff7341e3c0333bfd9f3c15d0f1e735747"
+    },
+    "session/selectModel": {
+      "capability": "model.write",
+      "resources": [
+        "session"
+      ],
+      "globalCall": false,
+      "selected": true,
+      "descriptorSha256": "088c2be4a3cc966751796df8cd246c26563d22f21ce17134158a6f4c53b46e26"
+    },
+    "session/updateQueue": {
+      "capability": "session.write",
+      "resources": [
+        "session"
+      ],
+      "globalCall": false,
+      "selected": true,
+      "descriptorSha256": "e912ef151fe11a8a288ee1286b32e01cbc9bd47050c357649a177290444368e7"
+    },
+    "session/workspacePathApplications": {
+      "capability": "desktop.open",
+      "resources": [
+        "global"
+      ],
+      "globalCall": true,
+      "selected": false,
+      "descriptorSha256": "bce3b43841fd8686ec11b20d52545063f9dd65e32f8d6b971a6ca5915317cb5e"
+    },
+    "skills/list": {
+      "capability": "files.read",
+      "resources": [
+        "session"
+      ],
+      "globalCall": false,
+      "selected": false,
+      "descriptorSha256": "7a2bada5903a261f939173ed2e09084002890e926331d6160bd98d9e438a9d30"
+    },
+    "terminal/attach": {
+      "capability": "terminal.write",
+      "resources": [
+        "session"
+      ],
+      "globalCall": false,
+      "selected": true,
+      "descriptorSha256": "2c092552b70333814c901dbe3f7320cb1c221a58eb47cb68a882dc530503b4d6"
+    },
+    "terminal/close": {
+      "capability": "terminal.write",
+      "resources": [
+        "session"
+      ],
+      "globalCall": false,
+      "selected": true,
+      "descriptorSha256": "b94e66af4e6b4748f2586c66a297a9910ee15da234d3ac728399d698fcfba2d4"
+    },
+    "terminal/create": {
+      "capability": "terminal.write",
+      "resources": [
+        "session"
+      ],
+      "globalCall": false,
+      "selected": true,
+      "descriptorSha256": "9dc4337283f8c04088c336b5c3f84874de6876e795bf0285c0b8e55802609445"
+    },
+    "terminal/environment": {
+      "capability": "terminal.read",
+      "resources": [
+        "session"
+      ],
+      "globalCall": false,
+      "selected": true,
+      "descriptorSha256": "f88ca44f894bfac71413fa51f2f45a4358ae8842c6d2d2b3e0f4db5842226e0a"
+    },
+    "terminal/list": {
+      "capability": "terminal.read",
+      "resources": [
+        "session"
+      ],
+      "globalCall": false,
+      "selected": true,
+      "descriptorSha256": "f7e27bc151320a13247286cb1cf4dec3741d8367ac43b2ef081e33aec88cf884"
+    },
+    "terminal/rename": {
+      "capability": "terminal.write",
+      "resources": [
+        "session"
+      ],
+      "globalCall": false,
+      "selected": true,
+      "descriptorSha256": "ebb2e016d522e7a6fde400c3f294425a870ad72a3a691e6adb8cff571c1bf348"
+    },
+    "terminal/retain": {
+      "capability": "terminal.write",
+      "resources": [
+        "session"
+      ],
+      "globalCall": false,
+      "selected": true,
+      "descriptorSha256": "29a1243a42c1dffeafc66573068db93d85b8cdc5be9c87379b90520de969cc45"
+    },
+    "terminal/shells": {
+      "capability": "terminal.read",
+      "resources": [
+        "session"
+      ],
+      "globalCall": false,
+      "selected": true,
+      "descriptorSha256": "5c394437da7fe4a951878fa6ed5cc09fa7c3d3a0a0dd11a38426a4f6ad40dafa"
+    },
+    "userQuestions/answer": {
+      "capability": "interaction.answer",
+      "resources": [
+        "session"
+      ],
+      "globalCall": false,
+      "selected": true,
+      "descriptorSha256": "991d84215d3048b2fb726d4804635478e89c4de918f5e7a7a63c219310cd7529"
+    },
+    "userQuestions/attachWait": {
+      "capability": "interaction.answer",
+      "resources": [
+        "session"
+      ],
+      "globalCall": false,
+      "selected": true,
+      "descriptorSha256": "d6287f5419af80adcd2eaffff497274febc511b522fb6ecb12ac31b44a8d08b8"
+    },
+    "workspace/archiveSession": {
+      "capability": "workspace.write",
+      "resources": [
+        "session"
+      ],
+      "globalCall": false,
+      "selected": true,
+      "descriptorSha256": "e257f1b07e6b6ce1f7f06df7086db7e1c1f01db3ad573b7a1d9c934af18a8621"
+    },
+    "workspace/create": {
+      "capability": "workspace.write",
+      "resources": [
+        "global"
+      ],
+      "globalCall": true,
+      "selected": true,
+      "descriptorSha256": "dcedf1d49529c1b582a2381b42857771401ffb00020b3080208840b1507daafb"
+    },
+    "workspace/delete": {
+      "capability": "workspace.write",
+      "resources": [
+        "workspace"
+      ],
+      "globalCall": false,
+      "selected": true,
+      "descriptorSha256": "e779f3383f498b9dc36fddec230641e4279ffdbe94bd85ce63ac00b8777cf1d1"
+    },
+    "workspace/follow": {
+      "capability": "workspace.read",
+      "resources": [
+        "global",
+        "session",
+        "workspace"
+      ],
+      "globalCall": true,
+      "selected": true,
+      "descriptorSha256": "3daf55d5470c62eae69eada6c38d422b20b8b1239b716f75da13bfdc5a901988"
+    },
+    "workspace/initializeDefault": {
+      "capability": "workspace.write",
+      "resources": [
+        "global"
+      ],
+      "globalCall": true,
+      "selected": true,
+      "descriptorSha256": "d3320f55d523ab95c561ce232d60f3b5f36e3571f9c8399a33bfaaa6b7da0841"
+    },
+    "workspace/insertBefore": {
+      "capability": "workspace.write",
+      "resources": [
+        "workspace"
+      ],
+      "globalCall": false,
+      "selected": true,
+      "descriptorSha256": "5d9ad1af867bbcad5c83d222207f4627503426c6aef5c1e996adfa982e62df59"
+    },
+    "workspace/insertSessionBefore": {
+      "capability": "workspace.write",
+      "resources": [
+        "session",
+        "workspace"
+      ],
+      "globalCall": false,
+      "selected": true,
+      "descriptorSha256": "c11b9b18c39af4a5911a5ebb4121f4a553942163adc479cdccef47267dcb0136"
+    },
+    "workspace/pinSession": {
+      "capability": "workspace.write",
+      "resources": [
+        "session"
+      ],
+      "globalCall": false,
+      "selected": true,
+      "descriptorSha256": "bd66b88e59284d54d2b80f93bff90571a9215e8f8aaf9d5be3799c8978f6ee5a"
+    },
+    "workspace/rename": {
+      "capability": "workspace.write",
+      "resources": [
+        "workspace"
+      ],
+      "globalCall": false,
+      "selected": true,
+      "descriptorSha256": "7f4c95153ba135fd2af54eb219c3dbb617f34f73cc6ba9a88ff6abe74621f629"
+    },
+    "workspace/unarchiveSession": {
+      "capability": "workspace.write",
+      "resources": [
+        "session"
+      ],
+      "globalCall": false,
+      "selected": true,
+      "descriptorSha256": "334398de0ffe0ee66c5917a68446c43745b8e8539e9d527f46c42d1bc8519a06"
+    },
+    "workspace/unpinSession": {
+      "capability": "workspace.write",
+      "resources": [
+        "session"
+      ],
+      "globalCall": false,
+      "selected": true,
+      "descriptorSha256": "bd66b88e59284d54d2b80f93bff90571a9215e8f8aaf9d5be3799c8978f6ee5a"
+    },
+    "event:approval/request": {
+      "capability": "interaction.events",
+      "resources": [
+        "global"
+      ],
+      "globalCall": false,
+      "selected": false,
+      "eventDelivery": "owner-waterfall"
+    },
+    "event:user-questions/request": {
+      "capability": "interaction.events",
+      "resources": [
+        "global"
+      ],
+      "globalCall": false,
+      "selected": false,
+      "eventDelivery": "owner-waterfall"
+    },
+    "event:approval/decided": {
+      "capability": "interaction.events",
+      "resources": [
+        "global"
+      ],
+      "globalCall": false,
+      "selected": false,
+      "eventDelivery": "not-forwarded"
+    },
+    "event:api-session/status": {
+      "capability": "interaction.events",
+      "resources": [
+        "session"
+      ],
+      "globalCall": false,
+      "selected": false,
+      "eventDelivery": "emit"
+    },
+    "event:api-session/activity": {
+      "capability": "interaction.events",
+      "resources": [
+        "session"
+      ],
+      "globalCall": false,
+      "selected": false,
+      "eventDelivery": "emit"
+    }
+  }
+}

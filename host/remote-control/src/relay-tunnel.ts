@@ -5,9 +5,12 @@ import { setTimeout as delay } from 'node:timers/promises'
 import WebSocket, { createWebSocketStream } from 'ws'
 import type { HostConnectionHandle } from '@deepseek-ai/dsh-client-connection'
 import type { RemoteAccessService } from '@deepseek-ai/dsh-api-remote-access'
-import { NativeAccess, type NativeResourceIds, type NativePeerMode } from './native-access.js'
+import type { PeerScope } from '@deepseek-ai/dsh-typert-protocol'
+import { NativeAccess, type NativePeerAdmission, type NativeResourceIds, type NativePeerMode } from './native-access.js'
 import { NativeGateway } from './native-gateway.js'
 import type { HostConnectionCredential, HostCredentialProvider } from './host-connection-credential.js'
+import type { NoiseCarrier } from './noise-carrier.js'
+import { purposeSchema } from './lan-pairing.js'
 
 export interface HostVersions {
   readonly dsh: string
@@ -36,12 +39,15 @@ export type NativeTunnelPhase = 'connecting' | 'online' | 'offline' | 'revoked' 
 export interface NativeTunnelOptions {
   readonly origin: string
   readonly runtimeId: string
+  /** Trusted enrolled installation identity, independent of tunnel attachment. */
+  readonly installationId: string
   /** Versions reported to the Relay on each tunnel attach. */
   readonly versions: HostVersions
   readonly credentials: HostCredentialProvider
   readonly connection: HostConnectionHandle
   readonly remoteAccess: RemoteAccessService
   readonly gateway: NativeGateway
+  readonly carrier: NoiseCarrier
   /** Live resource identities, read for every policy decision so a kind-wide grant never outlives its resource. */
   readonly resources: () => NativeResourceIds
   /** F-02: how admitted devices map onto dsh Peers; personal deployments use owner. */
@@ -63,19 +69,59 @@ export class RelayTunnel {
   #socket: WebSocket | undefined
   #session: ServerHttp2Session | undefined
   #transport: Duplex | undefined
-  #access: NativeAccess | undefined
+  readonly #access: NativeAccess
+  readonly #lifetime: AbortSignal
+  readonly #abortAuthority: () => void
   #phase: NativeTunnelPhase = 'connecting'
   readonly done: Promise<void>
   constructor(readonly options: NativeTunnelOptions) {
     const origin = new URL(options.origin)
     if (origin.protocol !== 'https:' || origin.username || origin.password || origin.pathname !== '/' || origin.search || origin.hash) throw new Error('Relay origin must be HTTPS')
     if (!/^[0-9a-f-]{36}$/i.test(options.runtimeId)) throw new Error('runtime identity invalid')
+    if (!/^[0-9a-f-]{36}$/i.test(options.installationId) || (options.credentials.origin && options.credentials.origin !== origin.origin)) throw new Error('installation authority invalid')
+    this.#lifetime = options.credentials.signal ? AbortSignal.any([this.#cancel.signal, options.credentials.signal]) : this.#cancel.signal
+    this.#access = new NativeAccess(options.connection, options.remoteAccess, options.runtimeId, options.installationId, async (id, secret, lifetime) => {
+      const signal = AbortSignal.any([lifetime, this.#lifetime, AbortSignal.timeout(15_000)])
+      const current = await this.#credential(signal)
+      const endpoint = new URL(`/v2/tunnel-leases/${id}`, options.origin)
+      let challenge: string | undefined
+      for (let attempt = 0; attempt < 2; attempt++) {
+        const proof = await installationDPoP(current, 'GET', endpoint, challenge)
+        signal.throwIfAborted()
+        const result = await fetch(endpoint, { headers: { Authorization: `DPoP ${current.credential}`, DPoP: proof, 'Proxy-Authorization': `Bearer ${secret}` }, redirect: 'error', signal })
+        if (result.status === 401 && attempt === 0 && result.headers.has('DPoP-Nonce')) { challenge = result.headers.get('DPoP-Nonce')!; await result.body?.cancel(); continue }
+        if (!result.ok) { await result.body?.cancel(); throw new Error('lease introspection refused') }
+        const text = await result.text()
+        signal.throwIfAborted()
+        if (Buffer.byteLength(text) > 128 * 1024) throw new Error('lease introspection limit')
+        return JSON.parse(text) as unknown
+      }
+      throw new Error('lease introspection unavailable')
+    }, options.resources, options.peerMode ?? 'owner')
+    this.#abortAuthority = () => this.#access.close()
+    this.#lifetime.addEventListener('abort', this.#abortAuthority, { once: true })
+    if (this.#lifetime.aborted) this.#abortAuthority()
     this.done = this.#run()
   }
   status(): NativeTunnelPhase { return this.#phase }
 
+  admitFresh(id: string, secret: string, pairedOwner?: () => PeerScope): Promise<NativePeerAdmission> {
+    return this.#access.admitFresh(id, secret, pairedOwner)
+  }
+
+  async #credential(signal: AbortSignal): Promise<HostConnectionCredential> {
+    signal.throwIfAborted()
+    const credential = await this.options.credentials.acquire(signal)
+    signal.throwIfAborted()
+    if (credential.installationId !== this.options.installationId) {
+      this.#cancel.abort()
+      throw new Error('installation changed')
+    }
+    return credential
+  }
+
   async #run(): Promise<void> {
-    const signal = this.options.credentials.signal ? AbortSignal.any([this.#cancel.signal, this.options.credentials.signal]) : this.#cancel.signal
+    const signal = this.#lifetime
     let attempts = 0
     while (!signal.aborted) {
       try {
@@ -90,8 +136,7 @@ export class RelayTunnel {
         // transport first makes http2 write a GOAWAY into the dead socket,
         // which asserts inside Node and kills the Host process.
         endTunnel(this.#session, this.#transport, this.#socket)
-        this.#access?.close()
-        this.#session = undefined; this.#transport = undefined; this.#socket = undefined; this.#access = undefined
+        this.#session = undefined; this.#transport = undefined; this.#socket = undefined
       }
       if (signal.aborted) break
       try { await delay(Math.min(30_000, 1000 * 2 ** Math.min(attempts++, 5)) + Math.floor(Math.random() * 500), undefined, { signal }) } catch { break }
@@ -101,7 +146,7 @@ export class RelayTunnel {
 
   async #connect(signal: AbortSignal): Promise<void> {
     this.#phase = 'connecting'
-    const credential = await this.options.credentials.acquire(signal)
+    const credential = await this.#credential(signal)
     const target = new URL(`/v2/runtimes/${this.options.runtimeId}/tunnel`, this.options.origin)
     let nonce: string | undefined
     let socket: WebSocket | undefined
@@ -149,39 +194,22 @@ export class RelayTunnel {
     const duplex = Duplex.from({ readable: transport, writable: output })
     const session = performServerHandshake(duplex, { settings: { maxConcurrentStreams: 128, maxHeaderListSize: 32 * 1024 } })
     this.#session = session
-    const access = new NativeAccess(this.options.connection, this.options.remoteAccess, this.options.runtimeId, credential.installationId, async (id, secret, lifetime) => {
-      const current = await this.options.credentials.acquire(lifetime)
-      if (current.installationId !== credential.installationId) throw new Error('installation changed')
-      const endpoint = new URL(`/v2/tunnel-leases/${id}`, this.options.origin)
-      let challenge: string | undefined
-      for (let attempt = 0; attempt < 2; attempt++) {
-        const proof = await installationDPoP(current, 'GET', endpoint, challenge)
-        const result = await fetch(endpoint, { headers: { Authorization: `DPoP ${current.credential}`, DPoP: proof, 'Proxy-Authorization': `Bearer ${secret}` }, redirect: 'error', signal: AbortSignal.any([lifetime, signal, AbortSignal.timeout(15_000)]) })
-        if (result.status === 401 && attempt === 0 && result.headers.has('DPoP-Nonce')) { challenge = result.headers.get('DPoP-Nonce')!; await result.body?.cancel(); continue }
-        if (!result.ok) { await result.body?.cancel(); throw new Error('lease introspection refused') }
-        const text = await result.text()
-        if (Buffer.byteLength(text) > 128 * 1024) throw new Error('lease introspection limit')
-        return JSON.parse(text) as unknown
-      }
-      throw new Error('lease introspection unavailable')
-    }, this.options.resources, this.options.peerMode ?? 'owner')
-    this.#access = access
     let count = 0
     session.on('stream', (stream, headers) => {
       const reject = (status: number) => { if (!stream.destroyed) { stream.respond({ ':status': status }); stream.end() } }
-      if (headers[':method'] !== 'CONNECT' || headers[':authority'] !== 'dsh-api:80' || headers[':path'] !== undefined || headers[':protocol'] !== undefined) { reject(403); return }
+      if (headers[':method'] !== 'CONNECT' || headers[':authority'] !== 'dsh-noise:1' || headers[':path'] !== undefined || headers[':protocol'] !== undefined) { reject(403); return }
       if (count >= 128) { reject(429); return }
       const id = headers['x-tokenworks-lease-id'], authorization = headers['proxy-authorization']
       if (typeof id !== 'string' || typeof authorization !== 'string' || !authorization.startsWith('Bearer ')) { reject(401); return }
       count++
       void (async () => {
         try {
-          const admission = await access.admit(id, authorization.slice(7))
-          if (stream.destroyed) { admission.release(); return }
-          stream.once('close', admission.release)
+          const purpose = purposeSchema.parse(headers['x-tokenworks-carrier-purpose'])
+          if (stream.destroyed) return
           stream.once('error', () => {})
           stream.respond({ ':status': 200 })
-          this.options.gateway.accept(stream, admission.peer)
+          const secret = authorization.slice(7)
+          await this.options.carrier.accept(stream, { routeKind: 'relay', purpose, relayLease: { leaseId: id, token: secret } })
         } catch (error) { console.error('tunnel: admission failed', error); reject(401) }
       })()
       stream.once('close', () => { count-- })
@@ -201,7 +229,7 @@ export class RelayTunnel {
     this.#phase = 'online'
     try { await ended.promise }
     finally {
-      clearInterval(heartbeat); signal.removeEventListener('abort', abort); access.close()
+      clearInterval(heartbeat); signal.removeEventListener('abort', abort)
       endTunnel(session, transport, active)
       if (this.#transport === transport) this.#transport = undefined
       if (this.#session === session) this.#session = undefined
@@ -210,6 +238,8 @@ export class RelayTunnel {
 
   async close(): Promise<void> {
     this.#cancel.abort()
+    this.#lifetime.removeEventListener('abort', this.#abortAuthority)
+    this.#access.close()
     endTunnel(this.#session, this.#transport, this.#socket)
     this.#session = undefined; this.#transport = undefined; this.#socket = undefined
     await this.done

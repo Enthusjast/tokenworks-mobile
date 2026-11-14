@@ -21,6 +21,9 @@ sqlite = "2.7.1"
 sqlcipher = "4.19.1"
 ksp = "2.3.12"
 firebase-messaging = "26.0.1"
+httpcore5 = "5.4.4"
+java-websocket = "1.6.0"
+slf4j = "2.0.13"
 
 [libraries]
 jackson-core = { module = "com.fasterxml.jackson.core:jackson-core", version.ref = "jackson" }
@@ -55,6 +58,9 @@ sqlite = { module = "androidx.sqlite:sqlite", version.ref = "sqlite" }
 sqlcipher = { module = "net.zetetic:sqlcipher-android", version.ref = "sqlcipher" }
 
 firebase-messaging = { module = "com.google.firebase:firebase-messaging", version.ref = "firebase-messaging" }
+httpcore5 = { module = "org.apache.httpcomponents.core5:httpcore5", version.ref = "httpcore5" }
+java-websocket = { module = "org.java-websocket:Java-WebSocket", version.ref = "java-websocket" }
+slf4j-nop = { module = "org.slf4j:slf4j-nop", version.ref = "slf4j" }
 
 [plugins]
 kotlin-jvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }

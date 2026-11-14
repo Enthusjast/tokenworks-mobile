@@ -161,6 +161,9 @@ internal class NativeChatFixture private constructor(
         val roots = automation.windows.mapNotNull { it.root }.ifEmpty { listOfNotNull(automation.rootInActiveWindow) }
         fun descend(node: AccessibilityNodeInfo) {
             try {
+                // API 26 has no public UiAutomation.clearCache(); refresh mutable provider data.
+                // Non-provider container nodes may return false but still own valid children.
+                if (Build.VERSION.SDK_INT < 33) node.refresh()
                 if (node.packageName?.toString() == instrumentation.targetContext.packageName && node.isVisibleToUser) action(node)
                 for (index in 0 until node.childCount) node.getChild(index)?.let(::descend)
             } finally {
@@ -174,7 +177,7 @@ internal class NativeChatFixture private constructor(
     private fun node(info: AccessibilityNodeInfo) = Node(info.text?.toString().orEmpty(),
         info.contentDescription?.toString().orEmpty(), info.viewIdResourceName.orEmpty(),
         Rect().also(info::getBoundsInScreen), info.isClickable, info.isEnabled, info.isScrollable,
-        info.stateDescription?.toString().orEmpty(), info.isEditable)
+        androidx.core.view.accessibility.AccessibilityNodeInfoCompat.wrap(info).stateDescription?.toString().orEmpty(), info.isEditable)
 
     fun nodes(): List<Node> = buildList { visit { add(node(it)) } }
     fun requireNode(selector: (Node) -> Boolean): Node = nodes().firstOrNull(selector)
@@ -189,7 +192,9 @@ internal class NativeChatFixture private constructor(
                 val label = node(info)
                 var target: AccessibilityNodeInfo? = AccessibilityNodeInfo.obtain(info)
                 try {
-                    while (target != null && !target!!.isClickable) {
+                    while (target != null) {
+                        if (Build.VERSION.SDK_INT < 33) target!!.refresh()
+                        if (target!!.isClickable) break
                         val parent = target!!.parent
                         target!!.recycle()
                         target = parent
@@ -215,7 +220,16 @@ internal class NativeChatFixture private constructor(
             while (!predicate(nodes())) {
                 val remaining = deadline - System.nanoTime()
                 if (remaining <= 0 || !changed.tryAcquire(remaining, TimeUnit.NANOSECONDS)) {
-                    check(predicate(nodes())) { "Native state did not establish $reason. Tree:\n${nodes().joinToString("\n")}" }
+                    val current = nodes()
+                    if (!predicate(current)) {
+                        automation.takeScreenshot()?.let { bitmap ->
+                            java.io.File(instrumentation.targetContext.filesDir, "native-failed-surface.png").outputStream().use {
+                                bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, it)
+                            }
+                            bitmap.recycle()
+                        }
+                        error("Native state did not establish $reason. Tree:\n${current.joinToString("\n")}")
+                    }
                     break
                 }
             }
@@ -225,26 +239,34 @@ internal class NativeChatFixture private constructor(
     }
 
     fun act(action: Int, selector: (Node) -> Boolean, arguments: Bundle? = null) {
-        await("native action owner ready") { it.any(selector) }
-        var performed = false
-        visit { info ->
-            if (!performed && selector(node(info))) {
-                var target: AccessibilityNodeInfo? = AccessibilityNodeInfo.obtain(info)
-                try {
-                    while (target != null && (target!!.actionList.none { it.id == action } ||
-                            action == AccessibilityNodeInfo.ACTION_CLICK && !target!!.isClickable)) {
-                        val parent = target!!.parent
-                        @Suppress("DEPRECATION")
-                        target!!.recycle()
-                        target = parent
-                    }
-                    performed = target?.performAction(action, arguments) == true
-                } finally {
+        fun withOwner(info: AccessibilityNodeInfo, apply: (AccessibilityNodeInfo) -> Boolean): Boolean {
+            if (!selector(node(info))) return false
+            var target: AccessibilityNodeInfo? = AccessibilityNodeInfo.obtain(info)
+            try {
+                while (target != null) {
+                    if (Build.VERSION.SDK_INT < 33) target!!.refresh()
+                    if (target!!.actionList.any { it.id == action } &&
+                        (action != AccessibilityNodeInfo.ACTION_CLICK || target!!.isClickable)) break
+                    val parent = target!!.parent
                     @Suppress("DEPRECATION")
-                    target?.recycle()
+                    target!!.recycle()
+                    target = parent
                 }
+                return target?.takeIf { it.isEnabled }?.let(apply) == true
+            } finally {
+                @Suppress("DEPRECATION")
+                target?.recycle()
             }
         }
+        // A backing StateFlow can update before Compose publishes its enabled semantics.
+        // Wait for the actual actionable owner, never click a stale disabled control.
+        await("native action owner enabled") {
+            var ready = false
+            visit { info -> if (!ready) ready = withOwner(info) { true } }
+            ready
+        }
+        var performed = false
+        visit { info -> if (!performed) performed = withOwner(info) { it.performAction(action, arguments) } }
         check(performed) { "Native accessibility action $action was not accepted. Tree:\n${nodes().joinToString("\n")}" }
         settle()
     }

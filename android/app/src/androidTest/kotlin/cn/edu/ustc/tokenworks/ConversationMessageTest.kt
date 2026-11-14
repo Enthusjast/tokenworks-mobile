@@ -18,6 +18,7 @@ import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.assertHeightIsAtLeast
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.longClick
 import androidx.compose.ui.test.onNodeWithContentDescription
@@ -212,6 +213,24 @@ class ConversationMessageTest {
         rule.runOnIdle { item.value = item.value.withState(live = false, persisted = true) }
         rule.onNodeWithText("预览、分享或创建分支").performClick()
         rule.runOnIdle { assertEquals(listOf("message-1"), actions) }
+    }
+
+    @Test fun nativeImagePreviewRequiresPersistedCurrentMessageAndUsesItsIntrinsicReference() {
+        val first = NativeImageReference("sha256:${"a".repeat(64)}", "image/png", 123, 8, 6, "public.png")
+        val second = NativeImageReference("sha256:${"b".repeat(64)}", "image/jpeg", 456, 4, 3, "second.jpg")
+        fun item(reference: NativeImageReference, persisted: Boolean) = ConversationItem("image-message", ConversationRole.USER,
+            listOf(DisplayBlock(BlockKind.IMAGE, "", media = reference)), live = false, persisted = persisted)
+        val current = mutableStateOf(item(first, false))
+        val received = mutableListOf<NativeImageReference>()
+        rule.setContent { TokenWorksTheme { ConversationMessage(current.value, null, onPreviewMedia = { received.add(it) }) } }
+        rule.onNodeWithText("public.png · 8 × 6 · 123 字节").assertIsDisplayed()
+        val firstLabel = rule.activity.getString(R.string.media_message_preview, "public.png")
+        rule.onNodeWithContentDescription(firstLabel).assertIsNotEnabled()
+        rule.runOnIdle { assertEquals(0, received.size); current.value = item(first, true) }
+        rule.onNodeWithContentDescription(firstLabel).performClick()
+        rule.runOnIdle { assertEquals(listOf(first), received); current.value = item(second, true) }
+        rule.onNodeWithContentDescription(rule.activity.getString(R.string.media_message_preview, "second.jpg")).performClick()
+        rule.runOnIdle { assertEquals(listOf(first, second), received) }
     }
 
     private fun ConversationItem.withState(role: ConversationRole = this.role, live: Boolean = this.live,

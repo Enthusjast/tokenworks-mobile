@@ -1,0 +1,20 @@
+<resources>
+    <string name="notify_title">通知与后台连接</string>
+    <string name="notify_back">返回工作区设置</string>
+    <string name="notify_privacy">通知只包含不透明引用，不含会话标题、消息、工具参数或音频。点击后会重新验证当前账号和授权；不会自动批准或发送命令。</string>
+    <string name="notify_push">会话事件提醒</string>
+    <string name="notify_opt_in">允许最小引用推送</string>
+    <string name="notify_unconfigured">当前部署尚未配置 Firebase 推送；此功能不可用。后台连接仍可单独开启。</string>
+    <string name="notify_permission_missing">尚未获得系统通知权限。开启时会请求权限；也可在系统设置中更改。</string>
+    <string name="notify_registering">正在验证设备并登记推送服务…</string>
+    <string name="notify_registered">已登记当前设备。是否送达取决于部署提供方和系统连接。</string>
+    <string name="notify_disabled">尚未启用，不会自动初始化推送。</string>
+    <string name="notify_background">后台只读连接</string>
+    <string name="notify_background_opt_in">保持所选会话连接</string>
+    <string name="notify_background_hint">先打开一个已授权会话，再主动开启。后台会显示持续通知和停止按钮；本地草稿在退到后台时清空（系统文件选择器期间除外）。</string>
+    <string name="notify_background_active">当前只接收所选会话更新。后台禁止写操作；退出账号、凭据失效或点击通知中的停止按钮会断开连接。</string>
+    <string name="notify_permission_session">需要系统通知权限和当前已授权会话，请返回会话后再试。</string>
+    <string name="notify_reference_rejected">此引用已失效、属于其他账号或不再有访问权限，未打开会话。</string>
+    <string name="notify_revocation_unconfirmed">本机已停用提醒，但服务器撤销尚未确认。请联网后重新操作，或在设备管理中撤销此设备。</string>
+    <string name="notify_failed">操作未完成。请检查账号、部署配置和网络后重试；不会显示会话内容。</string>
+</resources>

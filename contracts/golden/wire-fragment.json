@@ -1,0 +1,16 @@
+{
+  "repeat": 30000,
+  "text": "你🙂",
+  "bytes": 210041,
+  "count": 4,
+  "sha256": "2268f555d0218abbed0f6f0af6427bd96d3639912daf21df0ea9326040c48fd9",
+  "timeoutMs": 5,
+  "partialDisconnectAfter": 1,
+  "cases": [
+    { "name": "lossless-unicode", "indices": [0, 1, 2, 3], "deliveries": 1 },
+    { "name": "out-of-order", "indices": [1], "error": "wire/fragment-order" },
+    { "name": "duplicate", "indices": [0, 0], "error": "wire/fragment-order" },
+    { "name": "replay", "indices": [0, 1, 2, 3, 0], "error": "wire/fragment-order" },
+    { "name": "checksum", "indices": [0, 1, 2, 3], "checksum": "0000000000000000000000000000000000000000000000000000000000000000", "error": "wire/checksum" }
+  ]
+}
