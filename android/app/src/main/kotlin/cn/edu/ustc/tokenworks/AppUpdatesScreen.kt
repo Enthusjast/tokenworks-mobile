@@ -44,7 +44,8 @@ internal fun AppUpdatesScreen(state: AppUpdateUiState, check: () -> Unit, downlo
                     Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(TokenWorksSpacing.lg)) {
                             Text(updatePhaseTitle(state.phase), style = MaterialTheme.typography.titleMedium, modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite })
                             Text(updatePhaseDescription(state.phase), style = MaterialTheme.typography.bodyMedium)
-                            if (state.currentSupported == false) Text(stringResource(R.string.workspace_update_unsupported), color = MaterialTheme.colorScheme.error)
+                            if (state.currentSupported == false) TokenWorksStatusNotice(stringResource(R.string.workspace_update_unsupported),
+                                tone = TokenWorksNoticeTone.WARNING)
                             if (state.phase in setOf(AppUpdatePhase.DOWNLOADING, AppUpdatePhase.VERIFYING, AppUpdatePhase.PREPARED, AppUpdatePhase.WAITING_USER, AppUpdatePhase.UNKNOWN)) Text(stringResource(R.string.flow_update_not_installed), style = MaterialTheme.typography.bodySmall)
                             if (state.phase == AppUpdatePhase.DOWNLOADING && state.release != null) {
                                 val total = state.release.sizeBytes
@@ -68,7 +69,9 @@ internal fun AppUpdatesScreen(state: AppUpdateUiState, check: () -> Unit, downlo
                                 Text(if (state.phase == AppUpdatePhase.AVAILABLE) stringResource(R.string.workspace_update_recheck) else stringResource(R.string.workspace_update_reconcile))
                             }
                             if (state.canCleanup && state.cleanupToken != null) TextButton({ confirmCleanup = state.cleanupToken }, enabled = enabled, modifier = Modifier.fillMaxWidth().heightIn(min = TokenWorksSpacing.minimumTouchTarget)) { Text(stringResource(R.string.workspace_update_abandon)) }
-                            state.error?.let { Text(appUpdateErrorText(it), color = MaterialTheme.colorScheme.error, modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite }) }
+                            state.error?.let { TokenWorksStatusNotice(appUpdateErrorText(it),
+                                modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
+                                tone = TokenWorksNoticeTone.ERROR) }
                         }
                 }
                 state.release?.let { release -> item("release") {

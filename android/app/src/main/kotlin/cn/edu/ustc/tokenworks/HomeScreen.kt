@@ -421,7 +421,10 @@ internal fun NativeChatTimeline(read: SessionReadState, position: ChatReadingPos
                 when {
                     failure != null -> TokenWorksStatusNotice(errorText(failure), isError = true)
                     read.phase == SessionReadPhase.CONNECTING || read.phase == SessionReadPhase.SYNCING -> LinearProgressIndicator(Modifier.fillMaxWidth())
-                    read.items.isEmpty() -> Text(stringResource(R.string.conversation_empty), style = MaterialTheme.typography.bodyMedium)
+                    read.items.isEmpty() -> TokenWorksEmptyState(
+                        title = stringResource(R.string.conversation_empty),
+                        modifier = Modifier.tokenWorksEntrance("chat-empty"),
+                    )
                 }
             }
         }, onProcessExpansion = { ids, expanded ->
@@ -465,15 +468,19 @@ fun HomeScreen(state: HomeState, onLogin: () -> Unit, onRegister: (String) -> Un
                             color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 }
-                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Row(horizontalArrangement = Arrangement.spacedBy(TokenWorksSpacing.sm), verticalAlignment = Alignment.CenterVertically) {
+                    val activeStep = if (enrolling) 1 else 0
                     for (step in 0..2) {
-                        val active = step == if (enrolling) 1 else 0
-                        Surface(color = if (active) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceContainerLow,
+                        val active = step == activeStep
+                        Surface(
+                            color = if (active) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceContainerLow,
                             contentColor = if (active) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant,
-                            shape = MaterialTheme.shapes.extraLarge) {
+                            shape = tokenWorksSquircle(TokenWorksRadius.xl),
+                        ) {
                             Text(stringResource(when (step) { 0 -> R.string.workspace_step_account; 1 -> R.string.workspace_step_device; else -> R.string.workspace_step_computer }),
-                                Modifier.padding(horizontal = 12.dp, vertical = 8.dp).semantics { if (active) stateDescription = currentStep },
-                                style = MaterialTheme.typography.bodySmall)
+                                Modifier.padding(horizontal = TokenWorksSpacing.md, vertical = TokenWorksSpacing.sm)
+                                    .semantics { if (active) stateDescription = currentStep },
+                                style = if (active) MaterialTheme.typography.labelLarge else MaterialTheme.typography.bodySmall)
                         }
                     }
                 }
@@ -527,23 +534,26 @@ fun HomeScreen(state: HomeState, onLogin: () -> Unit, onRegister: (String) -> Un
                                 Text(stringResource(R.string.workspace_device_query))
                             }
                         }
-                        else -> Row(Modifier.semantics { liveRegion = LiveRegionMode.Polite },
-                            verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                            CircularProgressIndicator(Modifier.size(24.dp), strokeWidth = 2.dp)
-                            Text(stringResource(when (state.phase) {
-                                HomePhase.LOADING -> R.string.workspace_account_loading
-                                HomePhase.RECOVERING -> R.string.workspace_account_recovering
-                                HomePhase.RENEWING -> R.string.workspace_account_renewing
-                                HomePhase.CLEARING -> R.string.workspace_account_clearing
-                                HomePhase.STARTING -> R.string.workspace_account_starting
-                                HomePhase.BROWSER -> R.string.workspace_account_browser_waiting
-                                HomePhase.EXCHANGING -> R.string.workspace_account_exchanging
-                                HomePhase.PREPARING -> R.string.workspace_device_preparing
-                                HomePhase.AUTHENTICATING -> R.string.workspace_device_authenticating
-                                HomePhase.REGISTERING -> R.string.workspace_device_registering
-                                HomePhase.RECONCILING -> R.string.workspace_device_reconciling
-                                else -> error("Unexpected authentication progress phase: ${state.phase}")
-                            }), style = MaterialTheme.typography.bodyLarge)
+                        else -> Column(Modifier.fillMaxWidth().tokenWorksEntrance("onboarding-progress").semantics { liveRegion = LiveRegionMode.Polite },
+                            verticalArrangement = Arrangement.spacedBy(TokenWorksSpacing.sm)) {
+                            LinearProgressIndicator(Modifier.fillMaxWidth())
+                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                                CircularProgressIndicator(Modifier.size(24.dp), strokeWidth = 2.dp)
+                                Text(stringResource(when (state.phase) {
+                                    HomePhase.LOADING -> R.string.workspace_account_loading
+                                    HomePhase.RECOVERING -> R.string.workspace_account_recovering
+                                    HomePhase.RENEWING -> R.string.workspace_account_renewing
+                                    HomePhase.CLEARING -> R.string.workspace_account_clearing
+                                    HomePhase.STARTING -> R.string.workspace_account_starting
+                                    HomePhase.BROWSER -> R.string.workspace_account_browser_waiting
+                                    HomePhase.EXCHANGING -> R.string.workspace_account_exchanging
+                                    HomePhase.PREPARING -> R.string.workspace_device_preparing
+                                    HomePhase.AUTHENTICATING -> R.string.workspace_device_authenticating
+                                    HomePhase.REGISTERING -> R.string.workspace_device_registering
+                                    HomePhase.RECONCILING -> R.string.workspace_device_reconciling
+                                    else -> error("Unexpected authentication progress phase: ${state.phase}")
+                                }), style = MaterialTheme.typography.bodyLarge)
+                            }
                         }
                     }
                     if (state.canUseLanOnly && state.phase in setOf(HomePhase.RECOVERY_ERROR, HomePhase.REAUTHENTICATE)) {
@@ -563,7 +573,9 @@ fun HomeScreen(state: HomeState, onLogin: () -> Unit, onRegister: (String) -> Un
                         }
                     }
                     state.error?.let { code ->
-                        cn.edu.ustc.tokenworks.TokenWorksStatusNotice(errorText(code), isError = true)
+                        TokenWorksStatusNotice(errorText(code),
+                            modifier = Modifier.tokenWorksEntrance("onboarding-error-$code"),
+                            tone = TokenWorksNoticeTone.ERROR)
                         if (code == "vault.lock_required" && state.phase != HomePhase.ENROLL) {
                             OutlinedButton(onSecuritySettings, Modifier.fillMaxWidth().heightIn(min = 48.dp)) { Text(stringResource(R.string.workspace_security_settings)) }
                         }

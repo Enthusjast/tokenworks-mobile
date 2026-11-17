@@ -241,6 +241,12 @@ object TokenWorksMotion {
     const val sheetIn = 380
     const val sheetOut = 260
     const val pressScale = 0.97f
+
+    /** Entrance fade for content that appears without a layout change. */
+    const val fadeIn = 180
+
+    /** Vertical distance of the slide-in entrance, in dp. */
+    const val enterOffsetDp = 12f
 }
 
 private val typography = Typography(

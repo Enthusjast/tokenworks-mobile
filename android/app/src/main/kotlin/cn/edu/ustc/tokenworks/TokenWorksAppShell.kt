@@ -128,11 +128,11 @@ internal fun RuntimePicker(state: HomeState, viewModel: HomeViewModel, modifier:
         }
         state.error?.let { code -> item("error") { TokenWorksStatusNotice(errorText(code), isError = true) } }
         if (!state.refreshing && state.runtimes.isEmpty()) item("empty") {
-            Column(verticalArrangement = Arrangement.spacedBy(TokenWorksSpacing.sm)) {
-                Text(stringResource(R.string.computer_empty), style = MaterialTheme.typography.titleMedium)
-                Text(stringResource(R.string.computer_empty_detail), style = MaterialTheme.typography.bodyMedium,
-                    color = tokenWorksSurfaces().textTertiary)
-            }
+            TokenWorksEmptyState(
+                title = stringResource(R.string.computer_empty),
+                detail = stringResource(R.string.computer_empty_detail),
+                modifier = Modifier.tokenWorksEntrance("computers-empty"),
+            )
         }
         items(state.runtimes, key = { it.id }) { runtime ->
             val available = state.lanOnly || runtime.access?.canList() == true

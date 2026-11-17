@@ -18,13 +18,23 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.CubicBezierEasing
+import androidx.compose.animation.core.tween
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalView
+import android.provider.Settings
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.error
 import androidx.compose.ui.semantics.heading
@@ -160,3 +170,66 @@ fun TokenWorksStatusNotice(
 
 /** Visual weight of a status notice; the text still carries the meaning. */
 enum class TokenWorksNoticeTone { NEUTRAL, INFO, SUCCESS, WARNING, ERROR }
+
+/**
+ * One-shot entrance: content fades in and rises [TokenWorksMotion.enterOffsetDp].
+ *
+ * Respects the system animator scale (disabled animations render immediately) and runs once per
+ * [key]; re-keying replays it, so callers key on the content identity they want to announce.
+ */
+@Composable
+fun Modifier.tokenWorksEntrance(key: Any? = Unit): Modifier {
+    val view = LocalView.current
+    val animate = remember(view) {
+        Settings.Global.getFloat(view.context.contentResolver,
+            Settings.Global.ANIMATOR_DURATION_SCALE, 1f) > 0f
+    }
+    if (!animate) return this
+    val appeared = remember(key) { Animatable(0f) }
+    LaunchedEffect(key) {
+        appeared.animateTo(1f, tween(TokenWorksMotion.fadeIn, easing = CubicBezierEasing(0.2f, 0f, 0f, 1f)))
+    }
+    val offset = with(LocalDensity.current) { TokenWorksMotion.enterOffsetDp.dp.toPx() }
+    return graphicsLayer {
+        alpha = appeared.value
+        translationY = (1f - appeared.value) * offset
+    }
+}
+
+/** A centered empty-state block: one calm explanation, optional follow-up action. */
+@Composable
+fun TokenWorksEmptyState(
+    title: String,
+    modifier: Modifier = Modifier,
+    detail: String? = null,
+    actionLabel: String? = null,
+    onAction: (() -> Unit)? = null,
+) {
+    Column(
+        modifier.fillMaxWidth().padding(TokenWorksSpacing.xl),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(TokenWorksSpacing.sm),
+    ) {
+        Text(
+            title,
+            style = MaterialTheme.typography.titleMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.semantics { heading() },
+        )
+        detail?.let {
+            Text(
+                it,
+                style = MaterialTheme.typography.bodyMedium,
+                color = tokenWorksSurfaces().textTertiary,
+                textAlign = TextAlign.Center,
+            )
+        }
+        if (actionLabel != null && onAction != null) {
+            FilledTonalButton(
+                onAction,
+                Modifier.padding(top = TokenWorksSpacing.xs).heightIn(min = TokenWorksSpacing.minimumTouchTarget),
+            ) { Text(actionLabel) }
+        }
+    }
+}

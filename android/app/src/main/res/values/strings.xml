@@ -17,6 +17,7 @@
     <string name="session_loading">正在读取会话目录</string>
     <string name="directory_loading">正在核对电脑授权</string>
     <string name="session_empty">当前授权范围内没有会话。</string>
+    <string name="session_empty_detail">创建一个会话即可开始；已归档的会话不会出现在这里。</string>
     <string name="session_no_computer">还没有可访问的会话目录</string>
     <string name="session_no_computer_detail">请先绑定电脑，或在电脑页核对当前授权。</string>
     <string name="session_directory_denied">当前授权无法读取会话目录，请核对授权后刷新。</string>

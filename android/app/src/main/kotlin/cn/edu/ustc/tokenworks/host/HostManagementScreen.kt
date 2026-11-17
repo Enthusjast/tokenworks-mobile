@@ -5,10 +5,12 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.unit.dp
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.unit.dp
 
 private fun HostConnectionPath.label() = when (this) {
     HostConnectionPath.AUTO -> "同身份自动路径（未同意时跳过点对点与 TURN）"
@@ -35,20 +37,26 @@ fun HostManagementScreen(
     onRtcConsent: (String, Boolean) -> Unit,
 ) {
     BackHandler(onBack = onBack)
-    Scaffold(topBar = { TopAppBar(title = { Text("电脑与设备管理") }, navigationIcon = { TextButton(onClick = onBack) { Text("返回") } }) }) { padding ->
-        LazyColumn(Modifier.fillMaxSize().padding(padding), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+    Scaffold(topBar = {
+        TokenWorksTopBar(title = "电脑与设备管理", navigationIcon = {
+            IconButton(onBack, Modifier.size(TokenWorksSpacing.minimumTouchTarget)) { ShellIcon(R.drawable.ic_back, R.string.action_back_computers) }
+        })
+    }) { padding ->
+        LazyColumn(Modifier.fillMaxSize().padding(padding), contentPadding = PaddingValues(TokenWorksSpacing.lg), verticalArrangement = Arrangement.spacedBy(TokenWorksSpacing.md)) {
             item {
                 Text("连接只在相同安装身份与运行配置内回退，不会自动切换电脑。草稿和待发送操作不随路径迁移。", style = MaterialTheme.typography.bodyMedium)
-                if (state.busy) LinearProgressIndicator(Modifier.fillMaxWidth().padding(top = 8.dp))
-                state.error?.let { Text("操作失败：$it", color = MaterialTheme.colorScheme.error) }
-                state.notice?.let { Text(it) }
-                if (state.mutationUnknown) Text("撤销结果未知。请刷新核对服务端状态，不会自动重试撤销。", color = MaterialTheme.colorScheme.error)
+                if (state.busy) LinearProgressIndicator(Modifier.fillMaxWidth().padding(top = TokenWorksSpacing.sm))
+                state.error?.let { TokenWorksStatusNotice("操作失败：$it", tone = TokenWorksNoticeTone.ERROR) }
+                state.notice?.let { TokenWorksStatusNotice(it) }
+                if (state.mutationUnknown) TokenWorksStatusNotice("撤销结果未知。请刷新核对服务端状态，不会自动重试撤销。",
+                    tone = TokenWorksNoticeTone.WARNING)
                 if (state.relayManagementAvailable) TextButton(onClick = onRefresh, enabled = !state.busy) { Text("刷新并核对授权") }
-                else Text("当前为仅局域网模式；设备、安装和授权管理需要有效的账号连接。")
-                state.transport?.let { Text("当前连接：${it.path} · ${it.phase}${it.error?.let { error -> " · $error" }.orEmpty()}") }
+                else TokenWorksStatusNotice("当前为仅局域网模式；设备、安装和授权管理需要有效的账号连接。", tone = TokenWorksNoticeTone.INFO)
+                state.transport?.let { Text("当前连接：${it.path} · ${it.phase}${it.error?.let { error -> " · $error" }.orEmpty()}",
+                    style = MaterialTheme.typography.bodySmall, color = tokenWorksSurfaces().textTertiary) }
             }
-            item { Text("电脑与运行配置", style = MaterialTheme.typography.titleLarge) }
-            if (state.hosts.isEmpty()) item { Text("没有可用的授权电脑。") }
+            item { Text("电脑与运行配置", style = MaterialTheme.typography.titleLarge, modifier = Modifier.semantics { heading() }) }
+            if (state.hosts.isEmpty()) item { TokenWorksEmptyState(title = "没有可用的授权电脑。") }
             state.hosts.forEach { group ->
                 item(key = "host:${group.hostId}") {
                     OutlinedCard(Modifier.fillMaxWidth()) { Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -133,10 +141,24 @@ fun HostManagementScreen(
 
 @Composable
 private fun ManagementRecord(title: String, id: String, state: String, canRevoke: Boolean, onRevoke: () -> Unit) {
-    OutlinedCard(Modifier.fillMaxWidth()) { Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text(title, style = MaterialTheme.typography.titleMedium)
-        Text(id, style = MaterialTheme.typography.bodySmall)
-        Text(managementStateLabel(state))
-        TextButton(onClick = onRevoke, enabled = canRevoke) { Text("撤销") }
-    } }
+    Surface(Modifier.fillMaxWidth(), shape = tokenWorksSquircle(TokenWorksRadius.md),
+        color = MaterialTheme.colorScheme.surfaceContainerLow) {
+        Row(Modifier.padding(horizontal = TokenWorksSpacing.lg, vertical = TokenWorksSpacing.md),
+            verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(TokenWorksSpacing.md)) {
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(TokenWorksSpacing.xxs)) {
+                Text(title, style = MaterialTheme.typography.titleSmall)
+                Text(id, style = MaterialTheme.typography.bodySmall, color = tokenWorksSurfaces().textTertiary)
+                Text(managementStateLabel(state), style = MaterialTheme.typography.labelMedium,
+                    color = when (state) {
+                        "active" -> tokenWorksSurfaces().success
+                        "revoked", "expired", "inactive" -> tokenWorksSurfaces().textTertiary
+                        "pending" -> tokenWorksSurfaces().warning
+                        else -> tokenWorksSurfaces().textTertiary
+                    })
+            }
+            TextButton(onClick = onRevoke, enabled = canRevoke,
+                colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error),
+                modifier = Modifier.heightIn(min = TokenWorksSpacing.minimumTouchTarget)) { Text("撤销") }
+        }
+    }
 }

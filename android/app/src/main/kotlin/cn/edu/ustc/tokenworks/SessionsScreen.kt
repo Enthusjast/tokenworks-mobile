@@ -149,17 +149,13 @@ internal fun SessionsScreen(state: HomeState, viewModel: HomeViewModel, modifier
                     }
                     if (state.sessions.isEmpty() && !state.loadingSessions && state.sessionError == null) {
                         item(key = "empty") {
-                            Column(
-                                Modifier.fillMaxWidth().padding(TokenWorksSpacing.lg),
-                                verticalArrangement = Arrangement.spacedBy(TokenWorksSpacing.lg),
-                            ) {
-                                Text(stringResource(R.string.session_empty), style = MaterialTheme.typography.bodyMedium,
-                                    color = tokenWorksSurfaces().textTertiary)
-                                Button(viewModel::openCreation, enabled = canCreate,
-                                    modifier = Modifier.fillMaxWidth().heightIn(min = TokenWorksSpacing.minimumTouchTarget)) {
-                                    Text(stringResource(R.string.action_create_session))
-                                }
-                            }
+                            TokenWorksEmptyState(
+                                title = stringResource(R.string.session_empty),
+                                detail = stringResource(R.string.session_empty_detail),
+                                actionLabel = stringResource(R.string.action_create_session),
+                                onAction = viewModel::openCreation.takeIf { canCreate },
+                                modifier = Modifier.tokenWorksEntrance("sessions-empty"),
+                            )
                         }
                     }
                     if (recent.isNotEmpty()) {

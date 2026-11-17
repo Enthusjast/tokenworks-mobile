@@ -18,6 +18,9 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
@@ -77,59 +80,92 @@ internal fun FilesScreen(coordinator: FilesCoordinator, sessionId: String, onBac
         coordinator.pickerFinished()
         if (uri != null) coordinator.export(DocumentExportTarget(context, uri))
     }
-    Column(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing).verticalScroll(rememberScrollState()).padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        TextButton(onBack) { Text("返回会话") }
-        Text("文件与附件", style = MaterialTheme.typography.headlineSmall)
+    Column(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing).verticalScroll(rememberScrollState()).padding(TokenWorksSpacing.lg),
+        verticalArrangement = Arrangement.spacedBy(TokenWorksSpacing.md)) {
+        Text("文件与附件", style = MaterialTheme.typography.headlineSmall, modifier = Modifier.semantics { heading() })
         Text("图片供模型识图；普通文件上传仅准备文件附件。发送均由会话中的发送按钮确认。预览不会执行 HTML 或脚本。", style = MaterialTheme.typography.bodyMedium)
-        OutlinedTextField(path, { path = it }, Modifier.fillMaxWidth(), label = { Text("电脑上的绝对文件路径") }, singleLine = true,
-            supportingText = { Text("例如 /home/user/project/result.png；访问仍受主机授权限制。") })
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Button({ coordinator.load(path) }, enabled = !state.busy && path.startsWith('/')) { Text("读取文件") }
-            OutlinedButton({
-                platformError = null; coordinator.pickerStarted()
-                try { upload.launch(arrayOf("*/*")) }
-                catch (_: Exception) { coordinator.pickerFinished(); platformError = "系统文件选择器不可用。" }
-            }, enabled = !state.busy && state.uploaded.size < 16) { Text("上传附件") }
-        }
-        OutlinedButton({
-            platformError = null; imageSelectionSession = sessionId; coordinator.pickerStarted()
-            try { selectImage.launch(arrayOf("image/png", "image/jpeg", "image/webp", "image/gif")) }
-            catch (_: Exception) { imageSelectionSession = null; coordinator.pickerFinished(); platformError = "系统图片选择器不可用。" }
-        }, enabled = !state.busy && state.images.size < NativeImagePart.MAX_IMAGES) { Text("选择图片供模型识图…") }
-        Text("最多 4 张；每张生成不超过 256 KiB 编码的发送副本，总计不超过 1 MiB。会校正方向、缩小或压缩并移除元数据，原文件不变；不支持动画。",
-            style = MaterialTheme.typography.bodySmall)
-        state.images.forEach { image ->
-            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text("${image.part.name ?: "图片"} · ${image.width} × ${image.height} · ${image.part.encodedBytes} 编码字节 · 待发送")
-                Text(image.notice, style = MaterialTheme.typography.bodySmall)
-                TextButton({ coordinator.removeImage(image.part) }, enabled = !state.busy) { Text("移除图片") }
-            }
-        }
+        if (state.busy) TokenWorksStatusNotice(
+            if (state.operation == FilesOperation.PREPARE_IMAGE) "正在手机上处理图片，尚未发送…" else "正在传输… ${state.progressBytes} 字节" + (state.totalBytes?.let { " / $it" } ?: ""),
+            tone = TokenWorksNoticeTone.INFO,
+        )
         if (state.busy) {
             LinearProgressIndicator(Modifier.fillMaxWidth())
-            if (state.operation == FilesOperation.PREPARE_IMAGE) Text("正在手机上处理图片，尚未发送…")
-            Text("${state.progressBytes} 字节" + (state.totalBytes?.let { " / $it" } ?: ""))
-            TextButton(coordinator::cancel) { Text("取消传输") }
+            TextButton(coordinator::cancel, Modifier.heightIn(min = TokenWorksSpacing.minimumTouchTarget)) { Text("取消传输") }
         }
-        (platformError ?: state.error)?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+        (platformError ?: state.error)?.let { TokenWorksStatusNotice(it, tone = TokenWorksNoticeTone.ERROR) }
+        if (state.exported) TokenWorksStatusNotice("文件已保存到所选位置。", tone = TokenWorksNoticeTone.SUCCESS)
+        Surface(Modifier.fillMaxWidth(), shape = tokenWorksSquircle(TokenWorksRadius.lg),
+            color = MaterialTheme.colorScheme.surfaceContainerLow) {
+            Column(Modifier.padding(TokenWorksSpacing.md), verticalArrangement = Arrangement.spacedBy(TokenWorksSpacing.sm)) {
+                Text("读取电脑上的文件", style = MaterialTheme.typography.titleSmall, modifier = Modifier.semantics { heading() })
+                OutlinedTextField(path, { path = it }, Modifier.fillMaxWidth(), label = { Text("电脑上的绝对文件路径") }, singleLine = true,
+                    supportingText = { Text("例如 /home/user/project/result.png；访问仍受主机授权限制。") })
+                Row(horizontalArrangement = Arrangement.spacedBy(TokenWorksSpacing.sm)) {
+                    Button({ coordinator.load(path) }, enabled = !state.busy && path.startsWith('/')) { Text("读取文件") }
+                    OutlinedButton({
+                        platformError = null; coordinator.pickerStarted()
+                        try { upload.launch(arrayOf("*/*")) }
+                        catch (_: Exception) { coordinator.pickerFinished(); platformError = "系统文件选择器不可用。" }
+                    }, enabled = !state.busy && state.uploaded.size < 16) { Text("上传附件") }
+                }
+            }
+        }
+        Surface(Modifier.fillMaxWidth(), shape = tokenWorksSquircle(TokenWorksRadius.lg),
+            color = MaterialTheme.colorScheme.surfaceContainerLow) {
+            Column(Modifier.padding(TokenWorksSpacing.md), verticalArrangement = Arrangement.spacedBy(TokenWorksSpacing.sm)) {
+                Text("图片供模型识图", style = MaterialTheme.typography.titleSmall, modifier = Modifier.semantics { heading() })
+                OutlinedButton({
+                    platformError = null; imageSelectionSession = sessionId; coordinator.pickerStarted()
+                    try { selectImage.launch(arrayOf("image/png", "image/jpeg", "image/webp", "image/gif")) }
+                    catch (_: Exception) { imageSelectionSession = null; coordinator.pickerFinished(); platformError = "系统图片选择器不可用。" }
+                }, enabled = !state.busy && state.images.size < NativeImagePart.MAX_IMAGES) { Text("选择图片供模型识图…") }
+                Text("最多 4 张；每张生成不超过 256 KiB 编码的发送副本，总计不超过 1 MiB。会校正方向、缩小或压缩并移除元数据，原文件不变；不支持动画。",
+                    style = MaterialTheme.typography.bodySmall, color = tokenWorksSurfaces().textTertiary)
+            }
+        }
+        state.images.forEach { image ->
+            Surface(Modifier.fillMaxWidth(), shape = tokenWorksSquircle(TokenWorksRadius.md),
+                color = MaterialTheme.colorScheme.surfaceContainerLow) {
+                Row(Modifier.padding(horizontal = TokenWorksSpacing.md, vertical = TokenWorksSpacing.sm),
+                    verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(TokenWorksSpacing.sm)) {
+                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(TokenWorksSpacing.xxs)) {
+                        Text("${image.part.name ?: "图片"} · ${image.width} × ${image.height} · 待发送", style = MaterialTheme.typography.bodyMedium)
+                        if (image.notice.isNotBlank()) Text(image.notice, style = MaterialTheme.typography.bodySmall,
+                            color = tokenWorksSurfaces().textTertiary)
+                    }
+                    TextButton({ coordinator.removeImage(image.part) }, enabled = !state.busy,
+                        modifier = Modifier.heightIn(min = TokenWorksSpacing.minimumTouchTarget)) { Text("移除") }
+                }
+            }
+        }
         state.uploaded.forEach { file ->
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("${file.name} · ${file.sizeBytes} 字节 · 待发送", Modifier.weight(1f))
-                TextButton({ coordinator.removeUpload(file.receiptId) }, enabled = !state.busy) { Text("移除") }
+            Surface(Modifier.fillMaxWidth(), shape = tokenWorksSquircle(TokenWorksRadius.md),
+                color = MaterialTheme.colorScheme.surfaceContainerLow) {
+                Row(Modifier.padding(horizontal = TokenWorksSpacing.md, vertical = TokenWorksSpacing.sm),
+                    verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(TokenWorksSpacing.sm)) {
+                    Text("${file.name} · ${file.sizeBytes} 字节 · 待发送", Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
+                    TextButton({ coordinator.removeUpload(file.receiptId) }, enabled = !state.busy,
+                        modifier = Modifier.heightIn(min = TokenWorksSpacing.minimumTouchTarget)) { Text("移除") }
+                }
             }
         }
         state.preview?.let { file ->
-            Text(file.name, style = MaterialTheme.typography.titleMedium)
-            Text("${file.mediaType} · ${file.sizeBytes} 字节", style = MaterialTheme.typography.labelMedium)
-            FilePreviewContent(file)
-            Button({
-                coordinator.pickerStarted()
-                try { export.launch(file.name) }
-                catch (_: Exception) { coordinator.pickerFinished(); platformError = "系统保存选择器不可用。" }
-            }, enabled = !state.busy) { Text("保存到手机…") }
+            Surface(Modifier.fillMaxWidth(), shape = tokenWorksSquircle(TokenWorksRadius.lg),
+                color = MaterialTheme.colorScheme.surfaceContainerLow) {
+                Column(Modifier.padding(TokenWorksSpacing.md), verticalArrangement = Arrangement.spacedBy(TokenWorksSpacing.sm)) {
+                    Text(file.name, style = MaterialTheme.typography.titleMedium)
+                    Text("${file.mediaType} · ${file.sizeBytes} 字节", style = MaterialTheme.typography.labelMedium,
+                        color = tokenWorksSurfaces().textTertiary)
+                    FilePreviewContent(file)
+                    Button({
+                        coordinator.pickerStarted()
+                        try { export.launch(file.name) }
+                        catch (_: Exception) { coordinator.pickerFinished(); platformError = "系统保存选择器不可用。" }
+                    }, enabled = !state.busy, modifier = Modifier.heightIn(min = TokenWorksSpacing.minimumTouchTarget)) { Text("保存到手机…") }
+                }
+            }
         }
-        if (state.exported) Text("文件已保存到所选位置。")
+        TextButton(onBack, Modifier.heightIn(min = TokenWorksSpacing.minimumTouchTarget)) { Text("返回会话") }
     }
 }
 
