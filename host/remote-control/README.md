@@ -4,6 +4,8 @@
 **认证已配对设备** 和 **把 dsh 原生协议安全地透传给同进程的 dsh**。会话、命令、审批、
 提问、文件的语义全部属于 dsh；本插件不理解也不重写它们。
 
+支持完整 dsh `0.2.2` 系列（含合法预发布版／构建元数据），peer 范围为 `>=0.2.2-0 <0.2.3-0`；当前 SDK、生成契约与真实调用验证基线为 `0.2.2-rc.1`。系列准入不放松同次 HELLO／READY 精确版本绑定；其他发行版未逐一验收。
+
 架构与设计决策见 [`IMPROVE_PLAN.md`](../../IMPROVE_PLAN.md) 第 6.3/6.5 节。
 
 ## 模块
@@ -29,9 +31,11 @@
     runtimeId: 44444444-4444-4444-8444-444444444444
     relayUrl: https://your-relay.example.edu
     applicationVersion: 1.0.0
+    dshVersion: 0.2.2-rc.1
 ```
 
 发行集成通过 `HostCredentialProvider` 提供安装凭据；不要把安装私钥写进 DSH YAML。
+`dshVersion` 必须是当前实际运行的版本字符串，不能填写 semver 范围或沿用旧版本。加密配对还要求发行方传入 `LanSecurity.pairingProtector` 及 `pairing` 的目录／HTTPS origin／公开证书；这些不由上述配置片段代为生成。开发入口会显式提供这些配置与仅回环的 8444 引导监听。
 
 `peerMode`（经宿主集成传入 `RelayTunnel`）：`owner`（默认，个人设备）或 `device`（受控部署，
 需配合 remoteAccess 授权矩阵与 Go 侧 `OwnerBindings()`，见

@@ -29,7 +29,7 @@ STATE = ROOT / '.local/tokenworks-mobile-dev'
 STATUS = STATE / 'status.json'
 SECURE_STATE = Path.home() / '.local/state/tokenworks-mobile-development' / hashlib.sha256(str(ROOT).encode()).hexdigest()[:16]
 PG = Path(os.environ.get('REMOTE_DEV_PG_BIN', '/usr/lib/postgresql/18/bin'))
-PORTS = {'relay': 8080, 'issuer': 8082, 'dsh': 3000}
+PORTS = {'relay': 8080, 'issuer': 8082, 'dsh': 3000, 'lan': 8444}
 PLUGIN_VERSION = json.loads((ROOT / 'host/remote-control/package.json').read_text())['version']
 FIXTURE = ROOT / 'tools/dev/fixture-host.mjs'
 GATEWAY = ROOT / 'tools/dev/mobile-gateway.mjs'
@@ -195,9 +195,9 @@ def serve(profile, android=False, attach=None):
     if not dsh or not node or not Path(go).is_file() or not (PG / 'pg_ctl').is_file():
         raise RuntimeError('installed dsh, Node 24, Go and PostgreSQL are required')
     dsh_version = subprocess.check_output([dsh, '--version'], text=True).strip()
-    if not re.fullmatch(r'0\.2\.1(?:-rc\.[0-9]+)?', dsh_version):
-        raise RuntimeError('this development composition requires installed npm dsh 0.2.1')
-    for port in [PORTS['relay'], PORTS['issuer'], *([] if attach else [PORTS['dsh']]), *([8443] if android else [])]:
+    if not re.fullmatch(r'0\.2\.2(?:-(?:0|[1-9][0-9]*|[0-9]*[A-Za-z-][0-9A-Za-z-]*)(?:\.(?:0|[1-9][0-9]*|[0-9]*[A-Za-z-][0-9A-Za-z-]*))*)?(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?', dsh_version):
+        raise RuntimeError('this development composition requires installed npm dsh 0.2.2 (including prereleases)')
+    for port in [PORTS['relay'], PORTS['issuer'], *([] if attach else [PORTS['dsh'], PORTS['lan']]), *([8443] if android else [])]:
         with socket.socket() as check:
             check.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
             check.bind(('127.0.0.1', port))
@@ -206,6 +206,7 @@ def serve(profile, android=False, attach=None):
              'fixture_identity': True, 'relay_plugin_connected': False,
              'go_reloads': 0, 'children': {}}
     state['android'] = android
+    state['lan_origin'] = 'https://localhost:' + str(PORTS['lan'])
     if attach:
         state.update(external_dsh=attach, dsh=attach['url'])
     if android:
@@ -287,8 +288,9 @@ def serve(profile, android=False, attach=None):
             script = "const fs=require('node:fs'),c=require('node:crypto');const k=c.generateKeyPairSync('ec',{namedCurve:'prime256v1'});fs.writeFileSync(process.argv[1],JSON.stringify({private:k.privateKey.export({format:'jwk'}),public:{...k.publicKey.export({format:'jwk'}),kid:'local-dev-only',use:'sig',alg:'ES256'}}),{mode:0o600,flag:'wx'})"
             command([node, '-e', script, str(key)])
         child_env = os.environ.copy()
+        child_env['TOKENWORKS_MOBILE_LOCAL_DSH_VERSION'] = dsh_version
+        mobile_assets(command)
         if android:
-            mobile_assets(command)
             child_env.update(TOKENWORKS_MOBILE_LOCAL_ANDROID='1', NODE_EXTRA_CA_CERTS=str(STATE / 'android/ca.pem'))
             launch('gateway', [node, str(GATEWAY)], child_env)
             deadline = time.monotonic() + 15
@@ -327,8 +329,7 @@ def serve(profile, android=False, attach=None):
                           REMOTE_HOST_CLIENT_IDS='local-dev-host', REMOTE_REQUIRED_SCOPES='remote.access',
                           REMOTE_PUBLIC_ORIGIN='http://127.0.0.1:8080', REMOTE_LISTEN_ADDR='127.0.0.1:8080',
                           REMOTE_DATABASE_URL=dsn, REMOTE_DATABASE_EPOCH=query('select epoch::text from remote_recovery_state where slot=1'),
-                          REMOTE_RELAY_NODE_ID='da96f9e7-c59e-484d-a826-3fca09eb18bd',
-                          REMOTE_APPROVAL_POLICY_FILE=str(STATE / 'fixture-approval-policy.json'))
+                          REMOTE_RELAY_NODE_ID='da96f9e7-c59e-484d-a826-3fca09eb18bd')
         if android:
             remote_env.update(REMOTE_ISSUER=MOBILE_ORIGIN + '/issuer', REMOTE_JWKS_URL=MOBILE_ORIGIN + '/issuer/jwks.json',
                               REMOTE_PUBLIC_ORIGIN=MOBILE_ORIGIN, SSL_CERT_FILE=str(STATE / 'android/ca.pem'))
@@ -388,38 +389,6 @@ def serve(profile, android=False, attach=None):
         runtime = str(uuid.UUID(enrolled['runtimeId']))
         if android:
             workspace = str(uuid.UUID(enrolled['workspaces'][0]['workspaceId']))
-            # Mirrors store.OwnerBindings: the supported native endpoint matrix.
-            # Unbound session/workspace bindings cover every resource; the Host's
-            # own remoteAccess policy still decides each call.
-            bindings = [
-                {'resource': {'kind': 'global'}, 'actions': [
-                    'remoteAccess/follow', 'session/modelCatalog', 'session/canOpenWorkspacePath',
-                    'session/workspacePathApplications', 'session/initializeDefaultModel',
-                    'fileReferences/list', 'skills/list', 'fileUploads/upload',
-                    'directoryPicker/list', 'directoryPicker/createDirectory', 'directoryPicker/pick',
-                    'workspace/create', 'workspace/initializeDefault']},
-                {'resource': {'kind': 'session'}, 'actions': [
-                    'session/list', 'session/search', 'session/create', 'session/follow', 'session/page',
-                    'session/prompt', 'session/cancel', 'session/updateQueue', 'session/selectModel',
-                    'session/fork', 'session/rename', 'session/attachment', 'session/projections',
-                    'session/control', 'session/openWorkspacePath',
-                    'userQuestions/answer', 'userQuestions/attachWait']},
-                {'resource': {'kind': 'workspace'}, 'actions': [
-                    'workspace/follow', 'workspace/archiveSession', 'workspace/unarchiveSession',
-                    'workspace/rename', 'workspace/delete', 'workspace/insertBefore',
-                    'workspace/insertSessionBefore', 'workspace/pinSession', 'workspace/unpinSession']},
-            ]
-            granted = json.dumps(bindings)
-            # Explicit local-only grant fixture. Never revive a revoked grant.
-            # No file.* actions: scanner/blob/export services are not configured.
-            query(f"""insert into runtime_grants(runtime_id,user_id,role,bindings,granted_by)
-                select '{runtime}',u.id,'owner','{granted}'::jsonb,u.id from users u
-                join org_memberships m on m.user_id=u.id and m.org_id='{public['organization_id']}'
-                where u.issuer='{public['issuer']}' and u.subject='{public['phone_subject']}' and u.status='active'
-                on conflict(runtime_id,user_id) do update set role=excluded.role,bindings=excluded.bindings,
-                grant_version=runtime_grants.grant_version+1
-                where runtime_grants.revoked_at is null and (runtime_grants.role is distinct from excluded.role
-                or runtime_grants.bindings is distinct from excluded.bindings)""")
             state.update(organization_id=public['organization_id'], runtime_id=runtime, workspace_id=workspace,
                          files_configured=False, login_identity='LOCAL DEVELOPMENT ONLY: ' + public['phone_subject'])
             save(STATUS, state)

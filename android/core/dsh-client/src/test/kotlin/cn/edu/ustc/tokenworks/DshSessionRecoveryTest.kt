@@ -118,7 +118,7 @@ class DshSessionRecoveryTest {
             assertEquals(12L, request.integer("throughSeq", -1))
             val before = request.integer("beforeSeq", 0)
             val range = when (before) { 11L -> 7L..10L; 8L -> 4L..7L; else -> error("unexpected page") }
-            jsonObject("records" to JsonArray(range.map { nativeTranscriptEvent(transcriptEvent(it)) }), "hasMore" to JsonBoolean(true))
+            jsonObject("cursor" to 12L.json(), "records" to JsonArray(range.map { nativeTranscriptEvent(transcriptEvent(it)) }), "hasMore" to JsonBoolean(true))
         }
         val reader = DshSessionReader(transport, transcriptRoute.sessionId, owner, cache = cache)
         try {
@@ -136,7 +136,7 @@ class DshSessionRecoveryTest {
             assertEquals("session/page", endpoint)
             assertEquals(6L, args.obj("request").integer("throughSeq", -1))
             assertEquals(4L, args.obj("request").integer("beforeSeq", 0))
-            jsonObject("records" to JsonArray((0L..3L).map { nativeTranscriptEvent(transcriptEvent(it)) }), "hasMore" to JsonBoolean(false))
+            jsonObject("cursor" to 6L.json(), "records" to JsonArray((0L..3L).map { nativeTranscriptEvent(transcriptEvent(it)) }), "hasMore" to JsonBoolean(false))
         }
         val reader = DshSessionReader(transport, transcriptRoute.sessionId, owner)
         try {

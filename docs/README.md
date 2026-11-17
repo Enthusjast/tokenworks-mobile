@@ -12,6 +12,8 @@
 
 ## 从哪里开始
 
+首次使用请阅读：[连接与配对](guide/01-connect.md)、[会话、审批与文件](guide/02-sessions.md)、[故障排查](guide/03-troubleshooting.md)。权限与数据边界见[安全说明](../SECURITY.md)和[隐私说明](../PRIVACY.md)。
+
 | 目标 | 阅读顺序 |
 | --- | --- |
 | 首次运行 | [项目首页](../README.md) → [本机持续开发](local-development.md) |

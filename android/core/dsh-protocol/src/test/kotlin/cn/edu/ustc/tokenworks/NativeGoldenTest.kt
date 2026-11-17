@@ -84,6 +84,8 @@ class NativeGoldenTest {
     @Test fun versionDecisionsConsumeTheSameTransportIndependentCompatibilityManifest() {
         val manifest = fixture("compatibility.json")
         assertEquals(DshMethods.VERSION, manifest.string("dshVersion"))
+        assertEquals("native-version-series", manifest.string("policy"))
+        assertEquals(DshProductAccess.VERSION_RANGE, manifest.string("dshVersionRange"))
         assertEquals(DshNativeRegistry.methods.keys, manifest.array("endpoints").map { (it as JsonString).value }.toSet())
         for (value in manifest.array("cases")) {
             val vector = value as JsonObject

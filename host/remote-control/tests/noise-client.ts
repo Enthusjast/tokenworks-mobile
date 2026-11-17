@@ -155,7 +155,7 @@ export async function openNoiseClient(options: OpenOptions): Promise<{ stream: D
       const helloBytes = await record(4096), hello = parseSigningObject(helloBytes)
       if (!Buffer.from(canonicalObject(hello)).equals(helloBytes) || hello.magic !== 'tokenworks-noise' || hello.v !== 1 || hello.suite !== NOISE_SUITE ||
         hello.runtimeId !== credential.manifest.runtimeId || hello.installationId !== credential.manifest.installationId || hello.hostStaticPublicKey !== credential.manifest.hostStaticPublicKey ||
-        hello.hostKeyEpoch !== credential.manifest.hostKeyEpoch || hello.purpose !== purpose || hello.routeKind !== routeKind || hello.dshVersion !== '0.2.1-rc.5') throw new Error('test carrier hello binding mismatch')
+        hello.hostKeyEpoch !== credential.manifest.hostKeyEpoch || hello.purpose !== purpose || hello.routeKind !== routeKind || hello.dshVersion !== '0.2.2-rc.1') throw new Error('test carrier hello binding mismatch')
       session = new NativeNoiseSession(true, credential.privateKey, Buffer.from(credential.manifest.hostStaticPublicKey, 'base64url'), helloBytes)
       await writeRecord(output.subarray(0, session.handshakeWrite(new Uint8Array(), output)))
       stage = 'IK response'
@@ -171,7 +171,7 @@ export async function openNoiseClient(options: OpenOptions): Promise<{ stream: D
       await send(canonicalObject({ type: 'auth', pairId: credential.deviceId, token: credential.token, hostKeyEpoch: credential.manifest.hostKeyEpoch, deviceKeyEpoch: credential.manifest.deviceKeyEpoch, proof, ...(options.relayLease ? { relayLease: options.relayLease } : {}) }))
       stage = 'authenticated ready'
       ready = parseSigningObject(await receive())
-      if (ready.type !== 'ready' || ready.v !== 1 || ready.suite !== NOISE_SUITE || ready.dshVersion !== '0.2.1-rc.5' || ready.runtimeId !== credential.manifest.runtimeId ||
+      if (ready.type !== 'ready' || ready.v !== 1 || ready.suite !== NOISE_SUITE || ready.dshVersion !== '0.2.2-rc.1' || ready.runtimeId !== credential.manifest.runtimeId ||
         ready.installationId !== credential.manifest.installationId || ready.pairId !== credential.deviceId || ready.hostKeyEpoch !== credential.manifest.hostKeyEpoch ||
         ready.deviceKeyEpoch !== credential.manifest.deviceKeyEpoch || ready.ownerSha256 !== bindingDigest(credential.manifest.owner) || ready.bindingSha256 !== credential.bindingSha256 || typeof ready.peerGeneration !== 'string') throw new Error('test carrier ready binding mismatch')
     } finally { deadline.removeEventListener('abort', timedOut) }

@@ -71,6 +71,7 @@ export async function host(options: { probe?: boolean; timeoutMs?: number; direc
     { id: 'llm', name: '@deepseek-ai/dsh-llm' },
     { id: 'prompt', name: '@deepseek-ai/dsh-system-prompt', config: { includeHarnessIdentity: false, includeRuntimeContext: false } },
     { id: 'tools', name: '@deepseek-ai/dsh-tools' },
+    { id: 'native-tool-executor', name: '@deepseek-ai/dsh-tool-executor-native' },
     { id: 'approval', name: '@deepseek-ai/dsh-user-approval' },
     { id: 'typert', name: '@deepseek-ai/dsh-typert-registry' },
     { id: 'access', name: '@deepseek-ai/dsh-api-remote-access' },

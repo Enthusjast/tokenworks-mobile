@@ -1,5 +1,5 @@
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
-import { assertNativePackages, nativeMethods as methods, nativeVersion as version, nativeSchema as schemaOf, type NativeSchema as Schema } from './native-contract.js'
+import { assertNativePackages, nativeMethods as methods, nativeVersion as version, nativeVersionRange as versionRange, nativeSchema as schemaOf, type NativeSchema as Schema } from './native-contract.js'
 import { fileURLToPath } from 'node:url'
 import { checkTypertContracts } from './typert-contract-check.js'
 import { createHash } from 'node:crypto'
@@ -191,14 +191,18 @@ object DshNativeRegistry {
 ${methods.map(([endpoint, method]) => `        ${quote(endpoint)} to DshNativeEntry(DshMethods.${pascal(endpoint)}, ${(method.result.create() as z.ZodType).safeParse(undefined).success}),`).join('\n')}
     )
     fun compatibility(advertisedVersion: JsonValue): String =
-        if (advertisedVersion is JsonString && advertisedVersion.value == DshMethods.VERSION) "compatible" else "unsupported-version"
+        if (advertisedVersion is JsonString && DshProductAccess.isSupportedDshVersion(advertisedVersion.value)) "compatible" else "unsupported-version"
 }
 `
+// Expectations are independent of the admission implementation, including SemVer's
+// numeric prerelease leading-zero rule and exact whole-string matching.
+const compatibleVersions = [version, '0.2.2', '0.2.2-0', '0.2.2-alpha', '0.2.2-alpha.1', '0.2.2-beta.12', '0.2.2-rc.99', '0.2.2-999999999999999999999999999999', '0.2.2-01alpha', '0.2.2--', '0.2.2+build.001', '0.2.2-rc.1+build.001', '0.2.2-alpha.0.z-1+sha.ABC-123']
+const unsupportedVersions = ['0.2.1', '0.2.1-rc.5', '0.2.1+build', '0.2.3', '0.2.3-0', '0.2.3-alpha', '0.3.0', '1.2.2', '00.2.2', '0.02.2', '0.2.02', '0.2', '0.2.2.0', 'v0.2.2', '=0.2.2', ' 0.2.2', '0.2.2 ', '0.2.2\n', '0.2.2\r\n', '0.2.2-', '0.2.2-01', '0.2.2-alpha.01', '0.2.2-rc..1', '0.2.2-rc_1', '0.2.2-α', '0.2.2+', '0.2.2+build..1', '0.2.2+build_1', '0.2.2+build+next', '', null, 1, true, {}, []]
 const outputs = new Map([
-  ['contracts/typert/native-api.json', JSON.stringify({ dshVersion: version, source: 'installed-native-reflection; not recorded method execution', methods: snapshot }, null, 2) + '\n'],
+  ['contracts/typert/native-api.json', JSON.stringify({ dshVersion: version, dshVersionRange: versionRange, source: 'installed-native-reflection; not recorded method execution', methods: snapshot }, null, 2) + '\n'],
   ['android/core/dsh-protocol/src/main/kotlin/cn/edu/ustc/tokenworks/DshNativeTypes.kt', prelude + declarations.join('\n\n') + '\n'],
   ['android/core/dsh-protocol/src/main/kotlin/cn/edu/ustc/tokenworks/DshNativeRegistry.kt', registry],
-  ['contracts/typert/golden/compatibility.json', JSON.stringify({ policy: 'exact-native-version', dshVersion: version, endpoints: methods.map(([endpoint]) => endpoint), cases: [version, '0.2.1', '0.2.1-rc.4', '0.2.1-rc.6', '0.3.0', '', null, 1].map(advertisedVersion => ({ advertisedVersion, decision: advertisedVersion === version ? 'compatible' : 'unsupported-version' })) }, null, 2) + '\n'],
+  ['contracts/typert/golden/compatibility.json', JSON.stringify({ policy: 'native-version-series', dshVersion: version, dshVersionRange: versionRange, endpoints: methods.map(([endpoint]) => endpoint), cases: [...compatibleVersions.map(advertisedVersion => ({ advertisedVersion, decision: 'compatible' })), ...unsupportedVersions.map(advertisedVersion => ({ advertisedVersion, decision: 'unsupported-version' }))] }, null, 2) + '\n'],
   ['contracts/typert/golden/native-vectors.jsonl', buildNativeVectors().vectors.map(vector => JSON.stringify(vector)).join('\n') + '\n'],
   ['contracts/typert/golden/wire-vectors.json', JSON.stringify(buildWireVectors(), null, 2) + '\n'],
   ...(await productAccessOutputs()).map(({ path, content }) => [path, content] as [string, string]),

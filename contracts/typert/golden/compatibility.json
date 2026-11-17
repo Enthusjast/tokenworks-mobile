@@ -1,6 +1,7 @@
 {
-  "policy": "exact-native-version",
-  "dshVersion": "0.2.1-rc.5",
+  "policy": "native-version-series",
+  "dshVersion": "0.2.2-rc.1",
+  "dshVersionRange": ">=0.2.2-0 <0.2.3-0",
   "endpoints": [
     "fileUploads/upload",
     "remoteAccess/follow",
@@ -43,7 +44,55 @@
   ],
   "cases": [
     {
-      "advertisedVersion": "0.2.1-rc.5",
+      "advertisedVersion": "0.2.2-rc.1",
+      "decision": "compatible"
+    },
+    {
+      "advertisedVersion": "0.2.2",
+      "decision": "compatible"
+    },
+    {
+      "advertisedVersion": "0.2.2-0",
+      "decision": "compatible"
+    },
+    {
+      "advertisedVersion": "0.2.2-alpha",
+      "decision": "compatible"
+    },
+    {
+      "advertisedVersion": "0.2.2-alpha.1",
+      "decision": "compatible"
+    },
+    {
+      "advertisedVersion": "0.2.2-beta.12",
+      "decision": "compatible"
+    },
+    {
+      "advertisedVersion": "0.2.2-rc.99",
+      "decision": "compatible"
+    },
+    {
+      "advertisedVersion": "0.2.2-999999999999999999999999999999",
+      "decision": "compatible"
+    },
+    {
+      "advertisedVersion": "0.2.2-01alpha",
+      "decision": "compatible"
+    },
+    {
+      "advertisedVersion": "0.2.2--",
+      "decision": "compatible"
+    },
+    {
+      "advertisedVersion": "0.2.2+build.001",
+      "decision": "compatible"
+    },
+    {
+      "advertisedVersion": "0.2.2-rc.1+build.001",
+      "decision": "compatible"
+    },
+    {
+      "advertisedVersion": "0.2.2-alpha.0.z-1+sha.ABC-123",
       "decision": "compatible"
     },
     {
@@ -51,15 +100,115 @@
       "decision": "unsupported-version"
     },
     {
-      "advertisedVersion": "0.2.1-rc.4",
+      "advertisedVersion": "0.2.1-rc.5",
       "decision": "unsupported-version"
     },
     {
-      "advertisedVersion": "0.2.1-rc.6",
+      "advertisedVersion": "0.2.1+build",
+      "decision": "unsupported-version"
+    },
+    {
+      "advertisedVersion": "0.2.3",
+      "decision": "unsupported-version"
+    },
+    {
+      "advertisedVersion": "0.2.3-0",
+      "decision": "unsupported-version"
+    },
+    {
+      "advertisedVersion": "0.2.3-alpha",
       "decision": "unsupported-version"
     },
     {
       "advertisedVersion": "0.3.0",
+      "decision": "unsupported-version"
+    },
+    {
+      "advertisedVersion": "1.2.2",
+      "decision": "unsupported-version"
+    },
+    {
+      "advertisedVersion": "00.2.2",
+      "decision": "unsupported-version"
+    },
+    {
+      "advertisedVersion": "0.02.2",
+      "decision": "unsupported-version"
+    },
+    {
+      "advertisedVersion": "0.2.02",
+      "decision": "unsupported-version"
+    },
+    {
+      "advertisedVersion": "0.2",
+      "decision": "unsupported-version"
+    },
+    {
+      "advertisedVersion": "0.2.2.0",
+      "decision": "unsupported-version"
+    },
+    {
+      "advertisedVersion": "v0.2.2",
+      "decision": "unsupported-version"
+    },
+    {
+      "advertisedVersion": "=0.2.2",
+      "decision": "unsupported-version"
+    },
+    {
+      "advertisedVersion": " 0.2.2",
+      "decision": "unsupported-version"
+    },
+    {
+      "advertisedVersion": "0.2.2 ",
+      "decision": "unsupported-version"
+    },
+    {
+      "advertisedVersion": "0.2.2\n",
+      "decision": "unsupported-version"
+    },
+    {
+      "advertisedVersion": "0.2.2\r\n",
+      "decision": "unsupported-version"
+    },
+    {
+      "advertisedVersion": "0.2.2-",
+      "decision": "unsupported-version"
+    },
+    {
+      "advertisedVersion": "0.2.2-01",
+      "decision": "unsupported-version"
+    },
+    {
+      "advertisedVersion": "0.2.2-alpha.01",
+      "decision": "unsupported-version"
+    },
+    {
+      "advertisedVersion": "0.2.2-rc..1",
+      "decision": "unsupported-version"
+    },
+    {
+      "advertisedVersion": "0.2.2-rc_1",
+      "decision": "unsupported-version"
+    },
+    {
+      "advertisedVersion": "0.2.2-α",
+      "decision": "unsupported-version"
+    },
+    {
+      "advertisedVersion": "0.2.2+",
+      "decision": "unsupported-version"
+    },
+    {
+      "advertisedVersion": "0.2.2+build..1",
+      "decision": "unsupported-version"
+    },
+    {
+      "advertisedVersion": "0.2.2+build_1",
+      "decision": "unsupported-version"
+    },
+    {
+      "advertisedVersion": "0.2.2+build+next",
       "decision": "unsupported-version"
     },
     {
@@ -72,6 +221,18 @@
     },
     {
       "advertisedVersion": 1,
+      "decision": "unsupported-version"
+    },
+    {
+      "advertisedVersion": true,
+      "decision": "unsupported-version"
+    },
+    {
+      "advertisedVersion": {},
+      "decision": "unsupported-version"
+    },
+    {
+      "advertisedVersion": [],
       "decision": "unsupported-version"
     }
   ]

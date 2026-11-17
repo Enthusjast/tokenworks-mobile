@@ -38,7 +38,7 @@ class FilesCoordinator(transport: DshTransport, privateDirectory: File, owner: C
     @Synchronized fun pickerStarted() { mutableState.value = mutableState.value.copy(pickerActive = true) }
     @Synchronized fun pickerFinished() { mutableState.value = mutableState.value.copy(pickerActive = false) }
     fun load(path: String) = receive(path) { progress -> client.download(path, progress) }
-    fun loadAttachment(sessionId: String, attachmentId: String) = receive("attachment") { progress -> client.attachment(sessionId, attachmentId, progress) }
+    fun loadAttachment(sessionId: String, attachment: NativeImageReference) = receive("attachment") { progress -> client.attachment(sessionId, attachment, progress) }
 
     @Synchronized private fun receive(path: String, fetch: suspend ((Long) -> Unit) -> StagedFile) {
         cancel()

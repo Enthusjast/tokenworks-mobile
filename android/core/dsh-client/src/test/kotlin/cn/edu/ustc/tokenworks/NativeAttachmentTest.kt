@@ -16,7 +16,8 @@ class NativeAttachmentTest {
     private val data = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aD1sAAAAASUVORK5CYII="
     private val bytes = Base64.getDecoder().decode(data)
     private val id = "sha256:" + MessageDigest.getInstance("SHA-256").digest(bytes).joinToString("") { "%02x".format(it) }
-    private fun response() = jsonObject("attachment" to NativeImageReference(id, "image/png", bytes.size.toLong(), 1, 1, "native.png").json(), "data" to data.json())
+    private val attachment = NativeImageReference(id, "image/png", bytes.size.toLong(), 1, 1, "native.png")
+    private fun response() = jsonObject("attachment" to attachment.json(), "data" to data.json())
     private class AttachmentTransport(var result: JsonObject) : DshTransport {
         override val runtimeId = "native-image-runtime"
         override val state = MutableStateFlow(DshTransportState(DshTransportPath.RELAY, DshTransportPhase.READY))
@@ -37,17 +38,21 @@ class NativeAttachmentTest {
     @Test fun everyPreviewUsesCurrentSessionHostReachabilityInsteadOfCachedHashAuthority() = runBlocking {
         val transport = AttachmentTransport(response())
         val client = DshFilesClient(transport, directory.root)
-        val staged = client.attachment("current-session", id)
+        val staged = client.attachment("current-session", attachment)
         try {
             assertArrayEquals(bytes, staged.file.readBytes())
             assertEquals("image/png", staged.mediaType)
             assertEquals(bytes.size.toLong(), staged.sizeBytes)
         } finally { staged.close() }
         transport.denied = true
-        try { client.attachment("other-session", id); fail("Host must authorize each session") }
+        try { client.attachment("other-session", attachment); fail("Host must authorize each session") }
         catch (error: RemoteRequestException) { assertEquals("session.attachment_not_found", error.code) }
         assertEquals(2, transport.requests.size)
-        transport.requests.forEach { it.exactKeys("request"); it.obj("request").exactKeys("sessionId", "attachmentId") }
+        transport.requests.forEach {
+            it.exactKeys("request")
+            it.obj("request").exactKeys("sessionId", "attachment")
+            assertTrue(attachment.same(NativeImageReference.parse(it.obj("request").obj("attachment"))))
+        }
         assertEquals("current-session", transport.requests[0].obj("request").string("sessionId"))
         assertEquals("other-session", transport.requests[1].obj("request").string("sessionId"))
         assertTrue(directory.root.listFiles().orEmpty().isEmpty())
@@ -61,12 +66,14 @@ class NativeAttachmentTest {
             root.with("attachment" to ref.with("bytes" to (bytes.size + 1L).json())),
             root.with("data" to ("!" + data.drop(1)).json()), root.with("data" to data.dropLast(1).json()),
             root.with("attachment" to ref.with("width" to 0L.json())),
+            root.with("attachment" to ref.with("width" to 2L.json())),
+            root.with("attachment" to ref.with("name" to "different.png".json())),
             root.with("data" to Base64.getEncoder().encodeToString(bytes.clone().also { it[it.lastIndex] = (it.last() + 1).toByte() }).json()))
         val transport = AttachmentTransport(root)
         val client = DshFilesClient(transport, directory.root)
         for (bad in invalid) {
             transport.result = bad
-            try { client.attachment("current-session", id); fail("must reject malformed native attachment") }
+            try { client.attachment("current-session", attachment); fail("must reject malformed native attachment") }
             catch (expected: Exception) { assertTrue(expected is ProtocolException || expected is RemoteRequestException) }
             assertTrue(directory.root.listFiles().orEmpty().isEmpty())
         }

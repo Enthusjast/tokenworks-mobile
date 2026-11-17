@@ -85,7 +85,7 @@ export async function createIsolatedNativeAssembly(root: string, additional: Ent
     provider('dsh-storage-domain', { backend: 'json' }), provider('dsh-workspace'), provider('dsh-session-query-sqlite', { path: join(root, 'query.sqlite'), openAt: 'startup' }),
     provider('dsh-session-title', { fallbackMaxWords: 5, fallbackMaxBytes: 40, maxTitleBytes: 80 }),
     provider('dsh-agent'), provider('dsh-llm'), provider('dsh-system-prompt', { includeHarnessIdentity: false, includeRuntimeContext: false }),
-    provider('dsh-tools'), provider('dsh-user-approval'), provider('dsh-typert-registry'), provider('dsh-api-remote-access'),
+    provider('dsh-tools'), provider('dsh-tool-executor-native'), provider('dsh-user-approval'), provider('dsh-typert-registry'), provider('dsh-api-remote-access'),
     provider('dsh-user-questions'), provider('dsh-agent-default-model', { provider: 'dsh-m0-test', model: 'offline' }),
     provider('dsh-fs-local'), provider('dsh-working-directory'), provider('dsh-attachment-local', { dshHome: root }),
     provider('dsh-credentials-local', { path: join(root, 'credentials.yaml') }), provider('dsh-client-connection'),
@@ -180,9 +180,10 @@ async function executeNativeFixture(root: string): Promise<NativeCapture> {
       { type: 'image', mediaType: 'image/png', data: image, name: 'fixture.png' },
     ] } })
     await agent.whenIdle()
+    assert.deepEqual(errors, [], 'The installed native Agent must settle the image prompt without errors')
     const imagePart = agent.session.snapshotEvents().filter(event => event.type === 'user/message').flatMap(event => event.data.content).find(part => part.type === 'image')
     assert.ok(imagePart && imagePart.type === 'image')
-    await invoke('session/attachment', { request: { sessionId, attachmentId: imagePart.attachment.attachmentId } })
+    await invoke('session/attachment', { request: { sessionId, attachment: imagePart.attachment } })
     // A native idle maintenance hold parks the real inbox without a fabricated Agent/model.
     const hold = Promise.withResolvers<void>()
     const held = agent.runMaintenance(() => hold.promise)

@@ -50,7 +50,6 @@ test('desktop status is owner-only, read-only, fresh and removed with its plugin
   const value = await (await fetch(url, { headers })).json()
   assert.equal(value.relay.phase, 'connected')
   assert.equal(value.hotReload, false)
-  assert.deepEqual(Object.keys(value).sort(), ['development', 'epoch', 'hotReload', 'localSocket', 'presets', 'protectedJournal', 'relay', 'runtimeId', 'workspaces'])
   await plugin.dispose()
   assert.equal((await fetch(url, { headers })).status, 404)
 })

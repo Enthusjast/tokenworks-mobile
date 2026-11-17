@@ -8,7 +8,15 @@ import { TYPERT_REMOTE as questions } from '@deepseek-ai/dsh-user-questions/remo
 import { TYPERT_REMOTE as access } from '@deepseek-ai/dsh-api-remote-access/remote'
 import { TYPERT_REMOTE as terminal } from '@deepseek-ai/dsh-api-terminal-controller/remote'
 
-export const nativeVersion = '0.2.1-rc.5'
+export const nativeVersion = '0.2.2-rc.1'
+export const nativeVersionRange = '>=0.2.2-0 <0.2.3-0'
+// SemVer 2.0: numeric prerelease identifiers cannot have leading zeroes;
+// build identifiers may. Matching the fixed core avoids numeric coercion.
+export const nativeVersionPattern = '0[.]2[.]2(-(0|[1-9][0-9]*|[0-9]*[A-Za-z-][0-9A-Za-z-]*)([.](0|[1-9][0-9]*|[0-9]*[A-Za-z-][0-9A-Za-z-]*))*)?([+][0-9A-Za-z-]+([.][0-9A-Za-z-]+)*)?'
+const supportedNativeVersion = new RegExp('^' + nativeVersionPattern + '$')
+export function isSupportedDshVersion(value: unknown): value is string {
+  return typeof value === 'string' && supportedNativeVersion.exec(value)?.[0] === value
+}
 export const nativePackages = ['dsh-api-session-controller', 'dsh-api-workspace-controller', 'dsh-client-file-upload', 'dsh-user-questions', 'dsh-api-remote-access', 'dsh-api-gateway', 'dsh-typert-protocol', 'dsh-api-terminal-controller']
 const require = createRequire(import.meta.url)
 export function assertNativePackages(packages: readonly string[] = nativePackages): void {
@@ -18,9 +26,9 @@ export function assertNativePackages(packages: readonly string[] = nativePackage
   }
 }
 
-// Exact-version agreement is intentionally independent of any network carrier.
+// Admission accepts the series; installed schema/capture checks still pin the baseline.
 export function nativeCompatibility(advertisedVersion: unknown): 'compatible' | 'unsupported-version' {
-  return advertisedVersion === nativeVersion ? 'compatible' : 'unsupported-version'
+  return isSupportedDshVersion(advertisedVersion) ? 'compatible' : 'unsupported-version'
 }
 
 const productAccess = require('../contracts/typert/product-access.json') as { actions: Record<string, { selected: boolean }> }

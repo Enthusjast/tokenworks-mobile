@@ -1,15 +1,16 @@
 {
-  "dshVersion": "0.2.1-rc.5",
-  "nativeForwardedEventsSha256": "06fef5d6f3dc01633462a5c5626baf48aabf73aa09dc62bc58903c36618e50ce",
+  "dshVersion": "0.2.2-rc.1",
+  "dshVersionRange": ">=0.2.2-0 <0.2.3-0",
+  "nativeForwardedEventsSha256": "c1fcc679de5e22b78e5966377a92447e8db15d3f4f8c02d9a0a8f3a5b27c9190",
   "nativeResourceSources": {
-    "@deepseek-ai/dsh-api-gateway/lib/types/access.js": "d34e4eb389886576bf4b7a4da55e14305041b54ee09bd3913d580ec3404fdff7",
-    "@deepseek-ai/dsh-api-gateway/lib/types/index.js": "c962a56f93da759ab065c06618887758baae3a425f409153ab709b9a859423d3",
-    "@deepseek-ai/dsh-agent/lib/types/index.js": "cc5de4b13b26bc1c5383c7c9300a074f267b69fe129a0bf74d1fd4ab695f1c52",
-    "@deepseek-ai/dsh-session/lib/types/index.js": "59cced30c7ee65813c62f4858c2fc15c8c636df96507b60c15543468178b72f2",
-    "@deepseek-ai/dsh-api-session-controller/lib/types/index.js": "616ced16623b7448afa908ff65093eb6ef2a478d32e5ef9bc22634bfa9f80472",
+    "@deepseek-ai/dsh-api-gateway/lib/types/access.js": "0251fef469f238db3f5d13413ca39a21b0e45193235f4a51b8626635103aacd0",
+    "@deepseek-ai/dsh-api-gateway/lib/types/index.js": "edbea92816936af84d1eba39aea5029cdc892623ab71ad0cb00030b7b21c0235",
+    "@deepseek-ai/dsh-agent/lib/types/index.js": "76a0e49cdd3f958761b3984cf7d6e9904905c5e600341f08f680f19d4890ab02",
+    "@deepseek-ai/dsh-session/lib/types/index.js": "c5495c724adf558e5cba6d504d8ee03b1fe78657d056cbb4238f4af20b21418c",
+    "@deepseek-ai/dsh-api-session-controller/lib/types/index.js": "16a1fa74380490e14d5f0d2cbae3ade0c9c2c4d0a06fa8f1e87c573d1c8da9fd",
     "@deepseek-ai/dsh-api-workspace-controller/lib/types/index.js": "57666c84169003e5c494f9574001d215af4810e0e5f7246e514150ab330712a6",
-    "@deepseek-ai/dsh-api-remotes/lib/index.js": "2e7068e388541ca63648727a6659bdf24f3a0d1d90f5ef54959787285370a218",
-    "@deepseek-ai/dsh-user-approval/lib/index.js": "6a5ad1ba3c3dc3abbbae52e6c8c4463970ee0c1c8988cebb0d5cf2acd17ee90b"
+    "@deepseek-ai/dsh-api-remotes/lib/index.js": "719d9ad01bb3066ab84ecd824f30d630871ed0edcf1ff32df4d6931a553fc3f5",
+    "@deepseek-ai/dsh-user-approval/lib/index.js": "45b7c170b6897f15a338037b1951997a1b99018c30b5fc95f7e08ad798075be2"
   },
   "actions": {
     "directoryPicker/createDirectory": {
@@ -73,7 +74,7 @@
       ],
       "globalCall": false,
       "selected": true,
-      "descriptorSha256": "34f9e1a55c6862c00b2ce28e9ccb5f7b3c230524ea4956d227cb2c3359187066"
+      "descriptorSha256": "2bc8898cd6232f811125ded7c978e88408cae3021208f2cbafd3f9b19c7c80dd"
     },
     "session/cancel": {
       "capability": "session.write",
@@ -101,7 +102,7 @@
       ],
       "globalCall": true,
       "selected": true,
-      "descriptorSha256": "cccd5b5a15b901f68f05bc4a5f03545a377f138632fc33d2e0fa12937e9d1f9f"
+      "descriptorSha256": "1e0ce9df32788e238b2af27aca61a895964e0dbc20eddb71a2d92d6a77d130be"
     },
     "session/create": {
       "capability": "session.write",
@@ -114,6 +115,13 @@
       "selected": true,
       "descriptorSha256": "8a5a361c9799831de1c47f561fbc3d710b224220421c44ffaffb67cce33ae163"
     },
+    "session/events": {
+      "capability": "session.read",
+      "resources": ["session"],
+      "globalCall": false,
+      "selected": false,
+      "descriptorSha256": "1b58f5c37d40fbe7843001058a61f06560d82f1ddbb49be2b48f11864de90343"
+    },
     "session/follow": {
       "capability": "session.read",
       "resources": [
@@ -121,7 +129,7 @@
       ],
       "globalCall": false,
       "selected": true,
-      "descriptorSha256": "f678e0d8a74f133609c28e2fa3594f02f4c66ec191e3b8b376ed6744f9dca072"
+      "descriptorSha256": "314a12d7551a5fca437353d63dba050e68ded6cecb0370557253f344ca9cbd2d"
     },
     "session/fork": {
       "capability": "session.write",
@@ -149,7 +157,7 @@
       ],
       "globalCall": true,
       "selected": true,
-      "descriptorSha256": "f1498886808f39eaaa6b41328911528037bf62b06d6a3e946f63e86e5d3f35fe"
+      "descriptorSha256": "91f98adcbfda9bdfc2b35f594a5b8d4a8514990a6a261efa929d1ff4cadbe222"
     },
     "session/modelCatalog": {
       "capability": "model.read",
@@ -158,7 +166,28 @@
       ],
       "globalCall": true,
       "selected": true,
-      "descriptorSha256": "c00af8a909adb72d2468c197acbc4c308bd65418ce81e76afd7c145c5fc08602"
+      "descriptorSha256": "315ddd947fa139c1ac4b33e070f25eafd733ed053a652044d2f1266de5e16f76"
+    },
+    "session/observeEvent": {
+      "capability": "session.read",
+      "resources": ["session"],
+      "globalCall": false,
+      "selected": false,
+      "descriptorSha256": "379351121f86f0940898fe4075b8b5a337adad1cd0e0a7b3654b832a3de42c74"
+    },
+    "session/observeProjections": {
+      "capability": "session.read",
+      "resources": ["session"],
+      "globalCall": false,
+      "selected": false,
+      "descriptorSha256": "613e0f388948b0346cc43ccba922c47d399efc1a2658c5921c5e3f0be98938a3"
+    },
+    "session/observeState": {
+      "capability": "session.read",
+      "resources": ["session"],
+      "globalCall": false,
+      "selected": false,
+      "descriptorSha256": "e97ea86747b782bace5b16145ee92c354d4c77bfefbee64a8daff1fffd21b738"
     },
     "session/openWorkspacePath": {
       "capability": "desktop.open",
@@ -176,7 +205,7 @@
       ],
       "globalCall": false,
       "selected": true,
-      "descriptorSha256": "8e52dfa4ed370f9484793169a1b3ed6120fa03ba9b1348849cf52177da5c6ec6"
+      "descriptorSha256": "1b58f5c37d40fbe7843001058a61f06560d82f1ddbb49be2b48f11864de90343"
     },
     "session/projections": {
       "capability": "session.read",
@@ -185,7 +214,7 @@
       ],
       "globalCall": false,
       "selected": true,
-      "descriptorSha256": "02ebacb0acf19d187f01ca20340aa281fbed433d986bbc785ea539f4e9be8512"
+      "descriptorSha256": "7e27e3fb0c4db0e4964c9340d7911a58b6751e04953cad6a4e2f2d10c978dc33"
     },
     "session/prompt": {
       "capability": "session.write",
@@ -224,6 +253,13 @@
       "selected": true,
       "descriptorSha256": "088c2be4a3cc966751796df8cd246c26563d22f21ce17134158a6f4c53b46e26"
     },
+    "session/state": {
+      "capability": "session.read",
+      "resources": ["session"],
+      "globalCall": false,
+      "selected": false,
+      "descriptorSha256": "e23004896855c57298662f429d34e038f8d7984bd27917af14ef784db61610f7"
+    },
     "session/updateQueue": {
       "capability": "session.write",
       "resources": [
@@ -232,6 +268,13 @@
       "globalCall": false,
       "selected": true,
       "descriptorSha256": "e912ef151fe11a8a288ee1286b32e01cbc9bd47050c357649a177290444368e7"
+    },
+    "session/wait": {
+      "capability": "session.read",
+      "resources": ["session"],
+      "globalCall": false,
+      "selected": false,
+      "descriptorSha256": "12f3469de50db3c5f0bd1ba9c0046a6afc78d2c29523c8b36eac1d034370f0c7"
     },
     "session/workspacePathApplications": {
       "capability": "desktop.open",

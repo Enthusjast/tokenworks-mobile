@@ -1,6 +1,6 @@
 import type { TypertClientRemote, RemoteResult } from '@deepseek-ai/dsh-typert-protocol'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
-import type { SessionFollowFrame, SessionWireEvent } from '@deepseek-ai/dsh-api-session-controller/types'
+import type { SessionWireEvent } from '@deepseek-ai/dsh-api-session-controller/types'
 import '@deepseek-ai/dsh-api-session-controller/remote'
 
 export class RemoteToolError extends Error {
@@ -19,14 +19,14 @@ export interface PromptEvidence {
   terminalSeq?: number
   reason?: unknown
   incomplete: boolean
-  evidenceSource: 'native-follow-and-history'
+  evidenceSource: 'native-events-and-history'
 }
 const object = (value: unknown): Record<string, unknown> | undefined => value !== null && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : undefined
 const sourceMatches = (value: unknown, requestId: string): boolean => object(object(value)?.source)?.rpcId === requestId
 
 /** Only a consumed exact rpcId enclosed by its native turn can acquire a terminal reason. */
 export function correlatePrompt(events: readonly SessionWireEvent[], requestId: string, sessionId: string, queued = false, incomplete = false): PromptEvidence {
-  const evidence: PromptEvidence = { requestId, sessionId, state: queued ? 'queued' : 'not-observed', incomplete, evidenceSource: 'native-follow-and-history' }
+  const evidence: PromptEvidence = { requestId, sessionId, state: queued ? 'queued' : 'not-observed', incomplete, evidenceSource: 'native-events-and-history' }
   let activeTurn: number | undefined
   let previousSeq: number | undefined
   for (const event of events) {
@@ -51,11 +51,12 @@ export function correlatePrompt(events: readonly SessionWireEvent[], requestId: 
   return evidence
 }
 
-/** Bounded read-only native follow/page; no stop, prompt replay, or session-idle inference. */
+/** Subscribe before reading a fixed native event cut; never infer completion from idle state. */
 export async function waitForRemotePrompt(remote: TypertClientRemote, sessionId: SessionId, requestId: string, signal: AbortSignal, timeoutMs = 120_000): Promise<PromptEvidence & { timedOut: boolean }> {
   if (!Number.isSafeInteger(timeoutMs) || timeoutMs < 1 || timeoutMs > 120_000) throw new RemoteToolError('remote/invalid-timeout')
   const deadline = AbortSignal.timeout(timeoutMs), combined = AbortSignal.any([signal, deadline])
-  const handle = remote.session.follow({ address: { kind: 'session', sessionId }, maxMessages: 200, turnWindow: { minMessages: 1, minTurns: 1 } }, combined)
+  const address = { kind: 'session', sessionId } as const
+  const handle = remote.session.observeEvent({ address }, combined)
   const events = new Map<number, SessionWireEvent>()
   let bytes = 0, queued = false, incomplete = false
   let evidence = correlatePrompt([], requestId, sessionId)
@@ -70,16 +71,17 @@ export async function waitForRemotePrompt(remote: TypertClientRemote, sessionId:
     return evidence.state === 'turn-ended'
   }
   try {
-    for await (const frame of handle as AsyncIterable<SessionFollowFrame>) {
+    for await (const frame of handle) {
       if (combined.aborted) break
-      if (frame.type === 'snapshot') {
-        for (const record of frame.records) add(record.event)
-        const inbox = object(frame.projections.values.inbox)
-        queued = ['next-turn', 'next-step'].some(key => Array.isArray(inbox?.[key]) && (inbox![key] as unknown[]).some(message => sourceMatches(message, requestId)))
-        let hasMore = frame.hasMore, pages = 0
+      if (frame.type === 'ready') {
+        const state = nativeValue(await remote.session.state({ sessionId }, combined))
+        queued = state.queue?.some(item => item.rpcId === requestId) ?? false
+        const opening = nativeValue(await remote.session.events({ address, maxMessages: 200, turnWindow: { minMessages: 1, minTurns: 1 } }, combined))
+        for (const record of opening.records) add(record.event)
+        let hasMore = opening.hasMore, pages = 0
         while (hasMore && pages++ < 8 && !evaluate()) {
-          const beforeSeq = events.size ? Math.min(...events.keys()) : frame.cursor + 1
-          const page = nativeValue(await remote.session.page({ address: { kind: 'session', sessionId }, throughSeq: frame.cursor, beforeSeq, maxMessages: 200, turnWindow: { minMessages: 1, minTurns: 1 } }, combined))
+          const beforeSeq = events.size ? Math.min(...events.keys()) : opening.cursor + 1
+          const page = nativeValue(await remote.session.events({ address, throughSeq: opening.cursor, beforeSeq, maxMessages: 200, turnWindow: { minMessages: 1, minTurns: 1 } }, combined))
           if (!page.records.length) { incomplete = hasMore; break }
           for (const record of page.records) add(record.event)
           const next = Math.min(...events.keys())
@@ -87,7 +89,7 @@ export async function waitForRemotePrompt(remote: TypertClientRemote, sessionId:
           hasMore = page.hasMore
         }
         incomplete ||= hasMore
-      } else if (frame.type === 'event') add(frame.event)
+      } else add(frame.event)
       if (evaluate()) return { ...evidence, timedOut: false }
     }
   } catch (error) {

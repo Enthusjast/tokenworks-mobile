@@ -27,14 +27,14 @@ def archive(files, extra=()):
 
 def fixture():
     package = {"name": "tokenworks-mobile", "version": "0.0.1", "type": "module", "main": "lib/index.js", "types": "lib/index.d.ts",
-               "files": ["lib", "README.md"], "private": True, "exports": {".": {"types": "./lib/index.d.ts", "default": "./lib/index.js"}}, "dependencies": {"ws": "8.22.0"}, "peerDependencies": {"@deepseek-ai/dsh-session": bundle.DSH}}
+               "files": ["lib", "README.md"], "private": True, "exports": {".": {"types": "./lib/index.d.ts", "default": "./lib/index.js"}}, "dependencies": {"ws": "8.22.0"}, "peerDependencies": {"@deepseek-ai/dsh-session": bundle.DSH_RANGE}}
     files = {"package/package.json": bundle.json_bytes(package), "package/README.md": b"fixture", "package/lib/index.js": b"export const name = 'fixture'\n", "package/lib/index.d.ts": b"export declare const name: string\n"}
     files[bundle.NATIVE] = b"\x7fELF" + bytes(60)
     raw = archive(files)
     manifest = {"format": bundle.FORMAT, "source": {"commit": "a" * 40, "inputs": [{"path": "host/remote-control/src/index.ts", "sha256": "b" * 64, "size": 1}]},
                 "builder_sha256": "c" * 64, "package": {key: package[key] for key in ["name", "version", "type", "dependencies", "peerDependencies"]},
                 "toolchain": {"node": "v24.20.0", "node_api": 8, "rust": "rustc 1.96.0 (ac68faa20 2026-05-25)", "npm": "11.0.0", "typescript": "5.9.3", "dsh": {"version": bundle.DSH, "entry_sha256": "d" * 64},
-                              "installed_dependencies": {**package["dependencies"], **package["peerDependencies"]}, "platform": "linux", "architecture": "x86_64"},
+                              "installed_dependencies": {"ws": "8.22.0", "@deepseek-ai/dsh-session": bundle.DSH}, "platform": "linux", "architecture": "x86_64"},
                 "artifact": {"file": "tokenworks-mobile-0.0.1.tgz", "sha256": bundle.digest(raw), "size": len(raw),
                              "files": [bundle.file_record(name, files[name]) for name in sorted(files)]}}
     return files, raw, manifest
@@ -46,6 +46,21 @@ def validate(manifest, raw):
 
 
 class HostBundleTests(unittest.TestCase):
+    def test_dsh_family_accepts_prereleases_and_builds_but_rejects_adjacent_versions(self):
+        _, raw, manifest = fixture()
+        for version in ("0.2.2", "0.2.2-alpha", "0.2.2-beta.2", "0.2.2-rc.12", "0.2.2-0", "0.2.2+local.1", "0.2.2-rc.1+build.12"):
+            current = copy.deepcopy(manifest)
+            current["toolchain"]["dsh"]["version"] = version
+            current["toolchain"]["installed_dependencies"]["@deepseek-ai/dsh-session"] = version
+            with self.subTest(version=version): validate(current, raw)
+        for version in ("0.2.1-rc.5", "0.2.1", "0.2.3-alpha", "0.2.3", "0.3.0", "0.2.2-01", "0.2.2-rc.01", "0.2.2-", "0.2.2+", "0.2.2\n", "v0.2.2"):
+            for section in ("dsh", "installed_dependencies"):
+                current = copy.deepcopy(manifest)
+                field = "version" if section == "dsh" else "@deepseek-ai/dsh-session"
+                current["toolchain"][section][field] = version
+                with self.subTest(version=version, section=section), self.assertRaises(bundle.BundleError):
+                    validate(current, raw)
+
     def test_native_binary_is_required_and_only_exact_path_is_allowed(self):
         files, raw, manifest = fixture()
         validate(manifest, raw)
@@ -134,7 +149,7 @@ class HostBundleTests(unittest.TestCase):
                        lambda m: m["toolchain"]["installed_dependencies"].update(ws="8.0.0")]:
             current = copy.deepcopy(manifest); change(current)
             with self.assertRaises(bundle.BundleError): validate(current, raw)
-        for change in [lambda p: p["peerDependencies"].update({"@deepseek-ai/dsh-session": "^0.2.1"}), lambda p: p.update(scripts={"postinstall": "should never run"})]:
+        for change in [lambda p: p["peerDependencies"].update({"@deepseek-ai/dsh-session": "^0.2.2"}), lambda p: p.update(scripts={"postinstall": "should never run"})]:
             current_files = dict(files); package = json.loads(files["package/package.json"]); change(package)
             current_files["package/package.json"] = bundle.json_bytes(package)
             with self.assertRaises(bundle.BundleError): bundle.inspect_archive(archive(current_files))

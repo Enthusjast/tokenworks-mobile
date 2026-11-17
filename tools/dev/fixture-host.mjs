@@ -9,6 +9,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url'
 import { getCACertificates, setDefaultCACertificates } from 'node:tls'
 import { Config, inject as hostInject, HostEnrollmentClient, HostEnrollmentBindingStore, HostEnrollmentRecoveryStore,
   HostResourceJwtProvider, HostRestCredentialProvider, createEnrolledRemoteControlPlugin } from '../../host/remote-control/lib/index.js'
+import { PRODUCT_NATIVE_VERSION, isSupportedDshVersion } from '../../host/remote-control/lib/product-access.generated.js'
 
 export { Config }
 export const inject = [...hostInject, 'workingDirectory']
@@ -100,34 +101,12 @@ export async function prepare(profile) {
   catch (error) {
     if (error.code !== 'ENOENT') throw error
     values = { purpose: 'tokenworks-mobile-local-development-only/v1', profile,
-      installation: keyPair(), phone: keyPair(), approval: keyPair(), authority: keyPair(), master: randomBytes(32).toString('base64url') }
+      installation: keyPair(), phone: keyPair(), approval: keyPair(), master: randomBytes(32).toString('base64url') }
     await writeFile(fixtureFile, JSON.stringify(values) + '\n', { flag: 'wx', mode: 0o600 })
   }
   if (values.profile !== profile) throw unavailable()
-  const authority = decodedKey(values.authority)
-  const authorityId = 'tokenworks-mobile-approval-authority/local-dev'
-  const validFrom = new Date(Date.now() - 60_000).toISOString(), validUntil = new Date(Date.now() + 7 * 86400_000).toISOString()
-  const privateFile = resolve(secureState, android ? 'approval-authority-android.pem' : 'approval-authority.pem')
-  const encoded = Buffer.from(authority.privateKey.export({ format: 'pem', type: 'pkcs8' }))
-  try {
-    try { await writeFile(privateFile, encoded, { mode: 0o600, flag: 'wx' }) }
-    catch (error) {
-      if (error.code !== 'EEXIST') throw error
-      const existing = await privateBytes(privateFile)
-      try { if (!existing.equals(encoded)) throw unavailable() }
-      finally { existing.fill(0) }
-    }
-  } finally { encoded.fill(0) }
-  const trusted = { issuer: 'https://tokenworks-mobile-local-development.invalid', key_id: authorityId, public_jwk: authority.publicJwk,
-    key_jkt: authority.thumbprint, active: true, valid_from: validFrom, valid_until: validUntil }
-  await saveJSON(resolve(state, 'fixture-approval-anchor.json'), trusted)
-  await saveJSON(resolve(state, 'fixture-approval-policy.json'), {
-    policy: { version: 1, assurance_profile: 'fixture/local-development', max_auth_age_seconds: 60 },
-    mappings: [{ profile: 'fixture/local-development', issuer, client_id: 'local-dev-phone', acr: 'urn:local-dev:fixture', required_amr: ['fixture'] }],
-    signing: { issuer: trusted.issuer, key_id: authorityId, private_key_file: privateFile, valid_from: validFrom, valid_until: validUntil },
-  })
   await saveJSON(resolve(state, 'fixture-public.json'), { purpose: 'tokenworks-mobile-local-development-only/v1', profile, organization_id: organizationId, issuer, audience, host_subject: hostSubject, phone_subject: phoneSubject })
-  for (const name of ['binding', 'recovery', 'relay-journal']) await mkdir(resolve(secureState, name), { mode: 0o700, recursive: true })
+  for (const name of ['binding', 'recovery', 'relay-journal', android ? 'pairing-android' : 'pairing-http']) await mkdir(resolve(secureState, name), { mode: 0o700, recursive: true })
 }
 
 async function issuerKey() {
@@ -235,6 +214,8 @@ async function integration() {
 }
 
 export async function bootstrap(profile) {
+  const dshVersion = process.env.TOKENWORKS_MOBILE_LOCAL_DSH_VERSION ?? PRODUCT_NATIVE_VERSION
+  if (!isSupportedDshVersion(dshVersion)) throw unavailable()
   const local = await integration(), signal = AbortSignal.timeout(45000)
   let attempt
   try {
@@ -247,7 +228,7 @@ export async function bootstrap(profile) {
       if (!attempt) {
         if (pending) throw unavailable()
         attempt = local.client.prepare({ organizationId, alias: 'Local development fixture', profileRef: profile,
-          dshVersion: '0.2.1-rc.5', applicationVersion: 'local-development-fixture', pluginVersion: '0.0.1', protocolVersion: 1, workspaceRefs: ['project'] })
+          dshVersion, applicationVersion: 'local-development-fixture', pluginVersion: '0.0.1', protocolVersion: 1, workspaceRefs: ['project'] })
         // Persist before first network write; uncertain retries preserve ID/code.
         await local.recovery.save(attempt, signal)
       }
@@ -306,11 +287,13 @@ export async function apply(ctx, config) {
     }
     if (!active || active.profileRef !== local.values.profile) throw unavailable()
     credentials = new HostRestCredentialProvider({ ...local.options, installationId: active.installationId })
-    const authority = await privateJSON(resolve(state, 'fixture-approval-anchor.json'))
-    const signed = { hostId: active.hostId, installationId: active.installationId, policyVersion: 1,
-      requiredAssurance: { profile: 'fixture/local-development', max_auth_age_seconds: 60 }, authorities: [authority] }
-    const plugin = createEnrolledRemoteControlPlugin({ client: local.client, binding: local.binding, credentials, profileRef: active.profileRef }, signed, local.protector)
-    return await plugin.apply(ctx, config)
+    const certificateCert = (await privateBytes(resolve(state, 'android/server.pem'), 128 * 1024)).toString('utf8')
+    const certificateKey = (await privateBytes(resolve(secureState, 'android/server-key.pem'), 128 * 1024)).toString('utf8')
+    const plugin = createEnrolledRemoteControlPlugin({ client: local.client, binding: local.binding, credentials, profileRef: active.profileRef }, { pairingProtector: local.protector })
+    return await plugin.apply(ctx, { ...config,
+      pairing: { directory: resolve(secureState, android ? 'pairing-android' : 'pairing-http'), origin: 'https://localhost:8444', certificateCert },
+      lan: { host: '127.0.0.1', port: 8444, certificateKey },
+    })
   } catch (error) { credentials?.close(); local.close(); throw error }
 }
 

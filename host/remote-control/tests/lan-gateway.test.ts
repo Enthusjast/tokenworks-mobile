@@ -27,6 +27,7 @@ import { PRODUCT_OWNER_BINDINGS } from '../src/product-access.generated.js'
 import { generateNoiseStatic } from '../src/native-noise.js'
 import type { JournalKeyProtector } from '../src/journal-key-protection.js'
 import { pairNoiseClient, openNoiseClient, noiseDpop, noiseHttpRequest } from './noise-client.js'
+import { nativeFileVersionPath } from '../src/remote-native-client.js'
 
 const installationId = 'bbbbbbbb-2222-4222-8222-222222222222', runtimeId = 'aaaaaaaa-1111-4111-8111-111111111111'
 
@@ -259,8 +260,10 @@ test('native large file bodies cross multiple Noise records without exceeding ca
   assert.equal(created.status, 200); assert.equal(JSON.parse(created.body.toString()).result.ok, true)
   const file = join(f.cwd, `noise-large-${randomUUID()}.bin`), expected = randomBytes(400_003)
   await writeFile(file, expected)
-  const downloaded = await noiseHttpRequest(client, 'GET', `/api/file?path=${encodeURIComponent(file)}`)
+  const path = `/api/file?path=${encodeURIComponent(file)}`, version = await noiseHttpRequest(client, 'GET', path)
+  assert.equal(version.status, 302)
+  const downloaded = await noiseHttpRequest(client, 'GET', nativeFileVersionPath(path, version.headers.location ?? null))
   assert.equal(downloaded.status, 200); assert.deepEqual(downloaded.body, expected)
   assert.equal(Number(downloaded.headers['content-length']), expected.length)
-  assert.strictEqual(f.peers[0], f.peers[1])
+  for (const peer of f.peers) assert.strictEqual(peer, f.peers[0])
 })

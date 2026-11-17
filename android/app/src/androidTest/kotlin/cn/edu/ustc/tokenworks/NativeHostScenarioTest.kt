@@ -262,7 +262,7 @@ class NativeHostScenarioTest {
         ui.content {
             val state by files.state.collectAsState()
             if (state.preview != null) FilesScreen(files, sessionId, {})
-            else ConversationMessage(item, onQuote = null, onPreviewMedia = { media -> files.loadAttachment(sessionId, media.attachmentId) })
+            else ConversationMessage(item, onQuote = null, onPreviewMedia = { media -> files.loadAttachment(sessionId, media) })
         }
         val previewLabel = InstrumentationRegistry.getInstrumentation().targetContext.getString(R.string.media_message_preview, name)
         ui.click(previewLabel)

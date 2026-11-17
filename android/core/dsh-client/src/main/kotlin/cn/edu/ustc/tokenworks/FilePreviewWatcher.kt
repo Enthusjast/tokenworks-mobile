@@ -24,7 +24,7 @@ class FilePreviewWatcher(transport: DshTransport, directory: File, owner: Corout
     }
 
     fun load(path: String) = start(path) { progress -> client.download(path, progress) }
-    fun loadAttachment(sessionId: String, attachmentId: String) = start("attachment") { progress -> client.attachment(sessionId, attachmentId, progress) }
+    fun loadAttachment(sessionId: String, attachment: NativeImageReference) = start("attachment") { progress -> client.attachment(sessionId, attachment, progress) }
 
     @Synchronized private fun start(path: String, receive: suspend ((Long) -> Unit) -> StagedFile) {
         dismiss()

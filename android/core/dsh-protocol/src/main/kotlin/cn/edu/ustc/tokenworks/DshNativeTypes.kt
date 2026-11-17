@@ -30,7 +30,7 @@ object DshCodecs {
 }
 
 object DshMethods {
-    const val VERSION = "0.2.1-rc.5"
+    const val VERSION = "0.2.2-rc.1"
     val FileUploadsUpload = DshMethod("fileUploads/upload", false, DshFileUploadsUploadInput.codec, DshFileUploadsUploadResult.codec)
     val RemoteAccessFollow = DshMethod("remoteAccess/follow", true, DshCodecs.emptyObject(false), DshRemoteAccessFollowResult.codec)
     val SessionAttachment = DshMethod("session/attachment", false, DshSessionAttachmentInput.codec, DshSessionAttachmentResult.codec)
@@ -593,9 +593,70 @@ sealed interface DshRemoteAccessFollowResult {
     }
 }
 
+data class DshSessionAttachmentInputRequestAttachmentOriginalDimensions(
+    val `width`: Double,
+    val `height`: Double,
+) {
+    companion object {
+        val codec: DshCodec<DshSessionAttachmentInputRequestAttachmentOriginalDimensions> = DshCodec(
+            { value ->
+                val obj = DshCodecs.obj(value)
+                DshSessionAttachmentInputRequestAttachmentOriginalDimensions(
+                    `width` = DshCodecs.number.decode(obj["width"]),
+                    `height` = DshCodecs.number.decode(obj["height"]),
+                )
+            },
+            { value ->
+                val fields = linkedMapOf<String, JsonValue>()
+                fields["width"] = DshCodecs.number.encode(value.`width`)
+                fields["height"] = DshCodecs.number.encode(value.`height`)
+                JsonObject(fields)
+            },
+        )
+    }
+}
+
+data class DshSessionAttachmentInputRequestAttachment(
+    val `attachmentId`: String,
+    val `mediaType`: String,
+    val `bytes`: Double,
+    val `width`: Double,
+    val `height`: Double,
+    val `name`: DshOptional<String> = DshOptional.Missing,
+    val `originalDimensions`: DshOptional<DshSessionAttachmentInputRequestAttachmentOriginalDimensions> = DshOptional.Missing,
+) {
+    companion object {
+        val codec: DshCodec<DshSessionAttachmentInputRequestAttachment> = DshCodec(
+            { value ->
+                val obj = DshCodecs.obj(value)
+                DshSessionAttachmentInputRequestAttachment(
+                    `attachmentId` = DshCodecs.string.decode(obj["attachmentId"]),
+                    `mediaType` = DshCodecs.strings(setOf("image/png", "image/jpeg", "image/webp", "image/gif")).decode(obj["mediaType"]),
+                    `bytes` = DshCodecs.number.decode(obj["bytes"]),
+                    `width` = DshCodecs.number.decode(obj["width"]),
+                    `height` = DshCodecs.number.decode(obj["height"]),
+                    `name` = DshCodecs.optional(obj, "name", DshCodecs.string),
+                    `originalDimensions` = DshCodecs.optional(obj, "originalDimensions", DshSessionAttachmentInputRequestAttachmentOriginalDimensions.codec),
+                )
+            },
+            { value ->
+                val fields = linkedMapOf<String, JsonValue>()
+                fields["attachmentId"] = DshCodecs.string.encode(value.`attachmentId`)
+                fields["mediaType"] = DshCodecs.strings(setOf("image/png", "image/jpeg", "image/webp", "image/gif")).encode(value.`mediaType`)
+                fields["bytes"] = DshCodecs.number.encode(value.`bytes`)
+                fields["width"] = DshCodecs.number.encode(value.`width`)
+                fields["height"] = DshCodecs.number.encode(value.`height`)
+                DshCodecs.put(fields, "name", value.`name`, DshCodecs.string)
+                DshCodecs.put(fields, "originalDimensions", value.`originalDimensions`, DshSessionAttachmentInputRequestAttachmentOriginalDimensions.codec)
+                JsonObject(fields)
+            },
+        )
+    }
+}
+
 data class DshSessionAttachmentInputRequest(
     val `sessionId`: String,
-    val `attachmentId`: String,
+    val `attachment`: DshSessionAttachmentInputRequestAttachment,
 ) {
     companion object {
         val codec: DshCodec<DshSessionAttachmentInputRequest> = DshCodec(
@@ -603,13 +664,13 @@ data class DshSessionAttachmentInputRequest(
                 val obj = DshCodecs.obj(value)
                 DshSessionAttachmentInputRequest(
                     `sessionId` = DshCodecs.string.decode(obj["sessionId"]),
-                    `attachmentId` = DshCodecs.string.decode(obj["attachmentId"]),
+                    `attachment` = DshSessionAttachmentInputRequestAttachment.codec.decode(obj["attachment"]),
                 )
             },
             { value ->
                 val fields = linkedMapOf<String, JsonValue>()
                 fields["sessionId"] = DshCodecs.string.encode(value.`sessionId`)
-                fields["attachmentId"] = DshCodecs.string.encode(value.`attachmentId`)
+                fields["attachment"] = DshSessionAttachmentInputRequestAttachment.codec.encode(value.`attachment`)
                 JsonObject(fields)
             },
         )
@@ -805,6 +866,186 @@ data class DshSessionControlResultCase1ValueProjectionsValueValuesInbox(
     }
 }
 
+data class DshSessionControlResultCase1ValueProjectionsValueValuesModelSelectionLastUsed(
+    val `provider`: String,
+    val `model`: String,
+    val `reasoningEffort`: DshOptional<String> = DshOptional.Missing,
+) {
+    companion object {
+        val codec: DshCodec<DshSessionControlResultCase1ValueProjectionsValueValuesModelSelectionLastUsed> = DshCodec(
+            { value ->
+                val obj = DshCodecs.obj(value)
+                DshSessionControlResultCase1ValueProjectionsValueValuesModelSelectionLastUsed(
+                    `provider` = DshCodecs.string.decode(obj["provider"]),
+                    `model` = DshCodecs.string.decode(obj["model"]),
+                    `reasoningEffort` = DshCodecs.optional(obj, "reasoningEffort", DshCodecs.string),
+                )
+            },
+            { value ->
+                val fields = linkedMapOf<String, JsonValue>()
+                fields["provider"] = DshCodecs.string.encode(value.`provider`)
+                fields["model"] = DshCodecs.string.encode(value.`model`)
+                DshCodecs.put(fields, "reasoningEffort", value.`reasoningEffort`, DshCodecs.string)
+                JsonObject(fields)
+            },
+        )
+    }
+}
+
+data class DshSessionControlResultCase1ValueProjectionsValueValuesModelSelectionNext(
+    val `provider`: String,
+    val `model`: String,
+    val `reasoningEffort`: DshOptional<String> = DshOptional.Missing,
+) {
+    companion object {
+        val codec: DshCodec<DshSessionControlResultCase1ValueProjectionsValueValuesModelSelectionNext> = DshCodec(
+            { value ->
+                val obj = DshCodecs.obj(value)
+                DshSessionControlResultCase1ValueProjectionsValueValuesModelSelectionNext(
+                    `provider` = DshCodecs.string.decode(obj["provider"]),
+                    `model` = DshCodecs.string.decode(obj["model"]),
+                    `reasoningEffort` = DshCodecs.optional(obj, "reasoningEffort", DshCodecs.string),
+                )
+            },
+            { value ->
+                val fields = linkedMapOf<String, JsonValue>()
+                fields["provider"] = DshCodecs.string.encode(value.`provider`)
+                fields["model"] = DshCodecs.string.encode(value.`model`)
+                DshCodecs.put(fields, "reasoningEffort", value.`reasoningEffort`, DshCodecs.string)
+                JsonObject(fields)
+            },
+        )
+    }
+}
+
+data class DshSessionControlResultCase1ValueProjectionsValueValuesModelSelection(
+    val `lastUsed`: DshSessionControlResultCase1ValueProjectionsValueValuesModelSelectionLastUsed?,
+    val `next`: DshSessionControlResultCase1ValueProjectionsValueValuesModelSelectionNext?,
+) {
+    companion object {
+        val codec: DshCodec<DshSessionControlResultCase1ValueProjectionsValueValuesModelSelection> = DshCodec(
+            { value ->
+                val obj = DshCodecs.obj(value)
+                DshSessionControlResultCase1ValueProjectionsValueValuesModelSelection(
+                    `lastUsed` = DshCodecs.nullable(DshSessionControlResultCase1ValueProjectionsValueValuesModelSelectionLastUsed.codec).decode(obj["lastUsed"]),
+                    `next` = DshCodecs.nullable(DshSessionControlResultCase1ValueProjectionsValueValuesModelSelectionNext.codec).decode(obj["next"]),
+                )
+            },
+            { value ->
+                val fields = linkedMapOf<String, JsonValue>()
+                fields["lastUsed"] = DshCodecs.nullable(DshSessionControlResultCase1ValueProjectionsValueValuesModelSelectionLastUsed.codec).encode(value.`lastUsed`)
+                fields["next"] = DshCodecs.nullable(DshSessionControlResultCase1ValueProjectionsValueValuesModelSelectionNext.codec).encode(value.`next`)
+                JsonObject(fields)
+            },
+        )
+    }
+}
+
+data class DshSessionControlResultCase1ValueProjectionsValueValuesActionCardsProposalsValue(
+    val `callId`: String,
+    val `turn`: Double,
+    val `action`: String,
+    val `title`: String,
+    val `brief`: String,
+    val `details`: Map<String, JsonValue>,
+) {
+    companion object {
+        val codec: DshCodec<DshSessionControlResultCase1ValueProjectionsValueValuesActionCardsProposalsValue> = DshCodec(
+            { value ->
+                val obj = DshCodecs.obj(value)
+                DshSessionControlResultCase1ValueProjectionsValueValuesActionCardsProposalsValue(
+                    `callId` = DshCodecs.string.decode(obj["callId"]),
+                    `turn` = DshCodecs.number.decode(obj["turn"]),
+                    `action` = DshCodecs.string.decode(obj["action"]),
+                    `title` = DshCodecs.string.decode(obj["title"]),
+                    `brief` = DshCodecs.string.decode(obj["brief"]),
+                    `details` = DshCodecs.map(DshCodecs.json).decode(obj["details"]),
+                )
+            },
+            { value ->
+                val fields = linkedMapOf<String, JsonValue>()
+                fields["callId"] = DshCodecs.string.encode(value.`callId`)
+                fields["turn"] = DshCodecs.number.encode(value.`turn`)
+                fields["action"] = DshCodecs.string.encode(value.`action`)
+                fields["title"] = DshCodecs.string.encode(value.`title`)
+                fields["brief"] = DshCodecs.string.encode(value.`brief`)
+                fields["details"] = DshCodecs.map(DshCodecs.json).encode(value.`details`)
+                JsonObject(fields)
+            },
+        )
+    }
+}
+
+sealed interface DshSessionControlResultCase1ValueProjectionsValueValuesActionCardsDecisionsValueData {
+    data class Case1(val value: JsonValue) : DshSessionControlResultCase1ValueProjectionsValueValuesActionCardsDecisionsValueData
+    data class Case2(val value: Map<String, JsonValue>) : DshSessionControlResultCase1ValueProjectionsValueValuesActionCardsDecisionsValueData
+    companion object {
+        val codec: DshCodec<DshSessionControlResultCase1ValueProjectionsValueValuesActionCardsDecisionsValueData> = DshCodec(
+            { value ->
+                try { return@DshCodec Case1(DshCodecs.undefined.decode(value)) } catch (_: ProtocolException) { }
+                try { return@DshCodec Case2(DshCodecs.map(DshCodecs.json).decode(value)) } catch (_: ProtocolException) { }
+                throw ProtocolException("native: unsupported union")
+            },
+            { value -> when (value) {
+                is Case1 -> DshCodecs.undefined.encode(value.value)
+                is Case2 -> DshCodecs.map(DshCodecs.json).encode(value.value)
+            } },
+        )
+    }
+}
+
+data class DshSessionControlResultCase1ValueProjectionsValueValuesActionCardsDecisionsValue(
+    val `callId`: String,
+    val `action`: String,
+    val `phase`: String,
+    val `data`: DshOptional<DshSessionControlResultCase1ValueProjectionsValueValuesActionCardsDecisionsValueData> = DshOptional.Missing,
+) {
+    companion object {
+        val codec: DshCodec<DshSessionControlResultCase1ValueProjectionsValueValuesActionCardsDecisionsValue> = DshCodec(
+            { value ->
+                val obj = DshCodecs.obj(value)
+                DshSessionControlResultCase1ValueProjectionsValueValuesActionCardsDecisionsValue(
+                    `callId` = DshCodecs.string.decode(obj["callId"]),
+                    `action` = DshCodecs.string.decode(obj["action"]),
+                    `phase` = DshCodecs.string.decode(obj["phase"]),
+                    `data` = DshCodecs.optional(obj, "data", DshSessionControlResultCase1ValueProjectionsValueValuesActionCardsDecisionsValueData.codec),
+                )
+            },
+            { value ->
+                val fields = linkedMapOf<String, JsonValue>()
+                fields["callId"] = DshCodecs.string.encode(value.`callId`)
+                fields["action"] = DshCodecs.string.encode(value.`action`)
+                fields["phase"] = DshCodecs.string.encode(value.`phase`)
+                DshCodecs.put(fields, "data", value.`data`, DshSessionControlResultCase1ValueProjectionsValueValuesActionCardsDecisionsValueData.codec)
+                JsonObject(fields)
+            },
+        )
+    }
+}
+
+data class DshSessionControlResultCase1ValueProjectionsValueValuesActionCards(
+    val `proposals`: Map<String, DshSessionControlResultCase1ValueProjectionsValueValuesActionCardsProposalsValue>,
+    val `decisions`: Map<String, DshSessionControlResultCase1ValueProjectionsValueValuesActionCardsDecisionsValue>,
+) {
+    companion object {
+        val codec: DshCodec<DshSessionControlResultCase1ValueProjectionsValueValuesActionCards> = DshCodec(
+            { value ->
+                val obj = DshCodecs.obj(value)
+                DshSessionControlResultCase1ValueProjectionsValueValuesActionCards(
+                    `proposals` = DshCodecs.map(DshSessionControlResultCase1ValueProjectionsValueValuesActionCardsProposalsValue.codec).decode(obj["proposals"]),
+                    `decisions` = DshCodecs.map(DshSessionControlResultCase1ValueProjectionsValueValuesActionCardsDecisionsValue.codec).decode(obj["decisions"]),
+                )
+            },
+            { value ->
+                val fields = linkedMapOf<String, JsonValue>()
+                fields["proposals"] = DshCodecs.map(DshSessionControlResultCase1ValueProjectionsValueValuesActionCardsProposalsValue.codec).encode(value.`proposals`)
+                fields["decisions"] = DshCodecs.map(DshSessionControlResultCase1ValueProjectionsValueValuesActionCardsDecisionsValue.codec).encode(value.`decisions`)
+                JsonObject(fields)
+            },
+        )
+    }
+}
+
 data class DshSessionControlResultCase1ValueProjectionsValueValuesTodosItem(
     val `content`: String,
     val `status`: String,
@@ -880,81 +1121,6 @@ data class DshSessionControlResultCase1ValueProjectionsValueValuesImageLimits(
                 fields["maxImagePixels"] = DshCodecs.number.encode(value.`maxImagePixels`)
                 fields["maxImageDimension"] = DshCodecs.number.encode(value.`maxImageDimension`)
                 fields["mediaTypes"] = DshCodecs.list(DshCodecs.strings(setOf("image/png", "image/jpeg", "image/webp", "image/gif"))).encode(value.`mediaTypes`)
-                JsonObject(fields)
-            },
-        )
-    }
-}
-
-data class DshSessionControlResultCase1ValueProjectionsValueValuesModelSelectionLastUsed(
-    val `provider`: String,
-    val `model`: String,
-    val `reasoningEffort`: DshOptional<String> = DshOptional.Missing,
-) {
-    companion object {
-        val codec: DshCodec<DshSessionControlResultCase1ValueProjectionsValueValuesModelSelectionLastUsed> = DshCodec(
-            { value ->
-                val obj = DshCodecs.obj(value)
-                DshSessionControlResultCase1ValueProjectionsValueValuesModelSelectionLastUsed(
-                    `provider` = DshCodecs.string.decode(obj["provider"]),
-                    `model` = DshCodecs.string.decode(obj["model"]),
-                    `reasoningEffort` = DshCodecs.optional(obj, "reasoningEffort", DshCodecs.string),
-                )
-            },
-            { value ->
-                val fields = linkedMapOf<String, JsonValue>()
-                fields["provider"] = DshCodecs.string.encode(value.`provider`)
-                fields["model"] = DshCodecs.string.encode(value.`model`)
-                DshCodecs.put(fields, "reasoningEffort", value.`reasoningEffort`, DshCodecs.string)
-                JsonObject(fields)
-            },
-        )
-    }
-}
-
-data class DshSessionControlResultCase1ValueProjectionsValueValuesModelSelectionNext(
-    val `provider`: String,
-    val `model`: String,
-    val `reasoningEffort`: DshOptional<String> = DshOptional.Missing,
-) {
-    companion object {
-        val codec: DshCodec<DshSessionControlResultCase1ValueProjectionsValueValuesModelSelectionNext> = DshCodec(
-            { value ->
-                val obj = DshCodecs.obj(value)
-                DshSessionControlResultCase1ValueProjectionsValueValuesModelSelectionNext(
-                    `provider` = DshCodecs.string.decode(obj["provider"]),
-                    `model` = DshCodecs.string.decode(obj["model"]),
-                    `reasoningEffort` = DshCodecs.optional(obj, "reasoningEffort", DshCodecs.string),
-                )
-            },
-            { value ->
-                val fields = linkedMapOf<String, JsonValue>()
-                fields["provider"] = DshCodecs.string.encode(value.`provider`)
-                fields["model"] = DshCodecs.string.encode(value.`model`)
-                DshCodecs.put(fields, "reasoningEffort", value.`reasoningEffort`, DshCodecs.string)
-                JsonObject(fields)
-            },
-        )
-    }
-}
-
-data class DshSessionControlResultCase1ValueProjectionsValueValuesModelSelection(
-    val `lastUsed`: DshSessionControlResultCase1ValueProjectionsValueValuesModelSelectionLastUsed?,
-    val `next`: DshSessionControlResultCase1ValueProjectionsValueValuesModelSelectionNext?,
-) {
-    companion object {
-        val codec: DshCodec<DshSessionControlResultCase1ValueProjectionsValueValuesModelSelection> = DshCodec(
-            { value ->
-                val obj = DshCodecs.obj(value)
-                DshSessionControlResultCase1ValueProjectionsValueValuesModelSelection(
-                    `lastUsed` = DshCodecs.nullable(DshSessionControlResultCase1ValueProjectionsValueValuesModelSelectionLastUsed.codec).decode(obj["lastUsed"]),
-                    `next` = DshCodecs.nullable(DshSessionControlResultCase1ValueProjectionsValueValuesModelSelectionNext.codec).decode(obj["next"]),
-                )
-            },
-            { value ->
-                val fields = linkedMapOf<String, JsonValue>()
-                fields["lastUsed"] = DshCodecs.nullable(DshSessionControlResultCase1ValueProjectionsValueValuesModelSelectionLastUsed.codec).encode(value.`lastUsed`)
-                fields["next"] = DshCodecs.nullable(DshSessionControlResultCase1ValueProjectionsValueValuesModelSelectionNext.codec).encode(value.`next`)
                 JsonObject(fields)
             },
         )
@@ -1324,111 +1490,6 @@ data class DshSessionControlResultCase1ValueProjectionsValueValuesContextBreakdo
     }
 }
 
-data class DshSessionControlResultCase1ValueProjectionsValueValuesAgentTeamMembersItem(
-    val `id`: String,
-    val `name`: String,
-    val `role`: String,
-    val `phase`: String,
-    val `error`: DshOptional<String> = DshOptional.Missing,
-) {
-    companion object {
-        val codec: DshCodec<DshSessionControlResultCase1ValueProjectionsValueValuesAgentTeamMembersItem> = DshCodec(
-            { value ->
-                val obj = DshCodecs.obj(value)
-                DshSessionControlResultCase1ValueProjectionsValueValuesAgentTeamMembersItem(
-                    `id` = DshCodecs.string.decode(obj["id"]),
-                    `name` = DshCodecs.string.decode(obj["name"]),
-                    `role` = DshCodecs.strings(setOf("lead", "teammate")).decode(obj["role"]),
-                    `phase` = DshCodecs.strings(setOf("failed", "provisioning", "active")).decode(obj["phase"]),
-                    `error` = DshCodecs.optional(obj, "error", DshCodecs.string),
-                )
-            },
-            { value ->
-                val fields = linkedMapOf<String, JsonValue>()
-                fields["id"] = DshCodecs.string.encode(value.`id`)
-                fields["name"] = DshCodecs.string.encode(value.`name`)
-                fields["role"] = DshCodecs.strings(setOf("lead", "teammate")).encode(value.`role`)
-                fields["phase"] = DshCodecs.strings(setOf("failed", "provisioning", "active")).encode(value.`phase`)
-                DshCodecs.put(fields, "error", value.`error`, DshCodecs.string)
-                JsonObject(fields)
-            },
-        )
-    }
-}
-
-data class DshSessionControlResultCase1ValueProjectionsValueValuesAgentTeamTasksItem(
-    val `id`: String,
-    val `revision`: Double,
-    val `subject`: String,
-    val `description`: String,
-    val `status`: String,
-    val `blockedBy`: List<String>,
-    val `writeScopes`: List<String>,
-    val `ownerName`: DshOptional<String> = DshOptional.Missing,
-    val `ready`: Boolean,
-    val `writeScopeWarnings`: List<String>,
-) {
-    companion object {
-        val codec: DshCodec<DshSessionControlResultCase1ValueProjectionsValueValuesAgentTeamTasksItem> = DshCodec(
-            { value ->
-                val obj = DshCodecs.obj(value)
-                DshSessionControlResultCase1ValueProjectionsValueValuesAgentTeamTasksItem(
-                    `id` = DshCodecs.string.decode(obj["id"]),
-                    `revision` = DshCodecs.number.decode(obj["revision"]),
-                    `subject` = DshCodecs.string.decode(obj["subject"]),
-                    `description` = DshCodecs.string.decode(obj["description"]),
-                    `status` = DshCodecs.strings(setOf("completed", "pending", "in_progress", "deleted")).decode(obj["status"]),
-                    `blockedBy` = DshCodecs.list(DshCodecs.string).decode(obj["blockedBy"]),
-                    `writeScopes` = DshCodecs.list(DshCodecs.string).decode(obj["writeScopes"]),
-                    `ownerName` = DshCodecs.optional(obj, "ownerName", DshCodecs.string),
-                    `ready` = DshCodecs.boolean.decode(obj["ready"]),
-                    `writeScopeWarnings` = DshCodecs.list(DshCodecs.string).decode(obj["writeScopeWarnings"]),
-                )
-            },
-            { value ->
-                val fields = linkedMapOf<String, JsonValue>()
-                fields["id"] = DshCodecs.string.encode(value.`id`)
-                fields["revision"] = DshCodecs.number.encode(value.`revision`)
-                fields["subject"] = DshCodecs.string.encode(value.`subject`)
-                fields["description"] = DshCodecs.string.encode(value.`description`)
-                fields["status"] = DshCodecs.strings(setOf("completed", "pending", "in_progress", "deleted")).encode(value.`status`)
-                fields["blockedBy"] = DshCodecs.list(DshCodecs.string).encode(value.`blockedBy`)
-                fields["writeScopes"] = DshCodecs.list(DshCodecs.string).encode(value.`writeScopes`)
-                DshCodecs.put(fields, "ownerName", value.`ownerName`, DshCodecs.string)
-                fields["ready"] = DshCodecs.boolean.encode(value.`ready`)
-                fields["writeScopeWarnings"] = DshCodecs.list(DshCodecs.string).encode(value.`writeScopeWarnings`)
-                JsonObject(fields)
-            },
-        )
-    }
-}
-
-data class DshSessionControlResultCase1ValueProjectionsValueValuesAgentTeam(
-    val `members`: List<DshSessionControlResultCase1ValueProjectionsValueValuesAgentTeamMembersItem>,
-    val `tasks`: List<DshSessionControlResultCase1ValueProjectionsValueValuesAgentTeamTasksItem>,
-    val `failure`: DshOptional<String> = DshOptional.Missing,
-) {
-    companion object {
-        val codec: DshCodec<DshSessionControlResultCase1ValueProjectionsValueValuesAgentTeam> = DshCodec(
-            { value ->
-                val obj = DshCodecs.obj(value)
-                DshSessionControlResultCase1ValueProjectionsValueValuesAgentTeam(
-                    `members` = DshCodecs.list(DshSessionControlResultCase1ValueProjectionsValueValuesAgentTeamMembersItem.codec).decode(obj["members"]),
-                    `tasks` = DshCodecs.list(DshSessionControlResultCase1ValueProjectionsValueValuesAgentTeamTasksItem.codec).decode(obj["tasks"]),
-                    `failure` = DshCodecs.optional(obj, "failure", DshCodecs.string),
-                )
-            },
-            { value ->
-                val fields = linkedMapOf<String, JsonValue>()
-                fields["members"] = DshCodecs.list(DshSessionControlResultCase1ValueProjectionsValueValuesAgentTeamMembersItem.codec).encode(value.`members`)
-                fields["tasks"] = DshCodecs.list(DshSessionControlResultCase1ValueProjectionsValueValuesAgentTeamTasksItem.codec).encode(value.`tasks`)
-                DshCodecs.put(fields, "failure", value.`failure`, DshCodecs.string)
-                JsonObject(fields)
-            },
-        )
-    }
-}
-
 data class DshSessionControlResultCase1ValueProjectionsValueValuesUserQuestionsActiveItemQu566d2ed6ab8b(
     val `label`: String,
     val `description`: DshOptional<String> = DshOptional.Missing,
@@ -1452,16 +1513,16 @@ data class DshSessionControlResultCase1ValueProjectionsValueValuesUserQuestionsA
     }
 }
 
-data class DshSessionControlResultCase1ValueProjectionsValueValuesUserQuestionsActiveItemQuestionsItemIntent(
+data class DshSessionControlResultCase1ValueProjectionsValueValuesUserQuestionsActiveItemQu3f09b242976d(
     val `kind`: String,
     val `approve`: String,
     val `callId`: DshOptional<String> = DshOptional.Missing,
 ) {
     companion object {
-        val codec: DshCodec<DshSessionControlResultCase1ValueProjectionsValueValuesUserQuestionsActiveItemQuestionsItemIntent> = DshCodec(
+        val codec: DshCodec<DshSessionControlResultCase1ValueProjectionsValueValuesUserQuestionsActiveItemQu3f09b242976d> = DshCodec(
             { value ->
                 val obj = DshCodecs.obj(value)
-                DshSessionControlResultCase1ValueProjectionsValueValuesUserQuestionsActiveItemQuestionsItemIntent(
+                DshSessionControlResultCase1ValueProjectionsValueValuesUserQuestionsActiveItemQu3f09b242976d(
                     `kind` = DshCodecs.strings(setOf("plan-review")).decode(obj["kind"]),
                     `approve` = DshCodecs.string.decode(obj["approve"]),
                     `callId` = DshCodecs.optional(obj, "callId", DshCodecs.string),
@@ -1474,6 +1535,177 @@ data class DshSessionControlResultCase1ValueProjectionsValueValuesUserQuestionsA
                 DshCodecs.put(fields, "callId", value.`callId`, DshCodecs.string)
                 JsonObject(fields)
             },
+        )
+    }
+}
+
+data class DshSessionControlResultCase1ValueProjectionsValueValuesUserQuestionsActiveItemQubbc3063e0ec1Subject(
+    val `name`: String,
+    val `icon`: DshOptional<String> = DshOptional.Missing,
+) {
+    companion object {
+        val codec: DshCodec<DshSessionControlResultCase1ValueProjectionsValueValuesUserQuestionsActiveItemQubbc3063e0ec1Subject> = DshCodec(
+            { value ->
+                val obj = DshCodecs.obj(value)
+                DshSessionControlResultCase1ValueProjectionsValueValuesUserQuestionsActiveItemQubbc3063e0ec1Subject(
+                    `name` = DshCodecs.string.decode(obj["name"]),
+                    `icon` = DshCodecs.optional(obj, "icon", DshCodecs.string),
+                )
+            },
+            { value ->
+                val fields = linkedMapOf<String, JsonValue>()
+                fields["name"] = DshCodecs.string.encode(value.`name`)
+                DshCodecs.put(fields, "icon", value.`icon`, DshCodecs.string)
+                JsonObject(fields)
+            },
+        )
+    }
+}
+
+data class DshSessionControlResultCase1ValueProjectionsValueValuesUserQuestionsActiveItemQuc84bc85994dd(
+    val `en`: String,
+    val additional: Map<String, String> = emptyMap(),
+) {
+    companion object {
+        val codec: DshCodec<DshSessionControlResultCase1ValueProjectionsValueValuesUserQuestionsActiveItemQuc84bc85994dd> = DshCodec(
+            { value ->
+                val obj = DshCodecs.obj(value)
+                DshSessionControlResultCase1ValueProjectionsValueValuesUserQuestionsActiveItemQuc84bc85994dd(
+                    `en` = DshCodecs.string.decode(obj["en"]),
+                    additional = obj.fields.filterKeys { it !in setOf("en") }.mapValues { DshCodecs.string.decode(it.value) },
+                )
+            },
+            { value ->
+                val fields = linkedMapOf<String, JsonValue>()
+                value.additional.forEach { (key, item) -> fields[key] = DshCodecs.string.encode(item) }
+                fields["en"] = DshCodecs.string.encode(value.`en`)
+                JsonObject(fields)
+            },
+        )
+    }
+}
+
+data class DshSessionControlResultCase1ValueProjectionsValueValuesUserQuestionsActiveItemQu75caf5cf99a1(
+    val `en`: String,
+    val additional: Map<String, String> = emptyMap(),
+) {
+    companion object {
+        val codec: DshCodec<DshSessionControlResultCase1ValueProjectionsValueValuesUserQuestionsActiveItemQu75caf5cf99a1> = DshCodec(
+            { value ->
+                val obj = DshCodecs.obj(value)
+                DshSessionControlResultCase1ValueProjectionsValueValuesUserQuestionsActiveItemQu75caf5cf99a1(
+                    `en` = DshCodecs.string.decode(obj["en"]),
+                    additional = obj.fields.filterKeys { it !in setOf("en") }.mapValues { DshCodecs.string.decode(it.value) },
+                )
+            },
+            { value ->
+                val fields = linkedMapOf<String, JsonValue>()
+                value.additional.forEach { (key, item) -> fields[key] = DshCodecs.string.encode(item) }
+                fields["en"] = DshCodecs.string.encode(value.`en`)
+                JsonObject(fields)
+            },
+        )
+    }
+}
+
+data class DshSessionControlResultCase1ValueProjectionsValueValuesUserQuestionsActiveItemQu63a5350071c1(
+    val `en`: String,
+    val additional: Map<String, String> = emptyMap(),
+) {
+    companion object {
+        val codec: DshCodec<DshSessionControlResultCase1ValueProjectionsValueValuesUserQuestionsActiveItemQu63a5350071c1> = DshCodec(
+            { value ->
+                val obj = DshCodecs.obj(value)
+                DshSessionControlResultCase1ValueProjectionsValueValuesUserQuestionsActiveItemQu63a5350071c1(
+                    `en` = DshCodecs.string.decode(obj["en"]),
+                    additional = obj.fields.filterKeys { it !in setOf("en") }.mapValues { DshCodecs.string.decode(it.value) },
+                )
+            },
+            { value ->
+                val fields = linkedMapOf<String, JsonValue>()
+                value.additional.forEach { (key, item) -> fields[key] = DshCodecs.string.encode(item) }
+                fields["en"] = DshCodecs.string.encode(value.`en`)
+                JsonObject(fields)
+            },
+        )
+    }
+}
+
+data class DshSessionControlResultCase1ValueProjectionsValueValuesUserQuestionsActiveItemQubbc3063e0ec1Display(
+    val `question`: DshSessionControlResultCase1ValueProjectionsValueValuesUserQuestionsActiveItemQuc84bc85994dd,
+    val `detail`: DshOptional<DshSessionControlResultCase1ValueProjectionsValueValuesUserQuestionsActiveItemQu75caf5cf99a1> = DshOptional.Missing,
+    val `approve`: DshOptional<DshSessionControlResultCase1ValueProjectionsValueValuesUserQuestionsActiveItemQu63a5350071c1> = DshOptional.Missing,
+) {
+    companion object {
+        val codec: DshCodec<DshSessionControlResultCase1ValueProjectionsValueValuesUserQuestionsActiveItemQubbc3063e0ec1Display> = DshCodec(
+            { value ->
+                val obj = DshCodecs.obj(value)
+                DshSessionControlResultCase1ValueProjectionsValueValuesUserQuestionsActiveItemQubbc3063e0ec1Display(
+                    `question` = DshSessionControlResultCase1ValueProjectionsValueValuesUserQuestionsActiveItemQuc84bc85994dd.codec.decode(obj["question"]),
+                    `detail` = DshCodecs.optional(obj, "detail", DshSessionControlResultCase1ValueProjectionsValueValuesUserQuestionsActiveItemQu75caf5cf99a1.codec),
+                    `approve` = DshCodecs.optional(obj, "approve", DshSessionControlResultCase1ValueProjectionsValueValuesUserQuestionsActiveItemQu63a5350071c1.codec),
+                )
+            },
+            { value ->
+                val fields = linkedMapOf<String, JsonValue>()
+                fields["question"] = DshSessionControlResultCase1ValueProjectionsValueValuesUserQuestionsActiveItemQuc84bc85994dd.codec.encode(value.`question`)
+                DshCodecs.put(fields, "detail", value.`detail`, DshSessionControlResultCase1ValueProjectionsValueValuesUserQuestionsActiveItemQu75caf5cf99a1.codec)
+                DshCodecs.put(fields, "approve", value.`approve`, DshSessionControlResultCase1ValueProjectionsValueValuesUserQuestionsActiveItemQu63a5350071c1.codec)
+                JsonObject(fields)
+            },
+        )
+    }
+}
+
+data class DshSessionControlResultCase1ValueProjectionsValueValuesUserQuestionsActiveItemQubbc3063e0ec1(
+    val `kind`: String,
+    val `approve`: String,
+    val `reject`: String,
+    val `always`: DshOptional<String> = DshOptional.Missing,
+    val `subject`: DshOptional<DshSessionControlResultCase1ValueProjectionsValueValuesUserQuestionsActiveItemQubbc3063e0ec1Subject> = DshOptional.Missing,
+    val `display`: DshOptional<DshSessionControlResultCase1ValueProjectionsValueValuesUserQuestionsActiveItemQubbc3063e0ec1Display> = DshOptional.Missing,
+) {
+    companion object {
+        val codec: DshCodec<DshSessionControlResultCase1ValueProjectionsValueValuesUserQuestionsActiveItemQubbc3063e0ec1> = DshCodec(
+            { value ->
+                val obj = DshCodecs.obj(value)
+                DshSessionControlResultCase1ValueProjectionsValueValuesUserQuestionsActiveItemQubbc3063e0ec1(
+                    `kind` = DshCodecs.strings(setOf("approval")).decode(obj["kind"]),
+                    `approve` = DshCodecs.string.decode(obj["approve"]),
+                    `reject` = DshCodecs.string.decode(obj["reject"]),
+                    `always` = DshCodecs.optional(obj, "always", DshCodecs.string),
+                    `subject` = DshCodecs.optional(obj, "subject", DshSessionControlResultCase1ValueProjectionsValueValuesUserQuestionsActiveItemQubbc3063e0ec1Subject.codec),
+                    `display` = DshCodecs.optional(obj, "display", DshSessionControlResultCase1ValueProjectionsValueValuesUserQuestionsActiveItemQubbc3063e0ec1Display.codec),
+                )
+            },
+            { value ->
+                val fields = linkedMapOf<String, JsonValue>()
+                fields["kind"] = DshCodecs.strings(setOf("approval")).encode(value.`kind`)
+                fields["approve"] = DshCodecs.string.encode(value.`approve`)
+                fields["reject"] = DshCodecs.string.encode(value.`reject`)
+                DshCodecs.put(fields, "always", value.`always`, DshCodecs.string)
+                DshCodecs.put(fields, "subject", value.`subject`, DshSessionControlResultCase1ValueProjectionsValueValuesUserQuestionsActiveItemQubbc3063e0ec1Subject.codec)
+                DshCodecs.put(fields, "display", value.`display`, DshSessionControlResultCase1ValueProjectionsValueValuesUserQuestionsActiveItemQubbc3063e0ec1Display.codec)
+                JsonObject(fields)
+            },
+        )
+    }
+}
+
+sealed interface DshSessionControlResultCase1ValueProjectionsValueValuesUserQuestionsActiveItemQuestionsItemIntent {
+    data class Case1(val value: DshSessionControlResultCase1ValueProjectionsValueValuesUserQuestionsActiveItemQu3f09b242976d) : DshSessionControlResultCase1ValueProjectionsValueValuesUserQuestionsActiveItemQuestionsItemIntent
+    data class Case2(val value: DshSessionControlResultCase1ValueProjectionsValueValuesUserQuestionsActiveItemQubbc3063e0ec1) : DshSessionControlResultCase1ValueProjectionsValueValuesUserQuestionsActiveItemQuestionsItemIntent
+    companion object {
+        val codec: DshCodec<DshSessionControlResultCase1ValueProjectionsValueValuesUserQuestionsActiveItemQuestionsItemIntent> = DshCodec(
+            { value ->
+                try { return@DshCodec Case1(DshSessionControlResultCase1ValueProjectionsValueValuesUserQuestionsActiveItemQu3f09b242976d.codec.decode(value)) } catch (_: ProtocolException) { }
+                try { return@DshCodec Case2(DshSessionControlResultCase1ValueProjectionsValueValuesUserQuestionsActiveItemQubbc3063e0ec1.codec.decode(value)) } catch (_: ProtocolException) { }
+                throw ProtocolException("native: unsupported union")
+            },
+            { value -> when (value) {
+                is Case1 -> DshSessionControlResultCase1ValueProjectionsValueValuesUserQuestionsActiveItemQu3f09b242976d.codec.encode(value.value)
+                is Case2 -> DshSessionControlResultCase1ValueProjectionsValueValuesUserQuestionsActiveItemQubbc3063e0ec1.codec.encode(value.value)
+            } },
         )
     }
 }
@@ -1614,6 +1846,198 @@ data class DshSessionControlResultCase1ValueProjectionsValueValuesUserQuestions(
     }
 }
 
+data class DshSessionControlResultCase1ValueProjectionsValueValuesAgentTeamMembersItem(
+    val `id`: String,
+    val `name`: String,
+    val `role`: String,
+    val `phase`: String,
+    val `error`: DshOptional<String> = DshOptional.Missing,
+) {
+    companion object {
+        val codec: DshCodec<DshSessionControlResultCase1ValueProjectionsValueValuesAgentTeamMembersItem> = DshCodec(
+            { value ->
+                val obj = DshCodecs.obj(value)
+                DshSessionControlResultCase1ValueProjectionsValueValuesAgentTeamMembersItem(
+                    `id` = DshCodecs.string.decode(obj["id"]),
+                    `name` = DshCodecs.string.decode(obj["name"]),
+                    `role` = DshCodecs.strings(setOf("lead", "teammate")).decode(obj["role"]),
+                    `phase` = DshCodecs.strings(setOf("failed", "provisioning", "active")).decode(obj["phase"]),
+                    `error` = DshCodecs.optional(obj, "error", DshCodecs.string),
+                )
+            },
+            { value ->
+                val fields = linkedMapOf<String, JsonValue>()
+                fields["id"] = DshCodecs.string.encode(value.`id`)
+                fields["name"] = DshCodecs.string.encode(value.`name`)
+                fields["role"] = DshCodecs.strings(setOf("lead", "teammate")).encode(value.`role`)
+                fields["phase"] = DshCodecs.strings(setOf("failed", "provisioning", "active")).encode(value.`phase`)
+                DshCodecs.put(fields, "error", value.`error`, DshCodecs.string)
+                JsonObject(fields)
+            },
+        )
+    }
+}
+
+data class DshSessionControlResultCase1ValueProjectionsValueValuesAgentTeamTasksItem(
+    val `id`: String,
+    val `revision`: Double,
+    val `subject`: String,
+    val `description`: String,
+    val `status`: String,
+    val `blockedBy`: List<String>,
+    val `writeScopes`: List<String>,
+    val `ownerName`: DshOptional<String> = DshOptional.Missing,
+    val `ready`: Boolean,
+    val `writeScopeWarnings`: List<String>,
+) {
+    companion object {
+        val codec: DshCodec<DshSessionControlResultCase1ValueProjectionsValueValuesAgentTeamTasksItem> = DshCodec(
+            { value ->
+                val obj = DshCodecs.obj(value)
+                DshSessionControlResultCase1ValueProjectionsValueValuesAgentTeamTasksItem(
+                    `id` = DshCodecs.string.decode(obj["id"]),
+                    `revision` = DshCodecs.number.decode(obj["revision"]),
+                    `subject` = DshCodecs.string.decode(obj["subject"]),
+                    `description` = DshCodecs.string.decode(obj["description"]),
+                    `status` = DshCodecs.strings(setOf("completed", "pending", "in_progress", "deleted")).decode(obj["status"]),
+                    `blockedBy` = DshCodecs.list(DshCodecs.string).decode(obj["blockedBy"]),
+                    `writeScopes` = DshCodecs.list(DshCodecs.string).decode(obj["writeScopes"]),
+                    `ownerName` = DshCodecs.optional(obj, "ownerName", DshCodecs.string),
+                    `ready` = DshCodecs.boolean.decode(obj["ready"]),
+                    `writeScopeWarnings` = DshCodecs.list(DshCodecs.string).decode(obj["writeScopeWarnings"]),
+                )
+            },
+            { value ->
+                val fields = linkedMapOf<String, JsonValue>()
+                fields["id"] = DshCodecs.string.encode(value.`id`)
+                fields["revision"] = DshCodecs.number.encode(value.`revision`)
+                fields["subject"] = DshCodecs.string.encode(value.`subject`)
+                fields["description"] = DshCodecs.string.encode(value.`description`)
+                fields["status"] = DshCodecs.strings(setOf("completed", "pending", "in_progress", "deleted")).encode(value.`status`)
+                fields["blockedBy"] = DshCodecs.list(DshCodecs.string).encode(value.`blockedBy`)
+                fields["writeScopes"] = DshCodecs.list(DshCodecs.string).encode(value.`writeScopes`)
+                DshCodecs.put(fields, "ownerName", value.`ownerName`, DshCodecs.string)
+                fields["ready"] = DshCodecs.boolean.encode(value.`ready`)
+                fields["writeScopeWarnings"] = DshCodecs.list(DshCodecs.string).encode(value.`writeScopeWarnings`)
+                JsonObject(fields)
+            },
+        )
+    }
+}
+
+data class DshSessionControlResultCase1ValueProjectionsValueValuesAgentTeam(
+    val `members`: List<DshSessionControlResultCase1ValueProjectionsValueValuesAgentTeamMembersItem>,
+    val `tasks`: List<DshSessionControlResultCase1ValueProjectionsValueValuesAgentTeamTasksItem>,
+    val `failure`: DshOptional<String> = DshOptional.Missing,
+) {
+    companion object {
+        val codec: DshCodec<DshSessionControlResultCase1ValueProjectionsValueValuesAgentTeam> = DshCodec(
+            { value ->
+                val obj = DshCodecs.obj(value)
+                DshSessionControlResultCase1ValueProjectionsValueValuesAgentTeam(
+                    `members` = DshCodecs.list(DshSessionControlResultCase1ValueProjectionsValueValuesAgentTeamMembersItem.codec).decode(obj["members"]),
+                    `tasks` = DshCodecs.list(DshSessionControlResultCase1ValueProjectionsValueValuesAgentTeamTasksItem.codec).decode(obj["tasks"]),
+                    `failure` = DshCodecs.optional(obj, "failure", DshCodecs.string),
+                )
+            },
+            { value ->
+                val fields = linkedMapOf<String, JsonValue>()
+                fields["members"] = DshCodecs.list(DshSessionControlResultCase1ValueProjectionsValueValuesAgentTeamMembersItem.codec).encode(value.`members`)
+                fields["tasks"] = DshCodecs.list(DshSessionControlResultCase1ValueProjectionsValueValuesAgentTeamTasksItem.codec).encode(value.`tasks`)
+                DshCodecs.put(fields, "failure", value.`failure`, DshCodecs.string)
+                JsonObject(fields)
+            },
+        )
+    }
+}
+
+data class DshSessionControlResultCase1ValueProjectionsValueValuesForgeChangeRequestsItem(
+    val `url`: String,
+    val `origin`: String,
+    val `dismissed`: Boolean,
+) {
+    companion object {
+        val codec: DshCodec<DshSessionControlResultCase1ValueProjectionsValueValuesForgeChangeRequestsItem> = DshCodec(
+            { value ->
+                val obj = DshCodecs.obj(value)
+                DshSessionControlResultCase1ValueProjectionsValueValuesForgeChangeRequestsItem(
+                    `url` = DshCodecs.string.decode(obj["url"]),
+                    `origin` = DshCodecs.strings(setOf("created", "referenced", "discovered", "tracked")).decode(obj["origin"]),
+                    `dismissed` = DshCodecs.boolean.decode(obj["dismissed"]),
+                )
+            },
+            { value ->
+                val fields = linkedMapOf<String, JsonValue>()
+                fields["url"] = DshCodecs.string.encode(value.`url`)
+                fields["origin"] = DshCodecs.strings(setOf("created", "referenced", "discovered", "tracked")).encode(value.`origin`)
+                fields["dismissed"] = DshCodecs.boolean.encode(value.`dismissed`)
+                JsonObject(fields)
+            },
+        )
+    }
+}
+
+data class DshSessionControlResultCase1ValueProjectionsValueValuesForgeWorktree(
+    val `path`: String,
+    val `branch`: String,
+    val `from`: String?,
+    val `baseCommit`: String,
+    val `repositoryRoot`: String,
+) {
+    companion object {
+        val codec: DshCodec<DshSessionControlResultCase1ValueProjectionsValueValuesForgeWorktree> = DshCodec(
+            { value ->
+                val obj = DshCodecs.obj(value)
+                DshSessionControlResultCase1ValueProjectionsValueValuesForgeWorktree(
+                    `path` = DshCodecs.string.decode(obj["path"]),
+                    `branch` = DshCodecs.string.decode(obj["branch"]),
+                    `from` = DshCodecs.nullable(DshCodecs.string).decode(obj["from"]),
+                    `baseCommit` = DshCodecs.string.decode(obj["baseCommit"]),
+                    `repositoryRoot` = DshCodecs.string.decode(obj["repositoryRoot"]),
+                )
+            },
+            { value ->
+                val fields = linkedMapOf<String, JsonValue>()
+                fields["path"] = DshCodecs.string.encode(value.`path`)
+                fields["branch"] = DshCodecs.string.encode(value.`branch`)
+                fields["from"] = DshCodecs.nullable(DshCodecs.string).encode(value.`from`)
+                fields["baseCommit"] = DshCodecs.string.encode(value.`baseCommit`)
+                fields["repositoryRoot"] = DshCodecs.string.encode(value.`repositoryRoot`)
+                JsonObject(fields)
+            },
+        )
+    }
+}
+
+data class DshSessionControlResultCase1ValueProjectionsValueValuesForkLineage(
+    val `origin`: String,
+    val `sourceSessionId`: String,
+    val `authoredByViewer`: Boolean,
+    val `workspaceReadOnly`: Boolean,
+) {
+    companion object {
+        val codec: DshCodec<DshSessionControlResultCase1ValueProjectionsValueValuesForkLineage> = DshCodec(
+            { value ->
+                val obj = DshCodecs.obj(value)
+                DshSessionControlResultCase1ValueProjectionsValueValuesForkLineage(
+                    `origin` = DshCodecs.strings(setOf("fork")).decode(obj["origin"]),
+                    `sourceSessionId` = DshCodecs.string.decode(obj["sourceSessionId"]),
+                    `authoredByViewer` = DshCodecs.boolean.decode(obj["authoredByViewer"]),
+                    `workspaceReadOnly` = DshCodecs.boolean.decode(obj["workspaceReadOnly"]),
+                )
+            },
+            { value ->
+                val fields = linkedMapOf<String, JsonValue>()
+                fields["origin"] = DshCodecs.strings(setOf("fork")).encode(value.`origin`)
+                fields["sourceSessionId"] = DshCodecs.string.encode(value.`sourceSessionId`)
+                fields["authoredByViewer"] = DshCodecs.boolean.encode(value.`authoredByViewer`)
+                fields["workspaceReadOnly"] = DshCodecs.boolean.encode(value.`workspaceReadOnly`)
+                JsonObject(fields)
+            },
+        )
+    }
+}
+
 data class DshSessionControlResultCase1ValueProjectionsValueValuesGoalGoalBlockedReason(
     val `code`: String,
     val `message`: String,
@@ -1726,13 +2150,14 @@ data class DshSessionControlResultCase1ValueProjectionsValueValuesPlan(
 
 data class DshSessionControlResultCase1ValueProjectionsValueValues(
     val `inbox`: DshOptional<DshSessionControlResultCase1ValueProjectionsValueValuesInbox> = DshOptional.Missing,
-    val `workingDirectory`: DshOptional<String?> = DshOptional.Missing,
+    val `modelSelection`: DshOptional<DshSessionControlResultCase1ValueProjectionsValueValuesModelSelection> = DshOptional.Missing,
+    val `actionCards`: DshOptional<DshSessionControlResultCase1ValueProjectionsValueValuesActionCards> = DshOptional.Missing,
     val `agentPreset`: DshOptional<String?> = DshOptional.Missing,
     val `title`: DshOptional<String?> = DshOptional.Missing,
     val `todos`: DshOptional<List<DshSessionControlResultCase1ValueProjectionsValueValuesTodosItem>?> = DshOptional.Missing,
     val `sessionListMetadata`: DshOptional<DshSessionControlResultCase1ValueProjectionsValueValuesSessionListMetadata> = DshOptional.Missing,
     val `imageLimits`: DshOptional<DshSessionControlResultCase1ValueProjectionsValueValuesImageLimits> = DshOptional.Missing,
-    val `modelSelection`: DshOptional<DshSessionControlResultCase1ValueProjectionsValueValuesModelSelection> = DshOptional.Missing,
+    val `workingDirectory`: DshOptional<String?> = DshOptional.Missing,
     val `permissions`: DshOptional<DshSessionControlResultCase1ValueProjectionsValueValuesPermissions> = DshOptional.Missing,
     val `subagentCatalog`: DshOptional<List<DshSessionControlResultCase1ValueProjectionsValueValuesSubagentCatalogItem>> = DshOptional.Missing,
     val `subagentTiming`: DshOptional<DshSessionControlResultCase1ValueProjectionsValueValuesSubagentTiming> = DshOptional.Missing,
@@ -1740,8 +2165,11 @@ data class DshSessionControlResultCase1ValueProjectionsValueValues(
     val `tokenUsage`: DshOptional<DshSessionControlResultCase1ValueProjectionsValueValuesTokenUsage> = DshOptional.Missing,
     val `contextPressure`: DshOptional<DshSessionControlResultCase1ValueProjectionsValueValuesContextPressure> = DshOptional.Missing,
     val `contextBreakdown`: DshOptional<DshSessionControlResultCase1ValueProjectionsValueValuesContextBreakdown> = DshOptional.Missing,
-    val `agentTeam`: DshOptional<DshSessionControlResultCase1ValueProjectionsValueValuesAgentTeam> = DshOptional.Missing,
     val `userQuestions`: DshOptional<DshSessionControlResultCase1ValueProjectionsValueValuesUserQuestions> = DshOptional.Missing,
+    val `agentTeam`: DshOptional<DshSessionControlResultCase1ValueProjectionsValueValuesAgentTeam> = DshOptional.Missing,
+    val `forgeChangeRequests`: DshOptional<List<DshSessionControlResultCase1ValueProjectionsValueValuesForgeChangeRequestsItem>> = DshOptional.Missing,
+    val `forgeWorktree`: DshOptional<DshSessionControlResultCase1ValueProjectionsValueValuesForgeWorktree?> = DshOptional.Missing,
+    val `forkLineage`: DshOptional<DshSessionControlResultCase1ValueProjectionsValueValuesForkLineage> = DshOptional.Missing,
     val `goal`: DshOptional<DshSessionControlResultCase1ValueProjectionsValueValuesGoal?> = DshOptional.Missing,
     val `plan`: DshOptional<DshSessionControlResultCase1ValueProjectionsValueValuesPlan> = DshOptional.Missing,
     val additional: Map<String, JsonValue> = emptyMap(),
@@ -1752,13 +2180,14 @@ data class DshSessionControlResultCase1ValueProjectionsValueValues(
                 val obj = DshCodecs.obj(value)
                 DshSessionControlResultCase1ValueProjectionsValueValues(
                     `inbox` = DshCodecs.optional(obj, "inbox", DshSessionControlResultCase1ValueProjectionsValueValuesInbox.codec),
-                    `workingDirectory` = DshCodecs.optional(obj, "workingDirectory", DshCodecs.nullable(DshCodecs.string)),
+                    `modelSelection` = DshCodecs.optional(obj, "modelSelection", DshSessionControlResultCase1ValueProjectionsValueValuesModelSelection.codec),
+                    `actionCards` = DshCodecs.optional(obj, "actionCards", DshSessionControlResultCase1ValueProjectionsValueValuesActionCards.codec),
                     `agentPreset` = DshCodecs.optional(obj, "agentPreset", DshCodecs.nullable(DshCodecs.string)),
                     `title` = DshCodecs.optional(obj, "title", DshCodecs.nullable(DshCodecs.string)),
                     `todos` = DshCodecs.optional(obj, "todos", DshCodecs.nullable(DshCodecs.list(DshSessionControlResultCase1ValueProjectionsValueValuesTodosItem.codec))),
                     `sessionListMetadata` = DshCodecs.optional(obj, "sessionListMetadata", DshSessionControlResultCase1ValueProjectionsValueValuesSessionListMetadata.codec),
                     `imageLimits` = DshCodecs.optional(obj, "imageLimits", DshSessionControlResultCase1ValueProjectionsValueValuesImageLimits.codec),
-                    `modelSelection` = DshCodecs.optional(obj, "modelSelection", DshSessionControlResultCase1ValueProjectionsValueValuesModelSelection.codec),
+                    `workingDirectory` = DshCodecs.optional(obj, "workingDirectory", DshCodecs.nullable(DshCodecs.string)),
                     `permissions` = DshCodecs.optional(obj, "permissions", DshSessionControlResultCase1ValueProjectionsValueValuesPermissions.codec),
                     `subagentCatalog` = DshCodecs.optional(obj, "subagentCatalog", DshCodecs.list(DshSessionControlResultCase1ValueProjectionsValueValuesSubagentCatalogItem.codec)),
                     `subagentTiming` = DshCodecs.optional(obj, "subagentTiming", DshSessionControlResultCase1ValueProjectionsValueValuesSubagentTiming.codec),
@@ -1766,24 +2195,28 @@ data class DshSessionControlResultCase1ValueProjectionsValueValues(
                     `tokenUsage` = DshCodecs.optional(obj, "tokenUsage", DshSessionControlResultCase1ValueProjectionsValueValuesTokenUsage.codec),
                     `contextPressure` = DshCodecs.optional(obj, "contextPressure", DshSessionControlResultCase1ValueProjectionsValueValuesContextPressure.codec),
                     `contextBreakdown` = DshCodecs.optional(obj, "contextBreakdown", DshSessionControlResultCase1ValueProjectionsValueValuesContextBreakdown.codec),
-                    `agentTeam` = DshCodecs.optional(obj, "agentTeam", DshSessionControlResultCase1ValueProjectionsValueValuesAgentTeam.codec),
                     `userQuestions` = DshCodecs.optional(obj, "userQuestions", DshSessionControlResultCase1ValueProjectionsValueValuesUserQuestions.codec),
+                    `agentTeam` = DshCodecs.optional(obj, "agentTeam", DshSessionControlResultCase1ValueProjectionsValueValuesAgentTeam.codec),
+                    `forgeChangeRequests` = DshCodecs.optional(obj, "forgeChangeRequests", DshCodecs.list(DshSessionControlResultCase1ValueProjectionsValueValuesForgeChangeRequestsItem.codec)),
+                    `forgeWorktree` = DshCodecs.optional(obj, "forgeWorktree", DshCodecs.nullable(DshSessionControlResultCase1ValueProjectionsValueValuesForgeWorktree.codec)),
+                    `forkLineage` = DshCodecs.optional(obj, "forkLineage", DshSessionControlResultCase1ValueProjectionsValueValuesForkLineage.codec),
                     `goal` = DshCodecs.optional(obj, "goal", DshCodecs.nullable(DshSessionControlResultCase1ValueProjectionsValueValuesGoal.codec)),
                     `plan` = DshCodecs.optional(obj, "plan", DshSessionControlResultCase1ValueProjectionsValueValuesPlan.codec),
-                    additional = obj.fields.filterKeys { it !in setOf("inbox", "workingDirectory", "agentPreset", "title", "todos", "sessionListMetadata", "imageLimits", "modelSelection", "permissions", "subagentCatalog", "subagentTiming", "subagent", "tokenUsage", "contextPressure", "contextBreakdown", "agentTeam", "userQuestions", "goal", "plan") }.mapValues { DshCodecs.json.decode(it.value) },
+                    additional = obj.fields.filterKeys { it !in setOf("inbox", "modelSelection", "actionCards", "agentPreset", "title", "todos", "sessionListMetadata", "imageLimits", "workingDirectory", "permissions", "subagentCatalog", "subagentTiming", "subagent", "tokenUsage", "contextPressure", "contextBreakdown", "userQuestions", "agentTeam", "forgeChangeRequests", "forgeWorktree", "forkLineage", "goal", "plan") }.mapValues { DshCodecs.json.decode(it.value) },
                 )
             },
             { value ->
                 val fields = linkedMapOf<String, JsonValue>()
                 value.additional.forEach { (key, item) -> fields[key] = DshCodecs.json.encode(item) }
                 DshCodecs.put(fields, "inbox", value.`inbox`, DshSessionControlResultCase1ValueProjectionsValueValuesInbox.codec)
-                DshCodecs.put(fields, "workingDirectory", value.`workingDirectory`, DshCodecs.nullable(DshCodecs.string))
+                DshCodecs.put(fields, "modelSelection", value.`modelSelection`, DshSessionControlResultCase1ValueProjectionsValueValuesModelSelection.codec)
+                DshCodecs.put(fields, "actionCards", value.`actionCards`, DshSessionControlResultCase1ValueProjectionsValueValuesActionCards.codec)
                 DshCodecs.put(fields, "agentPreset", value.`agentPreset`, DshCodecs.nullable(DshCodecs.string))
                 DshCodecs.put(fields, "title", value.`title`, DshCodecs.nullable(DshCodecs.string))
                 DshCodecs.put(fields, "todos", value.`todos`, DshCodecs.nullable(DshCodecs.list(DshSessionControlResultCase1ValueProjectionsValueValuesTodosItem.codec)))
                 DshCodecs.put(fields, "sessionListMetadata", value.`sessionListMetadata`, DshSessionControlResultCase1ValueProjectionsValueValuesSessionListMetadata.codec)
                 DshCodecs.put(fields, "imageLimits", value.`imageLimits`, DshSessionControlResultCase1ValueProjectionsValueValuesImageLimits.codec)
-                DshCodecs.put(fields, "modelSelection", value.`modelSelection`, DshSessionControlResultCase1ValueProjectionsValueValuesModelSelection.codec)
+                DshCodecs.put(fields, "workingDirectory", value.`workingDirectory`, DshCodecs.nullable(DshCodecs.string))
                 DshCodecs.put(fields, "permissions", value.`permissions`, DshSessionControlResultCase1ValueProjectionsValueValuesPermissions.codec)
                 DshCodecs.put(fields, "subagentCatalog", value.`subagentCatalog`, DshCodecs.list(DshSessionControlResultCase1ValueProjectionsValueValuesSubagentCatalogItem.codec))
                 DshCodecs.put(fields, "subagentTiming", value.`subagentTiming`, DshSessionControlResultCase1ValueProjectionsValueValuesSubagentTiming.codec)
@@ -1791,8 +2224,11 @@ data class DshSessionControlResultCase1ValueProjectionsValueValues(
                 DshCodecs.put(fields, "tokenUsage", value.`tokenUsage`, DshSessionControlResultCase1ValueProjectionsValueValuesTokenUsage.codec)
                 DshCodecs.put(fields, "contextPressure", value.`contextPressure`, DshSessionControlResultCase1ValueProjectionsValueValuesContextPressure.codec)
                 DshCodecs.put(fields, "contextBreakdown", value.`contextBreakdown`, DshSessionControlResultCase1ValueProjectionsValueValuesContextBreakdown.codec)
-                DshCodecs.put(fields, "agentTeam", value.`agentTeam`, DshSessionControlResultCase1ValueProjectionsValueValuesAgentTeam.codec)
                 DshCodecs.put(fields, "userQuestions", value.`userQuestions`, DshSessionControlResultCase1ValueProjectionsValueValuesUserQuestions.codec)
+                DshCodecs.put(fields, "agentTeam", value.`agentTeam`, DshSessionControlResultCase1ValueProjectionsValueValuesAgentTeam.codec)
+                DshCodecs.put(fields, "forgeChangeRequests", value.`forgeChangeRequests`, DshCodecs.list(DshSessionControlResultCase1ValueProjectionsValueValuesForgeChangeRequestsItem.codec))
+                DshCodecs.put(fields, "forgeWorktree", value.`forgeWorktree`, DshCodecs.nullable(DshSessionControlResultCase1ValueProjectionsValueValuesForgeWorktree.codec))
+                DshCodecs.put(fields, "forkLineage", value.`forkLineage`, DshSessionControlResultCase1ValueProjectionsValueValuesForkLineage.codec)
                 DshCodecs.put(fields, "goal", value.`goal`, DshCodecs.nullable(DshSessionControlResultCase1ValueProjectionsValueValuesGoal.codec))
                 DshCodecs.put(fields, "plan", value.`plan`, DshSessionControlResultCase1ValueProjectionsValueValuesPlan.codec)
                 JsonObject(fields)
@@ -1867,12 +2303,34 @@ data class DshSessionControlResultCase1(
     }
 }
 
+data class DshSessionControlResultCase2ChangesItem(
+    val `key`: String,
+    val `val`: JsonValue,
+) {
+    companion object {
+        val codec: DshCodec<DshSessionControlResultCase2ChangesItem> = DshCodec(
+            { value ->
+                val obj = DshCodecs.obj(value)
+                DshSessionControlResultCase2ChangesItem(
+                    `key` = DshCodecs.string.decode(obj["key"]),
+                    `val` = DshCodecs.json.decode(obj["val"]),
+                )
+            },
+            { value ->
+                val fields = linkedMapOf<String, JsonValue>()
+                fields["key"] = DshCodecs.string.encode(value.`key`)
+                fields["val"] = DshCodecs.json.encode(value.`val`)
+                JsonObject(fields)
+            },
+        )
+    }
+}
+
 data class DshSessionControlResultCase2(
     val `type`: String,
     val `sessionId`: String,
-    val `key`: String,
-    val `value`: JsonValue,
     val `seq`: Double,
+    val `changes`: List<DshSessionControlResultCase2ChangesItem>,
 ) {
     companion object {
         val codec: DshCodec<DshSessionControlResultCase2> = DshCodec(
@@ -1881,18 +2339,16 @@ data class DshSessionControlResultCase2(
                 DshSessionControlResultCase2(
                     `type` = DshCodecs.strings(setOf("projection")).decode(obj["type"]),
                     `sessionId` = DshCodecs.string.decode(obj["sessionId"]),
-                    `key` = DshCodecs.string.decode(obj["key"]),
-                    `value` = DshCodecs.json.decode(obj["value"]),
                     `seq` = DshCodecs.number.decode(obj["seq"]),
+                    `changes` = DshCodecs.list(DshSessionControlResultCase2ChangesItem.codec).decode(obj["changes"]),
                 )
             },
             { value ->
                 val fields = linkedMapOf<String, JsonValue>()
                 fields["type"] = DshCodecs.strings(setOf("projection")).encode(value.`type`)
                 fields["sessionId"] = DshCodecs.string.encode(value.`sessionId`)
-                fields["key"] = DshCodecs.string.encode(value.`key`)
-                fields["value"] = DshCodecs.json.encode(value.`value`)
                 fields["seq"] = DshCodecs.number.encode(value.`seq`)
+                fields["changes"] = DshCodecs.list(DshSessionControlResultCase2ChangesItem.codec).encode(value.`changes`)
                 JsonObject(fields)
             },
         )
@@ -2085,6 +2541,7 @@ data class DshSessionFollowInputRequestTurnWindow(
 
 data class DshSessionFollowInputRequest(
     val `address`: DshSessionFollowInputRequestAddress,
+    val `activate`: DshOptional<Boolean> = DshOptional.Missing,
     val `assistantStream`: DshOptional<Boolean> = DshOptional.Missing,
     val `maxMessages`: DshOptional<Double> = DshOptional.Missing,
     val `turnWindow`: DshOptional<DshSessionFollowInputRequestTurnWindow> = DshOptional.Missing,
@@ -2095,6 +2552,7 @@ data class DshSessionFollowInputRequest(
                 val obj = DshCodecs.obj(value)
                 DshSessionFollowInputRequest(
                     `address` = DshSessionFollowInputRequestAddress.codec.decode(obj["address"]),
+                    `activate` = DshCodecs.optional(obj, "activate", DshCodecs.boolean),
                     `assistantStream` = DshCodecs.optional(obj, "assistantStream", DshCodecs.booleanLiteral(true)),
                     `maxMessages` = DshCodecs.optional(obj, "maxMessages", DshCodecs.number),
                     `turnWindow` = DshCodecs.optional(obj, "turnWindow", DshSessionFollowInputRequestTurnWindow.codec),
@@ -2103,6 +2561,7 @@ data class DshSessionFollowInputRequest(
             { value ->
                 val fields = linkedMapOf<String, JsonValue>()
                 fields["address"] = DshSessionFollowInputRequestAddress.codec.encode(value.`address`)
+                DshCodecs.put(fields, "activate", value.`activate`, DshCodecs.boolean)
                 DshCodecs.put(fields, "assistantStream", value.`assistantStream`, DshCodecs.booleanLiteral(true))
                 DshCodecs.put(fields, "maxMessages", value.`maxMessages`, DshCodecs.number)
                 DshCodecs.put(fields, "turnWindow", value.`turnWindow`, DshSessionFollowInputRequestTurnWindow.codec)
@@ -2322,6 +2781,186 @@ data class DshSessionFollowResultCase2ProjectionsValuesInbox(
     }
 }
 
+data class DshSessionFollowResultCase2ProjectionsValuesModelSelectionLastUsed(
+    val `provider`: String,
+    val `model`: String,
+    val `reasoningEffort`: DshOptional<String> = DshOptional.Missing,
+) {
+    companion object {
+        val codec: DshCodec<DshSessionFollowResultCase2ProjectionsValuesModelSelectionLastUsed> = DshCodec(
+            { value ->
+                val obj = DshCodecs.obj(value)
+                DshSessionFollowResultCase2ProjectionsValuesModelSelectionLastUsed(
+                    `provider` = DshCodecs.string.decode(obj["provider"]),
+                    `model` = DshCodecs.string.decode(obj["model"]),
+                    `reasoningEffort` = DshCodecs.optional(obj, "reasoningEffort", DshCodecs.string),
+                )
+            },
+            { value ->
+                val fields = linkedMapOf<String, JsonValue>()
+                fields["provider"] = DshCodecs.string.encode(value.`provider`)
+                fields["model"] = DshCodecs.string.encode(value.`model`)
+                DshCodecs.put(fields, "reasoningEffort", value.`reasoningEffort`, DshCodecs.string)
+                JsonObject(fields)
+            },
+        )
+    }
+}
+
+data class DshSessionFollowResultCase2ProjectionsValuesModelSelectionNext(
+    val `provider`: String,
+    val `model`: String,
+    val `reasoningEffort`: DshOptional<String> = DshOptional.Missing,
+) {
+    companion object {
+        val codec: DshCodec<DshSessionFollowResultCase2ProjectionsValuesModelSelectionNext> = DshCodec(
+            { value ->
+                val obj = DshCodecs.obj(value)
+                DshSessionFollowResultCase2ProjectionsValuesModelSelectionNext(
+                    `provider` = DshCodecs.string.decode(obj["provider"]),
+                    `model` = DshCodecs.string.decode(obj["model"]),
+                    `reasoningEffort` = DshCodecs.optional(obj, "reasoningEffort", DshCodecs.string),
+                )
+            },
+            { value ->
+                val fields = linkedMapOf<String, JsonValue>()
+                fields["provider"] = DshCodecs.string.encode(value.`provider`)
+                fields["model"] = DshCodecs.string.encode(value.`model`)
+                DshCodecs.put(fields, "reasoningEffort", value.`reasoningEffort`, DshCodecs.string)
+                JsonObject(fields)
+            },
+        )
+    }
+}
+
+data class DshSessionFollowResultCase2ProjectionsValuesModelSelection(
+    val `lastUsed`: DshSessionFollowResultCase2ProjectionsValuesModelSelectionLastUsed?,
+    val `next`: DshSessionFollowResultCase2ProjectionsValuesModelSelectionNext?,
+) {
+    companion object {
+        val codec: DshCodec<DshSessionFollowResultCase2ProjectionsValuesModelSelection> = DshCodec(
+            { value ->
+                val obj = DshCodecs.obj(value)
+                DshSessionFollowResultCase2ProjectionsValuesModelSelection(
+                    `lastUsed` = DshCodecs.nullable(DshSessionFollowResultCase2ProjectionsValuesModelSelectionLastUsed.codec).decode(obj["lastUsed"]),
+                    `next` = DshCodecs.nullable(DshSessionFollowResultCase2ProjectionsValuesModelSelectionNext.codec).decode(obj["next"]),
+                )
+            },
+            { value ->
+                val fields = linkedMapOf<String, JsonValue>()
+                fields["lastUsed"] = DshCodecs.nullable(DshSessionFollowResultCase2ProjectionsValuesModelSelectionLastUsed.codec).encode(value.`lastUsed`)
+                fields["next"] = DshCodecs.nullable(DshSessionFollowResultCase2ProjectionsValuesModelSelectionNext.codec).encode(value.`next`)
+                JsonObject(fields)
+            },
+        )
+    }
+}
+
+data class DshSessionFollowResultCase2ProjectionsValuesActionCardsProposalsValue(
+    val `callId`: String,
+    val `turn`: Double,
+    val `action`: String,
+    val `title`: String,
+    val `brief`: String,
+    val `details`: Map<String, JsonValue>,
+) {
+    companion object {
+        val codec: DshCodec<DshSessionFollowResultCase2ProjectionsValuesActionCardsProposalsValue> = DshCodec(
+            { value ->
+                val obj = DshCodecs.obj(value)
+                DshSessionFollowResultCase2ProjectionsValuesActionCardsProposalsValue(
+                    `callId` = DshCodecs.string.decode(obj["callId"]),
+                    `turn` = DshCodecs.number.decode(obj["turn"]),
+                    `action` = DshCodecs.string.decode(obj["action"]),
+                    `title` = DshCodecs.string.decode(obj["title"]),
+                    `brief` = DshCodecs.string.decode(obj["brief"]),
+                    `details` = DshCodecs.map(DshCodecs.json).decode(obj["details"]),
+                )
+            },
+            { value ->
+                val fields = linkedMapOf<String, JsonValue>()
+                fields["callId"] = DshCodecs.string.encode(value.`callId`)
+                fields["turn"] = DshCodecs.number.encode(value.`turn`)
+                fields["action"] = DshCodecs.string.encode(value.`action`)
+                fields["title"] = DshCodecs.string.encode(value.`title`)
+                fields["brief"] = DshCodecs.string.encode(value.`brief`)
+                fields["details"] = DshCodecs.map(DshCodecs.json).encode(value.`details`)
+                JsonObject(fields)
+            },
+        )
+    }
+}
+
+sealed interface DshSessionFollowResultCase2ProjectionsValuesActionCardsDecisionsValueData {
+    data class Case1(val value: JsonValue) : DshSessionFollowResultCase2ProjectionsValuesActionCardsDecisionsValueData
+    data class Case2(val value: Map<String, JsonValue>) : DshSessionFollowResultCase2ProjectionsValuesActionCardsDecisionsValueData
+    companion object {
+        val codec: DshCodec<DshSessionFollowResultCase2ProjectionsValuesActionCardsDecisionsValueData> = DshCodec(
+            { value ->
+                try { return@DshCodec Case1(DshCodecs.undefined.decode(value)) } catch (_: ProtocolException) { }
+                try { return@DshCodec Case2(DshCodecs.map(DshCodecs.json).decode(value)) } catch (_: ProtocolException) { }
+                throw ProtocolException("native: unsupported union")
+            },
+            { value -> when (value) {
+                is Case1 -> DshCodecs.undefined.encode(value.value)
+                is Case2 -> DshCodecs.map(DshCodecs.json).encode(value.value)
+            } },
+        )
+    }
+}
+
+data class DshSessionFollowResultCase2ProjectionsValuesActionCardsDecisionsValue(
+    val `callId`: String,
+    val `action`: String,
+    val `phase`: String,
+    val `data`: DshOptional<DshSessionFollowResultCase2ProjectionsValuesActionCardsDecisionsValueData> = DshOptional.Missing,
+) {
+    companion object {
+        val codec: DshCodec<DshSessionFollowResultCase2ProjectionsValuesActionCardsDecisionsValue> = DshCodec(
+            { value ->
+                val obj = DshCodecs.obj(value)
+                DshSessionFollowResultCase2ProjectionsValuesActionCardsDecisionsValue(
+                    `callId` = DshCodecs.string.decode(obj["callId"]),
+                    `action` = DshCodecs.string.decode(obj["action"]),
+                    `phase` = DshCodecs.string.decode(obj["phase"]),
+                    `data` = DshCodecs.optional(obj, "data", DshSessionFollowResultCase2ProjectionsValuesActionCardsDecisionsValueData.codec),
+                )
+            },
+            { value ->
+                val fields = linkedMapOf<String, JsonValue>()
+                fields["callId"] = DshCodecs.string.encode(value.`callId`)
+                fields["action"] = DshCodecs.string.encode(value.`action`)
+                fields["phase"] = DshCodecs.string.encode(value.`phase`)
+                DshCodecs.put(fields, "data", value.`data`, DshSessionFollowResultCase2ProjectionsValuesActionCardsDecisionsValueData.codec)
+                JsonObject(fields)
+            },
+        )
+    }
+}
+
+data class DshSessionFollowResultCase2ProjectionsValuesActionCards(
+    val `proposals`: Map<String, DshSessionFollowResultCase2ProjectionsValuesActionCardsProposalsValue>,
+    val `decisions`: Map<String, DshSessionFollowResultCase2ProjectionsValuesActionCardsDecisionsValue>,
+) {
+    companion object {
+        val codec: DshCodec<DshSessionFollowResultCase2ProjectionsValuesActionCards> = DshCodec(
+            { value ->
+                val obj = DshCodecs.obj(value)
+                DshSessionFollowResultCase2ProjectionsValuesActionCards(
+                    `proposals` = DshCodecs.map(DshSessionFollowResultCase2ProjectionsValuesActionCardsProposalsValue.codec).decode(obj["proposals"]),
+                    `decisions` = DshCodecs.map(DshSessionFollowResultCase2ProjectionsValuesActionCardsDecisionsValue.codec).decode(obj["decisions"]),
+                )
+            },
+            { value ->
+                val fields = linkedMapOf<String, JsonValue>()
+                fields["proposals"] = DshCodecs.map(DshSessionFollowResultCase2ProjectionsValuesActionCardsProposalsValue.codec).encode(value.`proposals`)
+                fields["decisions"] = DshCodecs.map(DshSessionFollowResultCase2ProjectionsValuesActionCardsDecisionsValue.codec).encode(value.`decisions`)
+                JsonObject(fields)
+            },
+        )
+    }
+}
+
 data class DshSessionFollowResultCase2ProjectionsValuesTodosItem(
     val `content`: String,
     val `status`: String,
@@ -2397,81 +3036,6 @@ data class DshSessionFollowResultCase2ProjectionsValuesImageLimits(
                 fields["maxImagePixels"] = DshCodecs.number.encode(value.`maxImagePixels`)
                 fields["maxImageDimension"] = DshCodecs.number.encode(value.`maxImageDimension`)
                 fields["mediaTypes"] = DshCodecs.list(DshCodecs.strings(setOf("image/png", "image/jpeg", "image/webp", "image/gif"))).encode(value.`mediaTypes`)
-                JsonObject(fields)
-            },
-        )
-    }
-}
-
-data class DshSessionFollowResultCase2ProjectionsValuesModelSelectionLastUsed(
-    val `provider`: String,
-    val `model`: String,
-    val `reasoningEffort`: DshOptional<String> = DshOptional.Missing,
-) {
-    companion object {
-        val codec: DshCodec<DshSessionFollowResultCase2ProjectionsValuesModelSelectionLastUsed> = DshCodec(
-            { value ->
-                val obj = DshCodecs.obj(value)
-                DshSessionFollowResultCase2ProjectionsValuesModelSelectionLastUsed(
-                    `provider` = DshCodecs.string.decode(obj["provider"]),
-                    `model` = DshCodecs.string.decode(obj["model"]),
-                    `reasoningEffort` = DshCodecs.optional(obj, "reasoningEffort", DshCodecs.string),
-                )
-            },
-            { value ->
-                val fields = linkedMapOf<String, JsonValue>()
-                fields["provider"] = DshCodecs.string.encode(value.`provider`)
-                fields["model"] = DshCodecs.string.encode(value.`model`)
-                DshCodecs.put(fields, "reasoningEffort", value.`reasoningEffort`, DshCodecs.string)
-                JsonObject(fields)
-            },
-        )
-    }
-}
-
-data class DshSessionFollowResultCase2ProjectionsValuesModelSelectionNext(
-    val `provider`: String,
-    val `model`: String,
-    val `reasoningEffort`: DshOptional<String> = DshOptional.Missing,
-) {
-    companion object {
-        val codec: DshCodec<DshSessionFollowResultCase2ProjectionsValuesModelSelectionNext> = DshCodec(
-            { value ->
-                val obj = DshCodecs.obj(value)
-                DshSessionFollowResultCase2ProjectionsValuesModelSelectionNext(
-                    `provider` = DshCodecs.string.decode(obj["provider"]),
-                    `model` = DshCodecs.string.decode(obj["model"]),
-                    `reasoningEffort` = DshCodecs.optional(obj, "reasoningEffort", DshCodecs.string),
-                )
-            },
-            { value ->
-                val fields = linkedMapOf<String, JsonValue>()
-                fields["provider"] = DshCodecs.string.encode(value.`provider`)
-                fields["model"] = DshCodecs.string.encode(value.`model`)
-                DshCodecs.put(fields, "reasoningEffort", value.`reasoningEffort`, DshCodecs.string)
-                JsonObject(fields)
-            },
-        )
-    }
-}
-
-data class DshSessionFollowResultCase2ProjectionsValuesModelSelection(
-    val `lastUsed`: DshSessionFollowResultCase2ProjectionsValuesModelSelectionLastUsed?,
-    val `next`: DshSessionFollowResultCase2ProjectionsValuesModelSelectionNext?,
-) {
-    companion object {
-        val codec: DshCodec<DshSessionFollowResultCase2ProjectionsValuesModelSelection> = DshCodec(
-            { value ->
-                val obj = DshCodecs.obj(value)
-                DshSessionFollowResultCase2ProjectionsValuesModelSelection(
-                    `lastUsed` = DshCodecs.nullable(DshSessionFollowResultCase2ProjectionsValuesModelSelectionLastUsed.codec).decode(obj["lastUsed"]),
-                    `next` = DshCodecs.nullable(DshSessionFollowResultCase2ProjectionsValuesModelSelectionNext.codec).decode(obj["next"]),
-                )
-            },
-            { value ->
-                val fields = linkedMapOf<String, JsonValue>()
-                fields["lastUsed"] = DshCodecs.nullable(DshSessionFollowResultCase2ProjectionsValuesModelSelectionLastUsed.codec).encode(value.`lastUsed`)
-                fields["next"] = DshCodecs.nullable(DshSessionFollowResultCase2ProjectionsValuesModelSelectionNext.codec).encode(value.`next`)
                 JsonObject(fields)
             },
         )
@@ -2841,111 +3405,6 @@ data class DshSessionFollowResultCase2ProjectionsValuesContextBreakdown(
     }
 }
 
-data class DshSessionFollowResultCase2ProjectionsValuesAgentTeamMembersItem(
-    val `id`: String,
-    val `name`: String,
-    val `role`: String,
-    val `phase`: String,
-    val `error`: DshOptional<String> = DshOptional.Missing,
-) {
-    companion object {
-        val codec: DshCodec<DshSessionFollowResultCase2ProjectionsValuesAgentTeamMembersItem> = DshCodec(
-            { value ->
-                val obj = DshCodecs.obj(value)
-                DshSessionFollowResultCase2ProjectionsValuesAgentTeamMembersItem(
-                    `id` = DshCodecs.string.decode(obj["id"]),
-                    `name` = DshCodecs.string.decode(obj["name"]),
-                    `role` = DshCodecs.strings(setOf("lead", "teammate")).decode(obj["role"]),
-                    `phase` = DshCodecs.strings(setOf("failed", "provisioning", "active")).decode(obj["phase"]),
-                    `error` = DshCodecs.optional(obj, "error", DshCodecs.string),
-                )
-            },
-            { value ->
-                val fields = linkedMapOf<String, JsonValue>()
-                fields["id"] = DshCodecs.string.encode(value.`id`)
-                fields["name"] = DshCodecs.string.encode(value.`name`)
-                fields["role"] = DshCodecs.strings(setOf("lead", "teammate")).encode(value.`role`)
-                fields["phase"] = DshCodecs.strings(setOf("failed", "provisioning", "active")).encode(value.`phase`)
-                DshCodecs.put(fields, "error", value.`error`, DshCodecs.string)
-                JsonObject(fields)
-            },
-        )
-    }
-}
-
-data class DshSessionFollowResultCase2ProjectionsValuesAgentTeamTasksItem(
-    val `id`: String,
-    val `revision`: Double,
-    val `subject`: String,
-    val `description`: String,
-    val `status`: String,
-    val `blockedBy`: List<String>,
-    val `writeScopes`: List<String>,
-    val `ownerName`: DshOptional<String> = DshOptional.Missing,
-    val `ready`: Boolean,
-    val `writeScopeWarnings`: List<String>,
-) {
-    companion object {
-        val codec: DshCodec<DshSessionFollowResultCase2ProjectionsValuesAgentTeamTasksItem> = DshCodec(
-            { value ->
-                val obj = DshCodecs.obj(value)
-                DshSessionFollowResultCase2ProjectionsValuesAgentTeamTasksItem(
-                    `id` = DshCodecs.string.decode(obj["id"]),
-                    `revision` = DshCodecs.number.decode(obj["revision"]),
-                    `subject` = DshCodecs.string.decode(obj["subject"]),
-                    `description` = DshCodecs.string.decode(obj["description"]),
-                    `status` = DshCodecs.strings(setOf("completed", "pending", "in_progress", "deleted")).decode(obj["status"]),
-                    `blockedBy` = DshCodecs.list(DshCodecs.string).decode(obj["blockedBy"]),
-                    `writeScopes` = DshCodecs.list(DshCodecs.string).decode(obj["writeScopes"]),
-                    `ownerName` = DshCodecs.optional(obj, "ownerName", DshCodecs.string),
-                    `ready` = DshCodecs.boolean.decode(obj["ready"]),
-                    `writeScopeWarnings` = DshCodecs.list(DshCodecs.string).decode(obj["writeScopeWarnings"]),
-                )
-            },
-            { value ->
-                val fields = linkedMapOf<String, JsonValue>()
-                fields["id"] = DshCodecs.string.encode(value.`id`)
-                fields["revision"] = DshCodecs.number.encode(value.`revision`)
-                fields["subject"] = DshCodecs.string.encode(value.`subject`)
-                fields["description"] = DshCodecs.string.encode(value.`description`)
-                fields["status"] = DshCodecs.strings(setOf("completed", "pending", "in_progress", "deleted")).encode(value.`status`)
-                fields["blockedBy"] = DshCodecs.list(DshCodecs.string).encode(value.`blockedBy`)
-                fields["writeScopes"] = DshCodecs.list(DshCodecs.string).encode(value.`writeScopes`)
-                DshCodecs.put(fields, "ownerName", value.`ownerName`, DshCodecs.string)
-                fields["ready"] = DshCodecs.boolean.encode(value.`ready`)
-                fields["writeScopeWarnings"] = DshCodecs.list(DshCodecs.string).encode(value.`writeScopeWarnings`)
-                JsonObject(fields)
-            },
-        )
-    }
-}
-
-data class DshSessionFollowResultCase2ProjectionsValuesAgentTeam(
-    val `members`: List<DshSessionFollowResultCase2ProjectionsValuesAgentTeamMembersItem>,
-    val `tasks`: List<DshSessionFollowResultCase2ProjectionsValuesAgentTeamTasksItem>,
-    val `failure`: DshOptional<String> = DshOptional.Missing,
-) {
-    companion object {
-        val codec: DshCodec<DshSessionFollowResultCase2ProjectionsValuesAgentTeam> = DshCodec(
-            { value ->
-                val obj = DshCodecs.obj(value)
-                DshSessionFollowResultCase2ProjectionsValuesAgentTeam(
-                    `members` = DshCodecs.list(DshSessionFollowResultCase2ProjectionsValuesAgentTeamMembersItem.codec).decode(obj["members"]),
-                    `tasks` = DshCodecs.list(DshSessionFollowResultCase2ProjectionsValuesAgentTeamTasksItem.codec).decode(obj["tasks"]),
-                    `failure` = DshCodecs.optional(obj, "failure", DshCodecs.string),
-                )
-            },
-            { value ->
-                val fields = linkedMapOf<String, JsonValue>()
-                fields["members"] = DshCodecs.list(DshSessionFollowResultCase2ProjectionsValuesAgentTeamMembersItem.codec).encode(value.`members`)
-                fields["tasks"] = DshCodecs.list(DshSessionFollowResultCase2ProjectionsValuesAgentTeamTasksItem.codec).encode(value.`tasks`)
-                DshCodecs.put(fields, "failure", value.`failure`, DshCodecs.string)
-                JsonObject(fields)
-            },
-        )
-    }
-}
-
 data class DshSessionFollowResultCase2ProjectionsValuesUserQuestionsActiveItemQuestionsItemOptionsItem(
     val `label`: String,
     val `description`: DshOptional<String> = DshOptional.Missing,
@@ -2969,16 +3428,16 @@ data class DshSessionFollowResultCase2ProjectionsValuesUserQuestionsActiveItemQu
     }
 }
 
-data class DshSessionFollowResultCase2ProjectionsValuesUserQuestionsActiveItemQuestionsItemIntent(
+data class DshSessionFollowResultCase2ProjectionsValuesUserQuestionsActiveItemQuestionsItemIntentCase1(
     val `kind`: String,
     val `approve`: String,
     val `callId`: DshOptional<String> = DshOptional.Missing,
 ) {
     companion object {
-        val codec: DshCodec<DshSessionFollowResultCase2ProjectionsValuesUserQuestionsActiveItemQuestionsItemIntent> = DshCodec(
+        val codec: DshCodec<DshSessionFollowResultCase2ProjectionsValuesUserQuestionsActiveItemQuestionsItemIntentCase1> = DshCodec(
             { value ->
                 val obj = DshCodecs.obj(value)
-                DshSessionFollowResultCase2ProjectionsValuesUserQuestionsActiveItemQuestionsItemIntent(
+                DshSessionFollowResultCase2ProjectionsValuesUserQuestionsActiveItemQuestionsItemIntentCase1(
                     `kind` = DshCodecs.strings(setOf("plan-review")).decode(obj["kind"]),
                     `approve` = DshCodecs.string.decode(obj["approve"]),
                     `callId` = DshCodecs.optional(obj, "callId", DshCodecs.string),
@@ -2991,6 +3450,177 @@ data class DshSessionFollowResultCase2ProjectionsValuesUserQuestionsActiveItemQu
                 DshCodecs.put(fields, "callId", value.`callId`, DshCodecs.string)
                 JsonObject(fields)
             },
+        )
+    }
+}
+
+data class DshSessionFollowResultCase2ProjectionsValuesUserQuestionsActiveItemQuestionsItemIntentCase2Subject(
+    val `name`: String,
+    val `icon`: DshOptional<String> = DshOptional.Missing,
+) {
+    companion object {
+        val codec: DshCodec<DshSessionFollowResultCase2ProjectionsValuesUserQuestionsActiveItemQuestionsItemIntentCase2Subject> = DshCodec(
+            { value ->
+                val obj = DshCodecs.obj(value)
+                DshSessionFollowResultCase2ProjectionsValuesUserQuestionsActiveItemQuestionsItemIntentCase2Subject(
+                    `name` = DshCodecs.string.decode(obj["name"]),
+                    `icon` = DshCodecs.optional(obj, "icon", DshCodecs.string),
+                )
+            },
+            { value ->
+                val fields = linkedMapOf<String, JsonValue>()
+                fields["name"] = DshCodecs.string.encode(value.`name`)
+                DshCodecs.put(fields, "icon", value.`icon`, DshCodecs.string)
+                JsonObject(fields)
+            },
+        )
+    }
+}
+
+data class DshSessionFollowResultCase2ProjectionsValuesUserQuestionsActiveItemQuestionsItem6a91e23ba586(
+    val `en`: String,
+    val additional: Map<String, String> = emptyMap(),
+) {
+    companion object {
+        val codec: DshCodec<DshSessionFollowResultCase2ProjectionsValuesUserQuestionsActiveItemQuestionsItem6a91e23ba586> = DshCodec(
+            { value ->
+                val obj = DshCodecs.obj(value)
+                DshSessionFollowResultCase2ProjectionsValuesUserQuestionsActiveItemQuestionsItem6a91e23ba586(
+                    `en` = DshCodecs.string.decode(obj["en"]),
+                    additional = obj.fields.filterKeys { it !in setOf("en") }.mapValues { DshCodecs.string.decode(it.value) },
+                )
+            },
+            { value ->
+                val fields = linkedMapOf<String, JsonValue>()
+                value.additional.forEach { (key, item) -> fields[key] = DshCodecs.string.encode(item) }
+                fields["en"] = DshCodecs.string.encode(value.`en`)
+                JsonObject(fields)
+            },
+        )
+    }
+}
+
+data class DshSessionFollowResultCase2ProjectionsValuesUserQuestionsActiveItemQuestionsItemf05ea8f975fb(
+    val `en`: String,
+    val additional: Map<String, String> = emptyMap(),
+) {
+    companion object {
+        val codec: DshCodec<DshSessionFollowResultCase2ProjectionsValuesUserQuestionsActiveItemQuestionsItemf05ea8f975fb> = DshCodec(
+            { value ->
+                val obj = DshCodecs.obj(value)
+                DshSessionFollowResultCase2ProjectionsValuesUserQuestionsActiveItemQuestionsItemf05ea8f975fb(
+                    `en` = DshCodecs.string.decode(obj["en"]),
+                    additional = obj.fields.filterKeys { it !in setOf("en") }.mapValues { DshCodecs.string.decode(it.value) },
+                )
+            },
+            { value ->
+                val fields = linkedMapOf<String, JsonValue>()
+                value.additional.forEach { (key, item) -> fields[key] = DshCodecs.string.encode(item) }
+                fields["en"] = DshCodecs.string.encode(value.`en`)
+                JsonObject(fields)
+            },
+        )
+    }
+}
+
+data class DshSessionFollowResultCase2ProjectionsValuesUserQuestionsActiveItemQuestionsItembedea5581dce(
+    val `en`: String,
+    val additional: Map<String, String> = emptyMap(),
+) {
+    companion object {
+        val codec: DshCodec<DshSessionFollowResultCase2ProjectionsValuesUserQuestionsActiveItemQuestionsItembedea5581dce> = DshCodec(
+            { value ->
+                val obj = DshCodecs.obj(value)
+                DshSessionFollowResultCase2ProjectionsValuesUserQuestionsActiveItemQuestionsItembedea5581dce(
+                    `en` = DshCodecs.string.decode(obj["en"]),
+                    additional = obj.fields.filterKeys { it !in setOf("en") }.mapValues { DshCodecs.string.decode(it.value) },
+                )
+            },
+            { value ->
+                val fields = linkedMapOf<String, JsonValue>()
+                value.additional.forEach { (key, item) -> fields[key] = DshCodecs.string.encode(item) }
+                fields["en"] = DshCodecs.string.encode(value.`en`)
+                JsonObject(fields)
+            },
+        )
+    }
+}
+
+data class DshSessionFollowResultCase2ProjectionsValuesUserQuestionsActiveItemQuestionsItemIntentCase2Display(
+    val `question`: DshSessionFollowResultCase2ProjectionsValuesUserQuestionsActiveItemQuestionsItem6a91e23ba586,
+    val `detail`: DshOptional<DshSessionFollowResultCase2ProjectionsValuesUserQuestionsActiveItemQuestionsItemf05ea8f975fb> = DshOptional.Missing,
+    val `approve`: DshOptional<DshSessionFollowResultCase2ProjectionsValuesUserQuestionsActiveItemQuestionsItembedea5581dce> = DshOptional.Missing,
+) {
+    companion object {
+        val codec: DshCodec<DshSessionFollowResultCase2ProjectionsValuesUserQuestionsActiveItemQuestionsItemIntentCase2Display> = DshCodec(
+            { value ->
+                val obj = DshCodecs.obj(value)
+                DshSessionFollowResultCase2ProjectionsValuesUserQuestionsActiveItemQuestionsItemIntentCase2Display(
+                    `question` = DshSessionFollowResultCase2ProjectionsValuesUserQuestionsActiveItemQuestionsItem6a91e23ba586.codec.decode(obj["question"]),
+                    `detail` = DshCodecs.optional(obj, "detail", DshSessionFollowResultCase2ProjectionsValuesUserQuestionsActiveItemQuestionsItemf05ea8f975fb.codec),
+                    `approve` = DshCodecs.optional(obj, "approve", DshSessionFollowResultCase2ProjectionsValuesUserQuestionsActiveItemQuestionsItembedea5581dce.codec),
+                )
+            },
+            { value ->
+                val fields = linkedMapOf<String, JsonValue>()
+                fields["question"] = DshSessionFollowResultCase2ProjectionsValuesUserQuestionsActiveItemQuestionsItem6a91e23ba586.codec.encode(value.`question`)
+                DshCodecs.put(fields, "detail", value.`detail`, DshSessionFollowResultCase2ProjectionsValuesUserQuestionsActiveItemQuestionsItemf05ea8f975fb.codec)
+                DshCodecs.put(fields, "approve", value.`approve`, DshSessionFollowResultCase2ProjectionsValuesUserQuestionsActiveItemQuestionsItembedea5581dce.codec)
+                JsonObject(fields)
+            },
+        )
+    }
+}
+
+data class DshSessionFollowResultCase2ProjectionsValuesUserQuestionsActiveItemQuestionsItemIntentCase2(
+    val `kind`: String,
+    val `approve`: String,
+    val `reject`: String,
+    val `always`: DshOptional<String> = DshOptional.Missing,
+    val `subject`: DshOptional<DshSessionFollowResultCase2ProjectionsValuesUserQuestionsActiveItemQuestionsItemIntentCase2Subject> = DshOptional.Missing,
+    val `display`: DshOptional<DshSessionFollowResultCase2ProjectionsValuesUserQuestionsActiveItemQuestionsItemIntentCase2Display> = DshOptional.Missing,
+) {
+    companion object {
+        val codec: DshCodec<DshSessionFollowResultCase2ProjectionsValuesUserQuestionsActiveItemQuestionsItemIntentCase2> = DshCodec(
+            { value ->
+                val obj = DshCodecs.obj(value)
+                DshSessionFollowResultCase2ProjectionsValuesUserQuestionsActiveItemQuestionsItemIntentCase2(
+                    `kind` = DshCodecs.strings(setOf("approval")).decode(obj["kind"]),
+                    `approve` = DshCodecs.string.decode(obj["approve"]),
+                    `reject` = DshCodecs.string.decode(obj["reject"]),
+                    `always` = DshCodecs.optional(obj, "always", DshCodecs.string),
+                    `subject` = DshCodecs.optional(obj, "subject", DshSessionFollowResultCase2ProjectionsValuesUserQuestionsActiveItemQuestionsItemIntentCase2Subject.codec),
+                    `display` = DshCodecs.optional(obj, "display", DshSessionFollowResultCase2ProjectionsValuesUserQuestionsActiveItemQuestionsItemIntentCase2Display.codec),
+                )
+            },
+            { value ->
+                val fields = linkedMapOf<String, JsonValue>()
+                fields["kind"] = DshCodecs.strings(setOf("approval")).encode(value.`kind`)
+                fields["approve"] = DshCodecs.string.encode(value.`approve`)
+                fields["reject"] = DshCodecs.string.encode(value.`reject`)
+                DshCodecs.put(fields, "always", value.`always`, DshCodecs.string)
+                DshCodecs.put(fields, "subject", value.`subject`, DshSessionFollowResultCase2ProjectionsValuesUserQuestionsActiveItemQuestionsItemIntentCase2Subject.codec)
+                DshCodecs.put(fields, "display", value.`display`, DshSessionFollowResultCase2ProjectionsValuesUserQuestionsActiveItemQuestionsItemIntentCase2Display.codec)
+                JsonObject(fields)
+            },
+        )
+    }
+}
+
+sealed interface DshSessionFollowResultCase2ProjectionsValuesUserQuestionsActiveItemQuestionsItemIntent {
+    data class Case1(val value: DshSessionFollowResultCase2ProjectionsValuesUserQuestionsActiveItemQuestionsItemIntentCase1) : DshSessionFollowResultCase2ProjectionsValuesUserQuestionsActiveItemQuestionsItemIntent
+    data class Case2(val value: DshSessionFollowResultCase2ProjectionsValuesUserQuestionsActiveItemQuestionsItemIntentCase2) : DshSessionFollowResultCase2ProjectionsValuesUserQuestionsActiveItemQuestionsItemIntent
+    companion object {
+        val codec: DshCodec<DshSessionFollowResultCase2ProjectionsValuesUserQuestionsActiveItemQuestionsItemIntent> = DshCodec(
+            { value ->
+                try { return@DshCodec Case1(DshSessionFollowResultCase2ProjectionsValuesUserQuestionsActiveItemQuestionsItemIntentCase1.codec.decode(value)) } catch (_: ProtocolException) { }
+                try { return@DshCodec Case2(DshSessionFollowResultCase2ProjectionsValuesUserQuestionsActiveItemQuestionsItemIntentCase2.codec.decode(value)) } catch (_: ProtocolException) { }
+                throw ProtocolException("native: unsupported union")
+            },
+            { value -> when (value) {
+                is Case1 -> DshSessionFollowResultCase2ProjectionsValuesUserQuestionsActiveItemQuestionsItemIntentCase1.codec.encode(value.value)
+                is Case2 -> DshSessionFollowResultCase2ProjectionsValuesUserQuestionsActiveItemQuestionsItemIntentCase2.codec.encode(value.value)
+            } },
         )
     }
 }
@@ -3131,6 +3761,198 @@ data class DshSessionFollowResultCase2ProjectionsValuesUserQuestions(
     }
 }
 
+data class DshSessionFollowResultCase2ProjectionsValuesAgentTeamMembersItem(
+    val `id`: String,
+    val `name`: String,
+    val `role`: String,
+    val `phase`: String,
+    val `error`: DshOptional<String> = DshOptional.Missing,
+) {
+    companion object {
+        val codec: DshCodec<DshSessionFollowResultCase2ProjectionsValuesAgentTeamMembersItem> = DshCodec(
+            { value ->
+                val obj = DshCodecs.obj(value)
+                DshSessionFollowResultCase2ProjectionsValuesAgentTeamMembersItem(
+                    `id` = DshCodecs.string.decode(obj["id"]),
+                    `name` = DshCodecs.string.decode(obj["name"]),
+                    `role` = DshCodecs.strings(setOf("lead", "teammate")).decode(obj["role"]),
+                    `phase` = DshCodecs.strings(setOf("failed", "provisioning", "active")).decode(obj["phase"]),
+                    `error` = DshCodecs.optional(obj, "error", DshCodecs.string),
+                )
+            },
+            { value ->
+                val fields = linkedMapOf<String, JsonValue>()
+                fields["id"] = DshCodecs.string.encode(value.`id`)
+                fields["name"] = DshCodecs.string.encode(value.`name`)
+                fields["role"] = DshCodecs.strings(setOf("lead", "teammate")).encode(value.`role`)
+                fields["phase"] = DshCodecs.strings(setOf("failed", "provisioning", "active")).encode(value.`phase`)
+                DshCodecs.put(fields, "error", value.`error`, DshCodecs.string)
+                JsonObject(fields)
+            },
+        )
+    }
+}
+
+data class DshSessionFollowResultCase2ProjectionsValuesAgentTeamTasksItem(
+    val `id`: String,
+    val `revision`: Double,
+    val `subject`: String,
+    val `description`: String,
+    val `status`: String,
+    val `blockedBy`: List<String>,
+    val `writeScopes`: List<String>,
+    val `ownerName`: DshOptional<String> = DshOptional.Missing,
+    val `ready`: Boolean,
+    val `writeScopeWarnings`: List<String>,
+) {
+    companion object {
+        val codec: DshCodec<DshSessionFollowResultCase2ProjectionsValuesAgentTeamTasksItem> = DshCodec(
+            { value ->
+                val obj = DshCodecs.obj(value)
+                DshSessionFollowResultCase2ProjectionsValuesAgentTeamTasksItem(
+                    `id` = DshCodecs.string.decode(obj["id"]),
+                    `revision` = DshCodecs.number.decode(obj["revision"]),
+                    `subject` = DshCodecs.string.decode(obj["subject"]),
+                    `description` = DshCodecs.string.decode(obj["description"]),
+                    `status` = DshCodecs.strings(setOf("completed", "pending", "in_progress", "deleted")).decode(obj["status"]),
+                    `blockedBy` = DshCodecs.list(DshCodecs.string).decode(obj["blockedBy"]),
+                    `writeScopes` = DshCodecs.list(DshCodecs.string).decode(obj["writeScopes"]),
+                    `ownerName` = DshCodecs.optional(obj, "ownerName", DshCodecs.string),
+                    `ready` = DshCodecs.boolean.decode(obj["ready"]),
+                    `writeScopeWarnings` = DshCodecs.list(DshCodecs.string).decode(obj["writeScopeWarnings"]),
+                )
+            },
+            { value ->
+                val fields = linkedMapOf<String, JsonValue>()
+                fields["id"] = DshCodecs.string.encode(value.`id`)
+                fields["revision"] = DshCodecs.number.encode(value.`revision`)
+                fields["subject"] = DshCodecs.string.encode(value.`subject`)
+                fields["description"] = DshCodecs.string.encode(value.`description`)
+                fields["status"] = DshCodecs.strings(setOf("completed", "pending", "in_progress", "deleted")).encode(value.`status`)
+                fields["blockedBy"] = DshCodecs.list(DshCodecs.string).encode(value.`blockedBy`)
+                fields["writeScopes"] = DshCodecs.list(DshCodecs.string).encode(value.`writeScopes`)
+                DshCodecs.put(fields, "ownerName", value.`ownerName`, DshCodecs.string)
+                fields["ready"] = DshCodecs.boolean.encode(value.`ready`)
+                fields["writeScopeWarnings"] = DshCodecs.list(DshCodecs.string).encode(value.`writeScopeWarnings`)
+                JsonObject(fields)
+            },
+        )
+    }
+}
+
+data class DshSessionFollowResultCase2ProjectionsValuesAgentTeam(
+    val `members`: List<DshSessionFollowResultCase2ProjectionsValuesAgentTeamMembersItem>,
+    val `tasks`: List<DshSessionFollowResultCase2ProjectionsValuesAgentTeamTasksItem>,
+    val `failure`: DshOptional<String> = DshOptional.Missing,
+) {
+    companion object {
+        val codec: DshCodec<DshSessionFollowResultCase2ProjectionsValuesAgentTeam> = DshCodec(
+            { value ->
+                val obj = DshCodecs.obj(value)
+                DshSessionFollowResultCase2ProjectionsValuesAgentTeam(
+                    `members` = DshCodecs.list(DshSessionFollowResultCase2ProjectionsValuesAgentTeamMembersItem.codec).decode(obj["members"]),
+                    `tasks` = DshCodecs.list(DshSessionFollowResultCase2ProjectionsValuesAgentTeamTasksItem.codec).decode(obj["tasks"]),
+                    `failure` = DshCodecs.optional(obj, "failure", DshCodecs.string),
+                )
+            },
+            { value ->
+                val fields = linkedMapOf<String, JsonValue>()
+                fields["members"] = DshCodecs.list(DshSessionFollowResultCase2ProjectionsValuesAgentTeamMembersItem.codec).encode(value.`members`)
+                fields["tasks"] = DshCodecs.list(DshSessionFollowResultCase2ProjectionsValuesAgentTeamTasksItem.codec).encode(value.`tasks`)
+                DshCodecs.put(fields, "failure", value.`failure`, DshCodecs.string)
+                JsonObject(fields)
+            },
+        )
+    }
+}
+
+data class DshSessionFollowResultCase2ProjectionsValuesForgeChangeRequestsItem(
+    val `url`: String,
+    val `origin`: String,
+    val `dismissed`: Boolean,
+) {
+    companion object {
+        val codec: DshCodec<DshSessionFollowResultCase2ProjectionsValuesForgeChangeRequestsItem> = DshCodec(
+            { value ->
+                val obj = DshCodecs.obj(value)
+                DshSessionFollowResultCase2ProjectionsValuesForgeChangeRequestsItem(
+                    `url` = DshCodecs.string.decode(obj["url"]),
+                    `origin` = DshCodecs.strings(setOf("created", "referenced", "discovered", "tracked")).decode(obj["origin"]),
+                    `dismissed` = DshCodecs.boolean.decode(obj["dismissed"]),
+                )
+            },
+            { value ->
+                val fields = linkedMapOf<String, JsonValue>()
+                fields["url"] = DshCodecs.string.encode(value.`url`)
+                fields["origin"] = DshCodecs.strings(setOf("created", "referenced", "discovered", "tracked")).encode(value.`origin`)
+                fields["dismissed"] = DshCodecs.boolean.encode(value.`dismissed`)
+                JsonObject(fields)
+            },
+        )
+    }
+}
+
+data class DshSessionFollowResultCase2ProjectionsValuesForgeWorktree(
+    val `path`: String,
+    val `branch`: String,
+    val `from`: String?,
+    val `baseCommit`: String,
+    val `repositoryRoot`: String,
+) {
+    companion object {
+        val codec: DshCodec<DshSessionFollowResultCase2ProjectionsValuesForgeWorktree> = DshCodec(
+            { value ->
+                val obj = DshCodecs.obj(value)
+                DshSessionFollowResultCase2ProjectionsValuesForgeWorktree(
+                    `path` = DshCodecs.string.decode(obj["path"]),
+                    `branch` = DshCodecs.string.decode(obj["branch"]),
+                    `from` = DshCodecs.nullable(DshCodecs.string).decode(obj["from"]),
+                    `baseCommit` = DshCodecs.string.decode(obj["baseCommit"]),
+                    `repositoryRoot` = DshCodecs.string.decode(obj["repositoryRoot"]),
+                )
+            },
+            { value ->
+                val fields = linkedMapOf<String, JsonValue>()
+                fields["path"] = DshCodecs.string.encode(value.`path`)
+                fields["branch"] = DshCodecs.string.encode(value.`branch`)
+                fields["from"] = DshCodecs.nullable(DshCodecs.string).encode(value.`from`)
+                fields["baseCommit"] = DshCodecs.string.encode(value.`baseCommit`)
+                fields["repositoryRoot"] = DshCodecs.string.encode(value.`repositoryRoot`)
+                JsonObject(fields)
+            },
+        )
+    }
+}
+
+data class DshSessionFollowResultCase2ProjectionsValuesForkLineage(
+    val `origin`: String,
+    val `sourceSessionId`: String,
+    val `authoredByViewer`: Boolean,
+    val `workspaceReadOnly`: Boolean,
+) {
+    companion object {
+        val codec: DshCodec<DshSessionFollowResultCase2ProjectionsValuesForkLineage> = DshCodec(
+            { value ->
+                val obj = DshCodecs.obj(value)
+                DshSessionFollowResultCase2ProjectionsValuesForkLineage(
+                    `origin` = DshCodecs.strings(setOf("fork")).decode(obj["origin"]),
+                    `sourceSessionId` = DshCodecs.string.decode(obj["sourceSessionId"]),
+                    `authoredByViewer` = DshCodecs.boolean.decode(obj["authoredByViewer"]),
+                    `workspaceReadOnly` = DshCodecs.boolean.decode(obj["workspaceReadOnly"]),
+                )
+            },
+            { value ->
+                val fields = linkedMapOf<String, JsonValue>()
+                fields["origin"] = DshCodecs.strings(setOf("fork")).encode(value.`origin`)
+                fields["sourceSessionId"] = DshCodecs.string.encode(value.`sourceSessionId`)
+                fields["authoredByViewer"] = DshCodecs.boolean.encode(value.`authoredByViewer`)
+                fields["workspaceReadOnly"] = DshCodecs.boolean.encode(value.`workspaceReadOnly`)
+                JsonObject(fields)
+            },
+        )
+    }
+}
+
 data class DshSessionFollowResultCase2ProjectionsValuesGoalGoalBlockedReason(
     val `code`: String,
     val `message`: String,
@@ -3243,13 +4065,14 @@ data class DshSessionFollowResultCase2ProjectionsValuesPlan(
 
 data class DshSessionFollowResultCase2ProjectionsValues(
     val `inbox`: DshOptional<DshSessionFollowResultCase2ProjectionsValuesInbox> = DshOptional.Missing,
-    val `workingDirectory`: DshOptional<String?> = DshOptional.Missing,
+    val `modelSelection`: DshOptional<DshSessionFollowResultCase2ProjectionsValuesModelSelection> = DshOptional.Missing,
+    val `actionCards`: DshOptional<DshSessionFollowResultCase2ProjectionsValuesActionCards> = DshOptional.Missing,
     val `agentPreset`: DshOptional<String?> = DshOptional.Missing,
     val `title`: DshOptional<String?> = DshOptional.Missing,
     val `todos`: DshOptional<List<DshSessionFollowResultCase2ProjectionsValuesTodosItem>?> = DshOptional.Missing,
     val `sessionListMetadata`: DshOptional<DshSessionFollowResultCase2ProjectionsValuesSessionListMetadata> = DshOptional.Missing,
     val `imageLimits`: DshOptional<DshSessionFollowResultCase2ProjectionsValuesImageLimits> = DshOptional.Missing,
-    val `modelSelection`: DshOptional<DshSessionFollowResultCase2ProjectionsValuesModelSelection> = DshOptional.Missing,
+    val `workingDirectory`: DshOptional<String?> = DshOptional.Missing,
     val `permissions`: DshOptional<DshSessionFollowResultCase2ProjectionsValuesPermissions> = DshOptional.Missing,
     val `subagentCatalog`: DshOptional<List<DshSessionFollowResultCase2ProjectionsValuesSubagentCatalogItem>> = DshOptional.Missing,
     val `subagentTiming`: DshOptional<DshSessionFollowResultCase2ProjectionsValuesSubagentTiming> = DshOptional.Missing,
@@ -3257,8 +4080,11 @@ data class DshSessionFollowResultCase2ProjectionsValues(
     val `tokenUsage`: DshOptional<DshSessionFollowResultCase2ProjectionsValuesTokenUsage> = DshOptional.Missing,
     val `contextPressure`: DshOptional<DshSessionFollowResultCase2ProjectionsValuesContextPressure> = DshOptional.Missing,
     val `contextBreakdown`: DshOptional<DshSessionFollowResultCase2ProjectionsValuesContextBreakdown> = DshOptional.Missing,
-    val `agentTeam`: DshOptional<DshSessionFollowResultCase2ProjectionsValuesAgentTeam> = DshOptional.Missing,
     val `userQuestions`: DshOptional<DshSessionFollowResultCase2ProjectionsValuesUserQuestions> = DshOptional.Missing,
+    val `agentTeam`: DshOptional<DshSessionFollowResultCase2ProjectionsValuesAgentTeam> = DshOptional.Missing,
+    val `forgeChangeRequests`: DshOptional<List<DshSessionFollowResultCase2ProjectionsValuesForgeChangeRequestsItem>> = DshOptional.Missing,
+    val `forgeWorktree`: DshOptional<DshSessionFollowResultCase2ProjectionsValuesForgeWorktree?> = DshOptional.Missing,
+    val `forkLineage`: DshOptional<DshSessionFollowResultCase2ProjectionsValuesForkLineage> = DshOptional.Missing,
     val `goal`: DshOptional<DshSessionFollowResultCase2ProjectionsValuesGoal?> = DshOptional.Missing,
     val `plan`: DshOptional<DshSessionFollowResultCase2ProjectionsValuesPlan> = DshOptional.Missing,
     val additional: Map<String, JsonValue> = emptyMap(),
@@ -3269,13 +4095,14 @@ data class DshSessionFollowResultCase2ProjectionsValues(
                 val obj = DshCodecs.obj(value)
                 DshSessionFollowResultCase2ProjectionsValues(
                     `inbox` = DshCodecs.optional(obj, "inbox", DshSessionFollowResultCase2ProjectionsValuesInbox.codec),
-                    `workingDirectory` = DshCodecs.optional(obj, "workingDirectory", DshCodecs.nullable(DshCodecs.string)),
+                    `modelSelection` = DshCodecs.optional(obj, "modelSelection", DshSessionFollowResultCase2ProjectionsValuesModelSelection.codec),
+                    `actionCards` = DshCodecs.optional(obj, "actionCards", DshSessionFollowResultCase2ProjectionsValuesActionCards.codec),
                     `agentPreset` = DshCodecs.optional(obj, "agentPreset", DshCodecs.nullable(DshCodecs.string)),
                     `title` = DshCodecs.optional(obj, "title", DshCodecs.nullable(DshCodecs.string)),
                     `todos` = DshCodecs.optional(obj, "todos", DshCodecs.nullable(DshCodecs.list(DshSessionFollowResultCase2ProjectionsValuesTodosItem.codec))),
                     `sessionListMetadata` = DshCodecs.optional(obj, "sessionListMetadata", DshSessionFollowResultCase2ProjectionsValuesSessionListMetadata.codec),
                     `imageLimits` = DshCodecs.optional(obj, "imageLimits", DshSessionFollowResultCase2ProjectionsValuesImageLimits.codec),
-                    `modelSelection` = DshCodecs.optional(obj, "modelSelection", DshSessionFollowResultCase2ProjectionsValuesModelSelection.codec),
+                    `workingDirectory` = DshCodecs.optional(obj, "workingDirectory", DshCodecs.nullable(DshCodecs.string)),
                     `permissions` = DshCodecs.optional(obj, "permissions", DshSessionFollowResultCase2ProjectionsValuesPermissions.codec),
                     `subagentCatalog` = DshCodecs.optional(obj, "subagentCatalog", DshCodecs.list(DshSessionFollowResultCase2ProjectionsValuesSubagentCatalogItem.codec)),
                     `subagentTiming` = DshCodecs.optional(obj, "subagentTiming", DshSessionFollowResultCase2ProjectionsValuesSubagentTiming.codec),
@@ -3283,24 +4110,28 @@ data class DshSessionFollowResultCase2ProjectionsValues(
                     `tokenUsage` = DshCodecs.optional(obj, "tokenUsage", DshSessionFollowResultCase2ProjectionsValuesTokenUsage.codec),
                     `contextPressure` = DshCodecs.optional(obj, "contextPressure", DshSessionFollowResultCase2ProjectionsValuesContextPressure.codec),
                     `contextBreakdown` = DshCodecs.optional(obj, "contextBreakdown", DshSessionFollowResultCase2ProjectionsValuesContextBreakdown.codec),
-                    `agentTeam` = DshCodecs.optional(obj, "agentTeam", DshSessionFollowResultCase2ProjectionsValuesAgentTeam.codec),
                     `userQuestions` = DshCodecs.optional(obj, "userQuestions", DshSessionFollowResultCase2ProjectionsValuesUserQuestions.codec),
+                    `agentTeam` = DshCodecs.optional(obj, "agentTeam", DshSessionFollowResultCase2ProjectionsValuesAgentTeam.codec),
+                    `forgeChangeRequests` = DshCodecs.optional(obj, "forgeChangeRequests", DshCodecs.list(DshSessionFollowResultCase2ProjectionsValuesForgeChangeRequestsItem.codec)),
+                    `forgeWorktree` = DshCodecs.optional(obj, "forgeWorktree", DshCodecs.nullable(DshSessionFollowResultCase2ProjectionsValuesForgeWorktree.codec)),
+                    `forkLineage` = DshCodecs.optional(obj, "forkLineage", DshSessionFollowResultCase2ProjectionsValuesForkLineage.codec),
                     `goal` = DshCodecs.optional(obj, "goal", DshCodecs.nullable(DshSessionFollowResultCase2ProjectionsValuesGoal.codec)),
                     `plan` = DshCodecs.optional(obj, "plan", DshSessionFollowResultCase2ProjectionsValuesPlan.codec),
-                    additional = obj.fields.filterKeys { it !in setOf("inbox", "workingDirectory", "agentPreset", "title", "todos", "sessionListMetadata", "imageLimits", "modelSelection", "permissions", "subagentCatalog", "subagentTiming", "subagent", "tokenUsage", "contextPressure", "contextBreakdown", "agentTeam", "userQuestions", "goal", "plan") }.mapValues { DshCodecs.json.decode(it.value) },
+                    additional = obj.fields.filterKeys { it !in setOf("inbox", "modelSelection", "actionCards", "agentPreset", "title", "todos", "sessionListMetadata", "imageLimits", "workingDirectory", "permissions", "subagentCatalog", "subagentTiming", "subagent", "tokenUsage", "contextPressure", "contextBreakdown", "userQuestions", "agentTeam", "forgeChangeRequests", "forgeWorktree", "forkLineage", "goal", "plan") }.mapValues { DshCodecs.json.decode(it.value) },
                 )
             },
             { value ->
                 val fields = linkedMapOf<String, JsonValue>()
                 value.additional.forEach { (key, item) -> fields[key] = DshCodecs.json.encode(item) }
                 DshCodecs.put(fields, "inbox", value.`inbox`, DshSessionFollowResultCase2ProjectionsValuesInbox.codec)
-                DshCodecs.put(fields, "workingDirectory", value.`workingDirectory`, DshCodecs.nullable(DshCodecs.string))
+                DshCodecs.put(fields, "modelSelection", value.`modelSelection`, DshSessionFollowResultCase2ProjectionsValuesModelSelection.codec)
+                DshCodecs.put(fields, "actionCards", value.`actionCards`, DshSessionFollowResultCase2ProjectionsValuesActionCards.codec)
                 DshCodecs.put(fields, "agentPreset", value.`agentPreset`, DshCodecs.nullable(DshCodecs.string))
                 DshCodecs.put(fields, "title", value.`title`, DshCodecs.nullable(DshCodecs.string))
                 DshCodecs.put(fields, "todos", value.`todos`, DshCodecs.nullable(DshCodecs.list(DshSessionFollowResultCase2ProjectionsValuesTodosItem.codec)))
                 DshCodecs.put(fields, "sessionListMetadata", value.`sessionListMetadata`, DshSessionFollowResultCase2ProjectionsValuesSessionListMetadata.codec)
                 DshCodecs.put(fields, "imageLimits", value.`imageLimits`, DshSessionFollowResultCase2ProjectionsValuesImageLimits.codec)
-                DshCodecs.put(fields, "modelSelection", value.`modelSelection`, DshSessionFollowResultCase2ProjectionsValuesModelSelection.codec)
+                DshCodecs.put(fields, "workingDirectory", value.`workingDirectory`, DshCodecs.nullable(DshCodecs.string))
                 DshCodecs.put(fields, "permissions", value.`permissions`, DshSessionFollowResultCase2ProjectionsValuesPermissions.codec)
                 DshCodecs.put(fields, "subagentCatalog", value.`subagentCatalog`, DshCodecs.list(DshSessionFollowResultCase2ProjectionsValuesSubagentCatalogItem.codec))
                 DshCodecs.put(fields, "subagentTiming", value.`subagentTiming`, DshSessionFollowResultCase2ProjectionsValuesSubagentTiming.codec)
@@ -3308,8 +4139,11 @@ data class DshSessionFollowResultCase2ProjectionsValues(
                 DshCodecs.put(fields, "tokenUsage", value.`tokenUsage`, DshSessionFollowResultCase2ProjectionsValuesTokenUsage.codec)
                 DshCodecs.put(fields, "contextPressure", value.`contextPressure`, DshSessionFollowResultCase2ProjectionsValuesContextPressure.codec)
                 DshCodecs.put(fields, "contextBreakdown", value.`contextBreakdown`, DshSessionFollowResultCase2ProjectionsValuesContextBreakdown.codec)
-                DshCodecs.put(fields, "agentTeam", value.`agentTeam`, DshSessionFollowResultCase2ProjectionsValuesAgentTeam.codec)
                 DshCodecs.put(fields, "userQuestions", value.`userQuestions`, DshSessionFollowResultCase2ProjectionsValuesUserQuestions.codec)
+                DshCodecs.put(fields, "agentTeam", value.`agentTeam`, DshSessionFollowResultCase2ProjectionsValuesAgentTeam.codec)
+                DshCodecs.put(fields, "forgeChangeRequests", value.`forgeChangeRequests`, DshCodecs.list(DshSessionFollowResultCase2ProjectionsValuesForgeChangeRequestsItem.codec))
+                DshCodecs.put(fields, "forgeWorktree", value.`forgeWorktree`, DshCodecs.nullable(DshSessionFollowResultCase2ProjectionsValuesForgeWorktree.codec))
+                DshCodecs.put(fields, "forkLineage", value.`forkLineage`, DshSessionFollowResultCase2ProjectionsValuesForkLineage.codec)
                 DshCodecs.put(fields, "goal", value.`goal`, DshCodecs.nullable(DshSessionFollowResultCase2ProjectionsValuesGoal.codec))
                 DshCodecs.put(fields, "plan", value.`plan`, DshSessionFollowResultCase2ProjectionsValuesPlan.codec)
                 JsonObject(fields)
@@ -3812,6 +4646,79 @@ data class DshSessionListInput(
     }
 }
 
+data class DshSessionListResultItemsItemProjectionsValuesSubagentCase2(
+    val `mode`: String,
+    val `label`: DshOptional<String> = DshOptional.Missing,
+    val `seq`: Double,
+) {
+    companion object {
+        val codec: DshCodec<DshSessionListResultItemsItemProjectionsValuesSubagentCase2> = DshCodec(
+            { value ->
+                val obj = DshCodecs.obj(value)
+                DshSessionListResultItemsItemProjectionsValuesSubagentCase2(
+                    `mode` = DshCodecs.strings(setOf("one-shot")).decode(obj["mode"]),
+                    `label` = DshCodecs.optional(obj, "label", DshCodecs.string),
+                    `seq` = DshCodecs.number.decode(obj["seq"]),
+                )
+            },
+            { value ->
+                val fields = linkedMapOf<String, JsonValue>()
+                fields["mode"] = DshCodecs.strings(setOf("one-shot")).encode(value.`mode`)
+                DshCodecs.put(fields, "label", value.`label`, DshCodecs.string)
+                fields["seq"] = DshCodecs.number.encode(value.`seq`)
+                JsonObject(fields)
+            },
+        )
+    }
+}
+
+data class DshSessionListResultItemsItemProjectionsValuesSubagentCase3(
+    val `mode`: String,
+    val `label`: String,
+    val `seq`: Double,
+) {
+    companion object {
+        val codec: DshCodec<DshSessionListResultItemsItemProjectionsValuesSubagentCase3> = DshCodec(
+            { value ->
+                val obj = DshCodecs.obj(value)
+                DshSessionListResultItemsItemProjectionsValuesSubagentCase3(
+                    `mode` = DshCodecs.strings(setOf("continuable")).decode(obj["mode"]),
+                    `label` = DshCodecs.string.decode(obj["label"]),
+                    `seq` = DshCodecs.number.decode(obj["seq"]),
+                )
+            },
+            { value ->
+                val fields = linkedMapOf<String, JsonValue>()
+                fields["mode"] = DshCodecs.strings(setOf("continuable")).encode(value.`mode`)
+                fields["label"] = DshCodecs.string.encode(value.`label`)
+                fields["seq"] = DshCodecs.number.encode(value.`seq`)
+                JsonObject(fields)
+            },
+        )
+    }
+}
+
+sealed interface DshSessionListResultItemsItemProjectionsValuesSubagent {
+    data class Case1(val value: JsonNull) : DshSessionListResultItemsItemProjectionsValuesSubagent
+    data class Case2(val value: DshSessionListResultItemsItemProjectionsValuesSubagentCase2) : DshSessionListResultItemsItemProjectionsValuesSubagent
+    data class Case3(val value: DshSessionListResultItemsItemProjectionsValuesSubagentCase3) : DshSessionListResultItemsItemProjectionsValuesSubagent
+    companion object {
+        val codec: DshCodec<DshSessionListResultItemsItemProjectionsValuesSubagent> = DshCodec(
+            { value ->
+                try { return@DshCodec Case1(DshCodecs.nil.decode(value)) } catch (_: ProtocolException) { }
+                try { return@DshCodec Case2(DshSessionListResultItemsItemProjectionsValuesSubagentCase2.codec.decode(value)) } catch (_: ProtocolException) { }
+                try { return@DshCodec Case3(DshSessionListResultItemsItemProjectionsValuesSubagentCase3.codec.decode(value)) } catch (_: ProtocolException) { }
+                throw ProtocolException("native: unsupported union")
+            },
+            { value -> when (value) {
+                is Case1 -> DshCodecs.nil.encode(value.value)
+                is Case2 -> DshSessionListResultItemsItemProjectionsValuesSubagentCase2.codec.encode(value.value)
+                is Case3 -> DshSessionListResultItemsItemProjectionsValuesSubagentCase3.codec.encode(value.value)
+            } },
+        )
+    }
+}
+
 data class DshSessionListResultItemsItemProjectionsValuesInbox(
     val `next-turn`: List<JsonValue>,
     val `next-step`: List<JsonValue>,
@@ -3829,87 +4736,6 @@ data class DshSessionListResultItemsItemProjectionsValuesInbox(
                 val fields = linkedMapOf<String, JsonValue>()
                 fields["next-turn"] = DshCodecs.list(DshCodecs.json).encode(value.`next-turn`)
                 fields["next-step"] = DshCodecs.list(DshCodecs.json).encode(value.`next-step`)
-                JsonObject(fields)
-            },
-        )
-    }
-}
-
-data class DshSessionListResultItemsItemProjectionsValuesTodosItem(
-    val `content`: String,
-    val `status`: String,
-) {
-    companion object {
-        val codec: DshCodec<DshSessionListResultItemsItemProjectionsValuesTodosItem> = DshCodec(
-            { value ->
-                val obj = DshCodecs.obj(value)
-                DshSessionListResultItemsItemProjectionsValuesTodosItem(
-                    `content` = DshCodecs.string.decode(obj["content"]),
-                    `status` = DshCodecs.strings(setOf("completed", "pending", "in_progress")).decode(obj["status"]),
-                )
-            },
-            { value ->
-                val fields = linkedMapOf<String, JsonValue>()
-                fields["content"] = DshCodecs.string.encode(value.`content`)
-                fields["status"] = DshCodecs.strings(setOf("completed", "pending", "in_progress")).encode(value.`status`)
-                JsonObject(fields)
-            },
-        )
-    }
-}
-
-data class DshSessionListResultItemsItemProjectionsValuesSessionListMetadata(
-    val `blank`: Boolean,
-    val `lastPromptAt`: Double?,
-) {
-    companion object {
-        val codec: DshCodec<DshSessionListResultItemsItemProjectionsValuesSessionListMetadata> = DshCodec(
-            { value ->
-                val obj = DshCodecs.obj(value)
-                DshSessionListResultItemsItemProjectionsValuesSessionListMetadata(
-                    `blank` = DshCodecs.boolean.decode(obj["blank"]),
-                    `lastPromptAt` = DshCodecs.nullable(DshCodecs.number).decode(obj["lastPromptAt"]),
-                )
-            },
-            { value ->
-                val fields = linkedMapOf<String, JsonValue>()
-                fields["blank"] = DshCodecs.boolean.encode(value.`blank`)
-                fields["lastPromptAt"] = DshCodecs.nullable(DshCodecs.number).encode(value.`lastPromptAt`)
-                JsonObject(fields)
-            },
-        )
-    }
-}
-
-data class DshSessionListResultItemsItemProjectionsValuesImageLimits(
-    val `maxImageBytes`: Double,
-    val `maxImagesPerMessage`: Double,
-    val `maxMessageImageBytes`: Double,
-    val `maxImagePixels`: Double,
-    val `maxImageDimension`: Double,
-    val `mediaTypes`: List<String>,
-) {
-    companion object {
-        val codec: DshCodec<DshSessionListResultItemsItemProjectionsValuesImageLimits> = DshCodec(
-            { value ->
-                val obj = DshCodecs.obj(value)
-                DshSessionListResultItemsItemProjectionsValuesImageLimits(
-                    `maxImageBytes` = DshCodecs.number.decode(obj["maxImageBytes"]),
-                    `maxImagesPerMessage` = DshCodecs.number.decode(obj["maxImagesPerMessage"]),
-                    `maxMessageImageBytes` = DshCodecs.number.decode(obj["maxMessageImageBytes"]),
-                    `maxImagePixels` = DshCodecs.number.decode(obj["maxImagePixels"]),
-                    `maxImageDimension` = DshCodecs.number.decode(obj["maxImageDimension"]),
-                    `mediaTypes` = DshCodecs.list(DshCodecs.strings(setOf("image/png", "image/jpeg", "image/webp", "image/gif"))).decode(obj["mediaTypes"]),
-                )
-            },
-            { value ->
-                val fields = linkedMapOf<String, JsonValue>()
-                fields["maxImageBytes"] = DshCodecs.number.encode(value.`maxImageBytes`)
-                fields["maxImagesPerMessage"] = DshCodecs.number.encode(value.`maxImagesPerMessage`)
-                fields["maxMessageImageBytes"] = DshCodecs.number.encode(value.`maxMessageImageBytes`)
-                fields["maxImagePixels"] = DshCodecs.number.encode(value.`maxImagePixels`)
-                fields["maxImageDimension"] = DshCodecs.number.encode(value.`maxImageDimension`)
-                fields["mediaTypes"] = DshCodecs.list(DshCodecs.strings(setOf("image/png", "image/jpeg", "image/webp", "image/gif"))).encode(value.`mediaTypes`)
                 JsonObject(fields)
             },
         )
@@ -3985,6 +4811,29 @@ data class DshSessionListResultItemsItemProjectionsValuesModelSelection(
                 val fields = linkedMapOf<String, JsonValue>()
                 fields["lastUsed"] = DshCodecs.nullable(DshSessionListResultItemsItemProjectionsValuesModelSelectionLastUsed.codec).encode(value.`lastUsed`)
                 fields["next"] = DshCodecs.nullable(DshSessionListResultItemsItemProjectionsValuesModelSelectionNext.codec).encode(value.`next`)
+                JsonObject(fields)
+            },
+        )
+    }
+}
+
+data class DshSessionListResultItemsItemProjectionsValuesSessionListMetadata(
+    val `blank`: Boolean,
+    val `lastPromptAt`: Double?,
+) {
+    companion object {
+        val codec: DshCodec<DshSessionListResultItemsItemProjectionsValuesSessionListMetadata> = DshCodec(
+            { value ->
+                val obj = DshCodecs.obj(value)
+                DshSessionListResultItemsItemProjectionsValuesSessionListMetadata(
+                    `blank` = DshCodecs.boolean.decode(obj["blank"]),
+                    `lastPromptAt` = DshCodecs.nullable(DshCodecs.number).decode(obj["lastPromptAt"]),
+                )
+            },
+            { value ->
+                val fields = linkedMapOf<String, JsonValue>()
+                fields["blank"] = DshCodecs.boolean.encode(value.`blank`)
+                fields["lastPromptAt"] = DshCodecs.nullable(DshCodecs.number).encode(value.`lastPromptAt`)
                 JsonObject(fields)
             },
         )
@@ -4200,79 +5049,6 @@ data class DshSessionListResultItemsItemProjectionsValuesSubagentTiming(
     }
 }
 
-data class DshSessionListResultItemsItemProjectionsValuesSubagentCase2(
-    val `mode`: String,
-    val `label`: DshOptional<String> = DshOptional.Missing,
-    val `seq`: Double,
-) {
-    companion object {
-        val codec: DshCodec<DshSessionListResultItemsItemProjectionsValuesSubagentCase2> = DshCodec(
-            { value ->
-                val obj = DshCodecs.obj(value)
-                DshSessionListResultItemsItemProjectionsValuesSubagentCase2(
-                    `mode` = DshCodecs.strings(setOf("one-shot")).decode(obj["mode"]),
-                    `label` = DshCodecs.optional(obj, "label", DshCodecs.string),
-                    `seq` = DshCodecs.number.decode(obj["seq"]),
-                )
-            },
-            { value ->
-                val fields = linkedMapOf<String, JsonValue>()
-                fields["mode"] = DshCodecs.strings(setOf("one-shot")).encode(value.`mode`)
-                DshCodecs.put(fields, "label", value.`label`, DshCodecs.string)
-                fields["seq"] = DshCodecs.number.encode(value.`seq`)
-                JsonObject(fields)
-            },
-        )
-    }
-}
-
-data class DshSessionListResultItemsItemProjectionsValuesSubagentCase3(
-    val `mode`: String,
-    val `label`: String,
-    val `seq`: Double,
-) {
-    companion object {
-        val codec: DshCodec<DshSessionListResultItemsItemProjectionsValuesSubagentCase3> = DshCodec(
-            { value ->
-                val obj = DshCodecs.obj(value)
-                DshSessionListResultItemsItemProjectionsValuesSubagentCase3(
-                    `mode` = DshCodecs.strings(setOf("continuable")).decode(obj["mode"]),
-                    `label` = DshCodecs.string.decode(obj["label"]),
-                    `seq` = DshCodecs.number.decode(obj["seq"]),
-                )
-            },
-            { value ->
-                val fields = linkedMapOf<String, JsonValue>()
-                fields["mode"] = DshCodecs.strings(setOf("continuable")).encode(value.`mode`)
-                fields["label"] = DshCodecs.string.encode(value.`label`)
-                fields["seq"] = DshCodecs.number.encode(value.`seq`)
-                JsonObject(fields)
-            },
-        )
-    }
-}
-
-sealed interface DshSessionListResultItemsItemProjectionsValuesSubagent {
-    data class Case1(val value: JsonNull) : DshSessionListResultItemsItemProjectionsValuesSubagent
-    data class Case2(val value: DshSessionListResultItemsItemProjectionsValuesSubagentCase2) : DshSessionListResultItemsItemProjectionsValuesSubagent
-    data class Case3(val value: DshSessionListResultItemsItemProjectionsValuesSubagentCase3) : DshSessionListResultItemsItemProjectionsValuesSubagent
-    companion object {
-        val codec: DshCodec<DshSessionListResultItemsItemProjectionsValuesSubagent> = DshCodec(
-            { value ->
-                try { return@DshCodec Case1(DshCodecs.nil.decode(value)) } catch (_: ProtocolException) { }
-                try { return@DshCodec Case2(DshSessionListResultItemsItemProjectionsValuesSubagentCase2.codec.decode(value)) } catch (_: ProtocolException) { }
-                try { return@DshCodec Case3(DshSessionListResultItemsItemProjectionsValuesSubagentCase3.codec.decode(value)) } catch (_: ProtocolException) { }
-                throw ProtocolException("native: unsupported union")
-            },
-            { value -> when (value) {
-                is Case1 -> DshCodecs.nil.encode(value.value)
-                is Case2 -> DshSessionListResultItemsItemProjectionsValuesSubagentCase2.codec.encode(value.value)
-                is Case3 -> DshSessionListResultItemsItemProjectionsValuesSubagentCase3.codec.encode(value.value)
-            } },
-        )
-    }
-}
-
 data class DshSessionListResultItemsItemProjectionsValuesTokenUsage(
     val `uncachedInputTokens`: Double,
     val `outputTokens`: Double,
@@ -4302,163 +5078,6 @@ data class DshSessionListResultItemsItemProjectionsValuesTokenUsage(
     }
 }
 
-data class DshSessionListResultItemsItemProjectionsValuesContextPressure(
-    val `pressureTokens`: DshOptional<Double> = DshOptional.Missing,
-    val `projectedTokens`: DshOptional<Double> = DshOptional.Missing,
-    val `contextWindow`: DshOptional<Double> = DshOptional.Missing,
-) {
-    companion object {
-        val codec: DshCodec<DshSessionListResultItemsItemProjectionsValuesContextPressure> = DshCodec(
-            { value ->
-                val obj = DshCodecs.obj(value)
-                DshSessionListResultItemsItemProjectionsValuesContextPressure(
-                    `pressureTokens` = DshCodecs.optional(obj, "pressureTokens", DshCodecs.number),
-                    `projectedTokens` = DshCodecs.optional(obj, "projectedTokens", DshCodecs.number),
-                    `contextWindow` = DshCodecs.optional(obj, "contextWindow", DshCodecs.number),
-                )
-            },
-            { value ->
-                val fields = linkedMapOf<String, JsonValue>()
-                DshCodecs.put(fields, "pressureTokens", value.`pressureTokens`, DshCodecs.number)
-                DshCodecs.put(fields, "projectedTokens", value.`projectedTokens`, DshCodecs.number)
-                DshCodecs.put(fields, "contextWindow", value.`contextWindow`, DshCodecs.number)
-                JsonObject(fields)
-            },
-        )
-    }
-}
-
-data class DshSessionListResultItemsItemProjectionsValuesContextBreakdown(
-    val `systemTokens`: Double,
-    val `toolsTokens`: Double,
-    val `messageTokens`: Double,
-) {
-    companion object {
-        val codec: DshCodec<DshSessionListResultItemsItemProjectionsValuesContextBreakdown> = DshCodec(
-            { value ->
-                val obj = DshCodecs.obj(value)
-                DshSessionListResultItemsItemProjectionsValuesContextBreakdown(
-                    `systemTokens` = DshCodecs.number.decode(obj["systemTokens"]),
-                    `toolsTokens` = DshCodecs.number.decode(obj["toolsTokens"]),
-                    `messageTokens` = DshCodecs.number.decode(obj["messageTokens"]),
-                )
-            },
-            { value ->
-                val fields = linkedMapOf<String, JsonValue>()
-                fields["systemTokens"] = DshCodecs.number.encode(value.`systemTokens`)
-                fields["toolsTokens"] = DshCodecs.number.encode(value.`toolsTokens`)
-                fields["messageTokens"] = DshCodecs.number.encode(value.`messageTokens`)
-                JsonObject(fields)
-            },
-        )
-    }
-}
-
-data class DshSessionListResultItemsItemProjectionsValuesAgentTeamMembersItem(
-    val `id`: String,
-    val `name`: String,
-    val `role`: String,
-    val `phase`: String,
-    val `error`: DshOptional<String> = DshOptional.Missing,
-) {
-    companion object {
-        val codec: DshCodec<DshSessionListResultItemsItemProjectionsValuesAgentTeamMembersItem> = DshCodec(
-            { value ->
-                val obj = DshCodecs.obj(value)
-                DshSessionListResultItemsItemProjectionsValuesAgentTeamMembersItem(
-                    `id` = DshCodecs.string.decode(obj["id"]),
-                    `name` = DshCodecs.string.decode(obj["name"]),
-                    `role` = DshCodecs.strings(setOf("lead", "teammate")).decode(obj["role"]),
-                    `phase` = DshCodecs.strings(setOf("failed", "provisioning", "active")).decode(obj["phase"]),
-                    `error` = DshCodecs.optional(obj, "error", DshCodecs.string),
-                )
-            },
-            { value ->
-                val fields = linkedMapOf<String, JsonValue>()
-                fields["id"] = DshCodecs.string.encode(value.`id`)
-                fields["name"] = DshCodecs.string.encode(value.`name`)
-                fields["role"] = DshCodecs.strings(setOf("lead", "teammate")).encode(value.`role`)
-                fields["phase"] = DshCodecs.strings(setOf("failed", "provisioning", "active")).encode(value.`phase`)
-                DshCodecs.put(fields, "error", value.`error`, DshCodecs.string)
-                JsonObject(fields)
-            },
-        )
-    }
-}
-
-data class DshSessionListResultItemsItemProjectionsValuesAgentTeamTasksItem(
-    val `id`: String,
-    val `revision`: Double,
-    val `subject`: String,
-    val `description`: String,
-    val `status`: String,
-    val `blockedBy`: List<String>,
-    val `writeScopes`: List<String>,
-    val `ownerName`: DshOptional<String> = DshOptional.Missing,
-    val `ready`: Boolean,
-    val `writeScopeWarnings`: List<String>,
-) {
-    companion object {
-        val codec: DshCodec<DshSessionListResultItemsItemProjectionsValuesAgentTeamTasksItem> = DshCodec(
-            { value ->
-                val obj = DshCodecs.obj(value)
-                DshSessionListResultItemsItemProjectionsValuesAgentTeamTasksItem(
-                    `id` = DshCodecs.string.decode(obj["id"]),
-                    `revision` = DshCodecs.number.decode(obj["revision"]),
-                    `subject` = DshCodecs.string.decode(obj["subject"]),
-                    `description` = DshCodecs.string.decode(obj["description"]),
-                    `status` = DshCodecs.strings(setOf("completed", "pending", "in_progress", "deleted")).decode(obj["status"]),
-                    `blockedBy` = DshCodecs.list(DshCodecs.string).decode(obj["blockedBy"]),
-                    `writeScopes` = DshCodecs.list(DshCodecs.string).decode(obj["writeScopes"]),
-                    `ownerName` = DshCodecs.optional(obj, "ownerName", DshCodecs.string),
-                    `ready` = DshCodecs.boolean.decode(obj["ready"]),
-                    `writeScopeWarnings` = DshCodecs.list(DshCodecs.string).decode(obj["writeScopeWarnings"]),
-                )
-            },
-            { value ->
-                val fields = linkedMapOf<String, JsonValue>()
-                fields["id"] = DshCodecs.string.encode(value.`id`)
-                fields["revision"] = DshCodecs.number.encode(value.`revision`)
-                fields["subject"] = DshCodecs.string.encode(value.`subject`)
-                fields["description"] = DshCodecs.string.encode(value.`description`)
-                fields["status"] = DshCodecs.strings(setOf("completed", "pending", "in_progress", "deleted")).encode(value.`status`)
-                fields["blockedBy"] = DshCodecs.list(DshCodecs.string).encode(value.`blockedBy`)
-                fields["writeScopes"] = DshCodecs.list(DshCodecs.string).encode(value.`writeScopes`)
-                DshCodecs.put(fields, "ownerName", value.`ownerName`, DshCodecs.string)
-                fields["ready"] = DshCodecs.boolean.encode(value.`ready`)
-                fields["writeScopeWarnings"] = DshCodecs.list(DshCodecs.string).encode(value.`writeScopeWarnings`)
-                JsonObject(fields)
-            },
-        )
-    }
-}
-
-data class DshSessionListResultItemsItemProjectionsValuesAgentTeam(
-    val `members`: List<DshSessionListResultItemsItemProjectionsValuesAgentTeamMembersItem>,
-    val `tasks`: List<DshSessionListResultItemsItemProjectionsValuesAgentTeamTasksItem>,
-    val `failure`: DshOptional<String> = DshOptional.Missing,
-) {
-    companion object {
-        val codec: DshCodec<DshSessionListResultItemsItemProjectionsValuesAgentTeam> = DshCodec(
-            { value ->
-                val obj = DshCodecs.obj(value)
-                DshSessionListResultItemsItemProjectionsValuesAgentTeam(
-                    `members` = DshCodecs.list(DshSessionListResultItemsItemProjectionsValuesAgentTeamMembersItem.codec).decode(obj["members"]),
-                    `tasks` = DshCodecs.list(DshSessionListResultItemsItemProjectionsValuesAgentTeamTasksItem.codec).decode(obj["tasks"]),
-                    `failure` = DshCodecs.optional(obj, "failure", DshCodecs.string),
-                )
-            },
-            { value ->
-                val fields = linkedMapOf<String, JsonValue>()
-                fields["members"] = DshCodecs.list(DshSessionListResultItemsItemProjectionsValuesAgentTeamMembersItem.codec).encode(value.`members`)
-                fields["tasks"] = DshCodecs.list(DshSessionListResultItemsItemProjectionsValuesAgentTeamTasksItem.codec).encode(value.`tasks`)
-                DshCodecs.put(fields, "failure", value.`failure`, DshCodecs.string)
-                JsonObject(fields)
-            },
-        )
-    }
-}
-
 data class DshSessionListResultItemsItemProjectionsValuesUserQuestionsActiveItemQuestionsItemOptionsItem(
     val `label`: String,
     val `description`: DshOptional<String> = DshOptional.Missing,
@@ -4482,16 +5101,16 @@ data class DshSessionListResultItemsItemProjectionsValuesUserQuestionsActiveItem
     }
 }
 
-data class DshSessionListResultItemsItemProjectionsValuesUserQuestionsActiveItemQuestionsItemIntent(
+data class DshSessionListResultItemsItemProjectionsValuesUserQuestionsActiveItemQuestionsItemIntentCase1(
     val `kind`: String,
     val `approve`: String,
     val `callId`: DshOptional<String> = DshOptional.Missing,
 ) {
     companion object {
-        val codec: DshCodec<DshSessionListResultItemsItemProjectionsValuesUserQuestionsActiveItemQuestionsItemIntent> = DshCodec(
+        val codec: DshCodec<DshSessionListResultItemsItemProjectionsValuesUserQuestionsActiveItemQuestionsItemIntentCase1> = DshCodec(
             { value ->
                 val obj = DshCodecs.obj(value)
-                DshSessionListResultItemsItemProjectionsValuesUserQuestionsActiveItemQuestionsItemIntent(
+                DshSessionListResultItemsItemProjectionsValuesUserQuestionsActiveItemQuestionsItemIntentCase1(
                     `kind` = DshCodecs.strings(setOf("plan-review")).decode(obj["kind"]),
                     `approve` = DshCodecs.string.decode(obj["approve"]),
                     `callId` = DshCodecs.optional(obj, "callId", DshCodecs.string),
@@ -4504,6 +5123,177 @@ data class DshSessionListResultItemsItemProjectionsValuesUserQuestionsActiveItem
                 DshCodecs.put(fields, "callId", value.`callId`, DshCodecs.string)
                 JsonObject(fields)
             },
+        )
+    }
+}
+
+data class DshSessionListResultItemsItemProjectionsValuesUserQuestionsActiveItemQuestionsItemIntentCase2Subject(
+    val `name`: String,
+    val `icon`: DshOptional<String> = DshOptional.Missing,
+) {
+    companion object {
+        val codec: DshCodec<DshSessionListResultItemsItemProjectionsValuesUserQuestionsActiveItemQuestionsItemIntentCase2Subject> = DshCodec(
+            { value ->
+                val obj = DshCodecs.obj(value)
+                DshSessionListResultItemsItemProjectionsValuesUserQuestionsActiveItemQuestionsItemIntentCase2Subject(
+                    `name` = DshCodecs.string.decode(obj["name"]),
+                    `icon` = DshCodecs.optional(obj, "icon", DshCodecs.string),
+                )
+            },
+            { value ->
+                val fields = linkedMapOf<String, JsonValue>()
+                fields["name"] = DshCodecs.string.encode(value.`name`)
+                DshCodecs.put(fields, "icon", value.`icon`, DshCodecs.string)
+                JsonObject(fields)
+            },
+        )
+    }
+}
+
+data class DshSessionListResultItemsItemProjectionsValuesUserQuestionsActiveItemQuestionsItc22c8daa1fd5(
+    val `en`: String,
+    val additional: Map<String, String> = emptyMap(),
+) {
+    companion object {
+        val codec: DshCodec<DshSessionListResultItemsItemProjectionsValuesUserQuestionsActiveItemQuestionsItc22c8daa1fd5> = DshCodec(
+            { value ->
+                val obj = DshCodecs.obj(value)
+                DshSessionListResultItemsItemProjectionsValuesUserQuestionsActiveItemQuestionsItc22c8daa1fd5(
+                    `en` = DshCodecs.string.decode(obj["en"]),
+                    additional = obj.fields.filterKeys { it !in setOf("en") }.mapValues { DshCodecs.string.decode(it.value) },
+                )
+            },
+            { value ->
+                val fields = linkedMapOf<String, JsonValue>()
+                value.additional.forEach { (key, item) -> fields[key] = DshCodecs.string.encode(item) }
+                fields["en"] = DshCodecs.string.encode(value.`en`)
+                JsonObject(fields)
+            },
+        )
+    }
+}
+
+data class DshSessionListResultItemsItemProjectionsValuesUserQuestionsActiveItemQuestionsIte005a1cfe014(
+    val `en`: String,
+    val additional: Map<String, String> = emptyMap(),
+) {
+    companion object {
+        val codec: DshCodec<DshSessionListResultItemsItemProjectionsValuesUserQuestionsActiveItemQuestionsIte005a1cfe014> = DshCodec(
+            { value ->
+                val obj = DshCodecs.obj(value)
+                DshSessionListResultItemsItemProjectionsValuesUserQuestionsActiveItemQuestionsIte005a1cfe014(
+                    `en` = DshCodecs.string.decode(obj["en"]),
+                    additional = obj.fields.filterKeys { it !in setOf("en") }.mapValues { DshCodecs.string.decode(it.value) },
+                )
+            },
+            { value ->
+                val fields = linkedMapOf<String, JsonValue>()
+                value.additional.forEach { (key, item) -> fields[key] = DshCodecs.string.encode(item) }
+                fields["en"] = DshCodecs.string.encode(value.`en`)
+                JsonObject(fields)
+            },
+        )
+    }
+}
+
+data class DshSessionListResultItemsItemProjectionsValuesUserQuestionsActiveItemQuestionsIt8a3154d23138(
+    val `en`: String,
+    val additional: Map<String, String> = emptyMap(),
+) {
+    companion object {
+        val codec: DshCodec<DshSessionListResultItemsItemProjectionsValuesUserQuestionsActiveItemQuestionsIt8a3154d23138> = DshCodec(
+            { value ->
+                val obj = DshCodecs.obj(value)
+                DshSessionListResultItemsItemProjectionsValuesUserQuestionsActiveItemQuestionsIt8a3154d23138(
+                    `en` = DshCodecs.string.decode(obj["en"]),
+                    additional = obj.fields.filterKeys { it !in setOf("en") }.mapValues { DshCodecs.string.decode(it.value) },
+                )
+            },
+            { value ->
+                val fields = linkedMapOf<String, JsonValue>()
+                value.additional.forEach { (key, item) -> fields[key] = DshCodecs.string.encode(item) }
+                fields["en"] = DshCodecs.string.encode(value.`en`)
+                JsonObject(fields)
+            },
+        )
+    }
+}
+
+data class DshSessionListResultItemsItemProjectionsValuesUserQuestionsActiveItemQuestionsItemIntentCase2Display(
+    val `question`: DshSessionListResultItemsItemProjectionsValuesUserQuestionsActiveItemQuestionsItc22c8daa1fd5,
+    val `detail`: DshOptional<DshSessionListResultItemsItemProjectionsValuesUserQuestionsActiveItemQuestionsIte005a1cfe014> = DshOptional.Missing,
+    val `approve`: DshOptional<DshSessionListResultItemsItemProjectionsValuesUserQuestionsActiveItemQuestionsIt8a3154d23138> = DshOptional.Missing,
+) {
+    companion object {
+        val codec: DshCodec<DshSessionListResultItemsItemProjectionsValuesUserQuestionsActiveItemQuestionsItemIntentCase2Display> = DshCodec(
+            { value ->
+                val obj = DshCodecs.obj(value)
+                DshSessionListResultItemsItemProjectionsValuesUserQuestionsActiveItemQuestionsItemIntentCase2Display(
+                    `question` = DshSessionListResultItemsItemProjectionsValuesUserQuestionsActiveItemQuestionsItc22c8daa1fd5.codec.decode(obj["question"]),
+                    `detail` = DshCodecs.optional(obj, "detail", DshSessionListResultItemsItemProjectionsValuesUserQuestionsActiveItemQuestionsIte005a1cfe014.codec),
+                    `approve` = DshCodecs.optional(obj, "approve", DshSessionListResultItemsItemProjectionsValuesUserQuestionsActiveItemQuestionsIt8a3154d23138.codec),
+                )
+            },
+            { value ->
+                val fields = linkedMapOf<String, JsonValue>()
+                fields["question"] = DshSessionListResultItemsItemProjectionsValuesUserQuestionsActiveItemQuestionsItc22c8daa1fd5.codec.encode(value.`question`)
+                DshCodecs.put(fields, "detail", value.`detail`, DshSessionListResultItemsItemProjectionsValuesUserQuestionsActiveItemQuestionsIte005a1cfe014.codec)
+                DshCodecs.put(fields, "approve", value.`approve`, DshSessionListResultItemsItemProjectionsValuesUserQuestionsActiveItemQuestionsIt8a3154d23138.codec)
+                JsonObject(fields)
+            },
+        )
+    }
+}
+
+data class DshSessionListResultItemsItemProjectionsValuesUserQuestionsActiveItemQuestionsItemIntentCase2(
+    val `kind`: String,
+    val `approve`: String,
+    val `reject`: String,
+    val `always`: DshOptional<String> = DshOptional.Missing,
+    val `subject`: DshOptional<DshSessionListResultItemsItemProjectionsValuesUserQuestionsActiveItemQuestionsItemIntentCase2Subject> = DshOptional.Missing,
+    val `display`: DshOptional<DshSessionListResultItemsItemProjectionsValuesUserQuestionsActiveItemQuestionsItemIntentCase2Display> = DshOptional.Missing,
+) {
+    companion object {
+        val codec: DshCodec<DshSessionListResultItemsItemProjectionsValuesUserQuestionsActiveItemQuestionsItemIntentCase2> = DshCodec(
+            { value ->
+                val obj = DshCodecs.obj(value)
+                DshSessionListResultItemsItemProjectionsValuesUserQuestionsActiveItemQuestionsItemIntentCase2(
+                    `kind` = DshCodecs.strings(setOf("approval")).decode(obj["kind"]),
+                    `approve` = DshCodecs.string.decode(obj["approve"]),
+                    `reject` = DshCodecs.string.decode(obj["reject"]),
+                    `always` = DshCodecs.optional(obj, "always", DshCodecs.string),
+                    `subject` = DshCodecs.optional(obj, "subject", DshSessionListResultItemsItemProjectionsValuesUserQuestionsActiveItemQuestionsItemIntentCase2Subject.codec),
+                    `display` = DshCodecs.optional(obj, "display", DshSessionListResultItemsItemProjectionsValuesUserQuestionsActiveItemQuestionsItemIntentCase2Display.codec),
+                )
+            },
+            { value ->
+                val fields = linkedMapOf<String, JsonValue>()
+                fields["kind"] = DshCodecs.strings(setOf("approval")).encode(value.`kind`)
+                fields["approve"] = DshCodecs.string.encode(value.`approve`)
+                fields["reject"] = DshCodecs.string.encode(value.`reject`)
+                DshCodecs.put(fields, "always", value.`always`, DshCodecs.string)
+                DshCodecs.put(fields, "subject", value.`subject`, DshSessionListResultItemsItemProjectionsValuesUserQuestionsActiveItemQuestionsItemIntentCase2Subject.codec)
+                DshCodecs.put(fields, "display", value.`display`, DshSessionListResultItemsItemProjectionsValuesUserQuestionsActiveItemQuestionsItemIntentCase2Display.codec)
+                JsonObject(fields)
+            },
+        )
+    }
+}
+
+sealed interface DshSessionListResultItemsItemProjectionsValuesUserQuestionsActiveItemQuestionsItemIntent {
+    data class Case1(val value: DshSessionListResultItemsItemProjectionsValuesUserQuestionsActiveItemQuestionsItemIntentCase1) : DshSessionListResultItemsItemProjectionsValuesUserQuestionsActiveItemQuestionsItemIntent
+    data class Case2(val value: DshSessionListResultItemsItemProjectionsValuesUserQuestionsActiveItemQuestionsItemIntentCase2) : DshSessionListResultItemsItemProjectionsValuesUserQuestionsActiveItemQuestionsItemIntent
+    companion object {
+        val codec: DshCodec<DshSessionListResultItemsItemProjectionsValuesUserQuestionsActiveItemQuestionsItemIntent> = DshCodec(
+            { value ->
+                try { return@DshCodec Case1(DshSessionListResultItemsItemProjectionsValuesUserQuestionsActiveItemQuestionsItemIntentCase1.codec.decode(value)) } catch (_: ProtocolException) { }
+                try { return@DshCodec Case2(DshSessionListResultItemsItemProjectionsValuesUserQuestionsActiveItemQuestionsItemIntentCase2.codec.decode(value)) } catch (_: ProtocolException) { }
+                throw ProtocolException("native: unsupported union")
+            },
+            { value -> when (value) {
+                is Case1 -> DshSessionListResultItemsItemProjectionsValuesUserQuestionsActiveItemQuestionsItemIntentCase1.codec.encode(value.value)
+                is Case2 -> DshSessionListResultItemsItemProjectionsValuesUserQuestionsActiveItemQuestionsItemIntentCase2.codec.encode(value.value)
+            } },
         )
     }
 }
@@ -4644,6 +5434,198 @@ data class DshSessionListResultItemsItemProjectionsValuesUserQuestions(
     }
 }
 
+data class DshSessionListResultItemsItemProjectionsValuesAgentTeamMembersItem(
+    val `id`: String,
+    val `name`: String,
+    val `role`: String,
+    val `phase`: String,
+    val `error`: DshOptional<String> = DshOptional.Missing,
+) {
+    companion object {
+        val codec: DshCodec<DshSessionListResultItemsItemProjectionsValuesAgentTeamMembersItem> = DshCodec(
+            { value ->
+                val obj = DshCodecs.obj(value)
+                DshSessionListResultItemsItemProjectionsValuesAgentTeamMembersItem(
+                    `id` = DshCodecs.string.decode(obj["id"]),
+                    `name` = DshCodecs.string.decode(obj["name"]),
+                    `role` = DshCodecs.strings(setOf("lead", "teammate")).decode(obj["role"]),
+                    `phase` = DshCodecs.strings(setOf("failed", "provisioning", "active")).decode(obj["phase"]),
+                    `error` = DshCodecs.optional(obj, "error", DshCodecs.string),
+                )
+            },
+            { value ->
+                val fields = linkedMapOf<String, JsonValue>()
+                fields["id"] = DshCodecs.string.encode(value.`id`)
+                fields["name"] = DshCodecs.string.encode(value.`name`)
+                fields["role"] = DshCodecs.strings(setOf("lead", "teammate")).encode(value.`role`)
+                fields["phase"] = DshCodecs.strings(setOf("failed", "provisioning", "active")).encode(value.`phase`)
+                DshCodecs.put(fields, "error", value.`error`, DshCodecs.string)
+                JsonObject(fields)
+            },
+        )
+    }
+}
+
+data class DshSessionListResultItemsItemProjectionsValuesAgentTeamTasksItem(
+    val `id`: String,
+    val `revision`: Double,
+    val `subject`: String,
+    val `description`: String,
+    val `status`: String,
+    val `blockedBy`: List<String>,
+    val `writeScopes`: List<String>,
+    val `ownerName`: DshOptional<String> = DshOptional.Missing,
+    val `ready`: Boolean,
+    val `writeScopeWarnings`: List<String>,
+) {
+    companion object {
+        val codec: DshCodec<DshSessionListResultItemsItemProjectionsValuesAgentTeamTasksItem> = DshCodec(
+            { value ->
+                val obj = DshCodecs.obj(value)
+                DshSessionListResultItemsItemProjectionsValuesAgentTeamTasksItem(
+                    `id` = DshCodecs.string.decode(obj["id"]),
+                    `revision` = DshCodecs.number.decode(obj["revision"]),
+                    `subject` = DshCodecs.string.decode(obj["subject"]),
+                    `description` = DshCodecs.string.decode(obj["description"]),
+                    `status` = DshCodecs.strings(setOf("completed", "pending", "in_progress", "deleted")).decode(obj["status"]),
+                    `blockedBy` = DshCodecs.list(DshCodecs.string).decode(obj["blockedBy"]),
+                    `writeScopes` = DshCodecs.list(DshCodecs.string).decode(obj["writeScopes"]),
+                    `ownerName` = DshCodecs.optional(obj, "ownerName", DshCodecs.string),
+                    `ready` = DshCodecs.boolean.decode(obj["ready"]),
+                    `writeScopeWarnings` = DshCodecs.list(DshCodecs.string).decode(obj["writeScopeWarnings"]),
+                )
+            },
+            { value ->
+                val fields = linkedMapOf<String, JsonValue>()
+                fields["id"] = DshCodecs.string.encode(value.`id`)
+                fields["revision"] = DshCodecs.number.encode(value.`revision`)
+                fields["subject"] = DshCodecs.string.encode(value.`subject`)
+                fields["description"] = DshCodecs.string.encode(value.`description`)
+                fields["status"] = DshCodecs.strings(setOf("completed", "pending", "in_progress", "deleted")).encode(value.`status`)
+                fields["blockedBy"] = DshCodecs.list(DshCodecs.string).encode(value.`blockedBy`)
+                fields["writeScopes"] = DshCodecs.list(DshCodecs.string).encode(value.`writeScopes`)
+                DshCodecs.put(fields, "ownerName", value.`ownerName`, DshCodecs.string)
+                fields["ready"] = DshCodecs.boolean.encode(value.`ready`)
+                fields["writeScopeWarnings"] = DshCodecs.list(DshCodecs.string).encode(value.`writeScopeWarnings`)
+                JsonObject(fields)
+            },
+        )
+    }
+}
+
+data class DshSessionListResultItemsItemProjectionsValuesAgentTeam(
+    val `members`: List<DshSessionListResultItemsItemProjectionsValuesAgentTeamMembersItem>,
+    val `tasks`: List<DshSessionListResultItemsItemProjectionsValuesAgentTeamTasksItem>,
+    val `failure`: DshOptional<String> = DshOptional.Missing,
+) {
+    companion object {
+        val codec: DshCodec<DshSessionListResultItemsItemProjectionsValuesAgentTeam> = DshCodec(
+            { value ->
+                val obj = DshCodecs.obj(value)
+                DshSessionListResultItemsItemProjectionsValuesAgentTeam(
+                    `members` = DshCodecs.list(DshSessionListResultItemsItemProjectionsValuesAgentTeamMembersItem.codec).decode(obj["members"]),
+                    `tasks` = DshCodecs.list(DshSessionListResultItemsItemProjectionsValuesAgentTeamTasksItem.codec).decode(obj["tasks"]),
+                    `failure` = DshCodecs.optional(obj, "failure", DshCodecs.string),
+                )
+            },
+            { value ->
+                val fields = linkedMapOf<String, JsonValue>()
+                fields["members"] = DshCodecs.list(DshSessionListResultItemsItemProjectionsValuesAgentTeamMembersItem.codec).encode(value.`members`)
+                fields["tasks"] = DshCodecs.list(DshSessionListResultItemsItemProjectionsValuesAgentTeamTasksItem.codec).encode(value.`tasks`)
+                DshCodecs.put(fields, "failure", value.`failure`, DshCodecs.string)
+                JsonObject(fields)
+            },
+        )
+    }
+}
+
+data class DshSessionListResultItemsItemProjectionsValuesForgeChangeRequestsItem(
+    val `url`: String,
+    val `origin`: String,
+    val `dismissed`: Boolean,
+) {
+    companion object {
+        val codec: DshCodec<DshSessionListResultItemsItemProjectionsValuesForgeChangeRequestsItem> = DshCodec(
+            { value ->
+                val obj = DshCodecs.obj(value)
+                DshSessionListResultItemsItemProjectionsValuesForgeChangeRequestsItem(
+                    `url` = DshCodecs.string.decode(obj["url"]),
+                    `origin` = DshCodecs.strings(setOf("created", "referenced", "discovered", "tracked")).decode(obj["origin"]),
+                    `dismissed` = DshCodecs.boolean.decode(obj["dismissed"]),
+                )
+            },
+            { value ->
+                val fields = linkedMapOf<String, JsonValue>()
+                fields["url"] = DshCodecs.string.encode(value.`url`)
+                fields["origin"] = DshCodecs.strings(setOf("created", "referenced", "discovered", "tracked")).encode(value.`origin`)
+                fields["dismissed"] = DshCodecs.boolean.encode(value.`dismissed`)
+                JsonObject(fields)
+            },
+        )
+    }
+}
+
+data class DshSessionListResultItemsItemProjectionsValuesForgeWorktree(
+    val `path`: String,
+    val `branch`: String,
+    val `from`: String?,
+    val `baseCommit`: String,
+    val `repositoryRoot`: String,
+) {
+    companion object {
+        val codec: DshCodec<DshSessionListResultItemsItemProjectionsValuesForgeWorktree> = DshCodec(
+            { value ->
+                val obj = DshCodecs.obj(value)
+                DshSessionListResultItemsItemProjectionsValuesForgeWorktree(
+                    `path` = DshCodecs.string.decode(obj["path"]),
+                    `branch` = DshCodecs.string.decode(obj["branch"]),
+                    `from` = DshCodecs.nullable(DshCodecs.string).decode(obj["from"]),
+                    `baseCommit` = DshCodecs.string.decode(obj["baseCommit"]),
+                    `repositoryRoot` = DshCodecs.string.decode(obj["repositoryRoot"]),
+                )
+            },
+            { value ->
+                val fields = linkedMapOf<String, JsonValue>()
+                fields["path"] = DshCodecs.string.encode(value.`path`)
+                fields["branch"] = DshCodecs.string.encode(value.`branch`)
+                fields["from"] = DshCodecs.nullable(DshCodecs.string).encode(value.`from`)
+                fields["baseCommit"] = DshCodecs.string.encode(value.`baseCommit`)
+                fields["repositoryRoot"] = DshCodecs.string.encode(value.`repositoryRoot`)
+                JsonObject(fields)
+            },
+        )
+    }
+}
+
+data class DshSessionListResultItemsItemProjectionsValuesForkLineage(
+    val `origin`: String,
+    val `sourceSessionId`: String,
+    val `authoredByViewer`: Boolean,
+    val `workspaceReadOnly`: Boolean,
+) {
+    companion object {
+        val codec: DshCodec<DshSessionListResultItemsItemProjectionsValuesForkLineage> = DshCodec(
+            { value ->
+                val obj = DshCodecs.obj(value)
+                DshSessionListResultItemsItemProjectionsValuesForkLineage(
+                    `origin` = DshCodecs.strings(setOf("fork")).decode(obj["origin"]),
+                    `sourceSessionId` = DshCodecs.string.decode(obj["sourceSessionId"]),
+                    `authoredByViewer` = DshCodecs.boolean.decode(obj["authoredByViewer"]),
+                    `workspaceReadOnly` = DshCodecs.boolean.decode(obj["workspaceReadOnly"]),
+                )
+            },
+            { value ->
+                val fields = linkedMapOf<String, JsonValue>()
+                fields["origin"] = DshCodecs.strings(setOf("fork")).encode(value.`origin`)
+                fields["sourceSessionId"] = DshCodecs.string.encode(value.`sourceSessionId`)
+                fields["authoredByViewer"] = DshCodecs.boolean.encode(value.`authoredByViewer`)
+                fields["workspaceReadOnly"] = DshCodecs.boolean.encode(value.`workspaceReadOnly`)
+                JsonObject(fields)
+            },
+        )
+    }
+}
+
 data class DshSessionListResultItemsItemProjectionsValuesGoalGoalBlockedReason(
     val `code`: String,
     val `message`: String,
@@ -4755,74 +5737,68 @@ data class DshSessionListResultItemsItemProjectionsValuesPlan(
 }
 
 data class DshSessionListResultItemsItemProjectionsValues(
+    val `subagent`: DshOptional<DshSessionListResultItemsItemProjectionsValuesSubagent> = DshOptional.Missing,
     val `inbox`: DshOptional<DshSessionListResultItemsItemProjectionsValuesInbox> = DshOptional.Missing,
-    val `workingDirectory`: DshOptional<String?> = DshOptional.Missing,
+    val `modelSelection`: DshOptional<DshSessionListResultItemsItemProjectionsValuesModelSelection> = DshOptional.Missing,
     val `agentPreset`: DshOptional<String?> = DshOptional.Missing,
     val `title`: DshOptional<String?> = DshOptional.Missing,
-    val `todos`: DshOptional<List<DshSessionListResultItemsItemProjectionsValuesTodosItem>?> = DshOptional.Missing,
     val `sessionListMetadata`: DshOptional<DshSessionListResultItemsItemProjectionsValuesSessionListMetadata> = DshOptional.Missing,
-    val `imageLimits`: DshOptional<DshSessionListResultItemsItemProjectionsValuesImageLimits> = DshOptional.Missing,
-    val `modelSelection`: DshOptional<DshSessionListResultItemsItemProjectionsValuesModelSelection> = DshOptional.Missing,
+    val `workingDirectory`: DshOptional<String?> = DshOptional.Missing,
     val `permissions`: DshOptional<DshSessionListResultItemsItemProjectionsValuesPermissions> = DshOptional.Missing,
     val `subagentCatalog`: DshOptional<List<DshSessionListResultItemsItemProjectionsValuesSubagentCatalogItem>> = DshOptional.Missing,
     val `subagentTiming`: DshOptional<DshSessionListResultItemsItemProjectionsValuesSubagentTiming> = DshOptional.Missing,
-    val `subagent`: DshOptional<DshSessionListResultItemsItemProjectionsValuesSubagent> = DshOptional.Missing,
     val `tokenUsage`: DshOptional<DshSessionListResultItemsItemProjectionsValuesTokenUsage> = DshOptional.Missing,
-    val `contextPressure`: DshOptional<DshSessionListResultItemsItemProjectionsValuesContextPressure> = DshOptional.Missing,
-    val `contextBreakdown`: DshOptional<DshSessionListResultItemsItemProjectionsValuesContextBreakdown> = DshOptional.Missing,
-    val `agentTeam`: DshOptional<DshSessionListResultItemsItemProjectionsValuesAgentTeam> = DshOptional.Missing,
     val `userQuestions`: DshOptional<DshSessionListResultItemsItemProjectionsValuesUserQuestions> = DshOptional.Missing,
+    val `agentTeam`: DshOptional<DshSessionListResultItemsItemProjectionsValuesAgentTeam> = DshOptional.Missing,
+    val `forgeChangeRequests`: DshOptional<List<DshSessionListResultItemsItemProjectionsValuesForgeChangeRequestsItem>> = DshOptional.Missing,
+    val `forgeWorktree`: DshOptional<DshSessionListResultItemsItemProjectionsValuesForgeWorktree?> = DshOptional.Missing,
+    val `forkLineage`: DshOptional<DshSessionListResultItemsItemProjectionsValuesForkLineage> = DshOptional.Missing,
     val `goal`: DshOptional<DshSessionListResultItemsItemProjectionsValuesGoal?> = DshOptional.Missing,
     val `plan`: DshOptional<DshSessionListResultItemsItemProjectionsValuesPlan> = DshOptional.Missing,
-    val additional: Map<String, JsonValue> = emptyMap(),
 ) {
     companion object {
         val codec: DshCodec<DshSessionListResultItemsItemProjectionsValues> = DshCodec(
             { value ->
                 val obj = DshCodecs.obj(value)
                 DshSessionListResultItemsItemProjectionsValues(
+                    `subagent` = DshCodecs.optional(obj, "subagent", DshSessionListResultItemsItemProjectionsValuesSubagent.codec),
                     `inbox` = DshCodecs.optional(obj, "inbox", DshSessionListResultItemsItemProjectionsValuesInbox.codec),
-                    `workingDirectory` = DshCodecs.optional(obj, "workingDirectory", DshCodecs.nullable(DshCodecs.string)),
+                    `modelSelection` = DshCodecs.optional(obj, "modelSelection", DshSessionListResultItemsItemProjectionsValuesModelSelection.codec),
                     `agentPreset` = DshCodecs.optional(obj, "agentPreset", DshCodecs.nullable(DshCodecs.string)),
                     `title` = DshCodecs.optional(obj, "title", DshCodecs.nullable(DshCodecs.string)),
-                    `todos` = DshCodecs.optional(obj, "todos", DshCodecs.nullable(DshCodecs.list(DshSessionListResultItemsItemProjectionsValuesTodosItem.codec))),
                     `sessionListMetadata` = DshCodecs.optional(obj, "sessionListMetadata", DshSessionListResultItemsItemProjectionsValuesSessionListMetadata.codec),
-                    `imageLimits` = DshCodecs.optional(obj, "imageLimits", DshSessionListResultItemsItemProjectionsValuesImageLimits.codec),
-                    `modelSelection` = DshCodecs.optional(obj, "modelSelection", DshSessionListResultItemsItemProjectionsValuesModelSelection.codec),
+                    `workingDirectory` = DshCodecs.optional(obj, "workingDirectory", DshCodecs.nullable(DshCodecs.string)),
                     `permissions` = DshCodecs.optional(obj, "permissions", DshSessionListResultItemsItemProjectionsValuesPermissions.codec),
                     `subagentCatalog` = DshCodecs.optional(obj, "subagentCatalog", DshCodecs.list(DshSessionListResultItemsItemProjectionsValuesSubagentCatalogItem.codec)),
                     `subagentTiming` = DshCodecs.optional(obj, "subagentTiming", DshSessionListResultItemsItemProjectionsValuesSubagentTiming.codec),
-                    `subagent` = DshCodecs.optional(obj, "subagent", DshSessionListResultItemsItemProjectionsValuesSubagent.codec),
                     `tokenUsage` = DshCodecs.optional(obj, "tokenUsage", DshSessionListResultItemsItemProjectionsValuesTokenUsage.codec),
-                    `contextPressure` = DshCodecs.optional(obj, "contextPressure", DshSessionListResultItemsItemProjectionsValuesContextPressure.codec),
-                    `contextBreakdown` = DshCodecs.optional(obj, "contextBreakdown", DshSessionListResultItemsItemProjectionsValuesContextBreakdown.codec),
-                    `agentTeam` = DshCodecs.optional(obj, "agentTeam", DshSessionListResultItemsItemProjectionsValuesAgentTeam.codec),
                     `userQuestions` = DshCodecs.optional(obj, "userQuestions", DshSessionListResultItemsItemProjectionsValuesUserQuestions.codec),
+                    `agentTeam` = DshCodecs.optional(obj, "agentTeam", DshSessionListResultItemsItemProjectionsValuesAgentTeam.codec),
+                    `forgeChangeRequests` = DshCodecs.optional(obj, "forgeChangeRequests", DshCodecs.list(DshSessionListResultItemsItemProjectionsValuesForgeChangeRequestsItem.codec)),
+                    `forgeWorktree` = DshCodecs.optional(obj, "forgeWorktree", DshCodecs.nullable(DshSessionListResultItemsItemProjectionsValuesForgeWorktree.codec)),
+                    `forkLineage` = DshCodecs.optional(obj, "forkLineage", DshSessionListResultItemsItemProjectionsValuesForkLineage.codec),
                     `goal` = DshCodecs.optional(obj, "goal", DshCodecs.nullable(DshSessionListResultItemsItemProjectionsValuesGoal.codec)),
                     `plan` = DshCodecs.optional(obj, "plan", DshSessionListResultItemsItemProjectionsValuesPlan.codec),
-                    additional = obj.fields.filterKeys { it !in setOf("inbox", "workingDirectory", "agentPreset", "title", "todos", "sessionListMetadata", "imageLimits", "modelSelection", "permissions", "subagentCatalog", "subagentTiming", "subagent", "tokenUsage", "contextPressure", "contextBreakdown", "agentTeam", "userQuestions", "goal", "plan") }.mapValues { DshCodecs.json.decode(it.value) },
                 )
             },
             { value ->
                 val fields = linkedMapOf<String, JsonValue>()
-                value.additional.forEach { (key, item) -> fields[key] = DshCodecs.json.encode(item) }
+                DshCodecs.put(fields, "subagent", value.`subagent`, DshSessionListResultItemsItemProjectionsValuesSubagent.codec)
                 DshCodecs.put(fields, "inbox", value.`inbox`, DshSessionListResultItemsItemProjectionsValuesInbox.codec)
-                DshCodecs.put(fields, "workingDirectory", value.`workingDirectory`, DshCodecs.nullable(DshCodecs.string))
+                DshCodecs.put(fields, "modelSelection", value.`modelSelection`, DshSessionListResultItemsItemProjectionsValuesModelSelection.codec)
                 DshCodecs.put(fields, "agentPreset", value.`agentPreset`, DshCodecs.nullable(DshCodecs.string))
                 DshCodecs.put(fields, "title", value.`title`, DshCodecs.nullable(DshCodecs.string))
-                DshCodecs.put(fields, "todos", value.`todos`, DshCodecs.nullable(DshCodecs.list(DshSessionListResultItemsItemProjectionsValuesTodosItem.codec)))
                 DshCodecs.put(fields, "sessionListMetadata", value.`sessionListMetadata`, DshSessionListResultItemsItemProjectionsValuesSessionListMetadata.codec)
-                DshCodecs.put(fields, "imageLimits", value.`imageLimits`, DshSessionListResultItemsItemProjectionsValuesImageLimits.codec)
-                DshCodecs.put(fields, "modelSelection", value.`modelSelection`, DshSessionListResultItemsItemProjectionsValuesModelSelection.codec)
+                DshCodecs.put(fields, "workingDirectory", value.`workingDirectory`, DshCodecs.nullable(DshCodecs.string))
                 DshCodecs.put(fields, "permissions", value.`permissions`, DshSessionListResultItemsItemProjectionsValuesPermissions.codec)
                 DshCodecs.put(fields, "subagentCatalog", value.`subagentCatalog`, DshCodecs.list(DshSessionListResultItemsItemProjectionsValuesSubagentCatalogItem.codec))
                 DshCodecs.put(fields, "subagentTiming", value.`subagentTiming`, DshSessionListResultItemsItemProjectionsValuesSubagentTiming.codec)
-                DshCodecs.put(fields, "subagent", value.`subagent`, DshSessionListResultItemsItemProjectionsValuesSubagent.codec)
                 DshCodecs.put(fields, "tokenUsage", value.`tokenUsage`, DshSessionListResultItemsItemProjectionsValuesTokenUsage.codec)
-                DshCodecs.put(fields, "contextPressure", value.`contextPressure`, DshSessionListResultItemsItemProjectionsValuesContextPressure.codec)
-                DshCodecs.put(fields, "contextBreakdown", value.`contextBreakdown`, DshSessionListResultItemsItemProjectionsValuesContextBreakdown.codec)
-                DshCodecs.put(fields, "agentTeam", value.`agentTeam`, DshSessionListResultItemsItemProjectionsValuesAgentTeam.codec)
                 DshCodecs.put(fields, "userQuestions", value.`userQuestions`, DshSessionListResultItemsItemProjectionsValuesUserQuestions.codec)
+                DshCodecs.put(fields, "agentTeam", value.`agentTeam`, DshSessionListResultItemsItemProjectionsValuesAgentTeam.codec)
+                DshCodecs.put(fields, "forgeChangeRequests", value.`forgeChangeRequests`, DshCodecs.list(DshSessionListResultItemsItemProjectionsValuesForgeChangeRequestsItem.codec))
+                DshCodecs.put(fields, "forgeWorktree", value.`forgeWorktree`, DshCodecs.nullable(DshSessionListResultItemsItemProjectionsValuesForgeWorktree.codec))
+                DshCodecs.put(fields, "forkLineage", value.`forkLineage`, DshSessionListResultItemsItemProjectionsValuesForkLineage.codec)
                 DshCodecs.put(fields, "goal", value.`goal`, DshCodecs.nullable(DshSessionListResultItemsItemProjectionsValuesGoal.codec))
                 DshCodecs.put(fields, "plan", value.`plan`, DshSessionListResultItemsItemProjectionsValuesPlan.codec)
                 JsonObject(fields)
@@ -4999,11 +5975,76 @@ data class DshSessionModelCatalogResultGroupsItemModelsItemReasoning(
     }
 }
 
+data class DshSessionModelCatalogResultGroupsItemModelsItemBadgeTextCase2(
+    val `en`: String,
+    val additional: Map<String, String> = emptyMap(),
+) {
+    companion object {
+        val codec: DshCodec<DshSessionModelCatalogResultGroupsItemModelsItemBadgeTextCase2> = DshCodec(
+            { value ->
+                val obj = DshCodecs.obj(value)
+                DshSessionModelCatalogResultGroupsItemModelsItemBadgeTextCase2(
+                    `en` = DshCodecs.string.decode(obj["en"]),
+                    additional = obj.fields.filterKeys { it !in setOf("en") }.mapValues { DshCodecs.string.decode(it.value) },
+                )
+            },
+            { value ->
+                val fields = linkedMapOf<String, JsonValue>()
+                value.additional.forEach { (key, item) -> fields[key] = DshCodecs.string.encode(item) }
+                fields["en"] = DshCodecs.string.encode(value.`en`)
+                JsonObject(fields)
+            },
+        )
+    }
+}
+
+sealed interface DshSessionModelCatalogResultGroupsItemModelsItemBadgeText {
+    data class Case1(val value: String) : DshSessionModelCatalogResultGroupsItemModelsItemBadgeText
+    data class Case2(val value: DshSessionModelCatalogResultGroupsItemModelsItemBadgeTextCase2) : DshSessionModelCatalogResultGroupsItemModelsItemBadgeText
+    companion object {
+        val codec: DshCodec<DshSessionModelCatalogResultGroupsItemModelsItemBadgeText> = DshCodec(
+            { value ->
+                try { return@DshCodec Case1(DshCodecs.string.decode(value)) } catch (_: ProtocolException) { }
+                try { return@DshCodec Case2(DshSessionModelCatalogResultGroupsItemModelsItemBadgeTextCase2.codec.decode(value)) } catch (_: ProtocolException) { }
+                throw ProtocolException("native: unsupported union")
+            },
+            { value -> when (value) {
+                is Case1 -> DshCodecs.string.encode(value.value)
+                is Case2 -> DshSessionModelCatalogResultGroupsItemModelsItemBadgeTextCase2.codec.encode(value.value)
+            } },
+        )
+    }
+}
+
+data class DshSessionModelCatalogResultGroupsItemModelsItemBadge(
+    val `text`: DshSessionModelCatalogResultGroupsItemModelsItemBadgeText,
+    val `tone`: String,
+) {
+    companion object {
+        val codec: DshCodec<DshSessionModelCatalogResultGroupsItemModelsItemBadge> = DshCodec(
+            { value ->
+                val obj = DshCodecs.obj(value)
+                DshSessionModelCatalogResultGroupsItemModelsItemBadge(
+                    `text` = DshSessionModelCatalogResultGroupsItemModelsItemBadgeText.codec.decode(obj["text"]),
+                    `tone` = DshCodecs.strings(setOf("neutral", "info", "success", "warning")).decode(obj["tone"]),
+                )
+            },
+            { value ->
+                val fields = linkedMapOf<String, JsonValue>()
+                fields["text"] = DshSessionModelCatalogResultGroupsItemModelsItemBadgeText.codec.encode(value.`text`)
+                fields["tone"] = DshCodecs.strings(setOf("neutral", "info", "success", "warning")).encode(value.`tone`)
+                JsonObject(fields)
+            },
+        )
+    }
+}
+
 data class DshSessionModelCatalogResultGroupsItemModelsItem(
     val `id`: String,
     val `name`: String,
     val `description`: DshOptional<String> = DshOptional.Missing,
     val `reasoning`: DshOptional<DshSessionModelCatalogResultGroupsItemModelsItemReasoning> = DshOptional.Missing,
+    val `badge`: DshOptional<DshSessionModelCatalogResultGroupsItemModelsItemBadge> = DshOptional.Missing,
 ) {
     companion object {
         val codec: DshCodec<DshSessionModelCatalogResultGroupsItemModelsItem> = DshCodec(
@@ -5014,6 +6055,7 @@ data class DshSessionModelCatalogResultGroupsItemModelsItem(
                     `name` = DshCodecs.string.decode(obj["name"]),
                     `description` = DshCodecs.optional(obj, "description", DshCodecs.string),
                     `reasoning` = DshCodecs.optional(obj, "reasoning", DshSessionModelCatalogResultGroupsItemModelsItemReasoning.codec),
+                    `badge` = DshCodecs.optional(obj, "badge", DshSessionModelCatalogResultGroupsItemModelsItemBadge.codec),
                 )
             },
             { value ->
@@ -5022,6 +6064,7 @@ data class DshSessionModelCatalogResultGroupsItemModelsItem(
                 fields["name"] = DshCodecs.string.encode(value.`name`)
                 DshCodecs.put(fields, "description", value.`description`, DshCodecs.string)
                 DshCodecs.put(fields, "reasoning", value.`reasoning`, DshSessionModelCatalogResultGroupsItemModelsItemReasoning.codec)
+                DshCodecs.put(fields, "badge", value.`badge`, DshSessionModelCatalogResultGroupsItemModelsItemBadge.codec)
                 JsonObject(fields)
             },
         )
@@ -5204,7 +6247,7 @@ data class DshSessionPageInputRequestTurnWindow(
 
 data class DshSessionPageInputRequest(
     val `address`: DshSessionPageInputRequestAddress,
-    val `throughSeq`: Double,
+    val `throughSeq`: DshOptional<Double> = DshOptional.Missing,
     val `beforeSeq`: DshOptional<Double> = DshOptional.Missing,
     val `maxMessages`: DshOptional<Double> = DshOptional.Missing,
     val `turnWindow`: DshOptional<DshSessionPageInputRequestTurnWindow> = DshOptional.Missing,
@@ -5215,7 +6258,7 @@ data class DshSessionPageInputRequest(
                 val obj = DshCodecs.obj(value)
                 DshSessionPageInputRequest(
                     `address` = DshSessionPageInputRequestAddress.codec.decode(obj["address"]),
-                    `throughSeq` = DshCodecs.number.decode(obj["throughSeq"]),
+                    `throughSeq` = DshCodecs.optional(obj, "throughSeq", DshCodecs.number),
                     `beforeSeq` = DshCodecs.optional(obj, "beforeSeq", DshCodecs.number),
                     `maxMessages` = DshCodecs.optional(obj, "maxMessages", DshCodecs.number),
                     `turnWindow` = DshCodecs.optional(obj, "turnWindow", DshSessionPageInputRequestTurnWindow.codec),
@@ -5224,7 +6267,7 @@ data class DshSessionPageInputRequest(
             { value ->
                 val fields = linkedMapOf<String, JsonValue>()
                 fields["address"] = DshSessionPageInputRequestAddress.codec.encode(value.`address`)
-                fields["throughSeq"] = DshCodecs.number.encode(value.`throughSeq`)
+                DshCodecs.put(fields, "throughSeq", value.`throughSeq`, DshCodecs.number)
                 DshCodecs.put(fields, "beforeSeq", value.`beforeSeq`, DshCodecs.number)
                 DshCodecs.put(fields, "maxMessages", value.`maxMessages`, DshCodecs.number)
                 DshCodecs.put(fields, "turnWindow", value.`turnWindow`, DshSessionPageInputRequestTurnWindow.codec)
@@ -5317,6 +6360,7 @@ data class DshSessionPageResultRecordsItem(
 }
 
 data class DshSessionPageResult(
+    val `cursor`: Double,
     val `records`: List<DshSessionPageResultRecordsItem>,
     val `hasMore`: Boolean,
 ) {
@@ -5325,12 +6369,14 @@ data class DshSessionPageResult(
             { value ->
                 val obj = DshCodecs.obj(value)
                 DshSessionPageResult(
+                    `cursor` = DshCodecs.number.decode(obj["cursor"]),
                     `records` = DshCodecs.list(DshSessionPageResultRecordsItem.codec).decode(obj["records"]),
                     `hasMore` = DshCodecs.boolean.decode(obj["hasMore"]),
                 )
             },
             { value ->
                 val fields = linkedMapOf<String, JsonValue>()
+                fields["cursor"] = DshCodecs.number.encode(value.`cursor`)
                 fields["records"] = DshCodecs.list(DshSessionPageResultRecordsItem.codec).encode(value.`records`)
                 fields["hasMore"] = DshCodecs.boolean.encode(value.`hasMore`)
                 JsonObject(fields)
@@ -5397,6 +6443,186 @@ data class DshSessionProjectionsResultCase2ValuesInbox(
                 val fields = linkedMapOf<String, JsonValue>()
                 fields["next-turn"] = DshCodecs.list(DshCodecs.json).encode(value.`next-turn`)
                 fields["next-step"] = DshCodecs.list(DshCodecs.json).encode(value.`next-step`)
+                JsonObject(fields)
+            },
+        )
+    }
+}
+
+data class DshSessionProjectionsResultCase2ValuesModelSelectionLastUsed(
+    val `provider`: String,
+    val `model`: String,
+    val `reasoningEffort`: DshOptional<String> = DshOptional.Missing,
+) {
+    companion object {
+        val codec: DshCodec<DshSessionProjectionsResultCase2ValuesModelSelectionLastUsed> = DshCodec(
+            { value ->
+                val obj = DshCodecs.obj(value)
+                DshSessionProjectionsResultCase2ValuesModelSelectionLastUsed(
+                    `provider` = DshCodecs.string.decode(obj["provider"]),
+                    `model` = DshCodecs.string.decode(obj["model"]),
+                    `reasoningEffort` = DshCodecs.optional(obj, "reasoningEffort", DshCodecs.string),
+                )
+            },
+            { value ->
+                val fields = linkedMapOf<String, JsonValue>()
+                fields["provider"] = DshCodecs.string.encode(value.`provider`)
+                fields["model"] = DshCodecs.string.encode(value.`model`)
+                DshCodecs.put(fields, "reasoningEffort", value.`reasoningEffort`, DshCodecs.string)
+                JsonObject(fields)
+            },
+        )
+    }
+}
+
+data class DshSessionProjectionsResultCase2ValuesModelSelectionNext(
+    val `provider`: String,
+    val `model`: String,
+    val `reasoningEffort`: DshOptional<String> = DshOptional.Missing,
+) {
+    companion object {
+        val codec: DshCodec<DshSessionProjectionsResultCase2ValuesModelSelectionNext> = DshCodec(
+            { value ->
+                val obj = DshCodecs.obj(value)
+                DshSessionProjectionsResultCase2ValuesModelSelectionNext(
+                    `provider` = DshCodecs.string.decode(obj["provider"]),
+                    `model` = DshCodecs.string.decode(obj["model"]),
+                    `reasoningEffort` = DshCodecs.optional(obj, "reasoningEffort", DshCodecs.string),
+                )
+            },
+            { value ->
+                val fields = linkedMapOf<String, JsonValue>()
+                fields["provider"] = DshCodecs.string.encode(value.`provider`)
+                fields["model"] = DshCodecs.string.encode(value.`model`)
+                DshCodecs.put(fields, "reasoningEffort", value.`reasoningEffort`, DshCodecs.string)
+                JsonObject(fields)
+            },
+        )
+    }
+}
+
+data class DshSessionProjectionsResultCase2ValuesModelSelection(
+    val `lastUsed`: DshSessionProjectionsResultCase2ValuesModelSelectionLastUsed?,
+    val `next`: DshSessionProjectionsResultCase2ValuesModelSelectionNext?,
+) {
+    companion object {
+        val codec: DshCodec<DshSessionProjectionsResultCase2ValuesModelSelection> = DshCodec(
+            { value ->
+                val obj = DshCodecs.obj(value)
+                DshSessionProjectionsResultCase2ValuesModelSelection(
+                    `lastUsed` = DshCodecs.nullable(DshSessionProjectionsResultCase2ValuesModelSelectionLastUsed.codec).decode(obj["lastUsed"]),
+                    `next` = DshCodecs.nullable(DshSessionProjectionsResultCase2ValuesModelSelectionNext.codec).decode(obj["next"]),
+                )
+            },
+            { value ->
+                val fields = linkedMapOf<String, JsonValue>()
+                fields["lastUsed"] = DshCodecs.nullable(DshSessionProjectionsResultCase2ValuesModelSelectionLastUsed.codec).encode(value.`lastUsed`)
+                fields["next"] = DshCodecs.nullable(DshSessionProjectionsResultCase2ValuesModelSelectionNext.codec).encode(value.`next`)
+                JsonObject(fields)
+            },
+        )
+    }
+}
+
+data class DshSessionProjectionsResultCase2ValuesActionCardsProposalsValue(
+    val `callId`: String,
+    val `turn`: Double,
+    val `action`: String,
+    val `title`: String,
+    val `brief`: String,
+    val `details`: Map<String, JsonValue>,
+) {
+    companion object {
+        val codec: DshCodec<DshSessionProjectionsResultCase2ValuesActionCardsProposalsValue> = DshCodec(
+            { value ->
+                val obj = DshCodecs.obj(value)
+                DshSessionProjectionsResultCase2ValuesActionCardsProposalsValue(
+                    `callId` = DshCodecs.string.decode(obj["callId"]),
+                    `turn` = DshCodecs.number.decode(obj["turn"]),
+                    `action` = DshCodecs.string.decode(obj["action"]),
+                    `title` = DshCodecs.string.decode(obj["title"]),
+                    `brief` = DshCodecs.string.decode(obj["brief"]),
+                    `details` = DshCodecs.map(DshCodecs.json).decode(obj["details"]),
+                )
+            },
+            { value ->
+                val fields = linkedMapOf<String, JsonValue>()
+                fields["callId"] = DshCodecs.string.encode(value.`callId`)
+                fields["turn"] = DshCodecs.number.encode(value.`turn`)
+                fields["action"] = DshCodecs.string.encode(value.`action`)
+                fields["title"] = DshCodecs.string.encode(value.`title`)
+                fields["brief"] = DshCodecs.string.encode(value.`brief`)
+                fields["details"] = DshCodecs.map(DshCodecs.json).encode(value.`details`)
+                JsonObject(fields)
+            },
+        )
+    }
+}
+
+sealed interface DshSessionProjectionsResultCase2ValuesActionCardsDecisionsValueData {
+    data class Case1(val value: JsonValue) : DshSessionProjectionsResultCase2ValuesActionCardsDecisionsValueData
+    data class Case2(val value: Map<String, JsonValue>) : DshSessionProjectionsResultCase2ValuesActionCardsDecisionsValueData
+    companion object {
+        val codec: DshCodec<DshSessionProjectionsResultCase2ValuesActionCardsDecisionsValueData> = DshCodec(
+            { value ->
+                try { return@DshCodec Case1(DshCodecs.undefined.decode(value)) } catch (_: ProtocolException) { }
+                try { return@DshCodec Case2(DshCodecs.map(DshCodecs.json).decode(value)) } catch (_: ProtocolException) { }
+                throw ProtocolException("native: unsupported union")
+            },
+            { value -> when (value) {
+                is Case1 -> DshCodecs.undefined.encode(value.value)
+                is Case2 -> DshCodecs.map(DshCodecs.json).encode(value.value)
+            } },
+        )
+    }
+}
+
+data class DshSessionProjectionsResultCase2ValuesActionCardsDecisionsValue(
+    val `callId`: String,
+    val `action`: String,
+    val `phase`: String,
+    val `data`: DshOptional<DshSessionProjectionsResultCase2ValuesActionCardsDecisionsValueData> = DshOptional.Missing,
+) {
+    companion object {
+        val codec: DshCodec<DshSessionProjectionsResultCase2ValuesActionCardsDecisionsValue> = DshCodec(
+            { value ->
+                val obj = DshCodecs.obj(value)
+                DshSessionProjectionsResultCase2ValuesActionCardsDecisionsValue(
+                    `callId` = DshCodecs.string.decode(obj["callId"]),
+                    `action` = DshCodecs.string.decode(obj["action"]),
+                    `phase` = DshCodecs.string.decode(obj["phase"]),
+                    `data` = DshCodecs.optional(obj, "data", DshSessionProjectionsResultCase2ValuesActionCardsDecisionsValueData.codec),
+                )
+            },
+            { value ->
+                val fields = linkedMapOf<String, JsonValue>()
+                fields["callId"] = DshCodecs.string.encode(value.`callId`)
+                fields["action"] = DshCodecs.string.encode(value.`action`)
+                fields["phase"] = DshCodecs.string.encode(value.`phase`)
+                DshCodecs.put(fields, "data", value.`data`, DshSessionProjectionsResultCase2ValuesActionCardsDecisionsValueData.codec)
+                JsonObject(fields)
+            },
+        )
+    }
+}
+
+data class DshSessionProjectionsResultCase2ValuesActionCards(
+    val `proposals`: Map<String, DshSessionProjectionsResultCase2ValuesActionCardsProposalsValue>,
+    val `decisions`: Map<String, DshSessionProjectionsResultCase2ValuesActionCardsDecisionsValue>,
+) {
+    companion object {
+        val codec: DshCodec<DshSessionProjectionsResultCase2ValuesActionCards> = DshCodec(
+            { value ->
+                val obj = DshCodecs.obj(value)
+                DshSessionProjectionsResultCase2ValuesActionCards(
+                    `proposals` = DshCodecs.map(DshSessionProjectionsResultCase2ValuesActionCardsProposalsValue.codec).decode(obj["proposals"]),
+                    `decisions` = DshCodecs.map(DshSessionProjectionsResultCase2ValuesActionCardsDecisionsValue.codec).decode(obj["decisions"]),
+                )
+            },
+            { value ->
+                val fields = linkedMapOf<String, JsonValue>()
+                fields["proposals"] = DshCodecs.map(DshSessionProjectionsResultCase2ValuesActionCardsProposalsValue.codec).encode(value.`proposals`)
+                fields["decisions"] = DshCodecs.map(DshSessionProjectionsResultCase2ValuesActionCardsDecisionsValue.codec).encode(value.`decisions`)
                 JsonObject(fields)
             },
         )
@@ -5478,81 +6704,6 @@ data class DshSessionProjectionsResultCase2ValuesImageLimits(
                 fields["maxImagePixels"] = DshCodecs.number.encode(value.`maxImagePixels`)
                 fields["maxImageDimension"] = DshCodecs.number.encode(value.`maxImageDimension`)
                 fields["mediaTypes"] = DshCodecs.list(DshCodecs.strings(setOf("image/png", "image/jpeg", "image/webp", "image/gif"))).encode(value.`mediaTypes`)
-                JsonObject(fields)
-            },
-        )
-    }
-}
-
-data class DshSessionProjectionsResultCase2ValuesModelSelectionLastUsed(
-    val `provider`: String,
-    val `model`: String,
-    val `reasoningEffort`: DshOptional<String> = DshOptional.Missing,
-) {
-    companion object {
-        val codec: DshCodec<DshSessionProjectionsResultCase2ValuesModelSelectionLastUsed> = DshCodec(
-            { value ->
-                val obj = DshCodecs.obj(value)
-                DshSessionProjectionsResultCase2ValuesModelSelectionLastUsed(
-                    `provider` = DshCodecs.string.decode(obj["provider"]),
-                    `model` = DshCodecs.string.decode(obj["model"]),
-                    `reasoningEffort` = DshCodecs.optional(obj, "reasoningEffort", DshCodecs.string),
-                )
-            },
-            { value ->
-                val fields = linkedMapOf<String, JsonValue>()
-                fields["provider"] = DshCodecs.string.encode(value.`provider`)
-                fields["model"] = DshCodecs.string.encode(value.`model`)
-                DshCodecs.put(fields, "reasoningEffort", value.`reasoningEffort`, DshCodecs.string)
-                JsonObject(fields)
-            },
-        )
-    }
-}
-
-data class DshSessionProjectionsResultCase2ValuesModelSelectionNext(
-    val `provider`: String,
-    val `model`: String,
-    val `reasoningEffort`: DshOptional<String> = DshOptional.Missing,
-) {
-    companion object {
-        val codec: DshCodec<DshSessionProjectionsResultCase2ValuesModelSelectionNext> = DshCodec(
-            { value ->
-                val obj = DshCodecs.obj(value)
-                DshSessionProjectionsResultCase2ValuesModelSelectionNext(
-                    `provider` = DshCodecs.string.decode(obj["provider"]),
-                    `model` = DshCodecs.string.decode(obj["model"]),
-                    `reasoningEffort` = DshCodecs.optional(obj, "reasoningEffort", DshCodecs.string),
-                )
-            },
-            { value ->
-                val fields = linkedMapOf<String, JsonValue>()
-                fields["provider"] = DshCodecs.string.encode(value.`provider`)
-                fields["model"] = DshCodecs.string.encode(value.`model`)
-                DshCodecs.put(fields, "reasoningEffort", value.`reasoningEffort`, DshCodecs.string)
-                JsonObject(fields)
-            },
-        )
-    }
-}
-
-data class DshSessionProjectionsResultCase2ValuesModelSelection(
-    val `lastUsed`: DshSessionProjectionsResultCase2ValuesModelSelectionLastUsed?,
-    val `next`: DshSessionProjectionsResultCase2ValuesModelSelectionNext?,
-) {
-    companion object {
-        val codec: DshCodec<DshSessionProjectionsResultCase2ValuesModelSelection> = DshCodec(
-            { value ->
-                val obj = DshCodecs.obj(value)
-                DshSessionProjectionsResultCase2ValuesModelSelection(
-                    `lastUsed` = DshCodecs.nullable(DshSessionProjectionsResultCase2ValuesModelSelectionLastUsed.codec).decode(obj["lastUsed"]),
-                    `next` = DshCodecs.nullable(DshSessionProjectionsResultCase2ValuesModelSelectionNext.codec).decode(obj["next"]),
-                )
-            },
-            { value ->
-                val fields = linkedMapOf<String, JsonValue>()
-                fields["lastUsed"] = DshCodecs.nullable(DshSessionProjectionsResultCase2ValuesModelSelectionLastUsed.codec).encode(value.`lastUsed`)
-                fields["next"] = DshCodecs.nullable(DshSessionProjectionsResultCase2ValuesModelSelectionNext.codec).encode(value.`next`)
                 JsonObject(fields)
             },
         )
@@ -5922,111 +7073,6 @@ data class DshSessionProjectionsResultCase2ValuesContextBreakdown(
     }
 }
 
-data class DshSessionProjectionsResultCase2ValuesAgentTeamMembersItem(
-    val `id`: String,
-    val `name`: String,
-    val `role`: String,
-    val `phase`: String,
-    val `error`: DshOptional<String> = DshOptional.Missing,
-) {
-    companion object {
-        val codec: DshCodec<DshSessionProjectionsResultCase2ValuesAgentTeamMembersItem> = DshCodec(
-            { value ->
-                val obj = DshCodecs.obj(value)
-                DshSessionProjectionsResultCase2ValuesAgentTeamMembersItem(
-                    `id` = DshCodecs.string.decode(obj["id"]),
-                    `name` = DshCodecs.string.decode(obj["name"]),
-                    `role` = DshCodecs.strings(setOf("lead", "teammate")).decode(obj["role"]),
-                    `phase` = DshCodecs.strings(setOf("failed", "provisioning", "active")).decode(obj["phase"]),
-                    `error` = DshCodecs.optional(obj, "error", DshCodecs.string),
-                )
-            },
-            { value ->
-                val fields = linkedMapOf<String, JsonValue>()
-                fields["id"] = DshCodecs.string.encode(value.`id`)
-                fields["name"] = DshCodecs.string.encode(value.`name`)
-                fields["role"] = DshCodecs.strings(setOf("lead", "teammate")).encode(value.`role`)
-                fields["phase"] = DshCodecs.strings(setOf("failed", "provisioning", "active")).encode(value.`phase`)
-                DshCodecs.put(fields, "error", value.`error`, DshCodecs.string)
-                JsonObject(fields)
-            },
-        )
-    }
-}
-
-data class DshSessionProjectionsResultCase2ValuesAgentTeamTasksItem(
-    val `id`: String,
-    val `revision`: Double,
-    val `subject`: String,
-    val `description`: String,
-    val `status`: String,
-    val `blockedBy`: List<String>,
-    val `writeScopes`: List<String>,
-    val `ownerName`: DshOptional<String> = DshOptional.Missing,
-    val `ready`: Boolean,
-    val `writeScopeWarnings`: List<String>,
-) {
-    companion object {
-        val codec: DshCodec<DshSessionProjectionsResultCase2ValuesAgentTeamTasksItem> = DshCodec(
-            { value ->
-                val obj = DshCodecs.obj(value)
-                DshSessionProjectionsResultCase2ValuesAgentTeamTasksItem(
-                    `id` = DshCodecs.string.decode(obj["id"]),
-                    `revision` = DshCodecs.number.decode(obj["revision"]),
-                    `subject` = DshCodecs.string.decode(obj["subject"]),
-                    `description` = DshCodecs.string.decode(obj["description"]),
-                    `status` = DshCodecs.strings(setOf("completed", "pending", "in_progress", "deleted")).decode(obj["status"]),
-                    `blockedBy` = DshCodecs.list(DshCodecs.string).decode(obj["blockedBy"]),
-                    `writeScopes` = DshCodecs.list(DshCodecs.string).decode(obj["writeScopes"]),
-                    `ownerName` = DshCodecs.optional(obj, "ownerName", DshCodecs.string),
-                    `ready` = DshCodecs.boolean.decode(obj["ready"]),
-                    `writeScopeWarnings` = DshCodecs.list(DshCodecs.string).decode(obj["writeScopeWarnings"]),
-                )
-            },
-            { value ->
-                val fields = linkedMapOf<String, JsonValue>()
-                fields["id"] = DshCodecs.string.encode(value.`id`)
-                fields["revision"] = DshCodecs.number.encode(value.`revision`)
-                fields["subject"] = DshCodecs.string.encode(value.`subject`)
-                fields["description"] = DshCodecs.string.encode(value.`description`)
-                fields["status"] = DshCodecs.strings(setOf("completed", "pending", "in_progress", "deleted")).encode(value.`status`)
-                fields["blockedBy"] = DshCodecs.list(DshCodecs.string).encode(value.`blockedBy`)
-                fields["writeScopes"] = DshCodecs.list(DshCodecs.string).encode(value.`writeScopes`)
-                DshCodecs.put(fields, "ownerName", value.`ownerName`, DshCodecs.string)
-                fields["ready"] = DshCodecs.boolean.encode(value.`ready`)
-                fields["writeScopeWarnings"] = DshCodecs.list(DshCodecs.string).encode(value.`writeScopeWarnings`)
-                JsonObject(fields)
-            },
-        )
-    }
-}
-
-data class DshSessionProjectionsResultCase2ValuesAgentTeam(
-    val `members`: List<DshSessionProjectionsResultCase2ValuesAgentTeamMembersItem>,
-    val `tasks`: List<DshSessionProjectionsResultCase2ValuesAgentTeamTasksItem>,
-    val `failure`: DshOptional<String> = DshOptional.Missing,
-) {
-    companion object {
-        val codec: DshCodec<DshSessionProjectionsResultCase2ValuesAgentTeam> = DshCodec(
-            { value ->
-                val obj = DshCodecs.obj(value)
-                DshSessionProjectionsResultCase2ValuesAgentTeam(
-                    `members` = DshCodecs.list(DshSessionProjectionsResultCase2ValuesAgentTeamMembersItem.codec).decode(obj["members"]),
-                    `tasks` = DshCodecs.list(DshSessionProjectionsResultCase2ValuesAgentTeamTasksItem.codec).decode(obj["tasks"]),
-                    `failure` = DshCodecs.optional(obj, "failure", DshCodecs.string),
-                )
-            },
-            { value ->
-                val fields = linkedMapOf<String, JsonValue>()
-                fields["members"] = DshCodecs.list(DshSessionProjectionsResultCase2ValuesAgentTeamMembersItem.codec).encode(value.`members`)
-                fields["tasks"] = DshCodecs.list(DshSessionProjectionsResultCase2ValuesAgentTeamTasksItem.codec).encode(value.`tasks`)
-                DshCodecs.put(fields, "failure", value.`failure`, DshCodecs.string)
-                JsonObject(fields)
-            },
-        )
-    }
-}
-
 data class DshSessionProjectionsResultCase2ValuesUserQuestionsActiveItemQuestionsItemOptionsItem(
     val `label`: String,
     val `description`: DshOptional<String> = DshOptional.Missing,
@@ -6050,16 +7096,16 @@ data class DshSessionProjectionsResultCase2ValuesUserQuestionsActiveItemQuestion
     }
 }
 
-data class DshSessionProjectionsResultCase2ValuesUserQuestionsActiveItemQuestionsItemIntent(
+data class DshSessionProjectionsResultCase2ValuesUserQuestionsActiveItemQuestionsItemIntentCase1(
     val `kind`: String,
     val `approve`: String,
     val `callId`: DshOptional<String> = DshOptional.Missing,
 ) {
     companion object {
-        val codec: DshCodec<DshSessionProjectionsResultCase2ValuesUserQuestionsActiveItemQuestionsItemIntent> = DshCodec(
+        val codec: DshCodec<DshSessionProjectionsResultCase2ValuesUserQuestionsActiveItemQuestionsItemIntentCase1> = DshCodec(
             { value ->
                 val obj = DshCodecs.obj(value)
-                DshSessionProjectionsResultCase2ValuesUserQuestionsActiveItemQuestionsItemIntent(
+                DshSessionProjectionsResultCase2ValuesUserQuestionsActiveItemQuestionsItemIntentCase1(
                     `kind` = DshCodecs.strings(setOf("plan-review")).decode(obj["kind"]),
                     `approve` = DshCodecs.string.decode(obj["approve"]),
                     `callId` = DshCodecs.optional(obj, "callId", DshCodecs.string),
@@ -6072,6 +7118,177 @@ data class DshSessionProjectionsResultCase2ValuesUserQuestionsActiveItemQuestion
                 DshCodecs.put(fields, "callId", value.`callId`, DshCodecs.string)
                 JsonObject(fields)
             },
+        )
+    }
+}
+
+data class DshSessionProjectionsResultCase2ValuesUserQuestionsActiveItemQuestionsItemIntentCase2Subject(
+    val `name`: String,
+    val `icon`: DshOptional<String> = DshOptional.Missing,
+) {
+    companion object {
+        val codec: DshCodec<DshSessionProjectionsResultCase2ValuesUserQuestionsActiveItemQuestionsItemIntentCase2Subject> = DshCodec(
+            { value ->
+                val obj = DshCodecs.obj(value)
+                DshSessionProjectionsResultCase2ValuesUserQuestionsActiveItemQuestionsItemIntentCase2Subject(
+                    `name` = DshCodecs.string.decode(obj["name"]),
+                    `icon` = DshCodecs.optional(obj, "icon", DshCodecs.string),
+                )
+            },
+            { value ->
+                val fields = linkedMapOf<String, JsonValue>()
+                fields["name"] = DshCodecs.string.encode(value.`name`)
+                DshCodecs.put(fields, "icon", value.`icon`, DshCodecs.string)
+                JsonObject(fields)
+            },
+        )
+    }
+}
+
+data class DshSessionProjectionsResultCase2ValuesUserQuestionsActiveItemQuestionsItemIntentCase2DisplayQuestion(
+    val `en`: String,
+    val additional: Map<String, String> = emptyMap(),
+) {
+    companion object {
+        val codec: DshCodec<DshSessionProjectionsResultCase2ValuesUserQuestionsActiveItemQuestionsItemIntentCase2DisplayQuestion> = DshCodec(
+            { value ->
+                val obj = DshCodecs.obj(value)
+                DshSessionProjectionsResultCase2ValuesUserQuestionsActiveItemQuestionsItemIntentCase2DisplayQuestion(
+                    `en` = DshCodecs.string.decode(obj["en"]),
+                    additional = obj.fields.filterKeys { it !in setOf("en") }.mapValues { DshCodecs.string.decode(it.value) },
+                )
+            },
+            { value ->
+                val fields = linkedMapOf<String, JsonValue>()
+                value.additional.forEach { (key, item) -> fields[key] = DshCodecs.string.encode(item) }
+                fields["en"] = DshCodecs.string.encode(value.`en`)
+                JsonObject(fields)
+            },
+        )
+    }
+}
+
+data class DshSessionProjectionsResultCase2ValuesUserQuestionsActiveItemQuestionsItemIntentCase2DisplayDetail(
+    val `en`: String,
+    val additional: Map<String, String> = emptyMap(),
+) {
+    companion object {
+        val codec: DshCodec<DshSessionProjectionsResultCase2ValuesUserQuestionsActiveItemQuestionsItemIntentCase2DisplayDetail> = DshCodec(
+            { value ->
+                val obj = DshCodecs.obj(value)
+                DshSessionProjectionsResultCase2ValuesUserQuestionsActiveItemQuestionsItemIntentCase2DisplayDetail(
+                    `en` = DshCodecs.string.decode(obj["en"]),
+                    additional = obj.fields.filterKeys { it !in setOf("en") }.mapValues { DshCodecs.string.decode(it.value) },
+                )
+            },
+            { value ->
+                val fields = linkedMapOf<String, JsonValue>()
+                value.additional.forEach { (key, item) -> fields[key] = DshCodecs.string.encode(item) }
+                fields["en"] = DshCodecs.string.encode(value.`en`)
+                JsonObject(fields)
+            },
+        )
+    }
+}
+
+data class DshSessionProjectionsResultCase2ValuesUserQuestionsActiveItemQuestionsItemIntentCase2DisplayApprove(
+    val `en`: String,
+    val additional: Map<String, String> = emptyMap(),
+) {
+    companion object {
+        val codec: DshCodec<DshSessionProjectionsResultCase2ValuesUserQuestionsActiveItemQuestionsItemIntentCase2DisplayApprove> = DshCodec(
+            { value ->
+                val obj = DshCodecs.obj(value)
+                DshSessionProjectionsResultCase2ValuesUserQuestionsActiveItemQuestionsItemIntentCase2DisplayApprove(
+                    `en` = DshCodecs.string.decode(obj["en"]),
+                    additional = obj.fields.filterKeys { it !in setOf("en") }.mapValues { DshCodecs.string.decode(it.value) },
+                )
+            },
+            { value ->
+                val fields = linkedMapOf<String, JsonValue>()
+                value.additional.forEach { (key, item) -> fields[key] = DshCodecs.string.encode(item) }
+                fields["en"] = DshCodecs.string.encode(value.`en`)
+                JsonObject(fields)
+            },
+        )
+    }
+}
+
+data class DshSessionProjectionsResultCase2ValuesUserQuestionsActiveItemQuestionsItemIntentCase2Display(
+    val `question`: DshSessionProjectionsResultCase2ValuesUserQuestionsActiveItemQuestionsItemIntentCase2DisplayQuestion,
+    val `detail`: DshOptional<DshSessionProjectionsResultCase2ValuesUserQuestionsActiveItemQuestionsItemIntentCase2DisplayDetail> = DshOptional.Missing,
+    val `approve`: DshOptional<DshSessionProjectionsResultCase2ValuesUserQuestionsActiveItemQuestionsItemIntentCase2DisplayApprove> = DshOptional.Missing,
+) {
+    companion object {
+        val codec: DshCodec<DshSessionProjectionsResultCase2ValuesUserQuestionsActiveItemQuestionsItemIntentCase2Display> = DshCodec(
+            { value ->
+                val obj = DshCodecs.obj(value)
+                DshSessionProjectionsResultCase2ValuesUserQuestionsActiveItemQuestionsItemIntentCase2Display(
+                    `question` = DshSessionProjectionsResultCase2ValuesUserQuestionsActiveItemQuestionsItemIntentCase2DisplayQuestion.codec.decode(obj["question"]),
+                    `detail` = DshCodecs.optional(obj, "detail", DshSessionProjectionsResultCase2ValuesUserQuestionsActiveItemQuestionsItemIntentCase2DisplayDetail.codec),
+                    `approve` = DshCodecs.optional(obj, "approve", DshSessionProjectionsResultCase2ValuesUserQuestionsActiveItemQuestionsItemIntentCase2DisplayApprove.codec),
+                )
+            },
+            { value ->
+                val fields = linkedMapOf<String, JsonValue>()
+                fields["question"] = DshSessionProjectionsResultCase2ValuesUserQuestionsActiveItemQuestionsItemIntentCase2DisplayQuestion.codec.encode(value.`question`)
+                DshCodecs.put(fields, "detail", value.`detail`, DshSessionProjectionsResultCase2ValuesUserQuestionsActiveItemQuestionsItemIntentCase2DisplayDetail.codec)
+                DshCodecs.put(fields, "approve", value.`approve`, DshSessionProjectionsResultCase2ValuesUserQuestionsActiveItemQuestionsItemIntentCase2DisplayApprove.codec)
+                JsonObject(fields)
+            },
+        )
+    }
+}
+
+data class DshSessionProjectionsResultCase2ValuesUserQuestionsActiveItemQuestionsItemIntentCase2(
+    val `kind`: String,
+    val `approve`: String,
+    val `reject`: String,
+    val `always`: DshOptional<String> = DshOptional.Missing,
+    val `subject`: DshOptional<DshSessionProjectionsResultCase2ValuesUserQuestionsActiveItemQuestionsItemIntentCase2Subject> = DshOptional.Missing,
+    val `display`: DshOptional<DshSessionProjectionsResultCase2ValuesUserQuestionsActiveItemQuestionsItemIntentCase2Display> = DshOptional.Missing,
+) {
+    companion object {
+        val codec: DshCodec<DshSessionProjectionsResultCase2ValuesUserQuestionsActiveItemQuestionsItemIntentCase2> = DshCodec(
+            { value ->
+                val obj = DshCodecs.obj(value)
+                DshSessionProjectionsResultCase2ValuesUserQuestionsActiveItemQuestionsItemIntentCase2(
+                    `kind` = DshCodecs.strings(setOf("approval")).decode(obj["kind"]),
+                    `approve` = DshCodecs.string.decode(obj["approve"]),
+                    `reject` = DshCodecs.string.decode(obj["reject"]),
+                    `always` = DshCodecs.optional(obj, "always", DshCodecs.string),
+                    `subject` = DshCodecs.optional(obj, "subject", DshSessionProjectionsResultCase2ValuesUserQuestionsActiveItemQuestionsItemIntentCase2Subject.codec),
+                    `display` = DshCodecs.optional(obj, "display", DshSessionProjectionsResultCase2ValuesUserQuestionsActiveItemQuestionsItemIntentCase2Display.codec),
+                )
+            },
+            { value ->
+                val fields = linkedMapOf<String, JsonValue>()
+                fields["kind"] = DshCodecs.strings(setOf("approval")).encode(value.`kind`)
+                fields["approve"] = DshCodecs.string.encode(value.`approve`)
+                fields["reject"] = DshCodecs.string.encode(value.`reject`)
+                DshCodecs.put(fields, "always", value.`always`, DshCodecs.string)
+                DshCodecs.put(fields, "subject", value.`subject`, DshSessionProjectionsResultCase2ValuesUserQuestionsActiveItemQuestionsItemIntentCase2Subject.codec)
+                DshCodecs.put(fields, "display", value.`display`, DshSessionProjectionsResultCase2ValuesUserQuestionsActiveItemQuestionsItemIntentCase2Display.codec)
+                JsonObject(fields)
+            },
+        )
+    }
+}
+
+sealed interface DshSessionProjectionsResultCase2ValuesUserQuestionsActiveItemQuestionsItemIntent {
+    data class Case1(val value: DshSessionProjectionsResultCase2ValuesUserQuestionsActiveItemQuestionsItemIntentCase1) : DshSessionProjectionsResultCase2ValuesUserQuestionsActiveItemQuestionsItemIntent
+    data class Case2(val value: DshSessionProjectionsResultCase2ValuesUserQuestionsActiveItemQuestionsItemIntentCase2) : DshSessionProjectionsResultCase2ValuesUserQuestionsActiveItemQuestionsItemIntent
+    companion object {
+        val codec: DshCodec<DshSessionProjectionsResultCase2ValuesUserQuestionsActiveItemQuestionsItemIntent> = DshCodec(
+            { value ->
+                try { return@DshCodec Case1(DshSessionProjectionsResultCase2ValuesUserQuestionsActiveItemQuestionsItemIntentCase1.codec.decode(value)) } catch (_: ProtocolException) { }
+                try { return@DshCodec Case2(DshSessionProjectionsResultCase2ValuesUserQuestionsActiveItemQuestionsItemIntentCase2.codec.decode(value)) } catch (_: ProtocolException) { }
+                throw ProtocolException("native: unsupported union")
+            },
+            { value -> when (value) {
+                is Case1 -> DshSessionProjectionsResultCase2ValuesUserQuestionsActiveItemQuestionsItemIntentCase1.codec.encode(value.value)
+                is Case2 -> DshSessionProjectionsResultCase2ValuesUserQuestionsActiveItemQuestionsItemIntentCase2.codec.encode(value.value)
+            } },
         )
     }
 }
@@ -6212,6 +7429,198 @@ data class DshSessionProjectionsResultCase2ValuesUserQuestions(
     }
 }
 
+data class DshSessionProjectionsResultCase2ValuesAgentTeamMembersItem(
+    val `id`: String,
+    val `name`: String,
+    val `role`: String,
+    val `phase`: String,
+    val `error`: DshOptional<String> = DshOptional.Missing,
+) {
+    companion object {
+        val codec: DshCodec<DshSessionProjectionsResultCase2ValuesAgentTeamMembersItem> = DshCodec(
+            { value ->
+                val obj = DshCodecs.obj(value)
+                DshSessionProjectionsResultCase2ValuesAgentTeamMembersItem(
+                    `id` = DshCodecs.string.decode(obj["id"]),
+                    `name` = DshCodecs.string.decode(obj["name"]),
+                    `role` = DshCodecs.strings(setOf("lead", "teammate")).decode(obj["role"]),
+                    `phase` = DshCodecs.strings(setOf("failed", "provisioning", "active")).decode(obj["phase"]),
+                    `error` = DshCodecs.optional(obj, "error", DshCodecs.string),
+                )
+            },
+            { value ->
+                val fields = linkedMapOf<String, JsonValue>()
+                fields["id"] = DshCodecs.string.encode(value.`id`)
+                fields["name"] = DshCodecs.string.encode(value.`name`)
+                fields["role"] = DshCodecs.strings(setOf("lead", "teammate")).encode(value.`role`)
+                fields["phase"] = DshCodecs.strings(setOf("failed", "provisioning", "active")).encode(value.`phase`)
+                DshCodecs.put(fields, "error", value.`error`, DshCodecs.string)
+                JsonObject(fields)
+            },
+        )
+    }
+}
+
+data class DshSessionProjectionsResultCase2ValuesAgentTeamTasksItem(
+    val `id`: String,
+    val `revision`: Double,
+    val `subject`: String,
+    val `description`: String,
+    val `status`: String,
+    val `blockedBy`: List<String>,
+    val `writeScopes`: List<String>,
+    val `ownerName`: DshOptional<String> = DshOptional.Missing,
+    val `ready`: Boolean,
+    val `writeScopeWarnings`: List<String>,
+) {
+    companion object {
+        val codec: DshCodec<DshSessionProjectionsResultCase2ValuesAgentTeamTasksItem> = DshCodec(
+            { value ->
+                val obj = DshCodecs.obj(value)
+                DshSessionProjectionsResultCase2ValuesAgentTeamTasksItem(
+                    `id` = DshCodecs.string.decode(obj["id"]),
+                    `revision` = DshCodecs.number.decode(obj["revision"]),
+                    `subject` = DshCodecs.string.decode(obj["subject"]),
+                    `description` = DshCodecs.string.decode(obj["description"]),
+                    `status` = DshCodecs.strings(setOf("completed", "pending", "in_progress", "deleted")).decode(obj["status"]),
+                    `blockedBy` = DshCodecs.list(DshCodecs.string).decode(obj["blockedBy"]),
+                    `writeScopes` = DshCodecs.list(DshCodecs.string).decode(obj["writeScopes"]),
+                    `ownerName` = DshCodecs.optional(obj, "ownerName", DshCodecs.string),
+                    `ready` = DshCodecs.boolean.decode(obj["ready"]),
+                    `writeScopeWarnings` = DshCodecs.list(DshCodecs.string).decode(obj["writeScopeWarnings"]),
+                )
+            },
+            { value ->
+                val fields = linkedMapOf<String, JsonValue>()
+                fields["id"] = DshCodecs.string.encode(value.`id`)
+                fields["revision"] = DshCodecs.number.encode(value.`revision`)
+                fields["subject"] = DshCodecs.string.encode(value.`subject`)
+                fields["description"] = DshCodecs.string.encode(value.`description`)
+                fields["status"] = DshCodecs.strings(setOf("completed", "pending", "in_progress", "deleted")).encode(value.`status`)
+                fields["blockedBy"] = DshCodecs.list(DshCodecs.string).encode(value.`blockedBy`)
+                fields["writeScopes"] = DshCodecs.list(DshCodecs.string).encode(value.`writeScopes`)
+                DshCodecs.put(fields, "ownerName", value.`ownerName`, DshCodecs.string)
+                fields["ready"] = DshCodecs.boolean.encode(value.`ready`)
+                fields["writeScopeWarnings"] = DshCodecs.list(DshCodecs.string).encode(value.`writeScopeWarnings`)
+                JsonObject(fields)
+            },
+        )
+    }
+}
+
+data class DshSessionProjectionsResultCase2ValuesAgentTeam(
+    val `members`: List<DshSessionProjectionsResultCase2ValuesAgentTeamMembersItem>,
+    val `tasks`: List<DshSessionProjectionsResultCase2ValuesAgentTeamTasksItem>,
+    val `failure`: DshOptional<String> = DshOptional.Missing,
+) {
+    companion object {
+        val codec: DshCodec<DshSessionProjectionsResultCase2ValuesAgentTeam> = DshCodec(
+            { value ->
+                val obj = DshCodecs.obj(value)
+                DshSessionProjectionsResultCase2ValuesAgentTeam(
+                    `members` = DshCodecs.list(DshSessionProjectionsResultCase2ValuesAgentTeamMembersItem.codec).decode(obj["members"]),
+                    `tasks` = DshCodecs.list(DshSessionProjectionsResultCase2ValuesAgentTeamTasksItem.codec).decode(obj["tasks"]),
+                    `failure` = DshCodecs.optional(obj, "failure", DshCodecs.string),
+                )
+            },
+            { value ->
+                val fields = linkedMapOf<String, JsonValue>()
+                fields["members"] = DshCodecs.list(DshSessionProjectionsResultCase2ValuesAgentTeamMembersItem.codec).encode(value.`members`)
+                fields["tasks"] = DshCodecs.list(DshSessionProjectionsResultCase2ValuesAgentTeamTasksItem.codec).encode(value.`tasks`)
+                DshCodecs.put(fields, "failure", value.`failure`, DshCodecs.string)
+                JsonObject(fields)
+            },
+        )
+    }
+}
+
+data class DshSessionProjectionsResultCase2ValuesForgeChangeRequestsItem(
+    val `url`: String,
+    val `origin`: String,
+    val `dismissed`: Boolean,
+) {
+    companion object {
+        val codec: DshCodec<DshSessionProjectionsResultCase2ValuesForgeChangeRequestsItem> = DshCodec(
+            { value ->
+                val obj = DshCodecs.obj(value)
+                DshSessionProjectionsResultCase2ValuesForgeChangeRequestsItem(
+                    `url` = DshCodecs.string.decode(obj["url"]),
+                    `origin` = DshCodecs.strings(setOf("created", "referenced", "discovered", "tracked")).decode(obj["origin"]),
+                    `dismissed` = DshCodecs.boolean.decode(obj["dismissed"]),
+                )
+            },
+            { value ->
+                val fields = linkedMapOf<String, JsonValue>()
+                fields["url"] = DshCodecs.string.encode(value.`url`)
+                fields["origin"] = DshCodecs.strings(setOf("created", "referenced", "discovered", "tracked")).encode(value.`origin`)
+                fields["dismissed"] = DshCodecs.boolean.encode(value.`dismissed`)
+                JsonObject(fields)
+            },
+        )
+    }
+}
+
+data class DshSessionProjectionsResultCase2ValuesForgeWorktree(
+    val `path`: String,
+    val `branch`: String,
+    val `from`: String?,
+    val `baseCommit`: String,
+    val `repositoryRoot`: String,
+) {
+    companion object {
+        val codec: DshCodec<DshSessionProjectionsResultCase2ValuesForgeWorktree> = DshCodec(
+            { value ->
+                val obj = DshCodecs.obj(value)
+                DshSessionProjectionsResultCase2ValuesForgeWorktree(
+                    `path` = DshCodecs.string.decode(obj["path"]),
+                    `branch` = DshCodecs.string.decode(obj["branch"]),
+                    `from` = DshCodecs.nullable(DshCodecs.string).decode(obj["from"]),
+                    `baseCommit` = DshCodecs.string.decode(obj["baseCommit"]),
+                    `repositoryRoot` = DshCodecs.string.decode(obj["repositoryRoot"]),
+                )
+            },
+            { value ->
+                val fields = linkedMapOf<String, JsonValue>()
+                fields["path"] = DshCodecs.string.encode(value.`path`)
+                fields["branch"] = DshCodecs.string.encode(value.`branch`)
+                fields["from"] = DshCodecs.nullable(DshCodecs.string).encode(value.`from`)
+                fields["baseCommit"] = DshCodecs.string.encode(value.`baseCommit`)
+                fields["repositoryRoot"] = DshCodecs.string.encode(value.`repositoryRoot`)
+                JsonObject(fields)
+            },
+        )
+    }
+}
+
+data class DshSessionProjectionsResultCase2ValuesForkLineage(
+    val `origin`: String,
+    val `sourceSessionId`: String,
+    val `authoredByViewer`: Boolean,
+    val `workspaceReadOnly`: Boolean,
+) {
+    companion object {
+        val codec: DshCodec<DshSessionProjectionsResultCase2ValuesForkLineage> = DshCodec(
+            { value ->
+                val obj = DshCodecs.obj(value)
+                DshSessionProjectionsResultCase2ValuesForkLineage(
+                    `origin` = DshCodecs.strings(setOf("fork")).decode(obj["origin"]),
+                    `sourceSessionId` = DshCodecs.string.decode(obj["sourceSessionId"]),
+                    `authoredByViewer` = DshCodecs.boolean.decode(obj["authoredByViewer"]),
+                    `workspaceReadOnly` = DshCodecs.boolean.decode(obj["workspaceReadOnly"]),
+                )
+            },
+            { value ->
+                val fields = linkedMapOf<String, JsonValue>()
+                fields["origin"] = DshCodecs.strings(setOf("fork")).encode(value.`origin`)
+                fields["sourceSessionId"] = DshCodecs.string.encode(value.`sourceSessionId`)
+                fields["authoredByViewer"] = DshCodecs.boolean.encode(value.`authoredByViewer`)
+                fields["workspaceReadOnly"] = DshCodecs.boolean.encode(value.`workspaceReadOnly`)
+                JsonObject(fields)
+            },
+        )
+    }
+}
+
 data class DshSessionProjectionsResultCase2ValuesGoalGoalBlockedReason(
     val `code`: String,
     val `message`: String,
@@ -6324,13 +7733,14 @@ data class DshSessionProjectionsResultCase2ValuesPlan(
 
 data class DshSessionProjectionsResultCase2Values(
     val `inbox`: DshOptional<DshSessionProjectionsResultCase2ValuesInbox> = DshOptional.Missing,
-    val `workingDirectory`: DshOptional<String?> = DshOptional.Missing,
+    val `modelSelection`: DshOptional<DshSessionProjectionsResultCase2ValuesModelSelection> = DshOptional.Missing,
+    val `actionCards`: DshOptional<DshSessionProjectionsResultCase2ValuesActionCards> = DshOptional.Missing,
     val `agentPreset`: DshOptional<String?> = DshOptional.Missing,
     val `title`: DshOptional<String?> = DshOptional.Missing,
     val `todos`: DshOptional<List<DshSessionProjectionsResultCase2ValuesTodosItem>?> = DshOptional.Missing,
     val `sessionListMetadata`: DshOptional<DshSessionProjectionsResultCase2ValuesSessionListMetadata> = DshOptional.Missing,
     val `imageLimits`: DshOptional<DshSessionProjectionsResultCase2ValuesImageLimits> = DshOptional.Missing,
-    val `modelSelection`: DshOptional<DshSessionProjectionsResultCase2ValuesModelSelection> = DshOptional.Missing,
+    val `workingDirectory`: DshOptional<String?> = DshOptional.Missing,
     val `permissions`: DshOptional<DshSessionProjectionsResultCase2ValuesPermissions> = DshOptional.Missing,
     val `subagentCatalog`: DshOptional<List<DshSessionProjectionsResultCase2ValuesSubagentCatalogItem>> = DshOptional.Missing,
     val `subagentTiming`: DshOptional<DshSessionProjectionsResultCase2ValuesSubagentTiming> = DshOptional.Missing,
@@ -6338,8 +7748,11 @@ data class DshSessionProjectionsResultCase2Values(
     val `tokenUsage`: DshOptional<DshSessionProjectionsResultCase2ValuesTokenUsage> = DshOptional.Missing,
     val `contextPressure`: DshOptional<DshSessionProjectionsResultCase2ValuesContextPressure> = DshOptional.Missing,
     val `contextBreakdown`: DshOptional<DshSessionProjectionsResultCase2ValuesContextBreakdown> = DshOptional.Missing,
-    val `agentTeam`: DshOptional<DshSessionProjectionsResultCase2ValuesAgentTeam> = DshOptional.Missing,
     val `userQuestions`: DshOptional<DshSessionProjectionsResultCase2ValuesUserQuestions> = DshOptional.Missing,
+    val `agentTeam`: DshOptional<DshSessionProjectionsResultCase2ValuesAgentTeam> = DshOptional.Missing,
+    val `forgeChangeRequests`: DshOptional<List<DshSessionProjectionsResultCase2ValuesForgeChangeRequestsItem>> = DshOptional.Missing,
+    val `forgeWorktree`: DshOptional<DshSessionProjectionsResultCase2ValuesForgeWorktree?> = DshOptional.Missing,
+    val `forkLineage`: DshOptional<DshSessionProjectionsResultCase2ValuesForkLineage> = DshOptional.Missing,
     val `goal`: DshOptional<DshSessionProjectionsResultCase2ValuesGoal?> = DshOptional.Missing,
     val `plan`: DshOptional<DshSessionProjectionsResultCase2ValuesPlan> = DshOptional.Missing,
     val additional: Map<String, JsonValue> = emptyMap(),
@@ -6350,13 +7763,14 @@ data class DshSessionProjectionsResultCase2Values(
                 val obj = DshCodecs.obj(value)
                 DshSessionProjectionsResultCase2Values(
                     `inbox` = DshCodecs.optional(obj, "inbox", DshSessionProjectionsResultCase2ValuesInbox.codec),
-                    `workingDirectory` = DshCodecs.optional(obj, "workingDirectory", DshCodecs.nullable(DshCodecs.string)),
+                    `modelSelection` = DshCodecs.optional(obj, "modelSelection", DshSessionProjectionsResultCase2ValuesModelSelection.codec),
+                    `actionCards` = DshCodecs.optional(obj, "actionCards", DshSessionProjectionsResultCase2ValuesActionCards.codec),
                     `agentPreset` = DshCodecs.optional(obj, "agentPreset", DshCodecs.nullable(DshCodecs.string)),
                     `title` = DshCodecs.optional(obj, "title", DshCodecs.nullable(DshCodecs.string)),
                     `todos` = DshCodecs.optional(obj, "todos", DshCodecs.nullable(DshCodecs.list(DshSessionProjectionsResultCase2ValuesTodosItem.codec))),
                     `sessionListMetadata` = DshCodecs.optional(obj, "sessionListMetadata", DshSessionProjectionsResultCase2ValuesSessionListMetadata.codec),
                     `imageLimits` = DshCodecs.optional(obj, "imageLimits", DshSessionProjectionsResultCase2ValuesImageLimits.codec),
-                    `modelSelection` = DshCodecs.optional(obj, "modelSelection", DshSessionProjectionsResultCase2ValuesModelSelection.codec),
+                    `workingDirectory` = DshCodecs.optional(obj, "workingDirectory", DshCodecs.nullable(DshCodecs.string)),
                     `permissions` = DshCodecs.optional(obj, "permissions", DshSessionProjectionsResultCase2ValuesPermissions.codec),
                     `subagentCatalog` = DshCodecs.optional(obj, "subagentCatalog", DshCodecs.list(DshSessionProjectionsResultCase2ValuesSubagentCatalogItem.codec)),
                     `subagentTiming` = DshCodecs.optional(obj, "subagentTiming", DshSessionProjectionsResultCase2ValuesSubagentTiming.codec),
@@ -6364,24 +7778,28 @@ data class DshSessionProjectionsResultCase2Values(
                     `tokenUsage` = DshCodecs.optional(obj, "tokenUsage", DshSessionProjectionsResultCase2ValuesTokenUsage.codec),
                     `contextPressure` = DshCodecs.optional(obj, "contextPressure", DshSessionProjectionsResultCase2ValuesContextPressure.codec),
                     `contextBreakdown` = DshCodecs.optional(obj, "contextBreakdown", DshSessionProjectionsResultCase2ValuesContextBreakdown.codec),
-                    `agentTeam` = DshCodecs.optional(obj, "agentTeam", DshSessionProjectionsResultCase2ValuesAgentTeam.codec),
                     `userQuestions` = DshCodecs.optional(obj, "userQuestions", DshSessionProjectionsResultCase2ValuesUserQuestions.codec),
+                    `agentTeam` = DshCodecs.optional(obj, "agentTeam", DshSessionProjectionsResultCase2ValuesAgentTeam.codec),
+                    `forgeChangeRequests` = DshCodecs.optional(obj, "forgeChangeRequests", DshCodecs.list(DshSessionProjectionsResultCase2ValuesForgeChangeRequestsItem.codec)),
+                    `forgeWorktree` = DshCodecs.optional(obj, "forgeWorktree", DshCodecs.nullable(DshSessionProjectionsResultCase2ValuesForgeWorktree.codec)),
+                    `forkLineage` = DshCodecs.optional(obj, "forkLineage", DshSessionProjectionsResultCase2ValuesForkLineage.codec),
                     `goal` = DshCodecs.optional(obj, "goal", DshCodecs.nullable(DshSessionProjectionsResultCase2ValuesGoal.codec)),
                     `plan` = DshCodecs.optional(obj, "plan", DshSessionProjectionsResultCase2ValuesPlan.codec),
-                    additional = obj.fields.filterKeys { it !in setOf("inbox", "workingDirectory", "agentPreset", "title", "todos", "sessionListMetadata", "imageLimits", "modelSelection", "permissions", "subagentCatalog", "subagentTiming", "subagent", "tokenUsage", "contextPressure", "contextBreakdown", "agentTeam", "userQuestions", "goal", "plan") }.mapValues { DshCodecs.json.decode(it.value) },
+                    additional = obj.fields.filterKeys { it !in setOf("inbox", "modelSelection", "actionCards", "agentPreset", "title", "todos", "sessionListMetadata", "imageLimits", "workingDirectory", "permissions", "subagentCatalog", "subagentTiming", "subagent", "tokenUsage", "contextPressure", "contextBreakdown", "userQuestions", "agentTeam", "forgeChangeRequests", "forgeWorktree", "forkLineage", "goal", "plan") }.mapValues { DshCodecs.json.decode(it.value) },
                 )
             },
             { value ->
                 val fields = linkedMapOf<String, JsonValue>()
                 value.additional.forEach { (key, item) -> fields[key] = DshCodecs.json.encode(item) }
                 DshCodecs.put(fields, "inbox", value.`inbox`, DshSessionProjectionsResultCase2ValuesInbox.codec)
-                DshCodecs.put(fields, "workingDirectory", value.`workingDirectory`, DshCodecs.nullable(DshCodecs.string))
+                DshCodecs.put(fields, "modelSelection", value.`modelSelection`, DshSessionProjectionsResultCase2ValuesModelSelection.codec)
+                DshCodecs.put(fields, "actionCards", value.`actionCards`, DshSessionProjectionsResultCase2ValuesActionCards.codec)
                 DshCodecs.put(fields, "agentPreset", value.`agentPreset`, DshCodecs.nullable(DshCodecs.string))
                 DshCodecs.put(fields, "title", value.`title`, DshCodecs.nullable(DshCodecs.string))
                 DshCodecs.put(fields, "todos", value.`todos`, DshCodecs.nullable(DshCodecs.list(DshSessionProjectionsResultCase2ValuesTodosItem.codec)))
                 DshCodecs.put(fields, "sessionListMetadata", value.`sessionListMetadata`, DshSessionProjectionsResultCase2ValuesSessionListMetadata.codec)
                 DshCodecs.put(fields, "imageLimits", value.`imageLimits`, DshSessionProjectionsResultCase2ValuesImageLimits.codec)
-                DshCodecs.put(fields, "modelSelection", value.`modelSelection`, DshSessionProjectionsResultCase2ValuesModelSelection.codec)
+                DshCodecs.put(fields, "workingDirectory", value.`workingDirectory`, DshCodecs.nullable(DshCodecs.string))
                 DshCodecs.put(fields, "permissions", value.`permissions`, DshSessionProjectionsResultCase2ValuesPermissions.codec)
                 DshCodecs.put(fields, "subagentCatalog", value.`subagentCatalog`, DshCodecs.list(DshSessionProjectionsResultCase2ValuesSubagentCatalogItem.codec))
                 DshCodecs.put(fields, "subagentTiming", value.`subagentTiming`, DshSessionProjectionsResultCase2ValuesSubagentTiming.codec)
@@ -6389,8 +7807,11 @@ data class DshSessionProjectionsResultCase2Values(
                 DshCodecs.put(fields, "tokenUsage", value.`tokenUsage`, DshSessionProjectionsResultCase2ValuesTokenUsage.codec)
                 DshCodecs.put(fields, "contextPressure", value.`contextPressure`, DshSessionProjectionsResultCase2ValuesContextPressure.codec)
                 DshCodecs.put(fields, "contextBreakdown", value.`contextBreakdown`, DshSessionProjectionsResultCase2ValuesContextBreakdown.codec)
-                DshCodecs.put(fields, "agentTeam", value.`agentTeam`, DshSessionProjectionsResultCase2ValuesAgentTeam.codec)
                 DshCodecs.put(fields, "userQuestions", value.`userQuestions`, DshSessionProjectionsResultCase2ValuesUserQuestions.codec)
+                DshCodecs.put(fields, "agentTeam", value.`agentTeam`, DshSessionProjectionsResultCase2ValuesAgentTeam.codec)
+                DshCodecs.put(fields, "forgeChangeRequests", value.`forgeChangeRequests`, DshCodecs.list(DshSessionProjectionsResultCase2ValuesForgeChangeRequestsItem.codec))
+                DshCodecs.put(fields, "forgeWorktree", value.`forgeWorktree`, DshCodecs.nullable(DshSessionProjectionsResultCase2ValuesForgeWorktree.codec))
+                DshCodecs.put(fields, "forkLineage", value.`forkLineage`, DshSessionProjectionsResultCase2ValuesForkLineage.codec)
                 DshCodecs.put(fields, "goal", value.`goal`, DshCodecs.nullable(DshSessionProjectionsResultCase2ValuesGoal.codec))
                 DshCodecs.put(fields, "plan", value.`plan`, DshSessionProjectionsResultCase2ValuesPlan.codec)
                 JsonObject(fields)
@@ -6442,6 +7863,186 @@ data class DshSessionProjectionsResultCase3ValuesInbox(
                 val fields = linkedMapOf<String, JsonValue>()
                 fields["next-turn"] = DshCodecs.list(DshCodecs.json).encode(value.`next-turn`)
                 fields["next-step"] = DshCodecs.list(DshCodecs.json).encode(value.`next-step`)
+                JsonObject(fields)
+            },
+        )
+    }
+}
+
+data class DshSessionProjectionsResultCase3ValuesModelSelectionLastUsed(
+    val `provider`: String,
+    val `model`: String,
+    val `reasoningEffort`: DshOptional<String> = DshOptional.Missing,
+) {
+    companion object {
+        val codec: DshCodec<DshSessionProjectionsResultCase3ValuesModelSelectionLastUsed> = DshCodec(
+            { value ->
+                val obj = DshCodecs.obj(value)
+                DshSessionProjectionsResultCase3ValuesModelSelectionLastUsed(
+                    `provider` = DshCodecs.string.decode(obj["provider"]),
+                    `model` = DshCodecs.string.decode(obj["model"]),
+                    `reasoningEffort` = DshCodecs.optional(obj, "reasoningEffort", DshCodecs.string),
+                )
+            },
+            { value ->
+                val fields = linkedMapOf<String, JsonValue>()
+                fields["provider"] = DshCodecs.string.encode(value.`provider`)
+                fields["model"] = DshCodecs.string.encode(value.`model`)
+                DshCodecs.put(fields, "reasoningEffort", value.`reasoningEffort`, DshCodecs.string)
+                JsonObject(fields)
+            },
+        )
+    }
+}
+
+data class DshSessionProjectionsResultCase3ValuesModelSelectionNext(
+    val `provider`: String,
+    val `model`: String,
+    val `reasoningEffort`: DshOptional<String> = DshOptional.Missing,
+) {
+    companion object {
+        val codec: DshCodec<DshSessionProjectionsResultCase3ValuesModelSelectionNext> = DshCodec(
+            { value ->
+                val obj = DshCodecs.obj(value)
+                DshSessionProjectionsResultCase3ValuesModelSelectionNext(
+                    `provider` = DshCodecs.string.decode(obj["provider"]),
+                    `model` = DshCodecs.string.decode(obj["model"]),
+                    `reasoningEffort` = DshCodecs.optional(obj, "reasoningEffort", DshCodecs.string),
+                )
+            },
+            { value ->
+                val fields = linkedMapOf<String, JsonValue>()
+                fields["provider"] = DshCodecs.string.encode(value.`provider`)
+                fields["model"] = DshCodecs.string.encode(value.`model`)
+                DshCodecs.put(fields, "reasoningEffort", value.`reasoningEffort`, DshCodecs.string)
+                JsonObject(fields)
+            },
+        )
+    }
+}
+
+data class DshSessionProjectionsResultCase3ValuesModelSelection(
+    val `lastUsed`: DshSessionProjectionsResultCase3ValuesModelSelectionLastUsed?,
+    val `next`: DshSessionProjectionsResultCase3ValuesModelSelectionNext?,
+) {
+    companion object {
+        val codec: DshCodec<DshSessionProjectionsResultCase3ValuesModelSelection> = DshCodec(
+            { value ->
+                val obj = DshCodecs.obj(value)
+                DshSessionProjectionsResultCase3ValuesModelSelection(
+                    `lastUsed` = DshCodecs.nullable(DshSessionProjectionsResultCase3ValuesModelSelectionLastUsed.codec).decode(obj["lastUsed"]),
+                    `next` = DshCodecs.nullable(DshSessionProjectionsResultCase3ValuesModelSelectionNext.codec).decode(obj["next"]),
+                )
+            },
+            { value ->
+                val fields = linkedMapOf<String, JsonValue>()
+                fields["lastUsed"] = DshCodecs.nullable(DshSessionProjectionsResultCase3ValuesModelSelectionLastUsed.codec).encode(value.`lastUsed`)
+                fields["next"] = DshCodecs.nullable(DshSessionProjectionsResultCase3ValuesModelSelectionNext.codec).encode(value.`next`)
+                JsonObject(fields)
+            },
+        )
+    }
+}
+
+data class DshSessionProjectionsResultCase3ValuesActionCardsProposalsValue(
+    val `callId`: String,
+    val `turn`: Double,
+    val `action`: String,
+    val `title`: String,
+    val `brief`: String,
+    val `details`: Map<String, JsonValue>,
+) {
+    companion object {
+        val codec: DshCodec<DshSessionProjectionsResultCase3ValuesActionCardsProposalsValue> = DshCodec(
+            { value ->
+                val obj = DshCodecs.obj(value)
+                DshSessionProjectionsResultCase3ValuesActionCardsProposalsValue(
+                    `callId` = DshCodecs.string.decode(obj["callId"]),
+                    `turn` = DshCodecs.number.decode(obj["turn"]),
+                    `action` = DshCodecs.string.decode(obj["action"]),
+                    `title` = DshCodecs.string.decode(obj["title"]),
+                    `brief` = DshCodecs.string.decode(obj["brief"]),
+                    `details` = DshCodecs.map(DshCodecs.json).decode(obj["details"]),
+                )
+            },
+            { value ->
+                val fields = linkedMapOf<String, JsonValue>()
+                fields["callId"] = DshCodecs.string.encode(value.`callId`)
+                fields["turn"] = DshCodecs.number.encode(value.`turn`)
+                fields["action"] = DshCodecs.string.encode(value.`action`)
+                fields["title"] = DshCodecs.string.encode(value.`title`)
+                fields["brief"] = DshCodecs.string.encode(value.`brief`)
+                fields["details"] = DshCodecs.map(DshCodecs.json).encode(value.`details`)
+                JsonObject(fields)
+            },
+        )
+    }
+}
+
+sealed interface DshSessionProjectionsResultCase3ValuesActionCardsDecisionsValueData {
+    data class Case1(val value: JsonValue) : DshSessionProjectionsResultCase3ValuesActionCardsDecisionsValueData
+    data class Case2(val value: Map<String, JsonValue>) : DshSessionProjectionsResultCase3ValuesActionCardsDecisionsValueData
+    companion object {
+        val codec: DshCodec<DshSessionProjectionsResultCase3ValuesActionCardsDecisionsValueData> = DshCodec(
+            { value ->
+                try { return@DshCodec Case1(DshCodecs.undefined.decode(value)) } catch (_: ProtocolException) { }
+                try { return@DshCodec Case2(DshCodecs.map(DshCodecs.json).decode(value)) } catch (_: ProtocolException) { }
+                throw ProtocolException("native: unsupported union")
+            },
+            { value -> when (value) {
+                is Case1 -> DshCodecs.undefined.encode(value.value)
+                is Case2 -> DshCodecs.map(DshCodecs.json).encode(value.value)
+            } },
+        )
+    }
+}
+
+data class DshSessionProjectionsResultCase3ValuesActionCardsDecisionsValue(
+    val `callId`: String,
+    val `action`: String,
+    val `phase`: String,
+    val `data`: DshOptional<DshSessionProjectionsResultCase3ValuesActionCardsDecisionsValueData> = DshOptional.Missing,
+) {
+    companion object {
+        val codec: DshCodec<DshSessionProjectionsResultCase3ValuesActionCardsDecisionsValue> = DshCodec(
+            { value ->
+                val obj = DshCodecs.obj(value)
+                DshSessionProjectionsResultCase3ValuesActionCardsDecisionsValue(
+                    `callId` = DshCodecs.string.decode(obj["callId"]),
+                    `action` = DshCodecs.string.decode(obj["action"]),
+                    `phase` = DshCodecs.string.decode(obj["phase"]),
+                    `data` = DshCodecs.optional(obj, "data", DshSessionProjectionsResultCase3ValuesActionCardsDecisionsValueData.codec),
+                )
+            },
+            { value ->
+                val fields = linkedMapOf<String, JsonValue>()
+                fields["callId"] = DshCodecs.string.encode(value.`callId`)
+                fields["action"] = DshCodecs.string.encode(value.`action`)
+                fields["phase"] = DshCodecs.string.encode(value.`phase`)
+                DshCodecs.put(fields, "data", value.`data`, DshSessionProjectionsResultCase3ValuesActionCardsDecisionsValueData.codec)
+                JsonObject(fields)
+            },
+        )
+    }
+}
+
+data class DshSessionProjectionsResultCase3ValuesActionCards(
+    val `proposals`: Map<String, DshSessionProjectionsResultCase3ValuesActionCardsProposalsValue>,
+    val `decisions`: Map<String, DshSessionProjectionsResultCase3ValuesActionCardsDecisionsValue>,
+) {
+    companion object {
+        val codec: DshCodec<DshSessionProjectionsResultCase3ValuesActionCards> = DshCodec(
+            { value ->
+                val obj = DshCodecs.obj(value)
+                DshSessionProjectionsResultCase3ValuesActionCards(
+                    `proposals` = DshCodecs.map(DshSessionProjectionsResultCase3ValuesActionCardsProposalsValue.codec).decode(obj["proposals"]),
+                    `decisions` = DshCodecs.map(DshSessionProjectionsResultCase3ValuesActionCardsDecisionsValue.codec).decode(obj["decisions"]),
+                )
+            },
+            { value ->
+                val fields = linkedMapOf<String, JsonValue>()
+                fields["proposals"] = DshCodecs.map(DshSessionProjectionsResultCase3ValuesActionCardsProposalsValue.codec).encode(value.`proposals`)
+                fields["decisions"] = DshCodecs.map(DshSessionProjectionsResultCase3ValuesActionCardsDecisionsValue.codec).encode(value.`decisions`)
                 JsonObject(fields)
             },
         )
@@ -6523,81 +8124,6 @@ data class DshSessionProjectionsResultCase3ValuesImageLimits(
                 fields["maxImagePixels"] = DshCodecs.number.encode(value.`maxImagePixels`)
                 fields["maxImageDimension"] = DshCodecs.number.encode(value.`maxImageDimension`)
                 fields["mediaTypes"] = DshCodecs.list(DshCodecs.strings(setOf("image/png", "image/jpeg", "image/webp", "image/gif"))).encode(value.`mediaTypes`)
-                JsonObject(fields)
-            },
-        )
-    }
-}
-
-data class DshSessionProjectionsResultCase3ValuesModelSelectionLastUsed(
-    val `provider`: String,
-    val `model`: String,
-    val `reasoningEffort`: DshOptional<String> = DshOptional.Missing,
-) {
-    companion object {
-        val codec: DshCodec<DshSessionProjectionsResultCase3ValuesModelSelectionLastUsed> = DshCodec(
-            { value ->
-                val obj = DshCodecs.obj(value)
-                DshSessionProjectionsResultCase3ValuesModelSelectionLastUsed(
-                    `provider` = DshCodecs.string.decode(obj["provider"]),
-                    `model` = DshCodecs.string.decode(obj["model"]),
-                    `reasoningEffort` = DshCodecs.optional(obj, "reasoningEffort", DshCodecs.string),
-                )
-            },
-            { value ->
-                val fields = linkedMapOf<String, JsonValue>()
-                fields["provider"] = DshCodecs.string.encode(value.`provider`)
-                fields["model"] = DshCodecs.string.encode(value.`model`)
-                DshCodecs.put(fields, "reasoningEffort", value.`reasoningEffort`, DshCodecs.string)
-                JsonObject(fields)
-            },
-        )
-    }
-}
-
-data class DshSessionProjectionsResultCase3ValuesModelSelectionNext(
-    val `provider`: String,
-    val `model`: String,
-    val `reasoningEffort`: DshOptional<String> = DshOptional.Missing,
-) {
-    companion object {
-        val codec: DshCodec<DshSessionProjectionsResultCase3ValuesModelSelectionNext> = DshCodec(
-            { value ->
-                val obj = DshCodecs.obj(value)
-                DshSessionProjectionsResultCase3ValuesModelSelectionNext(
-                    `provider` = DshCodecs.string.decode(obj["provider"]),
-                    `model` = DshCodecs.string.decode(obj["model"]),
-                    `reasoningEffort` = DshCodecs.optional(obj, "reasoningEffort", DshCodecs.string),
-                )
-            },
-            { value ->
-                val fields = linkedMapOf<String, JsonValue>()
-                fields["provider"] = DshCodecs.string.encode(value.`provider`)
-                fields["model"] = DshCodecs.string.encode(value.`model`)
-                DshCodecs.put(fields, "reasoningEffort", value.`reasoningEffort`, DshCodecs.string)
-                JsonObject(fields)
-            },
-        )
-    }
-}
-
-data class DshSessionProjectionsResultCase3ValuesModelSelection(
-    val `lastUsed`: DshSessionProjectionsResultCase3ValuesModelSelectionLastUsed?,
-    val `next`: DshSessionProjectionsResultCase3ValuesModelSelectionNext?,
-) {
-    companion object {
-        val codec: DshCodec<DshSessionProjectionsResultCase3ValuesModelSelection> = DshCodec(
-            { value ->
-                val obj = DshCodecs.obj(value)
-                DshSessionProjectionsResultCase3ValuesModelSelection(
-                    `lastUsed` = DshCodecs.nullable(DshSessionProjectionsResultCase3ValuesModelSelectionLastUsed.codec).decode(obj["lastUsed"]),
-                    `next` = DshCodecs.nullable(DshSessionProjectionsResultCase3ValuesModelSelectionNext.codec).decode(obj["next"]),
-                )
-            },
-            { value ->
-                val fields = linkedMapOf<String, JsonValue>()
-                fields["lastUsed"] = DshCodecs.nullable(DshSessionProjectionsResultCase3ValuesModelSelectionLastUsed.codec).encode(value.`lastUsed`)
-                fields["next"] = DshCodecs.nullable(DshSessionProjectionsResultCase3ValuesModelSelectionNext.codec).encode(value.`next`)
                 JsonObject(fields)
             },
         )
@@ -6967,111 +8493,6 @@ data class DshSessionProjectionsResultCase3ValuesContextBreakdown(
     }
 }
 
-data class DshSessionProjectionsResultCase3ValuesAgentTeamMembersItem(
-    val `id`: String,
-    val `name`: String,
-    val `role`: String,
-    val `phase`: String,
-    val `error`: DshOptional<String> = DshOptional.Missing,
-) {
-    companion object {
-        val codec: DshCodec<DshSessionProjectionsResultCase3ValuesAgentTeamMembersItem> = DshCodec(
-            { value ->
-                val obj = DshCodecs.obj(value)
-                DshSessionProjectionsResultCase3ValuesAgentTeamMembersItem(
-                    `id` = DshCodecs.string.decode(obj["id"]),
-                    `name` = DshCodecs.string.decode(obj["name"]),
-                    `role` = DshCodecs.strings(setOf("lead", "teammate")).decode(obj["role"]),
-                    `phase` = DshCodecs.strings(setOf("failed", "provisioning", "active")).decode(obj["phase"]),
-                    `error` = DshCodecs.optional(obj, "error", DshCodecs.string),
-                )
-            },
-            { value ->
-                val fields = linkedMapOf<String, JsonValue>()
-                fields["id"] = DshCodecs.string.encode(value.`id`)
-                fields["name"] = DshCodecs.string.encode(value.`name`)
-                fields["role"] = DshCodecs.strings(setOf("lead", "teammate")).encode(value.`role`)
-                fields["phase"] = DshCodecs.strings(setOf("failed", "provisioning", "active")).encode(value.`phase`)
-                DshCodecs.put(fields, "error", value.`error`, DshCodecs.string)
-                JsonObject(fields)
-            },
-        )
-    }
-}
-
-data class DshSessionProjectionsResultCase3ValuesAgentTeamTasksItem(
-    val `id`: String,
-    val `revision`: Double,
-    val `subject`: String,
-    val `description`: String,
-    val `status`: String,
-    val `blockedBy`: List<String>,
-    val `writeScopes`: List<String>,
-    val `ownerName`: DshOptional<String> = DshOptional.Missing,
-    val `ready`: Boolean,
-    val `writeScopeWarnings`: List<String>,
-) {
-    companion object {
-        val codec: DshCodec<DshSessionProjectionsResultCase3ValuesAgentTeamTasksItem> = DshCodec(
-            { value ->
-                val obj = DshCodecs.obj(value)
-                DshSessionProjectionsResultCase3ValuesAgentTeamTasksItem(
-                    `id` = DshCodecs.string.decode(obj["id"]),
-                    `revision` = DshCodecs.number.decode(obj["revision"]),
-                    `subject` = DshCodecs.string.decode(obj["subject"]),
-                    `description` = DshCodecs.string.decode(obj["description"]),
-                    `status` = DshCodecs.strings(setOf("completed", "pending", "in_progress", "deleted")).decode(obj["status"]),
-                    `blockedBy` = DshCodecs.list(DshCodecs.string).decode(obj["blockedBy"]),
-                    `writeScopes` = DshCodecs.list(DshCodecs.string).decode(obj["writeScopes"]),
-                    `ownerName` = DshCodecs.optional(obj, "ownerName", DshCodecs.string),
-                    `ready` = DshCodecs.boolean.decode(obj["ready"]),
-                    `writeScopeWarnings` = DshCodecs.list(DshCodecs.string).decode(obj["writeScopeWarnings"]),
-                )
-            },
-            { value ->
-                val fields = linkedMapOf<String, JsonValue>()
-                fields["id"] = DshCodecs.string.encode(value.`id`)
-                fields["revision"] = DshCodecs.number.encode(value.`revision`)
-                fields["subject"] = DshCodecs.string.encode(value.`subject`)
-                fields["description"] = DshCodecs.string.encode(value.`description`)
-                fields["status"] = DshCodecs.strings(setOf("completed", "pending", "in_progress", "deleted")).encode(value.`status`)
-                fields["blockedBy"] = DshCodecs.list(DshCodecs.string).encode(value.`blockedBy`)
-                fields["writeScopes"] = DshCodecs.list(DshCodecs.string).encode(value.`writeScopes`)
-                DshCodecs.put(fields, "ownerName", value.`ownerName`, DshCodecs.string)
-                fields["ready"] = DshCodecs.boolean.encode(value.`ready`)
-                fields["writeScopeWarnings"] = DshCodecs.list(DshCodecs.string).encode(value.`writeScopeWarnings`)
-                JsonObject(fields)
-            },
-        )
-    }
-}
-
-data class DshSessionProjectionsResultCase3ValuesAgentTeam(
-    val `members`: List<DshSessionProjectionsResultCase3ValuesAgentTeamMembersItem>,
-    val `tasks`: List<DshSessionProjectionsResultCase3ValuesAgentTeamTasksItem>,
-    val `failure`: DshOptional<String> = DshOptional.Missing,
-) {
-    companion object {
-        val codec: DshCodec<DshSessionProjectionsResultCase3ValuesAgentTeam> = DshCodec(
-            { value ->
-                val obj = DshCodecs.obj(value)
-                DshSessionProjectionsResultCase3ValuesAgentTeam(
-                    `members` = DshCodecs.list(DshSessionProjectionsResultCase3ValuesAgentTeamMembersItem.codec).decode(obj["members"]),
-                    `tasks` = DshCodecs.list(DshSessionProjectionsResultCase3ValuesAgentTeamTasksItem.codec).decode(obj["tasks"]),
-                    `failure` = DshCodecs.optional(obj, "failure", DshCodecs.string),
-                )
-            },
-            { value ->
-                val fields = linkedMapOf<String, JsonValue>()
-                fields["members"] = DshCodecs.list(DshSessionProjectionsResultCase3ValuesAgentTeamMembersItem.codec).encode(value.`members`)
-                fields["tasks"] = DshCodecs.list(DshSessionProjectionsResultCase3ValuesAgentTeamTasksItem.codec).encode(value.`tasks`)
-                DshCodecs.put(fields, "failure", value.`failure`, DshCodecs.string)
-                JsonObject(fields)
-            },
-        )
-    }
-}
-
 data class DshSessionProjectionsResultCase3ValuesUserQuestionsActiveItemQuestionsItemOptionsItem(
     val `label`: String,
     val `description`: DshOptional<String> = DshOptional.Missing,
@@ -7095,16 +8516,16 @@ data class DshSessionProjectionsResultCase3ValuesUserQuestionsActiveItemQuestion
     }
 }
 
-data class DshSessionProjectionsResultCase3ValuesUserQuestionsActiveItemQuestionsItemIntent(
+data class DshSessionProjectionsResultCase3ValuesUserQuestionsActiveItemQuestionsItemIntentCase1(
     val `kind`: String,
     val `approve`: String,
     val `callId`: DshOptional<String> = DshOptional.Missing,
 ) {
     companion object {
-        val codec: DshCodec<DshSessionProjectionsResultCase3ValuesUserQuestionsActiveItemQuestionsItemIntent> = DshCodec(
+        val codec: DshCodec<DshSessionProjectionsResultCase3ValuesUserQuestionsActiveItemQuestionsItemIntentCase1> = DshCodec(
             { value ->
                 val obj = DshCodecs.obj(value)
-                DshSessionProjectionsResultCase3ValuesUserQuestionsActiveItemQuestionsItemIntent(
+                DshSessionProjectionsResultCase3ValuesUserQuestionsActiveItemQuestionsItemIntentCase1(
                     `kind` = DshCodecs.strings(setOf("plan-review")).decode(obj["kind"]),
                     `approve` = DshCodecs.string.decode(obj["approve"]),
                     `callId` = DshCodecs.optional(obj, "callId", DshCodecs.string),
@@ -7117,6 +8538,177 @@ data class DshSessionProjectionsResultCase3ValuesUserQuestionsActiveItemQuestion
                 DshCodecs.put(fields, "callId", value.`callId`, DshCodecs.string)
                 JsonObject(fields)
             },
+        )
+    }
+}
+
+data class DshSessionProjectionsResultCase3ValuesUserQuestionsActiveItemQuestionsItemIntentCase2Subject(
+    val `name`: String,
+    val `icon`: DshOptional<String> = DshOptional.Missing,
+) {
+    companion object {
+        val codec: DshCodec<DshSessionProjectionsResultCase3ValuesUserQuestionsActiveItemQuestionsItemIntentCase2Subject> = DshCodec(
+            { value ->
+                val obj = DshCodecs.obj(value)
+                DshSessionProjectionsResultCase3ValuesUserQuestionsActiveItemQuestionsItemIntentCase2Subject(
+                    `name` = DshCodecs.string.decode(obj["name"]),
+                    `icon` = DshCodecs.optional(obj, "icon", DshCodecs.string),
+                )
+            },
+            { value ->
+                val fields = linkedMapOf<String, JsonValue>()
+                fields["name"] = DshCodecs.string.encode(value.`name`)
+                DshCodecs.put(fields, "icon", value.`icon`, DshCodecs.string)
+                JsonObject(fields)
+            },
+        )
+    }
+}
+
+data class DshSessionProjectionsResultCase3ValuesUserQuestionsActiveItemQuestionsItemIntentCase2DisplayQuestion(
+    val `en`: String,
+    val additional: Map<String, String> = emptyMap(),
+) {
+    companion object {
+        val codec: DshCodec<DshSessionProjectionsResultCase3ValuesUserQuestionsActiveItemQuestionsItemIntentCase2DisplayQuestion> = DshCodec(
+            { value ->
+                val obj = DshCodecs.obj(value)
+                DshSessionProjectionsResultCase3ValuesUserQuestionsActiveItemQuestionsItemIntentCase2DisplayQuestion(
+                    `en` = DshCodecs.string.decode(obj["en"]),
+                    additional = obj.fields.filterKeys { it !in setOf("en") }.mapValues { DshCodecs.string.decode(it.value) },
+                )
+            },
+            { value ->
+                val fields = linkedMapOf<String, JsonValue>()
+                value.additional.forEach { (key, item) -> fields[key] = DshCodecs.string.encode(item) }
+                fields["en"] = DshCodecs.string.encode(value.`en`)
+                JsonObject(fields)
+            },
+        )
+    }
+}
+
+data class DshSessionProjectionsResultCase3ValuesUserQuestionsActiveItemQuestionsItemIntentCase2DisplayDetail(
+    val `en`: String,
+    val additional: Map<String, String> = emptyMap(),
+) {
+    companion object {
+        val codec: DshCodec<DshSessionProjectionsResultCase3ValuesUserQuestionsActiveItemQuestionsItemIntentCase2DisplayDetail> = DshCodec(
+            { value ->
+                val obj = DshCodecs.obj(value)
+                DshSessionProjectionsResultCase3ValuesUserQuestionsActiveItemQuestionsItemIntentCase2DisplayDetail(
+                    `en` = DshCodecs.string.decode(obj["en"]),
+                    additional = obj.fields.filterKeys { it !in setOf("en") }.mapValues { DshCodecs.string.decode(it.value) },
+                )
+            },
+            { value ->
+                val fields = linkedMapOf<String, JsonValue>()
+                value.additional.forEach { (key, item) -> fields[key] = DshCodecs.string.encode(item) }
+                fields["en"] = DshCodecs.string.encode(value.`en`)
+                JsonObject(fields)
+            },
+        )
+    }
+}
+
+data class DshSessionProjectionsResultCase3ValuesUserQuestionsActiveItemQuestionsItemIntentCase2DisplayApprove(
+    val `en`: String,
+    val additional: Map<String, String> = emptyMap(),
+) {
+    companion object {
+        val codec: DshCodec<DshSessionProjectionsResultCase3ValuesUserQuestionsActiveItemQuestionsItemIntentCase2DisplayApprove> = DshCodec(
+            { value ->
+                val obj = DshCodecs.obj(value)
+                DshSessionProjectionsResultCase3ValuesUserQuestionsActiveItemQuestionsItemIntentCase2DisplayApprove(
+                    `en` = DshCodecs.string.decode(obj["en"]),
+                    additional = obj.fields.filterKeys { it !in setOf("en") }.mapValues { DshCodecs.string.decode(it.value) },
+                )
+            },
+            { value ->
+                val fields = linkedMapOf<String, JsonValue>()
+                value.additional.forEach { (key, item) -> fields[key] = DshCodecs.string.encode(item) }
+                fields["en"] = DshCodecs.string.encode(value.`en`)
+                JsonObject(fields)
+            },
+        )
+    }
+}
+
+data class DshSessionProjectionsResultCase3ValuesUserQuestionsActiveItemQuestionsItemIntentCase2Display(
+    val `question`: DshSessionProjectionsResultCase3ValuesUserQuestionsActiveItemQuestionsItemIntentCase2DisplayQuestion,
+    val `detail`: DshOptional<DshSessionProjectionsResultCase3ValuesUserQuestionsActiveItemQuestionsItemIntentCase2DisplayDetail> = DshOptional.Missing,
+    val `approve`: DshOptional<DshSessionProjectionsResultCase3ValuesUserQuestionsActiveItemQuestionsItemIntentCase2DisplayApprove> = DshOptional.Missing,
+) {
+    companion object {
+        val codec: DshCodec<DshSessionProjectionsResultCase3ValuesUserQuestionsActiveItemQuestionsItemIntentCase2Display> = DshCodec(
+            { value ->
+                val obj = DshCodecs.obj(value)
+                DshSessionProjectionsResultCase3ValuesUserQuestionsActiveItemQuestionsItemIntentCase2Display(
+                    `question` = DshSessionProjectionsResultCase3ValuesUserQuestionsActiveItemQuestionsItemIntentCase2DisplayQuestion.codec.decode(obj["question"]),
+                    `detail` = DshCodecs.optional(obj, "detail", DshSessionProjectionsResultCase3ValuesUserQuestionsActiveItemQuestionsItemIntentCase2DisplayDetail.codec),
+                    `approve` = DshCodecs.optional(obj, "approve", DshSessionProjectionsResultCase3ValuesUserQuestionsActiveItemQuestionsItemIntentCase2DisplayApprove.codec),
+                )
+            },
+            { value ->
+                val fields = linkedMapOf<String, JsonValue>()
+                fields["question"] = DshSessionProjectionsResultCase3ValuesUserQuestionsActiveItemQuestionsItemIntentCase2DisplayQuestion.codec.encode(value.`question`)
+                DshCodecs.put(fields, "detail", value.`detail`, DshSessionProjectionsResultCase3ValuesUserQuestionsActiveItemQuestionsItemIntentCase2DisplayDetail.codec)
+                DshCodecs.put(fields, "approve", value.`approve`, DshSessionProjectionsResultCase3ValuesUserQuestionsActiveItemQuestionsItemIntentCase2DisplayApprove.codec)
+                JsonObject(fields)
+            },
+        )
+    }
+}
+
+data class DshSessionProjectionsResultCase3ValuesUserQuestionsActiveItemQuestionsItemIntentCase2(
+    val `kind`: String,
+    val `approve`: String,
+    val `reject`: String,
+    val `always`: DshOptional<String> = DshOptional.Missing,
+    val `subject`: DshOptional<DshSessionProjectionsResultCase3ValuesUserQuestionsActiveItemQuestionsItemIntentCase2Subject> = DshOptional.Missing,
+    val `display`: DshOptional<DshSessionProjectionsResultCase3ValuesUserQuestionsActiveItemQuestionsItemIntentCase2Display> = DshOptional.Missing,
+) {
+    companion object {
+        val codec: DshCodec<DshSessionProjectionsResultCase3ValuesUserQuestionsActiveItemQuestionsItemIntentCase2> = DshCodec(
+            { value ->
+                val obj = DshCodecs.obj(value)
+                DshSessionProjectionsResultCase3ValuesUserQuestionsActiveItemQuestionsItemIntentCase2(
+                    `kind` = DshCodecs.strings(setOf("approval")).decode(obj["kind"]),
+                    `approve` = DshCodecs.string.decode(obj["approve"]),
+                    `reject` = DshCodecs.string.decode(obj["reject"]),
+                    `always` = DshCodecs.optional(obj, "always", DshCodecs.string),
+                    `subject` = DshCodecs.optional(obj, "subject", DshSessionProjectionsResultCase3ValuesUserQuestionsActiveItemQuestionsItemIntentCase2Subject.codec),
+                    `display` = DshCodecs.optional(obj, "display", DshSessionProjectionsResultCase3ValuesUserQuestionsActiveItemQuestionsItemIntentCase2Display.codec),
+                )
+            },
+            { value ->
+                val fields = linkedMapOf<String, JsonValue>()
+                fields["kind"] = DshCodecs.strings(setOf("approval")).encode(value.`kind`)
+                fields["approve"] = DshCodecs.string.encode(value.`approve`)
+                fields["reject"] = DshCodecs.string.encode(value.`reject`)
+                DshCodecs.put(fields, "always", value.`always`, DshCodecs.string)
+                DshCodecs.put(fields, "subject", value.`subject`, DshSessionProjectionsResultCase3ValuesUserQuestionsActiveItemQuestionsItemIntentCase2Subject.codec)
+                DshCodecs.put(fields, "display", value.`display`, DshSessionProjectionsResultCase3ValuesUserQuestionsActiveItemQuestionsItemIntentCase2Display.codec)
+                JsonObject(fields)
+            },
+        )
+    }
+}
+
+sealed interface DshSessionProjectionsResultCase3ValuesUserQuestionsActiveItemQuestionsItemIntent {
+    data class Case1(val value: DshSessionProjectionsResultCase3ValuesUserQuestionsActiveItemQuestionsItemIntentCase1) : DshSessionProjectionsResultCase3ValuesUserQuestionsActiveItemQuestionsItemIntent
+    data class Case2(val value: DshSessionProjectionsResultCase3ValuesUserQuestionsActiveItemQuestionsItemIntentCase2) : DshSessionProjectionsResultCase3ValuesUserQuestionsActiveItemQuestionsItemIntent
+    companion object {
+        val codec: DshCodec<DshSessionProjectionsResultCase3ValuesUserQuestionsActiveItemQuestionsItemIntent> = DshCodec(
+            { value ->
+                try { return@DshCodec Case1(DshSessionProjectionsResultCase3ValuesUserQuestionsActiveItemQuestionsItemIntentCase1.codec.decode(value)) } catch (_: ProtocolException) { }
+                try { return@DshCodec Case2(DshSessionProjectionsResultCase3ValuesUserQuestionsActiveItemQuestionsItemIntentCase2.codec.decode(value)) } catch (_: ProtocolException) { }
+                throw ProtocolException("native: unsupported union")
+            },
+            { value -> when (value) {
+                is Case1 -> DshSessionProjectionsResultCase3ValuesUserQuestionsActiveItemQuestionsItemIntentCase1.codec.encode(value.value)
+                is Case2 -> DshSessionProjectionsResultCase3ValuesUserQuestionsActiveItemQuestionsItemIntentCase2.codec.encode(value.value)
+            } },
         )
     }
 }
@@ -7257,6 +8849,198 @@ data class DshSessionProjectionsResultCase3ValuesUserQuestions(
     }
 }
 
+data class DshSessionProjectionsResultCase3ValuesAgentTeamMembersItem(
+    val `id`: String,
+    val `name`: String,
+    val `role`: String,
+    val `phase`: String,
+    val `error`: DshOptional<String> = DshOptional.Missing,
+) {
+    companion object {
+        val codec: DshCodec<DshSessionProjectionsResultCase3ValuesAgentTeamMembersItem> = DshCodec(
+            { value ->
+                val obj = DshCodecs.obj(value)
+                DshSessionProjectionsResultCase3ValuesAgentTeamMembersItem(
+                    `id` = DshCodecs.string.decode(obj["id"]),
+                    `name` = DshCodecs.string.decode(obj["name"]),
+                    `role` = DshCodecs.strings(setOf("lead", "teammate")).decode(obj["role"]),
+                    `phase` = DshCodecs.strings(setOf("failed", "provisioning", "active")).decode(obj["phase"]),
+                    `error` = DshCodecs.optional(obj, "error", DshCodecs.string),
+                )
+            },
+            { value ->
+                val fields = linkedMapOf<String, JsonValue>()
+                fields["id"] = DshCodecs.string.encode(value.`id`)
+                fields["name"] = DshCodecs.string.encode(value.`name`)
+                fields["role"] = DshCodecs.strings(setOf("lead", "teammate")).encode(value.`role`)
+                fields["phase"] = DshCodecs.strings(setOf("failed", "provisioning", "active")).encode(value.`phase`)
+                DshCodecs.put(fields, "error", value.`error`, DshCodecs.string)
+                JsonObject(fields)
+            },
+        )
+    }
+}
+
+data class DshSessionProjectionsResultCase3ValuesAgentTeamTasksItem(
+    val `id`: String,
+    val `revision`: Double,
+    val `subject`: String,
+    val `description`: String,
+    val `status`: String,
+    val `blockedBy`: List<String>,
+    val `writeScopes`: List<String>,
+    val `ownerName`: DshOptional<String> = DshOptional.Missing,
+    val `ready`: Boolean,
+    val `writeScopeWarnings`: List<String>,
+) {
+    companion object {
+        val codec: DshCodec<DshSessionProjectionsResultCase3ValuesAgentTeamTasksItem> = DshCodec(
+            { value ->
+                val obj = DshCodecs.obj(value)
+                DshSessionProjectionsResultCase3ValuesAgentTeamTasksItem(
+                    `id` = DshCodecs.string.decode(obj["id"]),
+                    `revision` = DshCodecs.number.decode(obj["revision"]),
+                    `subject` = DshCodecs.string.decode(obj["subject"]),
+                    `description` = DshCodecs.string.decode(obj["description"]),
+                    `status` = DshCodecs.strings(setOf("completed", "pending", "in_progress", "deleted")).decode(obj["status"]),
+                    `blockedBy` = DshCodecs.list(DshCodecs.string).decode(obj["blockedBy"]),
+                    `writeScopes` = DshCodecs.list(DshCodecs.string).decode(obj["writeScopes"]),
+                    `ownerName` = DshCodecs.optional(obj, "ownerName", DshCodecs.string),
+                    `ready` = DshCodecs.boolean.decode(obj["ready"]),
+                    `writeScopeWarnings` = DshCodecs.list(DshCodecs.string).decode(obj["writeScopeWarnings"]),
+                )
+            },
+            { value ->
+                val fields = linkedMapOf<String, JsonValue>()
+                fields["id"] = DshCodecs.string.encode(value.`id`)
+                fields["revision"] = DshCodecs.number.encode(value.`revision`)
+                fields["subject"] = DshCodecs.string.encode(value.`subject`)
+                fields["description"] = DshCodecs.string.encode(value.`description`)
+                fields["status"] = DshCodecs.strings(setOf("completed", "pending", "in_progress", "deleted")).encode(value.`status`)
+                fields["blockedBy"] = DshCodecs.list(DshCodecs.string).encode(value.`blockedBy`)
+                fields["writeScopes"] = DshCodecs.list(DshCodecs.string).encode(value.`writeScopes`)
+                DshCodecs.put(fields, "ownerName", value.`ownerName`, DshCodecs.string)
+                fields["ready"] = DshCodecs.boolean.encode(value.`ready`)
+                fields["writeScopeWarnings"] = DshCodecs.list(DshCodecs.string).encode(value.`writeScopeWarnings`)
+                JsonObject(fields)
+            },
+        )
+    }
+}
+
+data class DshSessionProjectionsResultCase3ValuesAgentTeam(
+    val `members`: List<DshSessionProjectionsResultCase3ValuesAgentTeamMembersItem>,
+    val `tasks`: List<DshSessionProjectionsResultCase3ValuesAgentTeamTasksItem>,
+    val `failure`: DshOptional<String> = DshOptional.Missing,
+) {
+    companion object {
+        val codec: DshCodec<DshSessionProjectionsResultCase3ValuesAgentTeam> = DshCodec(
+            { value ->
+                val obj = DshCodecs.obj(value)
+                DshSessionProjectionsResultCase3ValuesAgentTeam(
+                    `members` = DshCodecs.list(DshSessionProjectionsResultCase3ValuesAgentTeamMembersItem.codec).decode(obj["members"]),
+                    `tasks` = DshCodecs.list(DshSessionProjectionsResultCase3ValuesAgentTeamTasksItem.codec).decode(obj["tasks"]),
+                    `failure` = DshCodecs.optional(obj, "failure", DshCodecs.string),
+                )
+            },
+            { value ->
+                val fields = linkedMapOf<String, JsonValue>()
+                fields["members"] = DshCodecs.list(DshSessionProjectionsResultCase3ValuesAgentTeamMembersItem.codec).encode(value.`members`)
+                fields["tasks"] = DshCodecs.list(DshSessionProjectionsResultCase3ValuesAgentTeamTasksItem.codec).encode(value.`tasks`)
+                DshCodecs.put(fields, "failure", value.`failure`, DshCodecs.string)
+                JsonObject(fields)
+            },
+        )
+    }
+}
+
+data class DshSessionProjectionsResultCase3ValuesForgeChangeRequestsItem(
+    val `url`: String,
+    val `origin`: String,
+    val `dismissed`: Boolean,
+) {
+    companion object {
+        val codec: DshCodec<DshSessionProjectionsResultCase3ValuesForgeChangeRequestsItem> = DshCodec(
+            { value ->
+                val obj = DshCodecs.obj(value)
+                DshSessionProjectionsResultCase3ValuesForgeChangeRequestsItem(
+                    `url` = DshCodecs.string.decode(obj["url"]),
+                    `origin` = DshCodecs.strings(setOf("created", "referenced", "discovered", "tracked")).decode(obj["origin"]),
+                    `dismissed` = DshCodecs.boolean.decode(obj["dismissed"]),
+                )
+            },
+            { value ->
+                val fields = linkedMapOf<String, JsonValue>()
+                fields["url"] = DshCodecs.string.encode(value.`url`)
+                fields["origin"] = DshCodecs.strings(setOf("created", "referenced", "discovered", "tracked")).encode(value.`origin`)
+                fields["dismissed"] = DshCodecs.boolean.encode(value.`dismissed`)
+                JsonObject(fields)
+            },
+        )
+    }
+}
+
+data class DshSessionProjectionsResultCase3ValuesForgeWorktree(
+    val `path`: String,
+    val `branch`: String,
+    val `from`: String?,
+    val `baseCommit`: String,
+    val `repositoryRoot`: String,
+) {
+    companion object {
+        val codec: DshCodec<DshSessionProjectionsResultCase3ValuesForgeWorktree> = DshCodec(
+            { value ->
+                val obj = DshCodecs.obj(value)
+                DshSessionProjectionsResultCase3ValuesForgeWorktree(
+                    `path` = DshCodecs.string.decode(obj["path"]),
+                    `branch` = DshCodecs.string.decode(obj["branch"]),
+                    `from` = DshCodecs.nullable(DshCodecs.string).decode(obj["from"]),
+                    `baseCommit` = DshCodecs.string.decode(obj["baseCommit"]),
+                    `repositoryRoot` = DshCodecs.string.decode(obj["repositoryRoot"]),
+                )
+            },
+            { value ->
+                val fields = linkedMapOf<String, JsonValue>()
+                fields["path"] = DshCodecs.string.encode(value.`path`)
+                fields["branch"] = DshCodecs.string.encode(value.`branch`)
+                fields["from"] = DshCodecs.nullable(DshCodecs.string).encode(value.`from`)
+                fields["baseCommit"] = DshCodecs.string.encode(value.`baseCommit`)
+                fields["repositoryRoot"] = DshCodecs.string.encode(value.`repositoryRoot`)
+                JsonObject(fields)
+            },
+        )
+    }
+}
+
+data class DshSessionProjectionsResultCase3ValuesForkLineage(
+    val `origin`: String,
+    val `sourceSessionId`: String,
+    val `authoredByViewer`: Boolean,
+    val `workspaceReadOnly`: Boolean,
+) {
+    companion object {
+        val codec: DshCodec<DshSessionProjectionsResultCase3ValuesForkLineage> = DshCodec(
+            { value ->
+                val obj = DshCodecs.obj(value)
+                DshSessionProjectionsResultCase3ValuesForkLineage(
+                    `origin` = DshCodecs.strings(setOf("fork")).decode(obj["origin"]),
+                    `sourceSessionId` = DshCodecs.string.decode(obj["sourceSessionId"]),
+                    `authoredByViewer` = DshCodecs.boolean.decode(obj["authoredByViewer"]),
+                    `workspaceReadOnly` = DshCodecs.boolean.decode(obj["workspaceReadOnly"]),
+                )
+            },
+            { value ->
+                val fields = linkedMapOf<String, JsonValue>()
+                fields["origin"] = DshCodecs.strings(setOf("fork")).encode(value.`origin`)
+                fields["sourceSessionId"] = DshCodecs.string.encode(value.`sourceSessionId`)
+                fields["authoredByViewer"] = DshCodecs.boolean.encode(value.`authoredByViewer`)
+                fields["workspaceReadOnly"] = DshCodecs.boolean.encode(value.`workspaceReadOnly`)
+                JsonObject(fields)
+            },
+        )
+    }
+}
+
 data class DshSessionProjectionsResultCase3ValuesGoalGoalBlockedReason(
     val `code`: String,
     val `message`: String,
@@ -7369,13 +9153,14 @@ data class DshSessionProjectionsResultCase3ValuesPlan(
 
 data class DshSessionProjectionsResultCase3Values(
     val `inbox`: DshOptional<DshSessionProjectionsResultCase3ValuesInbox> = DshOptional.Missing,
-    val `workingDirectory`: DshOptional<String?> = DshOptional.Missing,
+    val `modelSelection`: DshOptional<DshSessionProjectionsResultCase3ValuesModelSelection> = DshOptional.Missing,
+    val `actionCards`: DshOptional<DshSessionProjectionsResultCase3ValuesActionCards> = DshOptional.Missing,
     val `agentPreset`: DshOptional<String?> = DshOptional.Missing,
     val `title`: DshOptional<String?> = DshOptional.Missing,
     val `todos`: DshOptional<List<DshSessionProjectionsResultCase3ValuesTodosItem>?> = DshOptional.Missing,
     val `sessionListMetadata`: DshOptional<DshSessionProjectionsResultCase3ValuesSessionListMetadata> = DshOptional.Missing,
     val `imageLimits`: DshOptional<DshSessionProjectionsResultCase3ValuesImageLimits> = DshOptional.Missing,
-    val `modelSelection`: DshOptional<DshSessionProjectionsResultCase3ValuesModelSelection> = DshOptional.Missing,
+    val `workingDirectory`: DshOptional<String?> = DshOptional.Missing,
     val `permissions`: DshOptional<DshSessionProjectionsResultCase3ValuesPermissions> = DshOptional.Missing,
     val `subagentCatalog`: DshOptional<List<DshSessionProjectionsResultCase3ValuesSubagentCatalogItem>> = DshOptional.Missing,
     val `subagentTiming`: DshOptional<DshSessionProjectionsResultCase3ValuesSubagentTiming> = DshOptional.Missing,
@@ -7383,8 +9168,11 @@ data class DshSessionProjectionsResultCase3Values(
     val `tokenUsage`: DshOptional<DshSessionProjectionsResultCase3ValuesTokenUsage> = DshOptional.Missing,
     val `contextPressure`: DshOptional<DshSessionProjectionsResultCase3ValuesContextPressure> = DshOptional.Missing,
     val `contextBreakdown`: DshOptional<DshSessionProjectionsResultCase3ValuesContextBreakdown> = DshOptional.Missing,
-    val `agentTeam`: DshOptional<DshSessionProjectionsResultCase3ValuesAgentTeam> = DshOptional.Missing,
     val `userQuestions`: DshOptional<DshSessionProjectionsResultCase3ValuesUserQuestions> = DshOptional.Missing,
+    val `agentTeam`: DshOptional<DshSessionProjectionsResultCase3ValuesAgentTeam> = DshOptional.Missing,
+    val `forgeChangeRequests`: DshOptional<List<DshSessionProjectionsResultCase3ValuesForgeChangeRequestsItem>> = DshOptional.Missing,
+    val `forgeWorktree`: DshOptional<DshSessionProjectionsResultCase3ValuesForgeWorktree?> = DshOptional.Missing,
+    val `forkLineage`: DshOptional<DshSessionProjectionsResultCase3ValuesForkLineage> = DshOptional.Missing,
     val `goal`: DshOptional<DshSessionProjectionsResultCase3ValuesGoal?> = DshOptional.Missing,
     val `plan`: DshOptional<DshSessionProjectionsResultCase3ValuesPlan> = DshOptional.Missing,
     val additional: Map<String, JsonValue> = emptyMap(),
@@ -7395,13 +9183,14 @@ data class DshSessionProjectionsResultCase3Values(
                 val obj = DshCodecs.obj(value)
                 DshSessionProjectionsResultCase3Values(
                     `inbox` = DshCodecs.optional(obj, "inbox", DshSessionProjectionsResultCase3ValuesInbox.codec),
-                    `workingDirectory` = DshCodecs.optional(obj, "workingDirectory", DshCodecs.nullable(DshCodecs.string)),
+                    `modelSelection` = DshCodecs.optional(obj, "modelSelection", DshSessionProjectionsResultCase3ValuesModelSelection.codec),
+                    `actionCards` = DshCodecs.optional(obj, "actionCards", DshSessionProjectionsResultCase3ValuesActionCards.codec),
                     `agentPreset` = DshCodecs.optional(obj, "agentPreset", DshCodecs.nullable(DshCodecs.string)),
                     `title` = DshCodecs.optional(obj, "title", DshCodecs.nullable(DshCodecs.string)),
                     `todos` = DshCodecs.optional(obj, "todos", DshCodecs.nullable(DshCodecs.list(DshSessionProjectionsResultCase3ValuesTodosItem.codec))),
                     `sessionListMetadata` = DshCodecs.optional(obj, "sessionListMetadata", DshSessionProjectionsResultCase3ValuesSessionListMetadata.codec),
                     `imageLimits` = DshCodecs.optional(obj, "imageLimits", DshSessionProjectionsResultCase3ValuesImageLimits.codec),
-                    `modelSelection` = DshCodecs.optional(obj, "modelSelection", DshSessionProjectionsResultCase3ValuesModelSelection.codec),
+                    `workingDirectory` = DshCodecs.optional(obj, "workingDirectory", DshCodecs.nullable(DshCodecs.string)),
                     `permissions` = DshCodecs.optional(obj, "permissions", DshSessionProjectionsResultCase3ValuesPermissions.codec),
                     `subagentCatalog` = DshCodecs.optional(obj, "subagentCatalog", DshCodecs.list(DshSessionProjectionsResultCase3ValuesSubagentCatalogItem.codec)),
                     `subagentTiming` = DshCodecs.optional(obj, "subagentTiming", DshSessionProjectionsResultCase3ValuesSubagentTiming.codec),
@@ -7409,24 +9198,28 @@ data class DshSessionProjectionsResultCase3Values(
                     `tokenUsage` = DshCodecs.optional(obj, "tokenUsage", DshSessionProjectionsResultCase3ValuesTokenUsage.codec),
                     `contextPressure` = DshCodecs.optional(obj, "contextPressure", DshSessionProjectionsResultCase3ValuesContextPressure.codec),
                     `contextBreakdown` = DshCodecs.optional(obj, "contextBreakdown", DshSessionProjectionsResultCase3ValuesContextBreakdown.codec),
-                    `agentTeam` = DshCodecs.optional(obj, "agentTeam", DshSessionProjectionsResultCase3ValuesAgentTeam.codec),
                     `userQuestions` = DshCodecs.optional(obj, "userQuestions", DshSessionProjectionsResultCase3ValuesUserQuestions.codec),
+                    `agentTeam` = DshCodecs.optional(obj, "agentTeam", DshSessionProjectionsResultCase3ValuesAgentTeam.codec),
+                    `forgeChangeRequests` = DshCodecs.optional(obj, "forgeChangeRequests", DshCodecs.list(DshSessionProjectionsResultCase3ValuesForgeChangeRequestsItem.codec)),
+                    `forgeWorktree` = DshCodecs.optional(obj, "forgeWorktree", DshCodecs.nullable(DshSessionProjectionsResultCase3ValuesForgeWorktree.codec)),
+                    `forkLineage` = DshCodecs.optional(obj, "forkLineage", DshSessionProjectionsResultCase3ValuesForkLineage.codec),
                     `goal` = DshCodecs.optional(obj, "goal", DshCodecs.nullable(DshSessionProjectionsResultCase3ValuesGoal.codec)),
                     `plan` = DshCodecs.optional(obj, "plan", DshSessionProjectionsResultCase3ValuesPlan.codec),
-                    additional = obj.fields.filterKeys { it !in setOf("inbox", "workingDirectory", "agentPreset", "title", "todos", "sessionListMetadata", "imageLimits", "modelSelection", "permissions", "subagentCatalog", "subagentTiming", "subagent", "tokenUsage", "contextPressure", "contextBreakdown", "agentTeam", "userQuestions", "goal", "plan") }.mapValues { DshCodecs.json.decode(it.value) },
+                    additional = obj.fields.filterKeys { it !in setOf("inbox", "modelSelection", "actionCards", "agentPreset", "title", "todos", "sessionListMetadata", "imageLimits", "workingDirectory", "permissions", "subagentCatalog", "subagentTiming", "subagent", "tokenUsage", "contextPressure", "contextBreakdown", "userQuestions", "agentTeam", "forgeChangeRequests", "forgeWorktree", "forkLineage", "goal", "plan") }.mapValues { DshCodecs.json.decode(it.value) },
                 )
             },
             { value ->
                 val fields = linkedMapOf<String, JsonValue>()
                 value.additional.forEach { (key, item) -> fields[key] = DshCodecs.json.encode(item) }
                 DshCodecs.put(fields, "inbox", value.`inbox`, DshSessionProjectionsResultCase3ValuesInbox.codec)
-                DshCodecs.put(fields, "workingDirectory", value.`workingDirectory`, DshCodecs.nullable(DshCodecs.string))
+                DshCodecs.put(fields, "modelSelection", value.`modelSelection`, DshSessionProjectionsResultCase3ValuesModelSelection.codec)
+                DshCodecs.put(fields, "actionCards", value.`actionCards`, DshSessionProjectionsResultCase3ValuesActionCards.codec)
                 DshCodecs.put(fields, "agentPreset", value.`agentPreset`, DshCodecs.nullable(DshCodecs.string))
                 DshCodecs.put(fields, "title", value.`title`, DshCodecs.nullable(DshCodecs.string))
                 DshCodecs.put(fields, "todos", value.`todos`, DshCodecs.nullable(DshCodecs.list(DshSessionProjectionsResultCase3ValuesTodosItem.codec)))
                 DshCodecs.put(fields, "sessionListMetadata", value.`sessionListMetadata`, DshSessionProjectionsResultCase3ValuesSessionListMetadata.codec)
                 DshCodecs.put(fields, "imageLimits", value.`imageLimits`, DshSessionProjectionsResultCase3ValuesImageLimits.codec)
-                DshCodecs.put(fields, "modelSelection", value.`modelSelection`, DshSessionProjectionsResultCase3ValuesModelSelection.codec)
+                DshCodecs.put(fields, "workingDirectory", value.`workingDirectory`, DshCodecs.nullable(DshCodecs.string))
                 DshCodecs.put(fields, "permissions", value.`permissions`, DshSessionProjectionsResultCase3ValuesPermissions.codec)
                 DshCodecs.put(fields, "subagentCatalog", value.`subagentCatalog`, DshCodecs.list(DshSessionProjectionsResultCase3ValuesSubagentCatalogItem.codec))
                 DshCodecs.put(fields, "subagentTiming", value.`subagentTiming`, DshSessionProjectionsResultCase3ValuesSubagentTiming.codec)
@@ -7434,8 +9227,11 @@ data class DshSessionProjectionsResultCase3Values(
                 DshCodecs.put(fields, "tokenUsage", value.`tokenUsage`, DshSessionProjectionsResultCase3ValuesTokenUsage.codec)
                 DshCodecs.put(fields, "contextPressure", value.`contextPressure`, DshSessionProjectionsResultCase3ValuesContextPressure.codec)
                 DshCodecs.put(fields, "contextBreakdown", value.`contextBreakdown`, DshSessionProjectionsResultCase3ValuesContextBreakdown.codec)
-                DshCodecs.put(fields, "agentTeam", value.`agentTeam`, DshSessionProjectionsResultCase3ValuesAgentTeam.codec)
                 DshCodecs.put(fields, "userQuestions", value.`userQuestions`, DshSessionProjectionsResultCase3ValuesUserQuestions.codec)
+                DshCodecs.put(fields, "agentTeam", value.`agentTeam`, DshSessionProjectionsResultCase3ValuesAgentTeam.codec)
+                DshCodecs.put(fields, "forgeChangeRequests", value.`forgeChangeRequests`, DshCodecs.list(DshSessionProjectionsResultCase3ValuesForgeChangeRequestsItem.codec))
+                DshCodecs.put(fields, "forgeWorktree", value.`forgeWorktree`, DshCodecs.nullable(DshSessionProjectionsResultCase3ValuesForgeWorktree.codec))
+                DshCodecs.put(fields, "forkLineage", value.`forkLineage`, DshSessionProjectionsResultCase3ValuesForkLineage.codec)
                 DshCodecs.put(fields, "goal", value.`goal`, DshCodecs.nullable(DshSessionProjectionsResultCase3ValuesGoal.codec))
                 DshCodecs.put(fields, "plan", value.`plan`, DshSessionProjectionsResultCase3ValuesPlan.codec)
                 JsonObject(fields)

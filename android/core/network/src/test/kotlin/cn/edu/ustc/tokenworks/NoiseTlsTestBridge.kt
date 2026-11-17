@@ -25,6 +25,8 @@ internal class NoiseTlsTestBridge(
     private val routeKind: String = "lan",
     private val purpose: String = "native",
     private val onAuth: (JsonObject) -> Unit = {},
+    private val dshVersion: String = DshMethods.VERSION,
+    private val readyDshVersion: String = dshVersion,
 ) : WebSocketListener() {
     private val queue = ArrayBlockingQueue<ByteArray>(16)
     private val queued = AtomicInteger()
@@ -98,7 +100,7 @@ internal class NoiseTlsTestBridge(
                 val hello = JsonDocument.of(jsonObject("magic" to "tokenworks-noise".json(), "v" to 1L.json(), "suite" to E2eSession.SUITE.json(),
                     "runtimeId" to pair.runtimeId.json(), "installationId" to installation().json(), "hostKeyEpoch" to pair.hostKeyEpoch.json(),
                     "hostStaticPublicKey" to pair.hostStaticPublicKey.json(), "purpose" to purpose.json(), "routeKind" to routeKind.json(),
-                    "dshVersion" to DshMethods.VERSION.json(), "capabilities" to JsonArray(listOf("native.http.v1".json(), "noise.ik.v1".json())))).canonicalBytes()
+                    "dshVersion" to dshVersion.json(), "capabilities" to JsonArray(listOf("native.http.v1".json(), "noise.ik.v1".json())))).canonicalBytes()
                 session = E2eSession.responder(keys.privateKey, hello)
                 wire(hello)
                 val ik1 = direct(record())
@@ -113,7 +115,7 @@ internal class NoiseTlsTestBridge(
                 check(proof.verify(com.nimbusds.jose.crypto.ECDSAVerifier(com.nimbusds.jose.jwk.ECKey.parse(proof.header.jwk.toJSONString()))))
                 val claims = JsonDocument.parse(proof.payload.toString()).root
                 check(claims.string("h") == Contract.base64url(binding.handshakeHash))
-                encrypt(JsonDocument.of(jsonObject("type" to "ready".json(), "v" to 1L.json(), "suite" to E2eSession.SUITE.json(), "dshVersion" to DshMethods.VERSION.json(),
+                encrypt(JsonDocument.of(jsonObject("type" to "ready".json(), "v" to 1L.json(), "suite" to E2eSession.SUITE.json(), "dshVersion" to readyDshVersion.json(),
                     "runtimeId" to pair.runtimeId.json(), "installationId" to pair.installationId.json(), "pairId" to pair.pairId.json(),
                     "hostKeyEpoch" to pair.hostKeyEpoch.json(), "deviceKeyEpoch" to pair.deviceKeyEpoch.json(), "ownerSha256" to pair.ownerSha256.json(),
                     "bindingSha256" to pair.bindingSha256.json(), "peerGeneration" to "test-peer-generation".json())).canonicalBytes())

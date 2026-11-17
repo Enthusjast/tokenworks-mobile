@@ -53,7 +53,7 @@ test('installed stream and event-result wire parsers agree, preserving missing v
   }
 })
 
-test('compatibility decision is a pure exact-version contract, including unknown runtime versions', async () => {
+test('compatibility decision accepts the supported SemVer family and rejects unknown runtime versions', async () => {
   const manifest = JSON.parse(await readFile(new URL('compatibility.json', golden), 'utf8')) as {
     dshVersion: string; endpoints: string[]; cases: { advertisedVersion: unknown; decision: string }[]
   }

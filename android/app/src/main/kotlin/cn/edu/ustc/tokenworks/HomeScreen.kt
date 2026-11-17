@@ -144,7 +144,7 @@ private fun ReadyHomeRoute(state: HomeState, management: HostManagementState, mo
                         val sessionId = state.selectedSessionId
                         val files = state.files
                         if (sessionId != null && files != null && state.reader?.readOnly == false) {
-                            files.loadAttachment(sessionId, image.attachmentId)
+                            files.loadAttachment(sessionId, image)
                             filesOpen = true
                         }
                     }), openNavigation, { hostsOpen = true })

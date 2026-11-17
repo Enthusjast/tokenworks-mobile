@@ -15,6 +15,9 @@ import org.junit.After
 import org.junit.Assert.*
 import org.junit.Before
 import org.junit.Test
+import java.io.ByteArrayOutputStream
+import java.net.URLEncoder
+import java.util.concurrent.LinkedBlockingQueue
 
 /** Native HTTP regression scripts run behind a real TLS+JNI Noise splice, never a public /api client. */
 class NativeTransportTest {
@@ -41,6 +44,8 @@ class NativeTransportTest {
     private var scripted: okhttp3.mockwebserver.Dispatcher? = null
     private fun enqueue(response: MockResponse) { replies.put(response) }
     private val auths = java.util.concurrent.LinkedBlockingQueue<JsonObject>()
+    private var advertisedDshVersion = DshMethods.VERSION
+    private var readyDshVersion: String? = null
 
     @Before fun start() {
         val certificate = HeldCertificate.Builder()
@@ -96,7 +101,8 @@ class NativeTransportTest {
                         socket.sslParameters = socket.sslParameters.also { it.endpointIdentificationAlgorithm = "HTTPS" }; socket.startHandshake()
                     }
                 }, routeKind = if (request.path == "/carrier") "lan" else "relay",
-                    purpose = request.getHeader("X-TokenWorks-Carrier-Purpose") ?: "native", onAuth = { auths.put(it) }))
+                    purpose = request.getHeader("X-TokenWorks-Carrier-Purpose") ?: "native", onAuth = { auths.put(it) },
+                    dshVersion = advertisedDshVersion, readyDshVersion = readyDshVersion ?: advertisedDshVersion))
                 return scripted?.dispatch(request) ?: replies.take()
             }
         }
@@ -156,6 +162,17 @@ class NativeTransportTest {
             "result" to jsonObject("ok" to JsonBoolean(false), "error" to jsonObject("code" to code.json())))).canonicalText()
     }
     private fun json(bytes: ByteArray) = JsonDocument.parse(bytes).root
+    private fun fileReplies(vararg responses: MockResponse): LinkedBlockingQueue<okhttp3.mockwebserver.RecordedRequest> {
+        val recorded = LinkedBlockingQueue<okhttp3.mockwebserver.RecordedRequest>()
+        val pending = java.util.concurrent.ConcurrentLinkedQueue(responses.toList())
+        scripted = object : okhttp3.mockwebserver.Dispatcher() {
+            override fun dispatch(request: okhttp3.mockwebserver.RecordedRequest): MockResponse {
+                recorded.put(request)
+                return pending.poll() ?: MockResponse().setResponseCode(500)
+            }
+        }
+        return recorded
+    }
 
     @Test fun nativeLeaseParsesAServerIssuedSecret() = runBlocking {
         val token = "A".repeat(43)
@@ -210,6 +227,31 @@ class NativeTransportTest {
         val authLease = auths.take().obj("relayLease")
         assertEquals(issued.id, authLease.string("leaseId"))
         assertEquals(issued.token, authLease.string("token"))
+    }
+
+    @Test fun encryptedCarrierAdmitsStableFamilyVersionWithBuildMetadata() = runBlocking {
+        advertisedDshVersion = "0.2.2+build.001"
+        scripted = echoDispatcher(listOf(valueReply(jsonObject("items" to JsonArray(emptyList())))))
+        assertTrue(native.native("session/list", jsonObject()) is JsonObject)
+    }
+
+    @Test fun encryptedCarrierRejectsAdjacentPrereleaseBeforeAuthentication() {
+        advertisedDshVersion = "0.2.3-alpha.1"
+        val failure = assertThrows(DshFailure::class.java) {
+            runBlocking { native.native("session/list", jsonObject()) }
+        }
+        assertEquals("e2e.unsupported", failure.code)
+        assertTrue(auths.isEmpty())
+    }
+
+    @Test fun encryptedReadyVersionMustExactlyMatchAuthenticatedHelloWithinSupportedFamily() {
+        advertisedDshVersion = "0.2.2-rc.2+hello"
+        readyDshVersion = "0.2.2-rc.2+different"
+        val failure = assertThrows(DshFailure::class.java) {
+            runBlocking { native.native("session/list", jsonObject()) }
+        }
+        assertEquals("e2e.binding_mismatch", failure.code)
+        assertFalse(auths.isEmpty())
     }
     private fun leaseReply(token: String = "A".repeat(43), id: String = "55555555-5555-4555-8555-555555555555"): (JsonObject) -> String = { _ ->
         JsonDocument.of(leaseBody(token, id)).canonicalText()
@@ -292,6 +334,138 @@ class NativeTransportTest {
             factory.pairingControl(credentials, signer, null)
         }.code)
         assertEquals(0, server.requestCount)
+    }
+
+    @Test fun nativeFileVersionResolutionPreservesExactResourceAndAuthenticatedPeer() = runBlocking {
+        val path = "/workspace/空 格/+literal%2F?x=1#hash&v=source.bin"
+        val initial = FilePreview.exactPath(path)
+        val version = "fs:1/2+3=4"
+        // Installed dsh uses URLSearchParams: spaces become '+', while the client canonicalizes to %20.
+        val location = "?path=${URLEncoder.encode(path, "UTF-8")}&v=${URLEncoder.encode(version, "UTF-8")}"
+        val expected = initial + "&v=fs%3A1%2F2%2B3%3D4"
+        val bytes = ByteArray(400_003) { ((it * 31 + 7) and 255).toByte() }
+        val sink = object : ByteArrayOutputStream() {
+            var closed = false
+            override fun close() { closed = true; super.close() }
+        }
+        val requests = fileReplies(
+            MockResponse().setResponseCode(302).addHeader("Location", location).setBody("not file bytes"),
+            MockResponse().setBody(okio.Buffer().write(bytes)).addHeader("Content-Type", "application/octet-stream").addHeader("ETag", "opaque-version"))
+        val result = native.download(initial, sink, bytes.size.toLong())
+        assertArrayEquals(bytes, sink.toByteArray())
+        assertEquals(bytes.size.toLong(), result.sizeBytes)
+        assertEquals("opaque-version", result.etag)
+        assertFalse(sink.closed)
+        assertEquals(2, requests.size)
+        assertEquals(listOf(initial, expected), requests.map { it.path })
+        requests.forEach {
+            assertEquals("GET", it.method)
+            assertEquals("identity", it.getHeader("Accept-Encoding"))
+            assertNull(it.getHeader("Authorization"))
+            assertNull(it.getHeader("X-TokenWorks-Lease"))
+        }
+        assertEquals("version resolution stays on the existing authenticated Noise Peer", 1, auths.size)
+    }
+
+    @Test fun nativeFileVersionResolutionPreservesRangeAndCallerSink() = runBlocking {
+        val path = "/api/file?path=%2Fworkspace%2Fdata.bin"
+        val requests = fileReplies(
+            MockResponse().setResponseCode(302).addHeader("Location", "/api/file?v=fs-1&path=%2Fworkspace%2Fdata.bin"),
+            MockResponse().setResponseCode(206).setBody("3456").addHeader("Content-Range", "bytes 3-6/20"))
+        val sink = ByteArrayOutputStream()
+        val result = native.download(path, sink, 4, DshByteRange(3, 6))
+        assertEquals("3456", sink.toString("UTF-8"))
+        assertEquals("bytes 3-6/20", result.contentRange)
+        assertEquals(2, requests.size)
+        assertEquals(path + "&v=fs-1", requests.last().path)
+        requests.forEach { assertEquals("bytes=3-6", it.getHeader("Range")) }
+    }
+
+    @Test fun nativeFileVersionResolutionKeepsByteLimitBeforeWriting() {
+        val path = "/api/file?path=%2Fworkspace%2Fdata.bin"
+        val requests = fileReplies(
+            MockResponse().setResponseCode(302).addHeader("Location", "?path=%2Fworkspace%2Fdata.bin&v=fs-1").setBody("ignored"),
+            MockResponse().setBody("oversized"))
+        val sink = ByteArrayOutputStream()
+        val failure = assertThrows(DshFailure::class.java) { runBlocking { native.download(path, sink, 4) } }
+        assertEquals("files/too_large", failure.code)
+        assertEquals(0, sink.size())
+        assertEquals(2, requests.size)
+    }
+
+    @Test fun nativeFileVersionResolutionRejectsUnsafeLocationsWithoutAnotherRequest() {
+        val path = "/api/file?path=%2Fworkspace%2Fdata.bin"
+        val safe = "?path=%2Fworkspace%2Fdata.bin&v=fs-1"
+        val unsafe = listOf(
+            "https://untrusted.example/api/file$safe",
+            "http://dsh-native.invalid/api/file$safe",
+            "//untrusted.example/api/file$safe",
+            "///api/file$safe",
+            "/api/session/list$safe",
+            "/api/./file$safe",
+            "file$safe",
+            "$safe#fragment",
+            "$safe#",
+            "?path=%2Fworkspace%2Fother.bin&v=fs-1",
+            "?path=%2Fworkspace%2Fdata.bin&path=%2Fworkspace%2Fdata.bin&v=fs-1",
+            "$safe&v=fs-2",
+            "$safe&unknown=1",
+            "$safe&",
+            "?path=%2Fworkspace%2Fdata.bin",
+            "?path=%2Fworkspace%2Fdata.bin&v=",
+            "?path=%2Fworkspace%2Fdata.bin&v=${"v".repeat(1025)}",
+            "?path=%2Fworkspace%2Fdata.bin&v=bad%00version",
+            "?path=%2Fworkspace%2Fdata.bin&v=%GG",
+            "?path=%2Fworkspace%2Fdata.bin&%76=fs-1",
+            "?path=%2Fworkspace%2Fdata.bin&v=fs-1\\other",
+        )
+        for (location in unsafe) {
+            val requests = fileReplies(MockResponse().setResponseCode(302).addHeader("Location", location).setBody("must not reach sink"))
+            val sink = ByteArrayOutputStream()
+            val failure = assertThrows("accepted $location", DshFailure::class.java) { runBlocking { native.download(path, sink, 100) } }
+            assertEquals("files/http_error", failure.code)
+            assertEquals(0, sink.size())
+            assertEquals("followed $location", 1, requests.size)
+        }
+    }
+
+    @Test fun nativeFileVersionResolutionRejectsDuplicateHeadersAndRepeatedResolution() {
+        val path = "/api/file?path=%2Fworkspace%2Fdata.bin"
+        val location = "?path=%2Fworkspace%2Fdata.bin&v=fs-1"
+        var requests = fileReplies(MockResponse().setResponseCode(302).addHeader("Location", location).addHeader("Location", location))
+        val sink = ByteArrayOutputStream()
+        var failure = assertThrows(DshFailure::class.java) { runBlocking { native.download(path, sink, 100) } }
+        assertEquals("files/http_error", failure.code)
+        assertEquals(1, requests.size)
+        requests = fileReplies(
+            MockResponse().setResponseCode(302).addHeader("Location", location).setBody("ignored first"),
+            MockResponse().setResponseCode(302).addHeader("Location", location.replace("fs-1", "fs-2")).setBody("ignored second"))
+        failure = assertThrows(DshFailure::class.java) { runBlocking { native.download(path, sink, 100) } }
+        assertEquals("files/http_error", failure.code)
+        assertEquals(2, requests.size)
+        assertEquals(0, sink.size())
+    }
+
+    @Test fun nativeFileVersionResolutionNeverRedirectsWritesOrOtherDownloadRoutes() {
+        val location = "?path=%2Fworkspace%2Fdata.bin&v=fs-1"
+        var requests = fileReplies(MockResponse().setResponseCode(302).addHeader("Location", location))
+        var failure = assertThrows(DshFailure::class.java) { runBlocking { native.native("session/list", jsonObject()) } }
+        assertEquals("gateway/http_error", failure.code)
+        assertEquals(1, requests.size)
+        assertEquals("POST", requests.single().method)
+        requests = fileReplies(MockResponse().setResponseCode(302).addHeader("Location", location))
+        failure = assertThrows(DshFailure::class.java) {
+            runBlocking { native.upload("/api/session/uploadFileBinary", "application/octet-stream", byteArrayOf(1).inputStream(), 1) }
+        }
+        assertEquals("gateway/http_error", failure.code)
+        assertEquals(1, requests.size)
+        assertEquals("POST", requests.single().method)
+        requests = fileReplies(MockResponse().setResponseCode(302).addHeader("Location", location))
+        val sink = ByteArrayOutputStream()
+        failure = assertThrows(DshFailure::class.java) { runBlocking { native.download("/api/other?path=%2Fworkspace%2Fdata.bin", sink, 100) } }
+        assertEquals("files/http_error", failure.code)
+        assertEquals(1, requests.size)
+        assertEquals(0, sink.size())
     }
 
     @Test fun transportLossStaysAmbiguousAndNeverBecomesProtocolFailure() = runBlocking {

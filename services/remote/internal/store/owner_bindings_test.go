@@ -20,7 +20,8 @@ func TestOwnerBindingsMatchCanonicalNativeProductAccess(t *testing.T) {
 		t.Fatal(err)
 	}
 	var canonical struct {
-		Version string `json:"dshVersion"`
+		Version      string `json:"dshVersion"`
+		VersionRange string `json:"dshVersionRange"`
 		Actions map[string]struct {
 			Resources []string `json:"resources"`
 			Selected bool `json:"selected"`
@@ -29,8 +30,8 @@ func TestOwnerBindingsMatchCanonicalNativeProductAccess(t *testing.T) {
 	if err := json.Unmarshal(data, &canonical); err != nil {
 		t.Fatal(err)
 	}
-	if canonical.Version != "0.2.1-rc.5" {
-		t.Fatalf("unknown native version: %s", canonical.Version)
+	if !IsSupportedDshVersion(canonical.Version) || canonical.Version != ProductNativeVersion || canonical.VersionRange != ProductNativeVersionRange {
+		t.Fatalf("unknown native version/range: %s %s", canonical.Version, canonical.VersionRange)
 	}
 	selected := 0
 	expected := make([]GrantBinding, 0, 3)
@@ -58,6 +59,38 @@ func TestOwnerBindingsMatchCanonicalNativeProductAccess(t *testing.T) {
 	}
 	if !reflect.DeepEqual(expected, actual) {
 		t.Fatalf("owner matrix differs from canonical policy:\nwant %#v\ngot %#v", expected, actual)
+	}
+}
+
+func TestNativeVersionAdmissionMatchesCanonicalCompatibilityCases(t *testing.T) {
+	_, source, _, ok := runtime.Caller(0)
+	if !ok {
+		t.Fatal("locate canonical compatibility contract")
+	}
+	data, err := os.ReadFile(filepath.Join(filepath.Dir(source), "../../../../contracts/typert/golden/compatibility.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var manifest struct {
+		Version      string `json:"dshVersion"`
+		VersionRange string `json:"dshVersionRange"`
+		Cases        []struct {
+			AdvertisedVersion any    `json:"advertisedVersion"`
+			Decision          string `json:"decision"`
+		} `json:"cases"`
+	}
+	if err := json.Unmarshal(data, &manifest); err != nil {
+		t.Fatal(err)
+	}
+	if manifest.Version != ProductNativeVersion || manifest.VersionRange != ProductNativeVersionRange || len(manifest.Cases) == 0 {
+		t.Fatal("native compatibility manifest drift")
+	}
+	for _, entry := range manifest.Cases {
+		version, isString := entry.AdvertisedVersion.(string)
+		actual := isString && IsSupportedDshVersion(version)
+		if actual != (entry.Decision == "compatible") {
+			t.Errorf("version %#v: admitted %v, want %s", entry.AdvertisedVersion, actual, entry.Decision)
+		}
 	}
 }
 

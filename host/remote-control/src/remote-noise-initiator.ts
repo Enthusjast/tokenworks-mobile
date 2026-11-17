@@ -6,6 +6,7 @@ import { bindingDigest, manifestSchema, type PairingManifest } from './lan-pairi
 import { relayLeaseSchema, type CarrierPurpose, type LanPairingDescriptor, type RelayLeaseCredential } from './lan-pairing.js'
 import type { HostHandshakeSigner, InstallationPublicJwk } from './host-connection-credential.js'
 import { NativeNoiseSession, NOISE_SUITE } from './native-noise.js'
+import { isSupportedDshVersion } from './product-access.generated.js'
 
 export interface NoiseInitiatorCredential {
   readonly pairId: string; readonly token: string; readonly manifest: PairingManifest; readonly bindingSha256: string
@@ -47,7 +48,7 @@ function signingJson(bytes: Buffer, keys: readonly string[]): Record<string, unk
 export async function dialNoiseCarrier(options: NoiseInitiatorOptions): Promise<AuthenticatedNoiseStream> {
   options.signal.throwIfAborted()
   const { credential, expected, purpose } = options, manifest = manifestSchema.parse(credential.manifest)
-  const version = options.expectedDshVersion ?? '0.2.1-rc.5'
+  const version = options.expectedDshVersion
   if (expected.version !== 2 || expected.carrierVersion !== 1 || expected.minimumEncrypted !== true || expected.suite !== NOISE_SUITE ||
     manifest.pairId !== credential.pairId || manifest.runtimeId !== expected.runtimeId || manifest.installationId !== expected.installationId ||
     manifest.hostKeyEpoch !== expected.hostKeyEpoch || manifest.hostStaticPublicKey !== expected.hostStaticPublicKey || credential.localPrivate.length !== 32 ||
@@ -126,7 +127,8 @@ export async function dialNoiseCarrier(options: NoiseInitiatorOptions): Promise<
     signal.throwIfAborted()
     const helloBytes = await readRecord(4096), hello = signingJson(helloBytes, ['magic', 'v', 'suite', 'runtimeId', 'installationId', 'hostKeyEpoch', 'hostStaticPublicKey', 'purpose', 'routeKind', 'dshVersion', 'capabilities'])
     if (hello.magic !== 'tokenworks-noise' || hello.v !== 1 || hello.suite !== NOISE_SUITE || hello.runtimeId !== expected.runtimeId || hello.installationId !== expected.installationId ||
-      hello.hostKeyEpoch !== expected.hostKeyEpoch || hello.hostStaticPublicKey !== expected.hostStaticPublicKey || hello.purpose !== purpose || hello.routeKind !== (options.expectedRouteKind ?? 'lan') || hello.dshVersion !== version ||
+      hello.hostKeyEpoch !== expected.hostKeyEpoch || hello.hostStaticPublicKey !== expected.hostStaticPublicKey || hello.purpose !== purpose || hello.routeKind !== (options.expectedRouteKind ?? 'lan') ||
+      !isSupportedDshVersion(hello.dshVersion) || (version !== undefined && hello.dshVersion !== version) ||
       !Array.isArray(hello.capabilities) || hello.capabilities.some(item => typeof item !== 'string') || new Set(hello.capabilities).size !== hello.capabilities.length ||
       ['native.http.v1', 'noise.ik.v1', ...(options.requiredCapabilities ?? []), ...(['p2p', 'turn'].includes(options.expectedRouteKind ?? '') ? ['transport.webrtc.v1'] : [])].some(item => !(hello.capabilities as unknown[]).includes(item))) throw new Error('e2e/hello-binding')
     session = new NativeNoiseSession(true, credential.localPrivate, Buffer.from(expected.hostStaticPublicKey, 'base64url'), helloBytes)
@@ -141,7 +143,7 @@ export async function dialNoiseCarrier(options: NoiseInitiatorOptions): Promise<
     const auth = canonicalObject({ type: 'auth', pairId: credential.pairId, token: credential.token, hostKeyEpoch: manifest.hostKeyEpoch, deviceKeyEpoch: manifest.deviceKeyEpoch, proof, ...(relayLease ? { relayLease } : {}) })
     try { if (auth.length > 8192) throw new Error('e2e/auth-limit'); await send(auth) } finally { auth.fill(0) }
     const ready = signingJson(await receive(8208), ['type', 'v', 'suite', 'dshVersion', 'runtimeId', 'installationId', 'pairId', 'hostKeyEpoch', 'deviceKeyEpoch', 'ownerSha256', 'bindingSha256', 'peerGeneration'])
-    if (ready.type !== 'ready' || ready.v !== 1 || ready.suite !== NOISE_SUITE || ready.dshVersion !== version || ready.runtimeId !== manifest.runtimeId || ready.installationId !== manifest.installationId ||
+    if (ready.type !== 'ready' || ready.v !== 1 || ready.suite !== NOISE_SUITE || ready.dshVersion !== hello.dshVersion || ready.runtimeId !== manifest.runtimeId || ready.installationId !== manifest.installationId ||
       ready.pairId !== credential.pairId || ready.hostKeyEpoch !== manifest.hostKeyEpoch || ready.deviceKeyEpoch !== manifest.deviceKeyEpoch || ready.ownerSha256 !== bindingDigest(manifest.owner) ||
       ready.bindingSha256 !== credential.bindingSha256 || typeof ready.peerGeneration !== 'string' || !/^[\x21-\x7e]{1,256}$/.test(ready.peerGeneration)) throw new Error('e2e/ready-binding')
     clearTimeout(deadline)

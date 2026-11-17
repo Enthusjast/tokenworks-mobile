@@ -14,6 +14,7 @@ import { openLinuxPrivateDirectory, publishLinuxPrivateFile, readLinuxPrivateFil
 import { generateNoiseStatic, NOISE_SUITE } from './native-noise.js'
 import { PreprovisionedInstallationSigner } from './preprovisioned-installation-signer.js'
 import { encodeSecretBase64 } from './linux-secret-service.js'
+import { isSupportedDshVersion } from './product-access.generated.js'
 
 const uuid = z.string().uuid(), sha256 = z.string().regex(/^[a-f0-9]{64}$/)
 const label = z.string().min(1).max(80).refine(value => value === value.trim() && !/[\x00-\x1f\x7f\u202a-\u202e\u2066-\u2069]/u.test(value))
@@ -28,7 +29,7 @@ export const REMOTE_ACTIONS = ['discover', 'workspaces', 'create_session', 'prom
 const sessionSchema = z.strictObject({ sessionId: z.string().min(1).max(200), workspaceId: z.string().min(1).max(200), sourceAgentId: z.string().min(1).max(200) })
 const configSchema = z.strictObject({ id, displayName: label, route: z.literal('direct'), descriptor: descriptorSchema,
   origin: z.string().max(2048), tlsPin: descriptorSchema.shape.tlsPin, allowedAddresses: z.array(z.string().min(1).max(80)).min(1).max(32),
-  expectedDshVersion: z.literal('0.2.1-rc.5').default('0.2.1-rc.5'),
+  expectedDshVersion: z.string().refine(isSupportedDshVersion).optional(),
   allowPrivate: z.boolean().default(false), allowLoopback: z.boolean().default(false), trustedCertificate: z.string().min(1).max(8192).optional(),
   workspaces: z.array(z.strictObject({ workspaceId: z.string().min(1).max(200), canonicalRoot: absolutePath })).max(32),
   allowedActions: z.array(z.enum(REMOTE_ACTIONS)).max(REMOTE_ACTIONS.length), allowedAgentPresets: z.array(z.string().min(1).max(200)).max(32),

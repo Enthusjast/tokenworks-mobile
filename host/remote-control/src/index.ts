@@ -18,6 +18,7 @@ import { NoiseCarrier } from './noise-carrier.js'
 import { RtcCarrierHost } from './rtc-carrier.js'
 import { loadRtcConfig } from './rtc-config.js'
 import { installRemoteTools } from './remote-tools.js'
+import { isSupportedDshVersion } from './product-access.generated.js'
 import { NotificationReferences } from './notification-references.js'
 export { NotificationReferences } from './notification-references.js'
 export type { NotificationReferenceOptions, NotificationReferenceStatus } from './notification-references.js'
@@ -90,9 +91,10 @@ export const Config: z<Config> = z.object({
 export async function apply(ctx: Context, config: Config = {}, credentials?: HostCredentialProvider, security?: LanSecurity): Promise<void> {
   if (!config.enabled) return
   const options = Config(config)
+  const versions = Object.freeze({ dsh: options.dshVersion ?? '', application: options.applicationVersion ?? '', plugin: options.pluginVersion ?? '' })
+  if (!isSupportedDshVersion(versions.dsh)) throw new Error('unsupported dsh version')
   if (!credentials || !options.relayUrl || !options.applicationVersion || !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(options.runtimeId ?? '')) throw new Error('authenticated Relay and stable runtime identity required')
   const origin = new URL(options.relayUrl).origin
-  const versions = Object.freeze({ dsh: options.dshVersion ?? '', application: options.applicationVersion ?? '', plugin: options.pluginVersion ?? '' })
   if (credentials.origin && credentials.origin !== origin) throw new Error('installation origin changed')
   const child = ctx.plugin({ name: 'tokenworks-mobile-tunnel', inject, async apply(scope: Context) {
     if (!security?.pairingProtector || !options.pairing) throw new Error('encrypted carrier requires protected pairing configuration')

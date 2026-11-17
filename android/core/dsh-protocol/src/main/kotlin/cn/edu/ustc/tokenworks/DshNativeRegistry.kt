@@ -61,5 +61,5 @@ object DshNativeRegistry {
         "workspace/unpinSession" to DshNativeEntry(DshMethods.WorkspaceUnpinSession, false),
     )
     fun compatibility(advertisedVersion: JsonValue): String =
-        if (advertisedVersion is JsonString && advertisedVersion.value == DshMethods.VERSION) "compatible" else "unsupported-version"
+        if (advertisedVersion is JsonString && DshProductAccess.isSupportedDshVersion(advertisedVersion.value)) "compatible" else "unsupported-version"
 }

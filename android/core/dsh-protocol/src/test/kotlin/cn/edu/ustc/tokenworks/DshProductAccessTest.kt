@@ -9,6 +9,8 @@ class DshProductAccessTest {
 
     @Test fun generatedPolicyMatchesEveryCanonicalActionCapabilityResourceAndSelectedNativeMethod() {
         assertEquals(canonical.string("dshVersion"), DshProductAccess.VERSION)
+        assertEquals(canonical.string("dshVersionRange"), DshProductAccess.VERSION_RANGE)
+        assertTrue(DshProductAccess.isSupportedDshVersion(DshProductAccess.VERSION))
         val source = canonical.obj("actions")
         assertEquals(source.fields.keys, DshProductAccess.actions.keys)
         assertEquals(DshNativeRegistry.methods.keys, DshProductAccess.actions.filterValues { it.selected }.keys)

@@ -82,7 +82,7 @@ class DshTranscriptRepairTest {
             DshMethods.SessionFollow.output.decode(jsonObject("type" to "invented-wire-frame".json()))
         }
         assertThrows(ProtocolException::class.java) {
-            DshTranscriptPage.decode(jsonObject("records" to JsonArray(listOf(jsonObject("type" to "invented-record".json(), "event" to transcriptEvent(0)))), "hasMore" to JsonBoolean(false)))
+            DshTranscriptPage.decode(jsonObject("cursor" to 0L.json(), "records" to JsonArray(listOf(jsonObject("type" to "invented-record".json(), "event" to transcriptEvent(0)))), "hasMore" to JsonBoolean(false)))
         }
     }
 }

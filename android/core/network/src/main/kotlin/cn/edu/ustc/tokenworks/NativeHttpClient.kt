@@ -36,6 +36,8 @@ import java.net.Proxy
 import java.net.Socket
 import java.net.SocketException
 import java.net.URI
+import java.net.URLDecoder
+import java.net.URLEncoder
 import java.nio.ByteBuffer
 import java.util.ArrayDeque
 import java.util.UUID
@@ -45,8 +47,17 @@ import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicReference
 import javax.net.SocketFactory
 
-/** One immutable pairing/Peer generation. No retries, redirects, routing, cookies, TCP or TLS emulation. */
+/**
+ * One immutable pairing/Peer generation. No general redirects, retries, routing, cookies or TCP/TLS emulation.
+ * File GETs alone may resolve one 302 into the same /api/file resource plus a bounded version, on this
+ * authenticated Peer. No authority, alternate resource, second resolution or write replay is accepted.
+ */
 internal class NativeHttpClient(private val dialer: CarrierDialer) : AutoCloseable {
+    private companion object {
+        const val MAX_FILE_VERSION_LENGTH = 1024
+        val CONTENT_RANGE = Regex("bytes ([0-9]+)-([0-9]+)/([0-9]+|\\*)")
+    }
+    private data class FileResource(val path: String, val version: String?)
     private class HttpConnection(val socket: CarrierSocket, val http: DefaultBHttpClientConnection)
     private val gate = Any()
     private val ended = AtomicBoolean()
@@ -150,37 +161,85 @@ internal class NativeHttpClient(private val dialer: CarrierDialer) : AutoCloseab
     }
     suspend fun download(path: String, sink: OutputStream, maxBytes: Long, range: DshByteRange?): DshDownload {
         require(maxBytes > 0)
-        val request = request("GET", path)
-        request.setHeader("Accept", "*/*"); range?.let { request.setHeader("Range", it.header()) }
-        return exchange(request) { response ->
-            if (response.code != if (range == null) 200 else 206) throw DshFailure("files/http_error")
-            if (response.getHeaders("Content-Encoding").any { it.value != "identity" }) throw DshFailure("files/encoding_invalid")
-            val contentRange = response.getHeaders("Content-Range").singleOrNull()?.value
-            if (range != null) {
-                val parts = Regex("bytes ([0-9]+)-([0-9]+)/([0-9]+|\\*)").matchEntire(contentRange ?: "") ?: throw DshFailure("files/range_invalid")
-                val start = parts.groupValues[1].toLongOrNull() ?: throw DshFailure("files/range_invalid")
-                val end = parts.groupValues[2].toLongOrNull() ?: throw DshFailure("files/range_invalid")
-                if (start != range.start || end < start || range.endInclusive?.let { end > it } == true) throw DshFailure("files/range_invalid")
-            }
-            val entity = response.entity ?: throw DshFailure("files/empty_response")
-            if (entity.contentLength > maxBytes) throw DshFailure("files/too_large")
-            var copied = 0L
-            val buffer = ByteArray(32 * 1024)
-            entity.content.use { source ->
-                while (true) {
-                    live(); val count = source.read(buffer); if (count == -1) break
-                    if (count > maxBytes - copied) throw DshFailure("files/too_large")
-                    sink.write(buffer, 0, count); copied += count
+        var currentPath = path
+        for (hop in 0..1) {
+            val request = request("GET", currentPath)
+            request.setHeader("Accept", "*/*"); range?.let { request.setHeader("Range", it.header()) }
+            val downloaded = exchange(request) { response ->
+                if (response.code == 302) {
+                    if (hop != 0) throw DshFailure("files/http_error")
+                    val location = response.getHeaders("Location").singleOrNull()?.value ?: throw DshFailure("files/http_error")
+                    currentPath = fileVersionPath(path, location)
+                    return@exchange null
                 }
+                if (response.code != if (range == null) 200 else 206) throw DshFailure("files/http_error")
+                if (response.getHeaders("Content-Encoding").any { it.value != "identity" }) throw DshFailure("files/encoding_invalid")
+                val contentRange = response.getHeaders("Content-Range").singleOrNull()?.value
+                var rangeBytes = 0L
+                if (range != null) {
+                    val parts = CONTENT_RANGE.matchEntire(contentRange ?: "") ?: throw DshFailure("files/range_invalid")
+                    val start = parts.groupValues[1].toLongOrNull() ?: throw DshFailure("files/range_invalid")
+                    val end = parts.groupValues[2].toLongOrNull() ?: throw DshFailure("files/range_invalid")
+                    if (start != range.start || end < start || end - start == Long.MAX_VALUE || range.endInclusive?.let { end > it } == true) throw DshFailure("files/range_invalid")
+                    rangeBytes = end - start + 1
+                }
+                val entity = response.entity ?: throw DshFailure("files/empty_response")
+                if (entity.contentLength > maxBytes || rangeBytes > maxBytes) throw DshFailure("files/too_large")
+                if (range != null && entity.contentLength >= 0 && entity.contentLength != rangeBytes) throw DshFailure("files/range_invalid")
+                var copied = 0L
+                val buffer = ByteArray(32 * 1024)
+                entity.content.use { source ->
+                    while (true) {
+                        live(); val count = source.read(buffer); if (count == -1) break
+                        if (count > maxBytes - copied) throw DshFailure("files/too_large")
+                        sink.write(buffer, 0, count); copied += count
+                    }
+                }
+                if (entity.contentLength >= 0 && copied != entity.contentLength) throw DshFailure("files/truncated")
+                if (range != null && copied != rangeBytes) throw DshFailure("files/range_invalid")
+                DshDownload(entity.contentType?.substringBefore(';')?.lowercase() ?: "application/octet-stream", copied,
+                    response.getHeaders("ETag").singleOrNull()?.value, contentRange)
             }
-            if (entity.contentLength >= 0 && copied != entity.contentLength) throw DshFailure("files/truncated")
-            if (range != null) {
-                val parts = contentRange!!.substringAfter("bytes ").substringBefore('/').split('-')
-                if (copied != parts[1].toLong() - parts[0].toLong() + 1) throw DshFailure("files/range_invalid")
-            }
-            DshDownload(entity.contentType?.substringBefore(';')?.lowercase() ?: "application/octet-stream", copied,
-                response.getHeaders("ETag").singleOrNull()?.value, contentRange)
+            if (downloaded != null) return downloaded
         }
+        throw DshFailure("files/http_error")
+    }
+    private fun fileVersionPath(source: String, location: String): String {
+        val original = fileResource(source, relative = false)
+        val resolved = fileResource(location, relative = true)
+        if (resolved.path != original.path || resolved.version == null) throw DshFailure("files/http_error")
+        fun encode(value: String) = URLEncoder.encode(value, "UTF-8").replace("+", "%20")
+        val canonical = "/api/file?path=${encode(original.path)}&v=${encode(resolved.version)}"
+        if (canonical.length > 8192) throw DshFailure("files/http_error")
+        return canonical
+    }
+    private fun fileResource(value: String, relative: Boolean): FileResource {
+        if (value.length > 8192 || value.startsWith("//") || value.any { it.code < 33 || it.code == 127 || it == '\\' }) throw DshFailure("files/http_error")
+        val uri = try { URI(value) } catch (_: java.net.URISyntaxException) { throw DshFailure("files/http_error") }
+        if (uri.isAbsolute || uri.rawAuthority != null || uri.rawFragment != null ||
+            uri.rawPath != "/api/file" && !(relative && uri.rawPath.isEmpty())) throw DshFailure("files/http_error")
+        val query = uri.rawQuery ?: throw DshFailure("files/http_error")
+        var path: String? = null
+        var version: String? = null
+        var start = 0
+        while (true) {
+            val end = query.indexOf('&', start).let { if (it < 0) query.length else it }
+            val equals = query.indexOf('=', start)
+            if (equals < start || equals >= end) throw DshFailure("files/http_error")
+            val decoded = try { URLDecoder.decode(query.substring(equals + 1, end), "UTF-8") }
+                catch (_: IllegalArgumentException) { throw DshFailure("files/http_error") }
+            when (query.substring(start, equals)) {
+                "path" -> { if (path != null || !decoded.startsWith('/')) throw DshFailure("files/http_error"); path = decoded }
+                "v" -> {
+                    if (version != null || decoded.isEmpty() || decoded.length > MAX_FILE_VERSION_LENGTH || decoded.any { it.code < 32 || it.code == 127 }) throw DshFailure("files/http_error")
+                    version = decoded
+                }
+                else -> throw DshFailure("files/http_error")
+            }
+            if (end == query.length) break
+            start = end + 1
+        }
+        return FileResource(path ?: throw DshFailure("files/http_error"), version)
     }
     suspend fun upload(path: String, mediaType: String, source: InputStream, sizeBytes: Long): JsonValue {
         require(sizeBytes in 0..200_000_000L)

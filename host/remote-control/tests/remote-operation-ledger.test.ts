@@ -21,7 +21,7 @@ function protector(master: Buffer): JournalKeyProtector {
 }
 function target(): RemoteTarget {
   const origin = 'https://approved.example:9443', tlsPin = `sha256/${randomBytes(32).toString('base64')}`
-  return { id: 'target', displayName: 'Target', route: 'direct', origin, tlsPin, expectedDshVersion: '0.2.1-rc.5',
+  return { id: 'target', displayName: 'Target', route: 'direct', origin, tlsPin, expectedDshVersion: '0.2.2-rc.1',
     descriptor: { version: 2, carrierVersion: 1, suite: NOISE_SUITE, minimumEncrypted: true, origin, tlsPin, runtimeId: randomUUID(), installationId: randomUUID(), hostStaticPublicKey: randomBytes(32).toString('base64url'), hostKeyEpoch: 1 },
     allowedAddresses: ['192.0.2.10'], allowPrivate: false, allowLoopback: false, workspaces: [{ workspaceId: 'workspace', canonicalRoot: '/workspace' }], allowedActions: ['prompt'], allowedAgentPresets: ['preset'], allowedPaths: [], sessionBindings: [],
     authorizationEpoch: 1, status: 'paired', ownerSha256: randomBytes(32).toString('hex'), credentialRef: randomUUID() }

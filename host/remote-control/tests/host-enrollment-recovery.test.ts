@@ -59,7 +59,7 @@ async function fixture(t: test.TestContext) {
   const store = new HostEnrollmentRecoveryStore({ path, client, protector: keyProtector })
   t.after(() => store.close())
   const prepare = () => client.prepare({ organizationId: organization, alias: 'PRIVATE_FIXTURE_HOST', profileRef: 'profile',
-    dshVersion: '0.2.1-rc.2', protocolVersion: 1, workspaceRefs: ['workspace'] })
+    dshVersion: '0.2.2-rc.1', protocolVersion: 1, workspaceRefs: ['workspace'] })
   return { root, path, owner, master, options, client, keyProtector, store, prepare }
 }
 

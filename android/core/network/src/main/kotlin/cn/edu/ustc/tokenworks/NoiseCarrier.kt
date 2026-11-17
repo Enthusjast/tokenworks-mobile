@@ -180,7 +180,7 @@ internal class CarrierSocket private constructor(
         if (!JsonDocument.of(hello).canonicalBytes().contentEquals(helloBytes)) throw DshFailure("e2e.hello_invalid")
         hello.exactKeys("magic", "v", "suite", "runtimeId", "installationId", "hostKeyEpoch", "hostStaticPublicKey", "purpose", "routeKind", "dshVersion", "capabilities")
         if (hello.string("magic") != "tokenworks-noise" || hello.integer("v", 1, 1) != 1L || hello.string("suite") != E2eSession.SUITE ||
-            hello.string("purpose") != purpose || hello.string("routeKind") != routeKind || hello.string("dshVersion") != DshMethods.VERSION)
+            hello.string("purpose") != purpose || hello.string("routeKind") != routeKind || !DshProductAccess.isSupportedDshVersion(hello.string("dshVersion")))
             throw DshFailure("e2e.unsupported")
         if (hello.string("runtimeId") != credentials.runtimeId || hello.string("installationId") != credentials.installationId ||
             hello.string("hostStaticPublicKey") != credentials.hostStaticPublicKey || hello.integer("hostKeyEpoch", 1, MAX_SAFE_INTEGER) != credentials.hostKeyEpoch)
@@ -218,7 +218,7 @@ internal class CarrierSocket private constructor(
         if (!JsonDocument.of(response).canonicalBytes().contentEquals(readyBytes)) throw DshFailure("e2e.ready_invalid")
         response.exactKeys("type", "v", "suite", "dshVersion", "runtimeId", "installationId", "pairId", "hostKeyEpoch", "deviceKeyEpoch", "ownerSha256", "bindingSha256", "peerGeneration")
         if (response.string("type") != "ready" || response.integer("v", 1, 1) != 1L || response.string("suite") != E2eSession.SUITE ||
-            response.string("dshVersion") != DshMethods.VERSION || response.string("runtimeId") != credentials.runtimeId ||
+            response.string("dshVersion") != hello.string("dshVersion") || response.string("runtimeId") != credentials.runtimeId ||
             response.string("installationId") != credentials.installationId || response.string("pairId") != credentials.pairId ||
             response.integer("hostKeyEpoch", 1, MAX_SAFE_INTEGER) != credentials.hostKeyEpoch || response.integer("deviceKeyEpoch", 1, MAX_SAFE_INTEGER) != credentials.deviceKeyEpoch ||
             response.string("ownerSha256") != credentials.ownerSha256 || response.string("bindingSha256") != credentials.bindingSha256)

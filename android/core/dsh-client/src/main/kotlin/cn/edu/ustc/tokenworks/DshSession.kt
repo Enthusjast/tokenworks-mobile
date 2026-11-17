@@ -151,7 +151,7 @@ class DshSessionReader(
     private fun address() = DshSessionFollowInputRequestAddress.Case1(DshSessionFollowInputRequestAddressCase1("session", sessionId))
     private fun pageAddress() = DshSessionPageInputRequestAddress.Case1(DshSessionPageInputRequestAddressCase1("session", sessionId))
     private suspend fun nativePage(openingCursor: Long, beforeSeq: Long): DshTranscriptPage {
-        val request = DshSessionPageInputRequest(pageAddress(), openingCursor.toDouble(), DshOptional.Value(beforeSeq.toDouble()), DshOptional.Value(maxOf(2, maxMessages).toDouble()))
+        val request = DshSessionPageInputRequest(pageAddress(), DshOptional.Value(openingCursor.toDouble()), DshOptional.Value(beforeSeq.toDouble()), DshOptional.Value(maxOf(2, maxMessages).toDouble()))
         return DshTranscriptPage.decode(call("session/page", DshMethods.SessionPage.input, DshSessionPageInput(request)))
     }
 
@@ -163,7 +163,7 @@ class DshSessionReader(
                 val socket = transport.openMux()
                 mux = socket
                 // The generated native request is authoritative; there is no afterCursor extension.
-                val request = DshSessionFollowInputRequest(address(), DshOptional.Value(true), DshOptional.Value(maxMessages.toDouble()))
+                val request = DshSessionFollowInputRequest(address = address(), assistantStream = DshOptional.Value(true), maxMessages = DshOptional.Value(maxMessages.toDouble()))
                 val opened = socket.open("session/follow", jsonObject("args" to DshMethods.SessionFollow.input.encode(DshSessionFollowInput(request))))
                 stream = opened
                 while (!closed.get() && !authorityLost.get()) {

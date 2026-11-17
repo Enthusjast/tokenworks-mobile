@@ -16,7 +16,9 @@ import tarfile
 import tempfile
 
 FORMAT = "tokenworks-mobile-host-bundle/v2"
-DSH = "0.2.1-rc.5"
+DSH = "0.2.2-rc.1"
+DSH_RANGE = ">=0.2.2-0 <0.2.3-0"
+DSH_VERSION = re.compile(r"0\.2\.2(?:-(?:0|[1-9][0-9]*|[0-9]*[A-Za-z-][0-9A-Za-z-]*)(?:\.(?:0|[1-9][0-9]*|[0-9]*[A-Za-z-][0-9A-Za-z-]*))*)?(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?")
 MAX_FILE = 8 << 20
 MAX_TOTAL = 32 << 20
 MAX_ARCHIVE = 16 << 20
@@ -128,9 +130,22 @@ def inspect_archive(raw):
     require(not any(hook in package.get("scripts", {}) for hook in ["preinstall", "install", "postinstall", "prepare", "prepack", "postpack"]))
     for section in ("dependencies", "peerDependencies"):
         require(isinstance(package.get(section), dict) and package[section]
-                and all(isinstance(name, str) and isinstance(version, str) and VERSION.fullmatch(version)
+                and all(isinstance(name, str) and isinstance(version, str)
+                        and (version == DSH_RANGE if section == "peerDependencies" and name.startswith("@deepseek-ai/dsh-") else VERSION.fullmatch(version))
                         for name, version in package[section].items()))
     return files, package
+
+def validate_installed_dependencies(package, installed):
+    expected = {**package["dependencies"], **package["peerDependencies"]}
+    require(isinstance(installed, dict) and set(installed) == set(expected))
+    for name, declared in expected.items():
+        actual = installed[name]
+        require(isinstance(actual, str))
+        if name.startswith("@deepseek-ai/dsh-") and declared == DSH_RANGE:
+            require(DSH_VERSION.fullmatch(actual))
+        else:
+            require(actual == declared)
+
 
 def validate(manifest_raw, archive_raw, expected):
     require(isinstance(expected, str) and HEX.fullmatch(expected) and digest(manifest_raw) == expected
@@ -164,7 +179,8 @@ def validate(manifest_raw, archive_raw, expected):
     require(artifact["files"] == [file_record(name, files[name]) for name in sorted(files)])
     toolchain = manifest["toolchain"]
     require(isinstance(toolchain, dict) and set(toolchain) == {"node", "node_api", "rust", "npm", "typescript", "dsh", "installed_dependencies", "platform", "architecture"}
-            and isinstance(toolchain["dsh"], dict) and set(toolchain["dsh"]) == {"version", "entry_sha256"} and toolchain["dsh"].get("version") == DSH
+            and isinstance(toolchain["dsh"], dict) and set(toolchain["dsh"]) == {"version", "entry_sha256"}
+            and isinstance(toolchain["dsh"].get("version"), str) and DSH_VERSION.fullmatch(toolchain["dsh"]["version"])
             and HEX.fullmatch(toolchain["dsh"].get("entry_sha256", "")))
     require(isinstance(toolchain["node"], str) and re.fullmatch(r"v24\.[0-9]+\.[0-9]+", toolchain["node"])
             and int(toolchain["node"].split(".")[1]) >= 15
@@ -173,7 +189,7 @@ def validate(manifest_raw, archive_raw, expected):
     require(toolchain["node_api"] == 8 and isinstance(toolchain["rust"], str) and re.fullmatch(r"rustc 1\.96\.0 \([0-9a-f]+ [0-9-]+\)", toolchain["rust"]))
     require(isinstance(toolchain["platform"], str) and re.fullmatch(r"[a-z0-9_]+", toolchain["platform"])
             and isinstance(toolchain["architecture"], str) and re.fullmatch(r"[A-Za-z0-9_]+", toolchain["architecture"]))
-    require(toolchain["installed_dependencies"] == {**package["dependencies"], **package["peerDependencies"]})
+    validate_installed_dependencies(package, toolchain["installed_dependencies"])
     return manifest, files
 
 def verify(directory, expected, unpack=None):
@@ -270,13 +286,13 @@ def build(root, output, dsh):
     require(re.fullmatch(r"rustc 1\.96\.0 \([0-9a-f]+ [0-9-]+\)", rust))
     dsh_hash = digest(dsh.read_bytes())
     dsh_version = run([str(dsh), "--version"], root, timeout=5).decode().strip()
-    require(dsh_version == DSH)
+    require(DSH_VERSION.fullmatch(dsh_version))
     script = """const {createRequire}=require('node:module'),{readFileSync,existsSync}=require('node:fs'),{dirname,join}=require('node:path');
 const req=createRequire(process.argv[1]),names=JSON.parse(process.argv[2]),result={};
 for(const name of names){let path=dirname(req.resolve(name));for(;;){const file=join(path,'package.json');if(existsSync(file)){const pkg=JSON.parse(readFileSync(file));if(pkg.name===name){result[name]=pkg.version;break}}const next=dirname(path);if(next===path)throw Error('missing package');path=next}}
 process.stdout.write(JSON.stringify(result));"""
     installed = parse_json(run(["node", "-e", script, str(root / "host/remote-control/package.json"), json.dumps(sorted(expected))], root))
-    require(installed == expected)
+    validate_installed_dependencies(package, installed)
     typescript = parse_json((root / "node_modules/typescript/package.json").read_bytes())["version"]
     require(typescript == parse_json((root / "package.json").read_bytes())["devDependencies"]["typescript"])
     output.mkdir(mode=0o700)

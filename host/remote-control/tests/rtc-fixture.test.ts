@@ -6,6 +6,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { startNativeTestHost } from '../../../tools/dev/native-test-host.js'
 import { noiseHttpRequest, pairNoiseClient } from './noise-client.js'
+import { nativeFileVersionPath } from '../src/remote-native-client.js'
 
 test('explicit private RTC fixture creates an actual 400003-byte workspace file served by the installed native file provider', { timeout: 45_000 }, async t => {
   const directory = await mkdtemp(join(tmpdir(), 'rtc-fixture-config-')), config = join(directory, 'rtc-private.json')
@@ -23,7 +24,10 @@ test('explicit private RTC fixture creates an actual 400003-byte workspace file 
   assert.equal(rtc.largeFile.sha256, createHash('sha256').update(expected).digest('hex'))
   const credential = await pairNoiseClient({ origin: descriptor.pairing.origin, ca: descriptor.operatorCaPem, descriptor: descriptor.pairing, owner: descriptor.owner })
   t.after(() => credential.privateKey.fill(0))
-  const response = await noiseHttpRequest({ origin: descriptor.pairing.origin, ca: descriptor.operatorCaPem, credential }, 'GET', `/api/file?path=${encodeURIComponent(rtc.largeFile.path)}`)
+  const client = { origin: descriptor.pairing.origin, ca: descriptor.operatorCaPem, credential }, path = `/api/file?path=${encodeURIComponent(rtc.largeFile.path)}`
+  const version = await noiseHttpRequest(client, 'GET', path)
+  assert.equal(version.status, 302)
+  const response = await noiseHttpRequest(client, 'GET', nativeFileVersionPath(path, version.headers.location ?? null))
   assert.equal(response.status, 200); assert.deepEqual(response.body, expected)
   assert.equal(createHash('sha256').update(response.body).digest('hex'), rtc.largeFile.sha256)
 })

@@ -7,7 +7,10 @@ data class DshProductAction(val capability: String, val resources: Set<String>, 
 data class DshProductInteractions(val participation: String, val answerAuthority: Boolean)
 
 object DshProductAccess {
-    const val VERSION = "0.2.1-rc.5"
+    const val VERSION = "0.2.2-rc.1"
+    const val VERSION_RANGE = ">=0.2.2-0 <0.2.3-0"
+    private val supportedVersion = Regex("0[.]2[.]2(-(0|[1-9][0-9]*|[0-9]*[A-Za-z-][0-9A-Za-z-]*)([.](0|[1-9][0-9]*|[0-9]*[A-Za-z-][0-9A-Za-z-]*))*)?([+][0-9A-Za-z-]+([.][0-9A-Za-z-]+)*)?")
+    fun isSupportedDshVersion(value: String): Boolean = supportedVersion.matches(value)
     val actions: Map<String, DshProductAction> = mapOf(
         "directoryPicker/createDirectory" to DshProductAction("directory.write", setOf("global"), true, false, null),
         "directoryPicker/list" to DshProductAction("directory.read", setOf("global"), true, false, null),
@@ -20,11 +23,15 @@ object DshProductAccess {
         "session/canOpenWorkspacePath" to DshProductAction("desktop.open", setOf("global"), true, false, null),
         "session/control" to DshProductAction("session.read", setOf("global", "session"), true, true, null),
         "session/create" to DshProductAction("session.write", setOf("global", "session", "workspace"), true, true, null),
+        "session/events" to DshProductAction("session.read", setOf("session"), false, false, null),
         "session/follow" to DshProductAction("session.read", setOf("session"), false, true, null),
         "session/fork" to DshProductAction("session.write", setOf("session"), false, true, null),
         "session/initializeDefaultModel" to DshProductAction("model.write", setOf("global"), true, false, null),
         "session/list" to DshProductAction("session.read", setOf("global", "session"), true, true, null),
         "session/modelCatalog" to DshProductAction("model.read", setOf("global"), true, true, null),
+        "session/observeEvent" to DshProductAction("session.read", setOf("session"), false, false, null),
+        "session/observeProjections" to DshProductAction("session.read", setOf("session"), false, false, null),
+        "session/observeState" to DshProductAction("session.read", setOf("session"), false, false, null),
         "session/openWorkspacePath" to DshProductAction("desktop.open", setOf("global"), true, false, null),
         "session/page" to DshProductAction("session.read", setOf("session"), false, true, null),
         "session/projections" to DshProductAction("session.read", setOf("session"), false, true, null),
@@ -32,7 +39,9 @@ object DshProductAccess {
         "session/rename" to DshProductAction("session.write", setOf("session"), false, true, null),
         "session/search" to DshProductAction("session.read", setOf("global", "session"), true, true, null),
         "session/selectModel" to DshProductAction("model.write", setOf("session"), false, true, null),
+        "session/state" to DshProductAction("session.read", setOf("session"), false, false, null),
         "session/updateQueue" to DshProductAction("session.write", setOf("session"), false, true, null),
+        "session/wait" to DshProductAction("session.read", setOf("session"), false, false, null),
         "session/workspacePathApplications" to DshProductAction("desktop.open", setOf("global"), true, false, null),
         "skills/list" to DshProductAction("files.read", setOf("session"), false, false, null),
         "terminal/attach" to DshProductAction("terminal.write", setOf("session"), false, true, null),
@@ -64,7 +73,7 @@ object DshProductAccess {
     )
     val ownerBindings: List<DshProductBinding> = listOf(
         DshProductBinding(DshProductResource("global"), setOf("directoryPicker/createDirectory", "directoryPicker/list", "directoryPicker/pick", "remoteAccess/follow", "session/canOpenWorkspacePath", "session/control", "session/create", "session/initializeDefaultModel", "session/list", "session/modelCatalog", "session/openWorkspacePath", "session/search", "session/workspacePathApplications", "workspace/create", "workspace/follow", "workspace/initializeDefault", "event:approval/request", "event:user-questions/request", "event:approval/decided")),
-        DshProductBinding(DshProductResource("session"), setOf("fileReferences/list", "fileUploads/upload", "session/attachment", "session/cancel", "session/control", "session/create", "session/follow", "session/fork", "session/list", "session/page", "session/projections", "session/prompt", "session/rename", "session/search", "session/selectModel", "session/updateQueue", "skills/list", "terminal/attach", "terminal/close", "terminal/create", "terminal/environment", "terminal/list", "terminal/rename", "terminal/retain", "terminal/shells", "userQuestions/answer", "userQuestions/attachWait", "workspace/archiveSession", "workspace/follow", "workspace/insertSessionBefore", "workspace/pinSession", "workspace/unarchiveSession", "workspace/unpinSession", "event:api-session/status", "event:api-session/activity")),
+        DshProductBinding(DshProductResource("session"), setOf("fileReferences/list", "fileUploads/upload", "session/attachment", "session/cancel", "session/control", "session/create", "session/events", "session/follow", "session/fork", "session/list", "session/observeEvent", "session/observeProjections", "session/observeState", "session/page", "session/projections", "session/prompt", "session/rename", "session/search", "session/selectModel", "session/state", "session/updateQueue", "session/wait", "skills/list", "terminal/attach", "terminal/close", "terminal/create", "terminal/environment", "terminal/list", "terminal/rename", "terminal/retain", "terminal/shells", "userQuestions/answer", "userQuestions/attachWait", "workspace/archiveSession", "workspace/follow", "workspace/insertSessionBefore", "workspace/pinSession", "workspace/unarchiveSession", "workspace/unpinSession", "event:api-session/status", "event:api-session/activity")),
         DshProductBinding(DshProductResource("workspace"), setOf("session/create", "workspace/delete", "workspace/follow", "workspace/insertBefore", "workspace/insertSessionBefore", "workspace/rename")),
     )
     fun isResource(resource: DshProductResource): Boolean = when (resource.kind) {

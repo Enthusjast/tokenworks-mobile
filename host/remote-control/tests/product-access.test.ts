@@ -6,16 +6,44 @@ import { dirname, join } from 'node:path'
 import { createRequire } from 'node:module'
 import { pathToFileURL } from 'node:url'
 import { API_REMOTE_FORWARDED_EVENTS } from '@deepseek-ai/dsh-api-remotes'
+import { Context } from '@deepseek-ai/cordis'
+import { apply } from '../src/index.js'
 import { nativeMethods, installedNativeMethods, nativeCodec } from '../../../tools/native-contract.js'
 import { assertProductAccessContract, productAccessOutputs, readProductAccessContract } from '../../../tools/product-access-contract.js'
 import { checkTypertContracts } from '../../../tools/typert-contract-check.js'
 import {
+  PRODUCT_NATIVE_VERSION, PRODUCT_NATIVE_VERSION_RANGE, isSupportedDshVersion,
   PRODUCT_OWNER_BINDINGS, productActions, isProductAction, isProductResource, isProductBinding,
   productActionAllowsResource, productActionAllowsGlobal, isProductOwnerEligible, productInteractionPolicy,
   type ProductBinding,
 } from '../src/product-access.generated.js'
 
 const owner = { role: 'owner', is_installation_owner: true, bindings: PRODUCT_OWNER_BINDINGS }
+
+test('native version admission accepts the complete 0.2.2 SemVer family and rejects neighboring or malformed versions', () => {
+  assert.equal(PRODUCT_NATIVE_VERSION, '0.2.2-rc.1')
+  assert.equal(PRODUCT_NATIVE_VERSION_RANGE, '>=0.2.2-0 <0.2.3-0')
+  for (const version of ['0.2.2-0', '0.2.2-alpha.0', '0.2.2-rc.1', '0.2.2-rc.2', '0.2.2', '0.2.2+build.01', '0.2.2-rc.2+build.01']) {
+    assert.equal(isSupportedDshVersion(version), true, version)
+  }
+  for (const version of [undefined, null, 20202, {}, '0.2.1', '0.2.1-rc.5', '0.2.3-0', '0.2.3-rc.1', '0.2.3',
+    'v0.2.2', '0.2.2 ', ' 0.2.2', '0.2.2\n', '00.2.2', '0.02.2', '0.2.02', '0.2.2-', '0.2.2-01', '0.2.2-rc.01',
+    '0.2.2-rc..1', '0.2.2+', '0.2.2+build..1', '0.2.2-rc_1']) {
+    assert.equal(isSupportedDshVersion(version), false, JSON.stringify(version))
+  }
+})
+
+test('enabled plugin admission validates the family before acquiring credentials or installing transports', async () => {
+  const ctx = new Context()
+  try {
+    for (const dshVersion of ['', '0.2.1-rc.5', '0.2.3-rc.1', '0.2.2-rc.01']) {
+      await assert.rejects(apply(ctx, { enabled: true, dshVersion }), /unsupported dsh version/)
+    }
+    for (const dshVersion of ['0.2.2-rc.1', '0.2.2-rc.2', '0.2.2', '0.2.2-rc.2+build.7']) {
+      await assert.rejects(apply(ctx, { enabled: true, dshVersion }), /authenticated Relay and stable runtime identity required/)
+    }
+  } finally { await ctx.fiber.dispose() }
+})
 
 test('one canonical matrix covers the exact installed inventory, selected 38 codecs and every owner action/resource pair', async () => {
   const contract = await assertProductAccessContract(await readProductAccessContract())

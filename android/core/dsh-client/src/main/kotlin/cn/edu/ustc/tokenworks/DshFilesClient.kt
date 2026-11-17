@@ -43,16 +43,16 @@ class DshFilesClient(private val transport: DshTransport, stagingDirectory: File
     suspend fun download(path: String, onProgress: (Long) -> Unit = {}): StagedFile =
         preview.fetch(path, maxBytes = MAX_UPLOAD_BYTES, onProgress = onProgress)
 
-    suspend fun attachment(sessionId: String, attachmentId: String, onProgress: (Long) -> Unit = {}): StagedFile {
+    suspend fun attachment(sessionId: String, attachment: NativeImageReference, onProgress: (Long) -> Unit = {}): StagedFile {
         require(sessionId.isNotBlank())
-        if (!attachmentId.matches(Regex("sha256:[0-9a-f]{64}"))) throw RemoteRequestException("files.invalid_attachment")
-        val response = transport.native("session/attachment", jsonObject("request" to jsonObject(
-            "sessionId" to sessionId.json(), "attachmentId" to attachmentId.json()))) as? JsonObject ?: throw ProtocolException()
+        val args = jsonObject("request" to jsonObject("sessionId" to sessionId.json(), "attachment" to attachment.json()))
+        DshMethods.SessionAttachment.input.decode(args)
+        val response = transport.native("session/attachment", args) as? JsonObject ?: throw ProtocolException()
         DshSessionAttachmentResult.codec.decode(response)
         val ref = NativeImageReference.parse(JsonObject(response.obj("attachment").fields.filterKeys {
             it in setOf("attachmentId", "mediaType", "bytes", "width", "height", "name")
         }))
-        if (ref.attachmentId != attachmentId) throw ProtocolException()
+        if (!ref.same(attachment)) throw ProtocolException()
         val mime = ref.mediaType
         val bytes = ref.bytes
         val data = response.string("data")
@@ -87,7 +87,7 @@ class DshFilesClient(private val transport: DshTransport, stagingDirectory: File
             }).use { source -> copy(source, sink) }
             DshDownload(mime, bytes, null, null)
         }
-        if (staged.mediaType != mime || "sha256:${staged.sha256}" != attachmentId) {
+        if (staged.mediaType != mime || "sha256:${staged.sha256}" != attachment.attachmentId) {
             staged.close(); throw RemoteRequestException("files.integrity_mismatch")
         }
         return staged

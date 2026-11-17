@@ -28,7 +28,7 @@ import { installRemoteTools } from '../src/remote-tools.js'
 import { RemoteOperationLedger } from '../src/remote-operation-ledger.js'
 import { pinnedRequest } from '../src/remote-network.js'
 import { correlatePrompt } from '../src/remote-wait.js'
-import { REMOTE_ACTIONS } from '../src/remote-targets.js'
+import { REMOTE_ACTIONS, type RemoteTargetConfig } from '../src/remote-targets.js'
 import type { JournalKeyProtector } from '../src/journal-key-protection.js'
 
 function protector(): JournalKeyProtector {
@@ -67,7 +67,7 @@ async function target(t: TestContext) {
       super.accept(bridge, peer)
     }
   }
-  const gateway = new ObservedNativeGateway(native.ctx.connection, native.ctx.typertGateway), carrier = new NoiseCarrier(pairing, gateway, '0.2.1-rc.5', origin)
+  const gateway = new ObservedNativeGateway(native.ctx.connection, native.ctx.typertGateway), carrier = new NoiseCarrier(pairing, gateway, '0.2.2-rc.1', origin)
   const lan = new LanGateway({ host: '127.0.0.1', port: address.port, certificate: { cert, key }, connection: native.ctx.connection, gateway, carrier, pairing }); await lan.listen()
   const workspace = await native.ctx.typertGateway.invoke({ namespace: 'workspace', method: 'create', args: { request: { path: native.cwd } }, peer: native.peer }) as { workspace: { workspaceId: string } }
   const filePath = join(native.cwd, 'native-bytes.bin'), bytes = Buffer.concat([Buffer.from('real native cross-host bytes'), randomBytes(1024), Buffer.from([0, 255, 128])]); await writeFile(filePath, bytes)
@@ -84,8 +84,16 @@ test('actual source registry/open turn/owner approval and independently paired n
   assert.equal((await tools.targets.status()).enabled, false)
   for (const [id, native] of [['a', a], ['b', b]] as const) {
     const full = native.pairing.begin(), { code: _code, expiresAt: _expiresAt, ...descriptor } = full
-    await tools.targets.configure({ id, displayName: `Independent ${id}`, route: 'direct', descriptor, origin: native.origin, tlsPin: descriptor.tlsPin, allowedAddresses: ['127.0.0.1/32'], allowLoopback: true, allowPrivate: true, trustedCertificate: native.cert,
-      workspaces: [{ workspaceId: native.workspaceId, canonicalRoot: native.cwd }], allowedActions: [...REMOTE_ACTIONS], allowedAgentPresets: ['golden'], allowedPaths: [{ path: native.filePath, actions: ['read', 'stat', 'download'], maxBytes: 1024 * 1024 }, { path: native.cwd, actions: ['list'], maxBytes: 1024 * 1024 }], sessionBindings: [] })
+    const config = { id, displayName: `Independent ${id}`, route: 'direct', descriptor, origin: native.origin, tlsPin: descriptor.tlsPin, allowedAddresses: ['127.0.0.1/32'], allowLoopback: true, allowPrivate: true, trustedCertificate: native.cert,
+      workspaces: [{ workspaceId: native.workspaceId, canonicalRoot: native.cwd }], allowedActions: [...REMOTE_ACTIONS], allowedAgentPresets: ['golden'], allowedPaths: [{ path: native.filePath, actions: ['read', 'stat', 'download'], maxBytes: 1024 * 1024 }, { path: native.cwd, actions: ['list'], maxBytes: 1024 * 1024 }], sessionBindings: [] } satisfies RemoteTargetConfig
+    assert.equal((await tools.targets.configure(config)).expectedDshVersion, undefined)
+    if (id === 'a') {
+      for (const expectedDshVersion of ['0.2.2-rc.1', '0.2.2-rc.2', '0.2.2', '0.2.2-rc.2+build.7']) {
+        assert.equal((await tools.targets.configure({ ...config, expectedDshVersion })).expectedDshVersion, expectedDshVersion)
+      }
+      for (const expectedDshVersion of ['0.2.1-rc.5', '0.2.3-rc.1', '0.2.2-rc.01']) await assert.rejects(tools.targets.configure({ ...config, expectedDshVersion }))
+      assert.equal((await tools.targets.configure(config)).expectedDshVersion, undefined)
+    }
     await tools.targets.pair(id, full, pinnedRequest, AbortSignal.timeout(15_000))
   }
   await tools.targets.setEnabled(true)
@@ -102,16 +110,28 @@ test('actual source registry/open turn/owner approval and independently paired n
   const ready = (await events.next()).value as { type: string; clientId: string }; assert.equal(ready.type, 'ready')
   const fetchHandler = source.ctx.connection.createSharedFetchHandler('/api')
   const call = async (name: string, args: object, approval?: 'allowed-once' | 'rejected', callId = randomUUID()) => {
-    const executing = source.ctx.tools.execute({ name, arguments: args, callId: callId as ToolCallId, agent: handle.agent, signal: AbortSignal.timeout(45_000) })
-    if (approval) {
-      let question: { type: string; event?: string; eventId?: string; args?: unknown } | undefined
-      for (let index = 0; index < 64; index++) { const frame = (await events.next()).value as typeof question; if (frame?.type === 'waterfall' && frame.event === 'approval/request') { question = frame; break } }
-      assert.ok(question?.eventId, 'actual source native approval waterfall')
-      const response = await fetchHandler.fetch(new Request('http://localhost/api/$events/result', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ type: 'client-request', rpcId: randomUUID(), method: '$events/result', payload: { args: { clientId: ready.clientId, eventId: question.eventId, outcome: { kind: 'result', value: approval } } } }) }), owner)
-      const answer = await response.json() as { result: { ok: boolean } }
-      assert.equal(answer.result.ok, true)
-    }
-    return executing
+    const signal = AbortSignal.timeout(45_000)
+    const toolSet = await source.ctx.tools.resolve({ agent: handle.agent, modelSelection: { provider: 'fixture', model: 'fixture' }, signal })
+    try {
+      const executing = source.ctx.tools.execute({ calls: [{ type: 'tool-call', name, arguments: JSON.stringify(args), id: callId as ToolCallId }], agent: handle.agent, toolSet, signal })
+      if (approval) {
+        let question: { type: string; event?: string; eventId?: string; args?: unknown } | undefined
+        for (let index = 0; index < 64; index++) {
+          const next = await Promise.race([events.next(), executing.then(batch => assert.fail(`${name} settled without the required native approval: ${JSON.stringify(batch)}`))])
+          assert.equal(next.done, false, 'native owner event stream remains open')
+          const frame = next.value as typeof question
+          if (frame?.type === 'waterfall' && frame.event === 'approval/request') { question = frame; break }
+        }
+        assert.ok(question?.eventId, 'actual source native approval waterfall')
+        const response = await fetchHandler.fetch(new Request('http://localhost/api/$events/result', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ type: 'client-request', rpcId: randomUUID(), method: '$events/result', payload: { args: { clientId: ready.clientId, eventId: question.eventId, outcome: { kind: 'result', value: approval } } } }) }), owner)
+        const answer = await response.json() as { result: { ok: boolean } }
+        assert.equal(answer.result.ok, true)
+      }
+      const batch = await executing
+      assert.equal(batch.results.length, 1)
+      assert.equal(batch.results[0]!.callId, callId)
+      return batch.results[0]!.result
+    } finally { toolSet.dispose() }
   }
   const value = async (pending: Promise<ToolExecutionResult>) => {
     const result = await pending
@@ -135,6 +155,13 @@ test('actual source registry/open turn/owner approval and independently paired n
   source.ctx.approval.setPolicy(handle.agent, 'ask')
   const allowGate = source.ctx.on('tools/pre-execute', async () => ({ kind: 'allow' }), { global: true })
   t.after(allowGate)
+  const denyGuard = source.ctx.tools.guard(exec => exec.name === 'remote_prompt' ? 'source final guard denies remote prompt' : undefined)
+  try {
+    const beforeGuard = a.ctx.agents.get(SessionId(sessionA))!.session.snapshotEvents().filter(event => event.type === 'user/message').length
+    const denied = await call('remote_prompt', { targetId: 'a', sessionId: sessionA, text: 'allow waterfall cannot override final guard' })
+    assert.equal(denied.isError, true); assert.match(JSON.stringify(denied), /source final guard denies remote prompt/)
+    assert.equal(a.ctx.agents.get(SessionId(sessionA))!.session.snapshotEvents().filter(event => event.type === 'user/message').length, beforeGuard)
+  } finally { denyGuard() }
   assert.equal((await call('remote_prompt', { targetId: 'b', sessionId: sessionA, text: 'wrong target' })).isError, true)
   const prompt = await value(call('remote_prompt', { targetId: 'a', sessionId: sessionA, text: 'native remote prompt' }, 'allowed-once'))
   const waited = await value(call('remote_wait', { operationId: prompt.operationId, timeoutMs: 10_000 }))

@@ -7,7 +7,7 @@ import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { once } from 'node:events'
 import { createServer, type Socket } from 'node:net'
-import { request } from 'node:http'
+import { request, type IncomingHttpHeaders } from 'node:http'
 import { createServer as createHttpsServer } from 'node:https'
 import { Duplex } from 'node:stream'
 import { createSocket } from 'node:dgram'
@@ -36,13 +36,14 @@ import { generateNoiseStatic } from '../src/native-noise.js'
 import { NativeAccess, type NativeLease } from '../src/native-access.js'
 import { PRODUCT_OWNER_BINDINGS } from '../src/product-access.generated.js'
 import { pairNoiseClient, openNoiseClient, type NoiseClientCredential } from './noise-client.js'
+import { nativeFileVersionPath } from '../src/remote-native-client.js'
 
 async function exchange(stream: Duplex, path: string, body?: unknown, method = body === undefined ? 'GET' : 'POST') {
-  const pending = Promise.withResolvers<{ status: number; body: Buffer }>(), bytes = body === undefined ? undefined : Buffer.isBuffer(body) ? body : Buffer.from(JSON.stringify(body))
+  const pending = Promise.withResolvers<{ status: number; body: Buffer; headers: IncomingHttpHeaders }>(), bytes = body === undefined ? undefined : Buffer.isBuffer(body) ? body : Buffer.from(JSON.stringify(body))
   const call = request({ hostname: 'native.invalid', path, method, createConnection: () => stream as Socket, headers: { Connection: 'close', ...(bytes ? { 'Content-Length': String(bytes.length), 'Content-Type': Buffer.isBuffer(body) ? 'application/octet-stream' : 'application/json' } : {}) } }, response => {
     const parts: Buffer[] = []; let length = 0
     response.on('data', (chunk: Buffer) => { length += chunk.length; if (length > 1024 * 1024) call.destroy(new Error('test/response-budget')); else parts.push(Buffer.from(chunk)) })
-    response.on('error', pending.reject); response.once('end', () => pending.resolve({ status: response.statusCode!, body: Buffer.concat(parts) }))
+    response.on('error', pending.reject); response.once('end', () => pending.resolve({ status: response.statusCode!, body: Buffer.concat(parts), headers: response.headers }))
   })
   // A real-network response deadline, not a guessed gathering completion wait.
   const deadline = setTimeout(() => call.destroy(new Error(`test/native-response-timeout:${path.split('?')[0]}`)), 10_000); deadline.unref()
@@ -173,8 +174,13 @@ for (const routeKind of ['p2p', 'turn'] as const) test(`real ${routeKind} select
   const largeBytes = Buffer.alloc(400003), largePath = join(f.cwd, 'rtc-large-native.bin')
   for (let index = 0; index < largeBytes.length; index++) largeBytes[index] = (index * 37 + 11) & 255
   await writeFile(largePath, largeBytes, { mode: 0o600, flag: 'wx' })
+  const versionCarrier = await f.rtcDial(routeKind); assert.ok(versionCarrier.noise)
+  const path = `/api/file?path=${encodeURIComponent(largePath)}`, version = await exchange(versionCarrier.noise.stream, path)
+  assert.equal(version.status, 302)
+  assert.equal(versionCarrier.noise.ready.peerGeneration, first.noise.ready.peerGeneration)
   const downloadCarrier = await f.rtcDial(routeKind); assert.ok(downloadCarrier.noise)
-  const downloaded = await exchange(downloadCarrier.noise.stream, `/api/file?path=${encodeURIComponent(largePath)}`)
+  assert.equal(downloadCarrier.noise.ready.peerGeneration, versionCarrier.noise.ready.peerGeneration)
+  const downloaded = await exchange(downloadCarrier.noise.stream, nativeFileVersionPath(path, version.headers.location ?? null))
   assert.equal(downloaded.status, 200); assert.deepEqual(downloaded.body, largeBytes)
   assert.equal(createHash('sha256').update(downloaded.body).digest('hex'), createHash('sha256').update(largeBytes).digest('hex'))
   t.diagnostic(`${routeKind}: actual 400003-byte multi-record native download matched bytes and digest`)
@@ -207,7 +213,7 @@ for (const routeKind of ['p2p', 'turn'] as const) test(`real ${routeKind} select
   assert.equal(answered.status, 200); assert.equal(JSON.parse(answered.body.toString()).result.ok, true)
   await agent.whenIdle(); assert.equal(await readFile(join(f.cwd, 'approval-allow.txt'), 'utf8'), 'authorized')
   t.diagnostic(`${routeKind}: actual native approval executed allowlisted sentinel`)
-  const postDtls = Buffer.concat([...first.capture, ...second.capture, ...downloadCarrier.capture, ...third.capture, ...fourth.capture, ...fifth.capture])
+  const postDtls = Buffer.concat([...first.capture, ...second.capture, ...versionCarrier.capture, ...downloadCarrier.capture, ...third.capture, ...fourth.capture, ...fifth.capture])
   for (const plaintext of [canary, '/api/', 'client-request', 'session/create', 'approval/request', 'allowed-once']) assert.equal(postDtls.includes(Buffer.from(plaintext)), false, plaintext)
   assert.equal(postDtls.includes(largeBytes.subarray(0, 64)), false)
   assert.ok(postDtls.includes(Buffer.from('tokenworks-noise')))

@@ -134,6 +134,18 @@ export class RemoteNativeSocket implements ConnectionWebSocket {
 const contributions = [sessionRemote, workspaceRemote, workspaceFilesRemote, fileUploadsRemote]
 const unaryRoutes = new Set(contributions.flatMap(info => info.descriptors.filter(descriptor => descriptor.mode !== 'stream').map(descriptor => `/api/${descriptor.namespace}/${descriptor.method}`)))
 
+/** A file version response may change only the version, never its authority or path. */
+export function nativeFileVersionPath(path: string, location: string | null): string {
+  if (!location?.startsWith('?') || location.length > 16_384 || /[\\\r\n#]/.test(location)) throw new Error('remote/native-file-version')
+  const original = new URL(path, 'http://dsh-api'), next = new URL(location, original)
+  const keys = [...next.searchParams.keys()]
+  if (original.pathname !== '/api/file' || next.origin !== original.origin || next.pathname !== original.pathname ||
+    keys.length !== 2 || next.searchParams.getAll('path').length !== 1 || next.searchParams.getAll('v').length !== 1 ||
+    !original.searchParams.get('path') || next.searchParams.get('path') !== original.searchParams.get('path') ||
+    !next.searchParams.get('v') || next.searchParams.get('v') === original.searchParams.get('v')) throw new Error('remote/native-file-version')
+  return next.pathname + next.search
+}
+
 /** All business bytes use standard HTTP/WS libraries on authenticated Noise Duplexes. */
 export async function connectRemoteNative(target: RemoteTarget, credential: RemoteCredential, signal: AbortSignal): Promise<RemoteNativeClient> {
   signal.throwIfAborted(); remoteOrigin(target)
@@ -159,7 +171,7 @@ export async function connectRemoteNative(target: RemoteTarget, credential: Remo
   }
   const aborted = () => { void close() }
   signal.addEventListener('abort', aborted, { once: true })
-  async function fetchNative(input: string | URL, init: RequestInit = {}): Promise<Response> {
+  async function fetchOnce(input: string | URL, init: RequestInit = {}): Promise<Response> {
     ownerSignal.throwIfAborted()
     const raw = String(input)
     if (!/^(?:\/)?api\//.test(raw) || /[\\\r\n#]/.test(raw)) throw new Error('remote/native-route')
@@ -206,7 +218,7 @@ export async function connectRemoteNative(target: RemoteTarget, credential: Remo
       })()
       try { incoming = await pending.promise } finally { clearTimeout(headerDeadline) }
       const response = incoming, status = response.statusCode ?? 0, responseCap = file ? 32 * 1024 * 1024 : 1024 * 1024
-      if (status < 200 || status >= 300 && status < 400 || response.headers['content-encoding'] && response.headers['content-encoding'] !== 'identity' || Number(response.headers['content-length'] ?? 0) > responseCap) throw new Error('remote/native-response')
+      if (status < 200 || status >= 300 && status < 400 && !(file && status === 302) || response.headers['content-encoding'] && response.headers['content-encoding'] !== 'identity' || Number(response.headers['content-length'] ?? 0) > responseCap) throw new Error('remote/native-response')
       const outputHeaders = new Headers()
       for (let index = 0; index < response.rawHeaders.length; index += 2) {
         const name = response.rawHeaders[index]!, value = response.rawHeaders[index + 1]!
@@ -232,6 +244,16 @@ export async function connectRemoteNative(target: RemoteTarget, credential: Remo
       }, { highWaterMark: 0 })
       return new Response(bodyStream, { status, headers: outputHeaders })
     } catch (error) { incoming?.destroy(); release(); throw error }
+  }
+  async function fetchNative(input: string | URL, init: RequestInit = {}): Promise<Response> {
+    const response = await fetchOnce(input, init)
+    if (response.status !== 302) return response
+    let versioned: string
+    try { versioned = nativeFileVersionPath(String(input), response.headers.get('location')) }
+    finally { await response.body?.cancel() }
+    const result = await fetchOnce(versioned, init)
+    if (result.status === 302) { await result.body?.cancel(); throw new Error('remote/native-file-version') }
+    return result
   }
   try {
     installRegistry(ctx)
