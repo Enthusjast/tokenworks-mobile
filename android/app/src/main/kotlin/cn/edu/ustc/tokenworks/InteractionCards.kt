@@ -59,31 +59,46 @@ private fun InteractionError(code: String) {
 @Composable
 private fun InteractionStatus(interaction: PendingInteraction) {
     when {
-        interaction.busy -> Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+        interaction.busy -> Row(horizontalArrangement = Arrangement.spacedBy(TokenWorksSpacing.sm), verticalAlignment = Alignment.CenterVertically) {
             CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)
             Text("正在提交，等待主机确认…", style = MaterialTheme.typography.bodyMedium)
         }
         interaction.error != null -> InteractionError(interaction.error!!)
-        interaction.attempted -> Text("已提交，等待主机更新", style = MaterialTheme.typography.bodyMedium)
+        interaction.attempted -> TokenWorksStatusNotice(
+            "已提交，等待主机更新",
+            tone = TokenWorksNoticeTone.INFO,
+        )
     }
 }
 
 @Composable
 private fun ApprovalCard(interaction: PendingInteraction.Approval, onApprove: (String) -> Unit, onReject: (String) -> Unit) {
-    OutlinedCard(Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+    Surface(
+        Modifier.fillMaxWidth(),
+        shape = tokenWorksSquircle(TokenWorksRadius.lg),
+        color = MaterialTheme.colorScheme.surfaceContainerLow,
+    ) {
+        Column(Modifier.padding(TokenWorksSpacing.lg), verticalArrangement = Arrangement.spacedBy(TokenWorksSpacing.md)) {
             Text("工具请求批准", style = MaterialTheme.typography.titleMedium)
             // Only the public tool label/reason is shown, never raw tool arguments or credentials.
-            Column(Modifier.heightIn(max = 240.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text(interaction.toolName, style = MaterialTheme.typography.bodyLarge)
-                interaction.reason?.let { Text(it, style = MaterialTheme.typography.bodyMedium) }
+            Surface(
+                shape = tokenWorksSquircle(TokenWorksRadius.md),
+                color = MaterialTheme.colorScheme.surfaceContainerHighest,
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Column(Modifier.heightIn(max = 240.dp).verticalScroll(rememberScrollState()).padding(TokenWorksSpacing.md),
+                    verticalArrangement = Arrangement.spacedBy(TokenWorksSpacing.sm)) {
+                    Text(interaction.toolName, style = MaterialTheme.typography.bodyLarge)
+                    interaction.reason?.let { Text(it, style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant) }
+                }
             }
             InteractionStatus(interaction)
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
+            Row(horizontalArrangement = Arrangement.spacedBy(TokenWorksSpacing.md), modifier = Modifier.fillMaxWidth()) {
                 Button({ onApprove(interaction.eventId) }, enabled = !interaction.attempted,
-                    modifier = Modifier.weight(1f).heightIn(min = 48.dp)) { Text("允许一次") }
+                    modifier = Modifier.weight(1f).heightIn(min = TokenWorksSpacing.minimumTouchTarget)) { Text("允许一次") }
                 OutlinedButton({ onReject(interaction.eventId) }, enabled = !interaction.attempted,
-                    modifier = Modifier.weight(1f).heightIn(min = 48.dp)) { Text("拒绝") }
+                    modifier = Modifier.weight(1f).heightIn(min = TokenWorksSpacing.minimumTouchTarget)) { Text("拒绝") }
             }
         }
     }
@@ -101,8 +116,12 @@ private fun QuestionCard(
     val answers = interaction.questions.map { card -> InteractionBridge.AnsweredQuestion(
         card.id, selections[card.id].orEmpty().toList(), customs[card.id]?.trim()?.ifEmpty { null }) }
     val valid = runCatching { validateQuestionAnswers(interaction, answers) }.isSuccess
-    OutlinedCard(Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+    Surface(
+        Modifier.fillMaxWidth(),
+        shape = tokenWorksSquircle(TokenWorksRadius.lg),
+        color = MaterialTheme.colorScheme.surfaceContainerLow,
+    ) {
+        Column(Modifier.padding(TokenWorksSpacing.lg), verticalArrangement = Arrangement.spacedBy(TokenWorksSpacing.md)) {
             Text("需要你的回答", style = MaterialTheme.typography.titleMedium)
             if (interaction.phase == PendingInteraction.QuestionPhase.CONTINUED) {
                 Text("主机已继续执行，回答将作为新消息排队", style = MaterialTheme.typography.labelLarge)

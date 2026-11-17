@@ -2,7 +2,9 @@ package cn.edu.ustc.tokenworks
 
 import android.os.Build
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.verticalScroll
@@ -28,6 +30,7 @@ import androidx.activity.compose.BackHandler
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.launch
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun HomeRoute(model: HomeViewModel, onSecuritySettings: () -> Unit,
     viewport: WorkspaceViewport = rememberWorkspaceViewport(), onCancel: () -> Unit) {
@@ -234,6 +237,7 @@ internal class SessionContentActions(
 
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun NativeSessionContent(state: HomeState, position: ChatReadingPosition, actions: SessionContentActions,
     onNavigation: () -> Unit, onHosts: () -> Unit) {
@@ -276,48 +280,79 @@ internal fun NativeSessionContent(state: HomeState, position: ChatReadingPositio
             createEnabled = (state.lanOnly || runtime?.access?.canCreate() == true) && !read.readOnly,
             onNavigation = onNavigation, onHosts = onHosts, onModels = actions.openModels,
             onCreate = actions.openCreation, onMore = { moreOpen = true })
-        if (read.stale) Text("已缓存的离线记录 · 仅供续读；连接恢复前不能发送或审批", Modifier.fillMaxWidth().padding(TokenWorksSpacing.sm),
-            color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.labelMedium)
+        if (read.stale) TokenWorksStatusNotice(
+            "已缓存的离线记录 · 仅供续读；连接恢复前不能发送或审批",
+            modifier = Modifier.fillMaxWidth().padding(horizontal = TokenWorksSpacing.md, vertical = TokenWorksSpacing.xs),
+            tone = TokenWorksNoticeTone.WARNING,
+        )
         NativeChatTimeline(read, position, actions.loadOlder, quote, { selectedMessageId = it },
             Modifier.widthIn(max = TokenWorksSpacing.readingWidth).fillMaxWidth().weight(1f),
             onPreviewMedia = actions.previewImage.takeIf { !read.readOnly })
-        if (state.pendingPrompts.isNotEmpty()) Column(Modifier.fillMaxWidth().heightIn(max = 180.dp).verticalScroll(rememberScrollState())
-            .padding(horizontal = TokenWorksSpacing.md)) {
-            Text("发送记录：结果未知时不会自动重发。", style = MaterialTheme.typography.labelMedium)
-            state.pendingPrompts.forEach { entry ->
-                Text(entry.text.take(120).ifBlank { "${entry.receipts.size} 个文件 · ${entry.images.size} 张图片" }, maxLines = 2)
-                Text(when (entry.state) {
-                    PromptDeliveryState.PENDING -> "已保存，尚未确认发送"
-                    PromptDeliveryState.SENDING -> "正在发送"
-                    PromptDeliveryState.OUTCOME_UNKNOWN -> "结果未知；请先检查会话"
-                    PromptDeliveryState.REFUSED -> "主机拒绝了此请求"
-                }, style = MaterialTheme.typography.labelSmall)
-                Row {
-                    TextButton({ actions.retryPrompt(entry.requestId) }, enabled = !state.submitting && !read.readOnly) { Text("使用原请求 ID 重试") }
-                    TextButton({ actions.abandonPrompt(entry.requestId) }, enabled = !state.submitting) { Text("移除记录") }
+        if (state.pendingPrompts.isNotEmpty()) Surface(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = TokenWorksSpacing.md),
+            shape = tokenWorksSquircle(TokenWorksRadius.md),
+            color = MaterialTheme.colorScheme.surfaceContainerLow,
+        ) {
+            Column(Modifier.fillMaxWidth().heightIn(max = 180.dp).verticalScroll(rememberScrollState())
+                .padding(TokenWorksSpacing.md), verticalArrangement = Arrangement.spacedBy(TokenWorksSpacing.sm)) {
+                Text("发送记录：结果未知时不会自动重发。", style = MaterialTheme.typography.labelMedium,
+                    color = tokenWorksSurfaces().textTertiary)
+                state.pendingPrompts.forEach { entry ->
+                    val stateText = when (entry.state) {
+                        PromptDeliveryState.PENDING -> "已保存，尚未确认发送"
+                        PromptDeliveryState.SENDING -> "正在发送"
+                        PromptDeliveryState.OUTCOME_UNKNOWN -> "结果未知；请先检查会话"
+                        PromptDeliveryState.REFUSED -> "主机拒绝了此请求"
+                    }
+                    Column(verticalArrangement = Arrangement.spacedBy(TokenWorksSpacing.xxs)) {
+                        Text(entry.text.take(120).ifBlank { "${entry.receipts.size} 个文件 · ${entry.images.size} 张图片" },
+                            maxLines = 2, style = MaterialTheme.typography.bodyMedium)
+                        Row(verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(TokenWorksSpacing.xs)) {
+                            if (entry.state == PromptDeliveryState.REFUSED) {
+                                Box(Modifier.size(6.dp).background(MaterialTheme.colorScheme.error, CircleShape))
+                            } else {
+                                Box(Modifier.size(6.dp).background(tokenWorksSurfaces().warning, CircleShape))
+                            }
+                            Text(stateText, style = MaterialTheme.typography.labelSmall,
+                                color = tokenWorksSurfaces().textTertiary)
+                        }
+                        Row {
+                            TextButton({ actions.retryPrompt(entry.requestId) }, enabled = !state.submitting && !read.readOnly,
+                                contentPadding = PaddingValues(horizontal = TokenWorksSpacing.xs)) { Text("使用原请求 ID 重试", style = MaterialTheme.typography.labelMedium) }
+                            TextButton({ actions.abandonPrompt(entry.requestId) }, enabled = !state.submitting,
+                                contentPadding = PaddingValues(horizontal = TokenWorksSpacing.xs)) { Text("移除记录", style = MaterialTheme.typography.labelMedium) }
+                        }
+                    }
                 }
             }
         }
         ChatComposer(state, actions.editDraft, actions.send, actions.cancel, actions.openModels,
             Modifier.widthIn(max = TokenWorksSpacing.readingWidth).fillMaxWidth())
     }
-    if (moreOpen) AlertDialog(onDismissRequest = { moreOpen = false }, title = { Text(stringResource(R.string.session_actions_title)) },
-        text = {
-            Column {
-                TextButton({ moreOpen = false; actions.openTerminal() }, enabled = state.terminal != null && !read.readOnly) { Text("远程终端") }
-                TextButton({ moreOpen = false; actions.openFiles() }, enabled = state.files != null && !read.readOnly) { Text("文件与附件") }
-                TextButton({ moreOpen = false; actions.openSpeech() }, enabled = state.composer != null) { Text("语音转文字") }
-                TextButton({ moreOpen = false; title = entry?.metadata?.title.orEmpty(); renameOpen = true },
-                    enabled = (state.lanOnly || runtime?.access?.canRename(sessionId) == true) && !state.submitting && !read.readOnly) { Text(stringResource(R.string.session_rename)) }
-                TextButton({ moreOpen = false; actions.fork() }, enabled = (state.lanOnly || runtime?.access?.canFork(sessionId) == true) && !state.submitting && !read.readOnly) {
-                    Text(stringResource(R.string.session_fork))
-                }
-                TextButton({ moreOpen = false; actions.archive() },
-                    enabled = (state.lanOnly || runtime?.access?.allows("workspace/archiveSession", sessionId, entry?.workspaceId) == true) && !state.submitting && !read.readOnly) {
-                    Text(stringResource(R.string.conversation_archive))
-                }
-            }
-        }, confirmButton = { TextButton({ moreOpen = false }) { Text(stringResource(R.string.action_close)) } })
+    if (moreOpen) ModalBottomSheet(
+        onDismissRequest = { moreOpen = false },
+        sheetMaxWidth = TokenWorksSpacing.readingWidth,
+    ) {
+        Column(Modifier.fillMaxWidth().padding(horizontal = TokenWorksSpacing.lg, vertical = TokenWorksSpacing.sm)) {
+            Text(stringResource(R.string.session_actions_title), Modifier.padding(TokenWorksSpacing.md),
+                style = MaterialTheme.typography.titleLarge)
+            RuntimePickerAction("远程终端", { moreOpen = false; actions.openTerminal() },
+                enabled = state.terminal != null && !read.readOnly)
+            RuntimePickerAction("文件与附件", { moreOpen = false; actions.openFiles() },
+                enabled = state.files != null && !read.readOnly)
+            RuntimePickerAction("语音转文字", { moreOpen = false; actions.openSpeech() },
+                enabled = state.composer != null)
+            RuntimePickerAction(stringResource(R.string.session_rename), {
+                moreOpen = false; title = entry?.metadata?.title.orEmpty(); renameOpen = true
+            }, enabled = (state.lanOnly || runtime?.access?.canRename(sessionId) == true) && !state.submitting && !read.readOnly)
+            RuntimePickerAction(stringResource(R.string.session_fork), { moreOpen = false; actions.fork() },
+                enabled = (state.lanOnly || runtime?.access?.canFork(sessionId) == true) && !state.submitting && !read.readOnly)
+            RuntimePickerAction(stringResource(R.string.conversation_archive), { moreOpen = false; actions.archive() },
+                enabled = (state.lanOnly || runtime?.access?.allows("workspace/archiveSession", sessionId, entry?.workspaceId) == true) && !state.submitting && !read.readOnly)
+            Spacer(Modifier.heightIn(min = TokenWorksSpacing.sm))
+        }
+    }
     if (renameOpen) AlertDialog(onDismissRequest = { renameOpen = false }, title = { Text(stringResource(R.string.session_rename)) },
         text = { OutlinedTextField(title, { title = it }, label = { Text(stringResource(R.string.session_title_label)) }, singleLine = true) },
         confirmButton = { TextButton({ renameOpen = false; actions.rename(title.trim()) }, enabled = title.isNotBlank() && !state.submitting && !read.readOnly) {

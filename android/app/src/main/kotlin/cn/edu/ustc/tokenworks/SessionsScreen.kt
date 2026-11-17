@@ -305,9 +305,9 @@ private fun SessionDirectoryRow(
             if (entry.running || unread) {
                 Row(horizontalArrangement = Arrangement.spacedBy(TokenWorksSpacing.xs)) {
                     if (entry.running) Box(Modifier.size(TokenWorksSpacing.sm)
-                        .background(MaterialTheme.colorScheme.primary, CircleShape))
+                        .background(tokenWorksSurfaces().success, CircleShape))
                     if (unread) Box(Modifier.size(TokenWorksSpacing.sm)
-                        .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.8f), CircleShape))
+                        .background(MaterialTheme.colorScheme.primary, CircleShape))
                 }
             }
         }

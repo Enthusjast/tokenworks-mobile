@@ -97,9 +97,11 @@ internal fun SessionHeader(
 
 @Composable
 private fun ConnectionPill(connection: HeaderConnection, label: String, modifier: Modifier = Modifier) {
+    val surfaces = tokenWorksSurfaces()
     val tone = when (connection) {
-        HeaderConnection.LIVE -> MaterialTheme.colorScheme.primary
-        HeaderConnection.PENDING, HeaderConnection.DEGRADED -> MaterialTheme.colorScheme.tertiary
+        HeaderConnection.LIVE -> surfaces.success
+        HeaderConnection.PENDING -> surfaces.warning
+        HeaderConnection.DEGRADED -> MaterialTheme.colorScheme.tertiary
         HeaderConnection.ERROR -> MaterialTheme.colorScheme.error
     }
     Surface(

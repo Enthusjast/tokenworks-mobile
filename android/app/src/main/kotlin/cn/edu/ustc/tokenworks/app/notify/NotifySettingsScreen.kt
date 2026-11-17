@@ -46,28 +46,37 @@ fun NotifySettingsScreen(
                 contentPadding = PaddingValues(TokenWorksSpacing.lg), verticalArrangement = Arrangement.spacedBy(TokenWorksSpacing.lg)) {
                 item { Text(stringResource(R.string.notify_privacy), style = MaterialTheme.typography.bodyMedium) }
                 item {
-                    Column(verticalArrangement = Arrangement.spacedBy(TokenWorksSpacing.sm)) {
-                        Text(stringResource(R.string.notify_push), style = MaterialTheme.typography.titleMedium, modifier = Modifier.semantics { heading() })
-                        NotifyToggle(stringResource(R.string.notify_opt_in), state.enabled, !state.busy && state.configured, "notification-consent") {
-                            if (it) enable("push") else onNotificationsEnabled(false)
+                    Surface(Modifier.fillMaxWidth(), shape = tokenWorksSquircle(TokenWorksRadius.lg),
+                        color = MaterialTheme.colorScheme.surfaceContainerLow) {
+                        Column(Modifier.fillMaxWidth().padding(TokenWorksSpacing.md), verticalArrangement = Arrangement.spacedBy(TokenWorksSpacing.sm)) {
+                            Text(stringResource(R.string.notify_push), style = MaterialTheme.typography.titleMedium, modifier = Modifier.semantics { heading() })
+                            NotifyToggle(stringResource(R.string.notify_opt_in), state.enabled, !state.busy && state.configured, "notification-consent") {
+                                if (it) enable("push") else onNotificationsEnabled(false)
+                            }
+                            Text(stringResource(when {
+                                !state.configured -> R.string.notify_unconfigured
+                                !state.permissionGranted -> R.string.notify_permission_missing
+                                state.busy -> R.string.notify_registering
+                                state.registered -> R.string.notify_registered
+                                else -> R.string.notify_disabled
+                            }), style = MaterialTheme.typography.bodySmall,
+                                color = tokenWorksSurfaces().textTertiary,
+                                modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite })
+                            if (state.busy) LinearProgressIndicator(Modifier.fillMaxWidth())
                         }
-                        Text(stringResource(when {
-                            !state.configured -> R.string.notify_unconfigured
-                            !state.permissionGranted -> R.string.notify_permission_missing
-                            state.busy -> R.string.notify_registering
-                            state.registered -> R.string.notify_registered
-                            else -> R.string.notify_disabled
-                        }), style = MaterialTheme.typography.bodySmall, modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite })
-                        if (state.busy) LinearProgressIndicator(Modifier.fillMaxWidth())
                     }
                 }
                 item {
-                    Column(verticalArrangement = Arrangement.spacedBy(TokenWorksSpacing.sm)) {
-                        Text(stringResource(R.string.notify_background), style = MaterialTheme.typography.titleMedium, modifier = Modifier.semantics { heading() })
-                        NotifyToggle(stringResource(R.string.notify_background_opt_in), state.backgroundEnabled, state.backgroundEnabled || state.canHoldConnection, "background-connection") {
-                            if (it) enable("background") else onBackgroundConnectionEnabled(false)
+                    Surface(Modifier.fillMaxWidth(), shape = tokenWorksSquircle(TokenWorksRadius.lg),
+                        color = MaterialTheme.colorScheme.surfaceContainerLow) {
+                        Column(Modifier.fillMaxWidth().padding(TokenWorksSpacing.md), verticalArrangement = Arrangement.spacedBy(TokenWorksSpacing.sm)) {
+                            Text(stringResource(R.string.notify_background), style = MaterialTheme.typography.titleMedium, modifier = Modifier.semantics { heading() })
+                            NotifyToggle(stringResource(R.string.notify_background_opt_in), state.backgroundEnabled, state.backgroundEnabled || state.canHoldConnection, "background-connection") {
+                                if (it) enable("background") else onBackgroundConnectionEnabled(false)
+                            }
+                            Text(stringResource(if (state.backgroundActive) R.string.notify_background_active else R.string.notify_background_hint),
+                                style = MaterialTheme.typography.bodySmall, color = tokenWorksSurfaces().textTertiary)
                         }
-                        Text(stringResource(if (state.backgroundActive) R.string.notify_background_active else R.string.notify_background_hint), style = MaterialTheme.typography.bodySmall)
                     }
                 }
                 state.error?.let { code -> item {
@@ -78,7 +87,9 @@ fun NotifySettingsScreen(
                         "push.revocation_unconfirmed" -> R.string.notify_revocation_unconfirmed
                         else -> R.string.notify_failed
                     }
-                    Text(stringResource(text), color = MaterialTheme.colorScheme.error, modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite })
+                    TokenWorksStatusNotice(stringResource(text),
+                        modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
+                        tone = TokenWorksNoticeTone.ERROR)
                 } }
             }
         }

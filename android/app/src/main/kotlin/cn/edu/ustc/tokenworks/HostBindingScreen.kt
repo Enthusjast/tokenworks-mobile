@@ -166,7 +166,12 @@ private fun BindingFacts(details: HostBindingDetails) {
     Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(TokenWorksSpacing.md)) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(TokenWorksSpacing.md)) {
                 if (busy) CircularProgressIndicator(Modifier.size(24.dp), strokeWidth = 2.dp)
-                Text(title, style = MaterialTheme.typography.titleMedium, modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite })
+                Text(title, style = MaterialTheme.typography.titleMedium, modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
+                    color = when (state.phase) {
+                        HostBindingPhase.READY -> tokenWorksSurfaces().success
+                        HostBindingPhase.ERROR, HostBindingPhase.UNAVAILABLE -> MaterialTheme.colorScheme.error
+                        else -> MaterialTheme.colorScheme.onSurface
+                    })
             }
             when (state.phase) {
                 HostBindingPhase.UNKNOWN -> Text("确认可能已经送达。请查询原申请的状态，避免重复操作。")

@@ -377,7 +377,6 @@ class TokenWorksAppShellTest {
         rule.setContent { FixtureTheme {
             RuntimePicker(state(), model, onRuntime = { opened += it })
         } }
-        rule.onNodeWithText(label(R.string.computer_presence_unknown), useUnmergedTree = true).assertExists()
         rule.onAllNodes(hasTestTag("computer-open-$runtimeA") and hasClickAction()).assertCountEquals(1)
         rule.onNodeWithTag("computer-open-$runtimeA").performScrollTo().assertTextContains(runtimeA, substring = true)
             .performClick()

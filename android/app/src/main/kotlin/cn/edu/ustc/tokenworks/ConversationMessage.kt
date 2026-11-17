@@ -229,17 +229,23 @@ internal fun toolTone(name: String): ToolTone = when (name.lowercase().trim()) {
 private fun ToolToneMark(tone: ToolTone?) {
     when (tone) {
         null -> Spacer(Modifier.width(TokenWorksSpacing.xxs))
-        else -> Box(
-            Modifier.size(20.dp).background(
-                when (tone) {
-                    ToolTone.TERMINAL, ToolTone.AGENT -> MaterialTheme.colorScheme.primary
-                    ToolTone.EDIT, ToolTone.WEB -> MaterialTheme.colorScheme.tertiary
-                    ToolTone.READ, ToolTone.SEARCH, ToolTone.PLAN -> MaterialTheme.colorScheme.secondary
-                    ToolTone.NEUTRAL -> MaterialTheme.colorScheme.outline
-                },
-                CircleShape,
-            ),
-        )
+        else -> {
+            val surfaces = tokenWorksSurfaces()
+            val (container, mark) = when (tone) {
+                ToolTone.TERMINAL -> MaterialTheme.colorScheme.primaryContainer to MaterialTheme.colorScheme.primary
+                ToolTone.AGENT -> MaterialTheme.colorScheme.primaryContainer to MaterialTheme.colorScheme.primary
+                ToolTone.EDIT, ToolTone.WEB -> MaterialTheme.colorScheme.tertiaryContainer to MaterialTheme.colorScheme.tertiary
+                ToolTone.READ, ToolTone.SEARCH -> MaterialTheme.colorScheme.secondaryContainer to MaterialTheme.colorScheme.secondary
+                ToolTone.PLAN -> surfaces.infoContainer to surfaces.info
+                ToolTone.NEUTRAL -> MaterialTheme.colorScheme.surfaceContainerHigh to MaterialTheme.colorScheme.outline
+            }
+            Box(
+                Modifier.size(20.dp).background(container, CircleShape),
+                contentAlignment = Alignment.Center,
+            ) {
+                Box(Modifier.size(8.dp).background(mark, CircleShape))
+            }
+        }
     }
 }
 

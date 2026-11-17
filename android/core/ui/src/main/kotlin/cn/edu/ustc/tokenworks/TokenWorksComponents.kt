@@ -1,6 +1,8 @@
 package cn.edu.ustc.tokenworks
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -9,6 +11,8 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBars
@@ -99,22 +103,60 @@ fun TokenWorksStatusNotice(
     text: String,
     modifier: Modifier = Modifier,
     isError: Boolean = false,
+    tone: TokenWorksNoticeTone = if (isError) TokenWorksNoticeTone.ERROR else TokenWorksNoticeTone.NEUTRAL,
 ) {
+    val surfaces = tokenWorksSurfaces()
+    val container = when (tone) {
+        TokenWorksNoticeTone.ERROR -> MaterialTheme.colorScheme.errorContainer
+        TokenWorksNoticeTone.SUCCESS -> surfaces.successContainer
+        TokenWorksNoticeTone.WARNING -> surfaces.warningContainer
+        TokenWorksNoticeTone.INFO -> surfaces.infoContainer
+        TokenWorksNoticeTone.NEUTRAL -> MaterialTheme.colorScheme.surfaceContainerLow
+    }
+    val content = when (tone) {
+        TokenWorksNoticeTone.ERROR -> MaterialTheme.colorScheme.onErrorContainer
+        TokenWorksNoticeTone.SUCCESS -> surfaces.onSuccessContainer
+        TokenWorksNoticeTone.WARNING -> surfaces.onWarningContainer
+        TokenWorksNoticeTone.INFO -> surfaces.onInfoContainer
+        TokenWorksNoticeTone.NEUTRAL -> MaterialTheme.colorScheme.onSurfaceVariant
+    }
     Surface(
         modifier = modifier
             .fillMaxWidth()
             .semantics(mergeDescendants = true) {
                 liveRegion = LiveRegionMode.Polite
-                if (isError) error(text)
+                if (tone == TokenWorksNoticeTone.ERROR) error(text)
             },
         shape = tokenWorksSquircle(TokenWorksRadius.md),
-        color = if (isError) MaterialTheme.colorScheme.errorContainer else MaterialTheme.colorScheme.surfaceContainerLow,
-        contentColor = if (isError) MaterialTheme.colorScheme.onErrorContainer else MaterialTheme.colorScheme.onSurfaceVariant,
+        color = container,
+        contentColor = content,
     ) {
-        Text(
-            text = text,
-            modifier = Modifier.padding(horizontal = TokenWorksSpacing.md, vertical = TokenWorksSpacing.sm),
-            style = MaterialTheme.typography.bodySmall,
-        )
+        Row(
+            Modifier.padding(horizontal = TokenWorksSpacing.md, vertical = TokenWorksSpacing.sm),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(TokenWorksSpacing.sm),
+        ) {
+            if (tone != TokenWorksNoticeTone.NEUTRAL) {
+                Box(
+                    Modifier.size(8.dp).background(
+                        when (tone) {
+                            TokenWorksNoticeTone.ERROR -> MaterialTheme.colorScheme.error
+                            TokenWorksNoticeTone.SUCCESS -> surfaces.success
+                            TokenWorksNoticeTone.WARNING -> surfaces.warning
+                            TokenWorksNoticeTone.INFO -> surfaces.info
+                            TokenWorksNoticeTone.NEUTRAL -> MaterialTheme.colorScheme.outline
+                        },
+                        CircleShape,
+                    ),
+                )
+            }
+            Text(
+                text = text,
+                style = MaterialTheme.typography.bodySmall,
+            )
+        }
     }
 }
+
+/** Visual weight of a status notice; the text still carries the meaning. */
+enum class TokenWorksNoticeTone { NEUTRAL, INFO, SUCCESS, WARNING, ERROR }

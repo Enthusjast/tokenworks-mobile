@@ -8,6 +8,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material3.*
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -93,17 +94,31 @@ internal fun RuntimePicker(state: HomeState, viewModel: HomeViewModel, modifier:
                 IconButton(viewModel::refresh, enabled = !state.refreshing && !state.lanOnly,
                     modifier = Modifier.size(TokenWorksSpacing.minimumTouchTarget)) { ShellIcon(R.drawable.ic_refresh, R.string.action_refresh) }
             }
-            OutlinedButton(viewModel::openBinding, Modifier.fillMaxWidth().heightIn(min = TokenWorksSpacing.minimumTouchTarget), enabled = !state.lanOnly) {
-                Text(stringResource(if (state.pendingBindingId == null) R.string.action_bind_computer else R.string.action_review_binding))
-            }
-            OutlinedButton(viewModel::openPairing, Modifier.fillMaxWidth().heightIn(min = TokenWorksSpacing.minimumTouchTarget)) { Text("局域网安全配对") }
-            OutlinedButton(viewModel::openManagement, Modifier.fillMaxWidth().heightIn(min = TokenWorksSpacing.minimumTouchTarget)) { Text("电脑与设备管理") }
             if (state.lanOnly) {
-                Text("仅局域网模式：使用独立配对权限；中转账号尚未重新验证。", style = MaterialTheme.typography.bodySmall)
-                TextButton(viewModel::login) { Text("重新登录中转账号") }
+                TokenWorksStatusNotice(
+                    "仅局域网模式：使用独立配对权限；中转账号尚未重新验证。",
+                    modifier = Modifier.padding(vertical = TokenWorksSpacing.sm),
+                    tone = TokenWorksNoticeTone.WARNING,
+                )
+                TextButton(viewModel::login, Modifier.padding(bottom = TokenWorksSpacing.sm)) { Text("重新登录中转账号") }
+            }
+            Surface(
+                shape = tokenWorksSquircle(TokenWorksRadius.lg),
+                color = MaterialTheme.colorScheme.surfaceContainerLow,
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Column {
+                    RuntimePickerAction(stringResource(if (state.pendingBindingId == null) R.string.action_bind_computer else R.string.action_review_binding),
+                        viewModel::openBinding, enabled = !state.lanOnly)
+                    RuntimeDivider()
+                    RuntimePickerAction("局域网安全配对", viewModel::openPairing)
+                    RuntimeDivider()
+                    RuntimePickerAction("电脑与设备管理", viewModel::openManagement)
+                }
             }
             Text(stringResource(R.string.computer_scope), style = MaterialTheme.typography.bodySmall,
-                color = tokenWorksSurfaces().textTertiary)
+                color = tokenWorksSurfaces().textTertiary,
+                modifier = Modifier.padding(top = TokenWorksSpacing.sm))
         }
         if (state.refreshing) item("loading") {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(TokenWorksSpacing.md)) {
@@ -124,16 +139,22 @@ internal fun RuntimePicker(state: HomeState, viewModel: HomeViewModel, modifier:
             Surface(onClick = { onRuntime(runtime.id) }, enabled = available && !state.refreshing,
                 modifier = Modifier.fillMaxWidth().tokenWorksPress(available).testTag("computer-open-${runtime.id}"),
                 shape = tokenWorksSquircle(TokenWorksRadius.md), color = MaterialTheme.colorScheme.surfaceContainerLow) {
-                Column(Modifier.padding(TokenWorksSpacing.lg), verticalArrangement = Arrangement.spacedBy(TokenWorksSpacing.xs)) {
-                    Text(runtime.hostAlias, style = MaterialTheme.typography.titleMedium)
-                    Text(stringResource(R.string.computer_runtime, runtime.id), style = MaterialTheme.typography.bodySmall,
-                        color = tokenWorksSurfaces().textTertiary)
-                    Text(stringResource(R.string.computer_version) + " · " + runtime.version.ifEmpty { stringResource(R.string.value_unknown) },
-                        style = MaterialTheme.typography.bodySmall, color = tokenWorksSurfaces().textTertiary)
+                Row(
+                    Modifier.fillMaxWidth().padding(horizontal = TokenWorksSpacing.lg, vertical = TokenWorksSpacing.md),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(TokenWorksSpacing.md),
+                ) {
+                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(TokenWorksSpacing.xxs)) {
+                        Text(runtime.hostAlias, style = MaterialTheme.typography.titleMedium)
+                        Text(stringResource(R.string.computer_runtime, runtime.id) + " · " +
+                            stringResource(R.string.computer_version) + " " + runtime.version.ifEmpty { stringResource(R.string.value_unknown) },
+                            style = MaterialTheme.typography.bodySmall, color = tokenWorksSurfaces().textTertiary,
+                            maxLines = 2, overflow = TextOverflow.Ellipsis)
+                    }
                     Text(stringResource(if (available) R.string.action_open_sessions else R.string.computer_no_directory),
-                        style = MaterialTheme.typography.bodySmall)
-                    Text(stringResource(R.string.computer_presence_unknown), style = MaterialTheme.typography.bodySmall,
-                        color = tokenWorksSurfaces().textTertiary)
+                        style = MaterialTheme.typography.labelMedium,
+                        color = if (available) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)
+                    ShellIcon(R.drawable.ic_chevron, R.string.action_open_sessions)
                 }
             }
         }
@@ -154,23 +175,49 @@ internal fun WorkspaceSettings(state: HomeState, onAppearance: () -> Unit, onApp
             item("account") {
                 Text(stringResource(R.string.settings_account), style = MaterialTheme.typography.titleMedium,
                     modifier = Modifier.semantics { heading() })
-                SelectionContainer {
-                    Column(verticalArrangement = Arrangement.spacedBy(TokenWorksSpacing.xs)) {
-                        Text(state.deviceName ?: stringResource(R.string.settings_device_registered), style = MaterialTheme.typography.bodyMedium)
-                        Text(state.subject, style = MaterialTheme.typography.bodySmall)
-                        Text(state.issuer, style = MaterialTheme.typography.bodySmall)
-                        Text(state.deviceId, style = MaterialTheme.typography.bodySmall)
+                Surface(
+                    shape = tokenWorksSquircle(TokenWorksRadius.lg),
+                    color = MaterialTheme.colorScheme.surfaceContainerLow,
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    SelectionContainer {
+                        Column(Modifier.fillMaxWidth().padding(horizontal = TokenWorksSpacing.lg, vertical = TokenWorksSpacing.md),
+                            verticalArrangement = Arrangement.spacedBy(TokenWorksSpacing.xs)) {
+                            Text(state.deviceName ?: stringResource(R.string.settings_device_registered), style = MaterialTheme.typography.bodyMedium)
+                            Text(state.subject, style = MaterialTheme.typography.bodySmall,
+                                color = tokenWorksSurfaces().textTertiary)
+                            Text(state.issuer, style = MaterialTheme.typography.bodySmall,
+                                color = tokenWorksSurfaces().textTertiary)
+                            Text(state.deviceId, style = MaterialTheme.typography.bodySmall,
+                                color = tokenWorksSurfaces().textTertiary)
+                        }
                     }
                 }
             }
             item("appearance") {
-                SettingsItem(R.string.directory_appearance_entry, R.string.directory_appearance_detail,
-                    onAppearance, enabled = state.presentationOwner != null)
+                Surface(
+                    shape = tokenWorksSquircle(TokenWorksRadius.lg),
+                    color = MaterialTheme.colorScheme.surfaceContainerLow,
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Column {
+                        SettingsRow(stringResource(R.string.directory_appearance_entry),
+                            stringResource(R.string.directory_appearance_detail),
+                            onAppearance, enabled = state.presentationOwner != null)
+                        RuntimeDivider()
+                        SettingsRow("电脑与设备管理", "绑定设备、安装记录与授权一览", onManagement)
+                        RuntimeDivider()
+                        SettingsRow("通知与后台连接", "送达提醒与后台保持连接", onNotifications)
+                        RuntimeDivider()
+                        SettingsRow("局域网安全配对", "与同一网络下的电脑配对", onPairing)
+                        if (!state.lanOnly) {
+                            RuntimeDivider()
+                            SettingsRow(stringResource(R.string.settings_updates),
+                                stringResource(R.string.settings_updates_detail), onAppUpdates)
+                        }
+                    }
+                }
             }
-            item("management") { OutlinedButton(onManagement, Modifier.fillMaxWidth().heightIn(min = TokenWorksSpacing.minimumTouchTarget)) { Text("电脑与设备管理") } }
-            item("notifications") { OutlinedButton(onNotifications, Modifier.fillMaxWidth().heightIn(min = TokenWorksSpacing.minimumTouchTarget)) { Text("通知与后台连接") } }
-            item("lan-pairing") { OutlinedButton(onPairing, Modifier.fillMaxWidth().heightIn(min = TokenWorksSpacing.minimumTouchTarget)) { Text("局域网安全配对") } }
-            if (!state.lanOnly) item("updates") { SettingsItem(R.string.settings_updates, R.string.settings_updates_detail, onAppUpdates) }
             item("version") { Text(stringResource(R.string.settings_version, BuildConfig.VERSION_NAME), style = MaterialTheme.typography.bodySmall) }
             item("exit") {
                 TextButton({ confirmExit = true }, Modifier.fillMaxWidth().heightIn(min = TokenWorksSpacing.minimumTouchTarget),
@@ -187,17 +234,47 @@ internal fun WorkspaceSettings(state: HomeState, onAppearance: () -> Unit, onApp
 }
 
 @Composable
-private fun SettingsItem(@StringRes title: Int, @StringRes description: Int, onClick: () -> Unit, enabled: Boolean = true) {
-    Surface(onClick = onClick, enabled = enabled, shape = tokenWorksSquircle(TokenWorksRadius.lg),
-        color = MaterialTheme.colorScheme.surfaceContainerLow, modifier = Modifier.fillMaxWidth()) {
-        ListItem(headlineContent = { Text(stringResource(title)) }, supportingContent = { Text(stringResource(description)) },
-            trailingContent = { ShellIcon(R.drawable.ic_chevron) },
-            colors = ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
-            modifier = Modifier.heightIn(min = TokenWorksSpacing.minimumTouchTarget))
+private fun SettingsRow(title: String, description: String, onClick: () -> Unit, enabled: Boolean = true) {
+    Row(
+        Modifier.fillMaxWidth()
+            .heightIn(min = TokenWorksSpacing.minimumTouchTarget)
+            .clickable(enabled = enabled, onClick = onClick)
+            .padding(horizontal = TokenWorksSpacing.lg, vertical = TokenWorksSpacing.md),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(TokenWorksSpacing.md),
+    ) {
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(TokenWorksSpacing.xxs)) {
+            Text(title, style = MaterialTheme.typography.bodyLarge,
+                color = if (enabled) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(description, style = MaterialTheme.typography.bodySmall,
+                color = tokenWorksSurfaces().textTertiary)
+        }
+        ShellIcon(R.drawable.ic_chevron)
     }
 }
 
 @Composable
 internal fun ShellIcon(@DrawableRes icon: Int, @StringRes description: Int? = null) {
     Icon(painterResource(icon), description?.let { stringResource(it) }, Modifier.size(TokenWorksSpacing.iconSize))
+}
+
+/** One row inside a grouped settings/actions card; rows, not buttons, carry secondary actions. */
+@Composable
+internal fun RuntimePickerAction(label: String, onClick: () -> Unit, enabled: Boolean = true) {
+    Row(
+        Modifier.fillMaxWidth()
+            .heightIn(min = TokenWorksSpacing.minimumTouchTarget)
+            .clickable(enabled = enabled, onClick = onClick)
+            .padding(horizontal = TokenWorksSpacing.lg, vertical = TokenWorksSpacing.sm),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(label, style = MaterialTheme.typography.bodyLarge,
+            color = if (enabled) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant)
+    }
+}
+
+@Composable
+internal fun RuntimeDivider() {
+    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant,
+        modifier = Modifier.padding(horizontal = TokenWorksSpacing.lg))
 }

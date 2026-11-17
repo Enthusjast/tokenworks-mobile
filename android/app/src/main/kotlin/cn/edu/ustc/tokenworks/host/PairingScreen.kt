@@ -94,7 +94,8 @@ fun PairingScreen(
                 }
             }
             state.preview?.let { preview ->
-                OutlinedCard(Modifier.fillMaxWidth()) {
+                Surface(Modifier.fillMaxWidth(), shape = tokenWorksSquircle(TokenWorksRadius.lg),
+                    color = MaterialTheme.colorScheme.surfaceContainerLow) {
                     Column(Modifier.padding(TokenWorksSpacing.md), verticalArrangement = Arrangement.spacedBy(TokenWorksSpacing.sm)) {
                         Text("核对主机身份", style = MaterialTheme.typography.titleSmall, modifier = Modifier.semantics { heading() })
                         SelectionContainer { Text("HTTPS：${preview.origin}\n运行时：${preview.runtimeId}\n安装标识：${preview.installationId}\nTLS pin：${preview.tlsPin}\nNoise 公钥：${preview.hostStaticPublicKey}\n主机密钥版本：${preview.hostKeyEpoch}", fontFamily = FontFamily.Monospace) }
@@ -112,12 +113,15 @@ fun PairingScreen(
                     modifier = Modifier.fillMaxWidth().heightIn(min = TokenWorksSpacing.minimumTouchTarget)) { Text("验证并安全配对") }
             }
             if (state.phase == PairingPhase.SAVE_REQUIRED || state.phase == PairingPhase.UNKNOWN) {
-                Text(if (state.rotatingRuntimeId != null)
-                    "设备密钥轮换结果待核对：新密钥已加密保存，主机可能已经停用旧密钥。只会用已保存的新密钥查询，不会重发轮换或退回旧密钥。"
+                TokenWorksStatusNotice(
+                    if (state.rotatingRuntimeId != null)
+                        "设备密钥轮换结果待核对：新密钥已加密保存，主机可能已经停用旧密钥。只会用已保存的新密钥查询，不会重发轮换或退回旧密钥。"
                     else if (state.phase == PairingPhase.SAVE_REQUIRED)
-                    "主机已接受配对，但凭据尚未完成安全保存。恢复信息已加密保留，关闭页面或重启不会丢失。"
-                    else "配对结果未知：主机可能已登记此设备。恢复凭据已加密保存；核对只会发送签名身份查询，绝不会重发配对写入。",
-                    color = MaterialTheme.colorScheme.error)
+                        "主机已接受配对，但凭据尚未完成安全保存。恢复信息已加密保留，关闭页面或重启不会丢失。"
+                    else
+                        "配对结果未知：主机可能已登记此设备。恢复凭据已加密保存；核对只会发送签名身份查询，绝不会重发配对写入。",
+                    tone = TokenWorksNoticeTone.WARNING,
+                )
                 state.pendingDevice?.let { device ->
                     SelectionContainer { Text("待核对主机：${device.origin}\n运行时：${device.runtimeId}\n安装标识：${device.installationId}") }
                     Button(onClick = onRetrySave, enabled = !busy) {
@@ -128,13 +132,16 @@ fun PairingScreen(
                 }
             }
             if (busy) LinearProgressIndicator(Modifier.fillMaxWidth().semantics { liveRegion = LiveRegionMode.Polite })
-            if (importError) Text("无法读取文件。请选择不超过 16 KB 的 UTF-8 JSON 文件。", color = MaterialTheme.colorScheme.error)
-            state.error?.let { Text(pairingError(it), color = MaterialTheme.colorScheme.error,
-                modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite }) }
+            if (importError) TokenWorksStatusNotice("无法读取文件。请选择不超过 16 KB 的 UTF-8 JSON 文件。",
+                tone = TokenWorksNoticeTone.ERROR)
+            state.error?.let { TokenWorksStatusNotice(pairingError(it),
+                modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
+                tone = TokenWorksNoticeTone.ERROR) }
             if (state.devices.isNotEmpty()) Text("已安全保存的主机", style = MaterialTheme.typography.titleMedium,
                 modifier = Modifier.semantics { heading() })
             state.devices.forEach { device ->
-                OutlinedCard(Modifier.fillMaxWidth()) {
+                Surface(Modifier.fillMaxWidth(), shape = tokenWorksSquircle(TokenWorksRadius.lg),
+                    color = MaterialTheme.colorScheme.surfaceContainerLow) {
                     Column(Modifier.padding(TokenWorksSpacing.md), verticalArrangement = Arrangement.spacedBy(TokenWorksSpacing.sm)) {
                         Text(device.origin, style = MaterialTheme.typography.titleSmall)
                         SelectionContainer { Text("运行时：${device.runtimeId}\n安装标识：${device.installationId}\n主机密钥版本：${device.hostKeyEpoch}\n设备密钥版本：${device.deviceKeyEpoch}", fontFamily = FontFamily.Monospace) }
