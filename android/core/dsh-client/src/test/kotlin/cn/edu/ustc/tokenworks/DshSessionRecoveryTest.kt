@@ -149,6 +149,34 @@ class DshSessionRecoveryTest {
         } finally { reader.close(); owner.cancel() }
     }
 
+    @Test fun childHistoryKeepsItsParentAddressAcrossFollowAndPagingWithoutOrdinaryWrites() = runBlocking {
+        val owner = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+        val transport = TranscriptTransport()
+        val reader = DshSessionReader(transport, transcriptRoute.sessionId, owner, subagent = DshSubagentAddress("parent", "continuable"))
+        val address = jsonObject("kind" to "subagent".json(), "parentSessionId" to "parent".json(),
+            "childSessionId" to transcriptRoute.sessionId.json(), "mode" to "continuable".json())
+        transport.invoke = { endpoint, args ->
+            assertEquals("session/page", endpoint)
+            assertEquals(WireJson.encode(address), WireJson.encode(args.obj("request").obj("address")))
+            jsonObject("cursor" to 6L.json(), "records" to JsonArray((0L..3L).map { nativeTranscriptEvent(transcriptEvent(it)) }),
+                "hasMore" to JsonBoolean(false))
+        }
+        try {
+            val connection = withTimeout(5000) { transport.connections.receive() }
+            assertEquals(WireJson.encode(address), WireJson.encode(connection.open.obj("payload").obj("args").obj("request").obj("address")))
+            val snapshot = nativeTranscriptSnapshot(3, 6)
+            connection.item(snapshot.with("header" to snapshot.obj("header").with(
+                "origin" to "subagent".json(), "parentSession" to "parent".json())))
+            reader.ready(6)
+            reader.loadOlder()
+            assertEquals((0L..6L).toList(), reader.state.value.window!!.records.map { it.seq })
+            transport.calls.receive()
+            val rejected = runCatching { reader.prompt("no ordinary writes", "request") }.exceptionOrNull()
+            assertEquals("session.read_only", (rejected as? DshFailure)?.code)
+            assertTrue(transport.calls.tryReceive().isFailure)
+        } finally { reader.close(); owner.cancel() }
+    }
+
     @Test fun authorityFailureDuringPagingIsTerminalAndClearsCachedHistory() = runBlocking {
         val owner = CoroutineScope(SupervisorJob() + Dispatchers.Default)
         val transport = TranscriptTransport()

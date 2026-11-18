@@ -7,7 +7,8 @@ import kotlinx.coroutines.flow.*
 class SessionProjectionFeed(
     private val transport: DshTransport,
     owner: CoroutineScope,
-    private val userQuestions: (sessionId: String, value: JsonObject) -> Unit,
+    private val tokenUsage: ((sessionId: String, snapshot: UsageSnapshot) -> Unit)? = null,
+    private val userQuestions: ((sessionId: String, value: JsonObject) -> Unit)? = null,
 ) : AutoCloseable {
     private val scope = CoroutineScope(owner.coroutineContext + SupervisorJob(owner.coroutineContext[Job]))
     private val mutableError = MutableStateFlow<String?>(null)
@@ -28,31 +29,30 @@ class SessionProjectionFeed(
                     when (val frame = stream.next() ?: throw DshFailure("session.stream_ended")) {
                         is DshMuxFrame.Item -> {
                             val value = (frame.value as? DshOptional.Value)?.value ?: throw ProtocolException()
-                            DshMethods.SessionControl.output.decode(value)
-                            val root = value as JsonObject
-                            when (root.string("type")) {
-                                "baseline" -> {
+                            val frameValue = DshMethods.SessionControl.output.decode(value)
+                            when (frameValue) {
+                                is DshSessionControlResult.Case1 -> {
                                     if (baselineSeen) throw ProtocolException()
                                     baselineSeen = true
+                                    val root = value as JsonObject
                                     root.obj("value").obj("projections").fields.forEach { (sessionId, raw) ->
                                         val projection = raw as JsonObject
                                         val cut = projection.integer("asOfSeq", -1)
-                                        val questions = projection.obj("values").fields["userQuestions"] as? JsonObject
-                                        if (questions != null) { watermarks[sessionId] = cut; userQuestions(sessionId, questions) }
+                                        watermarks[sessionId] = cut
+                                        val values = projection.obj("values")
+                                        deliver(sessionId, cut, "userQuestions", values.fields["userQuestions"])
+                                        deliver(sessionId, cut, "tokenUsage", values.fields["tokenUsage"])
                                     }
                                 }
-                                "projection" -> {
+                                is DshSessionControlResult.Case2 -> {
                                     if (!baselineSeen) throw ProtocolException()
-                                    if (root.string("key") == "userQuestions") {
-                                        val sessionId = root.string("sessionId")
-                                        val seq = root.integer("seq", -1)
-                                        if (seq > (watermarks[sessionId] ?: Long.MIN_VALUE)) {
-                                            watermarks[sessionId] = seq
-                                            userQuestions(sessionId, root.obj("value"))
-                                        }
+                                    val event = frameValue.value
+                                    val seq = (value as JsonObject).integer("seq", 0)
+                                    if (seq > (watermarks[event.sessionId] ?: -1L)) {
+                                        watermarks[event.sessionId] = seq
+                                        for (change in event.changes) deliver(event.sessionId, seq, change.key, change.`val`)
                                     }
                                 }
-                                else -> throw ProtocolException()
                             }
                             attempt = 0
                             mutableError.value = null
@@ -68,6 +68,16 @@ class SessionProjectionFeed(
                 if (decision.action != DshRecoveryAction.BACKOFF) return
                 delay(DshRecoveryPolicy.backoffMillis(attempt++))
             } finally { stream?.close(); mux?.close() }
+        }
+    }
+
+    private fun deliver(sessionId: String, seq: Long, key: String, value: JsonValue?) {
+        val obj = value as? JsonObject ?: return
+        when (key) {
+            "userQuestions" -> userQuestions?.invoke(sessionId, obj)
+            "tokenUsage" -> if (tokenUsage != null) {
+                UsageCounts.fromProjection(obj)?.let { tokenUsage.invoke(sessionId, UsageSnapshot(seq, it)) }
+            }
         }
     }
     override fun close() { scope.cancel() }

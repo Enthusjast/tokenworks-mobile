@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="discovery_search">搜索会话内容</string>
+    <string name="discovery_search_empty">未找到匹配的会话</string>
+    <string name="discovery_search_more">还有其他匹配项，请缩小搜索范围。</string>
+    <string name="discovery_add">插入技能或文件引用</string>
+    <string name="discovery_skills">技能</string>
+    <string name="discovery_references">文件引用</string>
+    <string name="discovery_path">按名称或路径搜索</string>
+    <string name="discovery_empty">暂无可选项目</string>
+    <string name="directory_restore">恢复归档会话</string>
+    <string name="directory_filter_running">运行中 · %1$d</string>
+    <string name="directory_filter_unread">未读 · %1$d</string>
+    <string name="usage_settings_detail">按会话、模型或日期查看 Token 用量与成本</string>
+    <string name="directory_subagent">子会话</string>
+    <string name="session_share_action">分享或导出会话</string>
+</resources>

@@ -135,6 +135,7 @@ class DshFilesClient(private val transport: DshTransport, stagingDirectory: File
             val digest = java.security.MessageDigest.getInstance("SHA-256")
             var count = 0L
             val context = currentCoroutineContext()
+            context.ensureActive()
             target.open().use { sink ->
                 file.file.inputStream().use { raw ->
                     val buffer = ByteArray(32 * 1024)
@@ -151,7 +152,9 @@ class DshFilesClient(private val transport: DshTransport, stagingDirectory: File
             }
             context.ensureActive(); target.commit()
         } catch (error: Throwable) {
-            try { target.abort() } catch (abort: Throwable) { error.addSuppressed(abort) }
+            try { target.abort() } catch (abort: Exception) {
+                throw RemoteRequestException("files.destination_cleanup_failed").apply { addSuppressed(error); addSuppressed(abort) }
+            }
             throw error
         }
     }

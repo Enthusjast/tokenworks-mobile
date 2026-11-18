@@ -25,6 +25,9 @@ class LoginController internal constructor(
     private val hosts = HostCoordinator(context, http, environment, installations, scope, mutable, account, sessions, routes)
     private val notifications = NotifyCoordinator(context, scope, mutable, account, sessions, hosts::resolveNotificationReference, hosts::refresh)
     val state: StateFlow<HomeState> = mutable.asStateFlow()
+    internal val activeTransport = routes.activeTransport
+    internal val shareApi get() = account.api
+    internal val usage = sessions.usage.state
     val appUpdateEvents = hosts.appUpdateEvents
     val management = hosts.management
     fun openManagement() = hosts.openManagement()

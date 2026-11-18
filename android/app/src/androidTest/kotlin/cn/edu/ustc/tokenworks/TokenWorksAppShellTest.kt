@@ -244,7 +244,7 @@ class TokenWorksAppShellTest {
 
     @Test fun settingsRequireLogoutConfirmationAndCancelDoesNotExit() {
         var exits = 0
-        rule.setContent { FixtureTheme(darkTheme = false) { WorkspaceSettings(state(), {}, {}, { exits++ }, {}, {}, {}, {}) } }
+        rule.setContent { FixtureTheme(darkTheme = false) { WorkspaceSettings(state(), {}, {}, { exits++ }, {}, {}, {}, {}, {}) } }
         saveFixture("settings-light", dark = false)
         clickSettingsItem(label(R.string.action_exit_account))
         rule.onNodeWithText(label(R.string.settings_exit_title)).assertIsDisplayed()
@@ -281,20 +281,22 @@ class TokenWorksAppShellTest {
         val account = state().copy(presentationOwner = CommandOwner(runtimeA, workspace, "a".repeat(64), sessionA, runtimeB))
         var appearances = 0
         var updates = 0
+        var usage = 0
         rule.setContent {
             val density = LocalDensity.current.density
             CompositionLocalProvider(LocalDensity provides Density(density, 2f)) {
                 FixtureTheme(darkTheme = true) { Box(Modifier.width(640.dp).height(320.dp)) {
-                    WorkspaceSettings(account, { appearances++ }, { updates++ }, {}, {}, {}, {}, {})
+                    WorkspaceSettings(account, { appearances++ }, { updates++ }, {}, {}, {}, {}, {}, { usage++ })
                 } }
             }
         }
         clickSettingsItem(label(R.string.directory_appearance_entry))
         saveFixture("settings-landscape-large-text-dark", dark = true)
+        clickSettingsItem(label(R.string.usage_title))
         clickSettingsItem(label(R.string.settings_updates))
         clickSettingsItem(label(R.string.action_exit_account))
         rule.onNodeWithText(label(R.string.action_cancel)).assertIsDisplayed().performClick()
-        rule.runOnIdle { assertEquals(1, appearances); assertEquals(1, updates) }
+        rule.runOnIdle { assertEquals(1, appearances); assertEquals(1, updates); assertEquals(1, usage) }
     }
 
     @Test fun wideWindowKeepsDirectoryAndNavigationUsable() {
@@ -344,7 +346,7 @@ class TokenWorksAppShellTest {
     @Test fun appearanceRequiresAnOwnerAndHasAWorkingCallbackAfterOneIsAvailable() {
         var current by mutableStateOf(state())
         var opened = 0
-        rule.setContent { FixtureTheme { WorkspaceSettings(current, { opened++ }, {}, {}, {}, {}, {}, {}) } }
+        rule.setContent { FixtureTheme { WorkspaceSettings(current, { opened++ }, {}, {}, {}, {}, {}, {}, {}) } }
         scrollTo(hasText(label(R.string.directory_appearance_entry)))
         rule.onNode(hasText(label(R.string.directory_appearance_entry)) and hasClickAction()).assertIsNotEnabled()
         rule.runOnIdle { current = current.copy(presentationOwner = CommandOwner(runtimeA, workspace, "a".repeat(64), sessionA, runtimeB)) }
@@ -360,7 +362,7 @@ class TokenWorksAppShellTest {
             val density = LocalDensity.current.density
             CompositionLocalProvider(LocalDensity provides Density(density, 2f)) {
                 FixtureTheme { Box(Modifier.width(320.dp).height(480.dp)) {
-                    WorkspaceSettings(account, {}, {}, {}, { backs++ }, {}, {}, {})
+                    WorkspaceSettings(account, {}, {}, {}, { backs++ }, {}, {}, {}, {})
                 } }
             }
         }

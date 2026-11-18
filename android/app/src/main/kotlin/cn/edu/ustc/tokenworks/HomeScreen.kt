@@ -51,10 +51,12 @@ private fun ReadyHomeRoute(state: HomeState, management: HostManagementState, mo
     var navigationExpanded by remember { mutableStateOf(true) }
     var appearanceSettings by remember { mutableStateOf(false) }
     var settingsOpen by remember { mutableStateOf(false) }
+    var usageOpen by remember { mutableStateOf(false) }
     var hostsOpen by remember { mutableStateOf(false) }
     var terminalOpen by remember(state.selectedRuntimeId, state.selectedSessionId) { mutableStateOf(false) }
     var filesOpen by remember(state.selectedRuntimeId, state.selectedSessionId) { mutableStateOf(false) }
     var speechOpen by remember(state.selectedRuntimeId, state.selectedSessionId) { mutableStateOf(false) }
+    val activeTransport by model.activeTransport.collectAsState()
     val terminalWatcher = state.terminal
     val positions = remember { LinkedHashMap<Pair<String, String>, ChatReadingPosition>() }
     val snackbar = remember { SnackbarHostState() }
@@ -66,7 +68,7 @@ private fun ReadyHomeRoute(state: HomeState, management: HostManagementState, mo
         (state.interactionError ?: state.outboxError)?.let { snackbar.showSnackbar(it) }
     }
     val layout = workspaceLayout(viewport, state.selectedSessionId != null, state.modelSelectionOpen, navigationExpanded)
-    val overlay = appearanceSettings || settingsOpen || state.appUpdateSettings || state.binding != null || state.creation != null || terminalOpen || filesOpen || speechOpen || state.pairingOpen || management.open || state.notifySettingsOpen
+    val overlay = appearanceSettings || settingsOpen || usageOpen || state.appUpdateSettings || state.binding != null || state.creation != null || terminalOpen || filesOpen || speechOpen || state.pairingOpen || management.open || state.notifySettingsOpen
     BackHandler { model.back() }
     Box(Modifier.fillMaxSize()) {
         WorkspaceScaffold(
@@ -126,13 +128,18 @@ private fun ReadyHomeRoute(state: HomeState, management: HostManagementState, mo
                         model::refreshBinding, model::enterAnotherBinding, model::closeBinding)
                 }
                 state.creation != null -> SessionCreationScreen(state, model)
+                usageOpen -> {
+                    BackHandler { usageOpen = false }
+                    val usage by model.usage.collectAsState()
+                    UsageScreen(usage) { usageOpen = false }
+                }
                 settingsOpen -> {
                     BackHandler { settingsOpen = false }
                     WorkspaceSettings(state, onAppearance = { appearanceSettings = true }, onAppUpdates = model::openAppUpdates,
                         onExit = onCancel, onBack = { settingsOpen = false }, onManagement = model::openManagement,
-                        onNotifications = model::openNotifySettings, onPairing = model::openPairing)
+                        onNotifications = model::openNotifySettings, onPairing = model::openPairing, onUsage = { usageOpen = true })
                 }
-                state.selectedSessionId != null -> key(state.selectedRuntimeId, state.selectedSessionId) {
+                state.selectedSessionId != null -> key(state.presentationOwner?.fingerprint, state.selectedRuntimeId, state.selectedSessionId) {
                     val resource = state.selectedRuntimeId.orEmpty() to state.selectedSessionId
                     val position = remember(resource) {
                         positions[resource] ?: ChatReadingPosition().also {
@@ -147,7 +154,9 @@ private fun ReadyHomeRoute(state: HomeState, management: HostManagementState, mo
                             files.loadAttachment(sessionId, image)
                             filesOpen = true
                         }
-                    }), openNavigation, { hostsOpen = true })
+                    }), openNavigation, { hostsOpen = true },
+                        transport = activeTransport?.takeIf { it.runtimeId == state.selectedRuntimeId },
+                        shareApi = model.shareApi.takeUnless { state.lanOnly })
                 }
                 else -> Column(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing)) {
                     TokenWorksTopBar(stringResource(R.string.nav_sessions), navigationIcon = {
@@ -240,11 +249,21 @@ internal class SessionContentActions(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun NativeSessionContent(state: HomeState, position: ChatReadingPosition, actions: SessionContentActions,
-    onNavigation: () -> Unit, onHosts: () -> Unit) {
+    onNavigation: () -> Unit, onHosts: () -> Unit, transport: DshTransport? = null, shareApi: RemoteApi? = null) {
     val sessionId = requireNotNull(state.selectedSessionId)
     val entry = state.sessions.firstOrNull { it.id == sessionId }
     val runtime = state.runtimeRow(state.selectedRuntimeId)
     val read = state.reader ?: SessionReadState(SessionReadPhase.CONNECTING)
+    val child = entry?.parentSessionId?.let { DshSubagentAddress(it, entry.subagentMode) }
+    val discovery = remember(transport) { transport?.let(::DiscoveryClient) }
+    val canSkills = state.lanOnly || runtime?.access?.allows("skills/list", sessionId) == true
+    val canFiles = state.lanOnly || runtime?.access?.allows("fileReferences/list", sessionId) == true
+    val canInsert = discovery != null && state.composer != null && !read.readOnly && (canSkills || canFiles)
+    val canReadShare = state.lanOnly || runtime?.access?.allows("session/page", sessionId) == true
+    val shareAuthorityLost = !canReadShare || read.phase in setOf(SessionReadPhase.AUTH_REQUIRED, SessionReadPhase.REVOKED)
+    val canShare = transport != null && !read.readOnly && canReadShare
+    var referencesOpen by remember { mutableStateOf(false) }
+    var shareOpen by rememberSaveable { mutableStateOf(false) }
     var moreOpen by remember { mutableStateOf(false) }
     var renameOpen by remember { mutableStateOf(false) }
     var title by remember { mutableStateOf("") }
@@ -327,6 +346,13 @@ internal fun NativeSessionContent(state: HomeState, position: ChatReadingPositio
                 }
             }
         }
+        if (canInsert) {
+            Row(Modifier.widthIn(max = TokenWorksSpacing.readingWidth).fillMaxWidth().padding(horizontal = TokenWorksSpacing.sm)) {
+                IconButton({ referencesOpen = true }, Modifier.size(TokenWorksSpacing.minimumTouchTarget)) {
+                    Icon(painterResource(R.drawable.ic_add), stringResource(R.string.discovery_add))
+                }
+            }
+        }
         ChatComposer(state, actions.editDraft, actions.send, actions.cancel, actions.openModels,
             Modifier.widthIn(max = TokenWorksSpacing.readingWidth).fillMaxWidth())
     }
@@ -343,16 +369,27 @@ internal fun NativeSessionContent(state: HomeState, position: ChatReadingPositio
                 enabled = state.files != null && !read.readOnly)
             RuntimePickerAction("语音转文字", { moreOpen = false; actions.openSpeech() },
                 enabled = state.composer != null)
+            RuntimePickerAction(stringResource(R.string.session_share_action), { moreOpen = false; shareOpen = true }, enabled = canShare)
             RuntimePickerAction(stringResource(R.string.session_rename), {
                 moreOpen = false; title = entry?.metadata?.title.orEmpty(); renameOpen = true
-            }, enabled = (state.lanOnly || runtime?.access?.canRename(sessionId) == true) && !state.submitting && !read.readOnly)
+            }, enabled = child == null && (state.lanOnly || runtime?.access?.canRename(sessionId) == true) && !state.submitting && !read.readOnly)
             RuntimePickerAction(stringResource(R.string.session_fork), { moreOpen = false; actions.fork() },
-                enabled = (state.lanOnly || runtime?.access?.canFork(sessionId) == true) && !state.submitting && !read.readOnly)
+                enabled = child == null && (state.lanOnly || runtime?.access?.canFork(sessionId) == true) && !state.submitting && !read.readOnly)
             RuntimePickerAction(stringResource(R.string.conversation_archive), { moreOpen = false; actions.archive() },
-                enabled = (state.lanOnly || runtime?.access?.allows("workspace/archiveSession", sessionId, entry?.workspaceId) == true) && !state.submitting && !read.readOnly)
+                enabled = child == null && (state.lanOnly || runtime?.access?.allows("workspace/archiveSession", sessionId, entry?.workspaceId) == true) && !state.submitting && !read.readOnly)
             Spacer(Modifier.heightIn(min = TokenWorksSpacing.sm))
         }
     }
+    if (referencesOpen && canInsert && discovery != null) {
+        PromptReferencesSheet(discovery, sessionId, canSkills, canFiles,
+            onPick = { reference -> state.composer?.value?.let { actions.editDraft(it.insertReference(reference)) } },
+            onDismiss = { referencesOpen = false })
+    }
+    if (shareOpen && !shareAuthorityLost) {
+        SessionShareDialog(sessionId, entry?.metadata?.title?.takeIf { it.isNotBlank() } ?: stringResource(R.string.session_untitled),
+            transport.takeIf { canShare }, shareApi, child) { shareOpen = false }
+    }
+    LaunchedEffect(shareAuthorityLost) { if (shareAuthorityLost) shareOpen = false }
     if (renameOpen) AlertDialog(onDismissRequest = { renameOpen = false }, title = { Text(stringResource(R.string.session_rename)) },
         text = { OutlinedTextField(title, { title = it }, label = { Text(stringResource(R.string.session_title_label)) }, singleLine = true) },
         confirmButton = { TextButton({ renameOpen = false; actions.rename(title.trim()) }, enabled = title.isNotBlank() && !state.submitting && !read.readOnly) {

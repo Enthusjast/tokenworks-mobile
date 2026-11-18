@@ -163,7 +163,7 @@ internal fun RuntimePicker(state: HomeState, viewModel: HomeViewModel, modifier:
 
 @Composable
 internal fun WorkspaceSettings(state: HomeState, onAppearance: () -> Unit, onAppUpdates: () -> Unit, onExit: () -> Unit,
-    onBack: () -> Unit, onManagement: () -> Unit, onNotifications: () -> Unit, onPairing: () -> Unit) {
+    onBack: () -> Unit, onManagement: () -> Unit, onNotifications: () -> Unit, onPairing: () -> Unit, onUsage: () -> Unit) {
     var confirmExit by remember { mutableStateOf(false) }
     Scaffold(topBar = {
         TokenWorksTopBar(stringResource(R.string.nav_settings), navigationIcon = {
@@ -210,6 +210,8 @@ internal fun WorkspaceSettings(state: HomeState, onAppearance: () -> Unit, onApp
                         SettingsRow("通知与后台连接", "送达提醒与后台保持连接", onNotifications)
                         RuntimeDivider()
                         SettingsRow("局域网安全配对", "与同一网络下的电脑配对", onPairing)
+                        RuntimeDivider()
+                        SettingsRow(stringResource(R.string.usage_title), stringResource(R.string.usage_settings_detail), onUsage)
                         if (!state.lanOnly) {
                             RuntimeDivider()
                             SettingsRow(stringResource(R.string.settings_updates),

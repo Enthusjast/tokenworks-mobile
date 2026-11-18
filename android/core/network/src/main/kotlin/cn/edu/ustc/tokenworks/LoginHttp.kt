@@ -283,9 +283,27 @@ class RemoteApi internal constructor(private val http: LoginHttp, private val co
         return mutex.withLock { JsonDocument.parse(request(method, path, body)).root }
     }
 
+    /** This endpoint accepts an opaque encrypted snapshot. The fragment key never enters HTTP. */
+    suspend fun createSessionShare(ciphertext: ByteArray): SessionSharePublication = mutex.withLock {
+        require(ciphertext.size in 29..SessionSharePublication.MAX_BYTES && ciphertext[0] == 1.toByte())
+        val bytes = sendResourceRequest("POST", "/v1/session-shares",
+            ciphertext.toRequestBody("application/octet-stream".toMediaType()), shareConfirmed = true)
+        val root = JsonDocument.parse(bytes).root
+        root.exactKeys("ok", "data")
+        if (root["ok"] != JsonBoolean(true)) throw ProtocolException()
+        val data = root.obj("data")
+        data.exactKeys("id", "expires_at")
+        val id = data.string("id")
+        if (!id.matches(Regex("[A-Za-z0-9_-]{22}"))) throw ProtocolException()
+        SessionSharePublication(config.remoteOrigin + "/share/" + id, java.time.Instant.parse(data.string("expires_at")))
+    }
+
     private suspend fun read(path: String): ByteArray = request("GET", path)
 
-    private suspend fun request(method: String, path: String, body: JsonObject? = null, beforeSend: () -> Unit = {}): ByteArray {
+    private suspend fun request(method: String, path: String, body: JsonObject? = null, beforeSend: () -> Unit = {}): ByteArray =
+        sendResourceRequest(method, path, body?.let { JsonDocument.of(it).canonicalBytes().toRequestBody("application/json".toMediaType()) }, beforeSend = beforeSend)
+
+    private suspend fun sendResourceRequest(method: String, path: String, body: RequestBody?, shareConfirmed: Boolean = false, beforeSend: () -> Unit = {}): ByteArray {
         val url = (config.remoteOrigin + path).toHttpUrl()
         repeat(2) { attempt ->
             currentCoroutineContext().ensureActive()
@@ -293,8 +311,8 @@ class RemoteApi internal constructor(private val http: LoginHttp, private val co
             val proof = DeviceProofs.dpop(signer, method, url.toString(), System.currentTimeMillis(), nonce, access)
             nonce = null
             val builder = Request.Builder().url(url).header("Authorization", "DPoP $access").header("DPoP", proof.compact).header("Accept", "application/json").header("Cache-Control", "no-store")
-            val encoded = body?.let { JsonDocument.of(it).canonicalBytes().toRequestBody("application/json".toMediaType()) }
-            builder.method(method, if (method == "POST") encoded ?: ByteArray(0).toRequestBody(null) else encoded)
+            if (shareConfirmed) builder.header("X-TokenWorks-Share-Confirmed", "v1")
+            builder.method(method, if (method == "POST") body ?: ByteArray(0).toRequestBody(null) else body)
             currentCoroutineContext().ensureActive(); beforeSend()
             val reply = http.execute(builder.build())
             nonce = reply.nonce()
@@ -365,3 +383,7 @@ class RemoteApi internal constructor(private val http: LoginHttp, private val co
 
 
 class RegisteredDevice(val deviceId: String, val keyVersion: Long)
+
+class SessionSharePublication(val readerUrl: String, val expiresAt: java.time.Instant) {
+    companion object { const val MAX_BYTES = 2 * 1024 * 1024 }
+}

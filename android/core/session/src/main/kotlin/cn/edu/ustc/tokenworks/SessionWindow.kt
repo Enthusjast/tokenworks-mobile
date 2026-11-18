@@ -9,7 +9,8 @@ class ConversationItem(val id: String, val role: ConversationRole, val blocks: L
     val seq: Long = -1, val turn: Long? = null, val step: Long? = null, val time: Long? = null) {
     override fun toString() = "ConversationItem($role, live=$live)"
 }
-class SessionRecord private constructor(val seq: Long, val type: String, val data: JsonObject, val raw: JsonObject, val blocks: List<DisplayBlock>, val replacement: Boolean, val time: Long) {
+class SessionRecord private constructor(val seq: Long, val type: String, val data: JsonObject, val raw: JsonObject,
+    val blocks: List<DisplayBlock>, val replacement: Boolean, val time: Long, val usage: SessionUsageEvent?) {
     val weight = SessionJson.weight(raw)
     companion object {
         /** Records larger than this are stored truncated; the raw wire payload never enters the window. */
@@ -61,7 +62,7 @@ class SessionRecord private constructor(val seq: Long, val type: String, val dat
         }
 
         fun parse(root: JsonObject): SessionRecord {
-            SessionJson.fields(root, setOf("seq", "time", "type", "data"), setOf("surfaceOp", "sourceEventSeqs"))
+            SessionJson.fields(root, setOf("seq", "time", "type", "data"), setOf("surfaceOp", "sourceEventSeqs", "usage"))
             val seq = root.integer("seq", 0)
             val time = (root["time"] as? JsonNumber)?.value ?: throw SessionDataException()
             if (!time.isFinite() || kotlin.math.abs(time) > MAX_SAFE_INTEGER) throw SessionDataException()
@@ -112,7 +113,8 @@ class SessionRecord private constructor(val seq: Long, val type: String, val dat
             }
             for (number in listOf("turn", "step")) if (number in data.fields) data.integer(number, 0)
             if ("interrupted" in data.fields) SessionJson.boolean(data, "interrupted")
-            return SessionRecord(seq, type, data, root, Collections.unmodifiableList(blocks), replacement, time.toLong())
+            val usage = if ("usage" in root.fields) SessionUsageEvent.decode(root.obj("usage"), type) else null
+            return SessionRecord(seq, type, data, root, Collections.unmodifiableList(blocks), replacement, time.toLong(), usage)
         }
     }
 }
@@ -123,11 +125,13 @@ class SessionTranscript internal constructor(
     val durableOnly: Boolean = false,
     /** One span per `turn/start`..`turn/end`, in transcript order; `endedAt == null` while running. */
     val turns: List<TurnSpan> = emptyList(),
+    /** Unlike the persistence cursor, excludes a settlement still held for its live end frame. */
+    val usageThrough: Long = persistedThrough,
 ) {
     override fun toString() = "SessionTranscript(records=${records.size})"
     /** A cached display must not resurrect an unfinished turn or streaming assistant state. */
     fun asReadOnly(): SessionTranscript = SessionTranscript(records, cursor, openingCursor, hasMore,
-        persistedThrough, checkpoint, items, false, true, turns)
+        persistedThrough, checkpoint, items, false, true, turns, usageThrough)
 }
 
 class TurnSpan(val turn: Long, val startedAt: Long, var endedAt: Long? = null, var steps: Int = 0, var reason: String? = null) {
@@ -355,7 +359,8 @@ class SessionWindow(private val subscribeRequest: String, private val retainTail
         }
         return SessionTranscript(Collections.unmodifiableList(entries), if (durableOnly) entries.lastOrNull()?.seq ?: -1 else cursor,
             if (durableOnly) minOf(opening, entries.lastOrNull()?.seq ?: -1) else opening, more, persisted, checkpoint, Collections.unmodifiableList(items), running,
-            durableOnly && (entries.isNotEmpty() || cursor == -1L && checkpoint == "persisted"), Collections.unmodifiableList(turns))
+            durableOnly && (entries.isNotEmpty() || cursor == -1L && checkpoint == "persisted"), Collections.unmodifiableList(turns),
+            minOf(persisted, held?.seq?.minus(1) ?: persisted))
     }
 }
 

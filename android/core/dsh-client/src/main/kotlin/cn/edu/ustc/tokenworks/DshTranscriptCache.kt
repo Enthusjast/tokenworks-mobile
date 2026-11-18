@@ -29,7 +29,15 @@ class DshTranscriptRecord internal constructor(val record: SessionRecord, val fi
     init { require(fingerprint.length == 64 && fingerprint.all { it in '0'..'9' || it in 'a'..'f' }) }
     val seq get() = record.seq
     internal val weight get() = record.weight + 256
-    internal fun same(other: DshTranscriptRecord) = fingerprint == other.fingerprint && SessionJson.same(record.raw, other.record.raw)
+    internal fun same(other: DshTranscriptRecord): Boolean {
+        if (fingerprint != other.fingerprint) return false
+        if ((record.usage == null) == (other.record.usage == null)) return SessionJson.same(record.raw, other.record.raw)
+        // Older authenticated cache entries did not carry the derived annotation.
+        val a = record.raw.fields
+        val b = other.record.raw.fields
+        return a.size - (if (record.usage == null) 0 else 1) == b.size - (if (other.record.usage == null) 0 else 1) &&
+            a.all { (key, value) -> key == "usage" || key in b && SessionJson.same(value, b.getValue(key)) }
+    }
     internal fun json() = jsonObject("event" to record.raw, "sha256" to fingerprint.json())
 
     companion object {
@@ -82,6 +90,8 @@ class DshTranscriptRecord internal constructor(val record: SessionRecord, val fi
                 else -> { type = "cursor"; jsonObject() }
             }
             var root = jsonObject("seq" to seq.json(), "time" to event["time"], "type" to type.json(), "data" to projected)
+            val usageData = if (sourceType == "llm/retry-started") event.obj("data") else data
+            SessionUsageEvent.project(sourceType, usageData)?.let { root = root.with("usage" to it) }
             // Replacement semantics belong to the native record, never to cached client state.
             if (type != "cursor") {
                 event.fields["surfaceOp"]?.let { root = root.with("surfaceOp" to it) }

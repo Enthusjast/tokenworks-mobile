@@ -117,6 +117,9 @@ class RuntimeDirectoryEntry private constructor(
 class SessionDirectoryEntry private constructor(
     val id: String, val workspaceId: String?, val state: String, val lastPersisted: Long, val updatedAt: Long,
     val metadata: DirectoryDisplayMetadata?,
+    val parentSessionId: String? = null,
+    val subagentMode: String = "unknown",
+    val usageSnapshot: UsageSnapshot? = null,
 ) {
     val running get() = state == "running"
     val blank get() = metadata?.blank == true
@@ -130,19 +133,34 @@ class SessionDirectoryEntry private constructor(
     companion object {
         /** Built from one `session/list` item; unknown projection fields are ignored. */
         fun from(item: DshSessionListResultItemsItem): SessionDirectoryEntry {
+            val projection = (item.projections as? DshOptional.Value)?.value
+            val values = projection?.values
+            val parent = (item.parentSessionId as? DshOptional.Value)?.value?.takeIf {
+                (item.origin as? DshOptional.Value)?.value == "subagent" && it.isNotBlank() &&
+                    it.length <= 128 && it != item.sessionId
+            }
+            val mode = if (parent == null) "unknown" else when ((values?.subagent as? DshOptional.Value)?.value) {
+                is DshSessionListResultItemsItemProjectionsValuesSubagent.Case2 -> "one-shot"
+                is DshSessionListResultItemsItemProjectionsValuesSubagent.Case3 -> "continuable"
+                else -> "unknown"
+            }
+            val usage = (values?.tokenUsage as? DshOptional.Value)?.value?.let { value ->
+                val cut = projection?.asOfSeq?.let { seq -> seq.toLong().takeIf { it in -1..MAX_SAFE_INTEGER && it.toDouble() == seq } }
+                val counts = UsageCounts.fromProjection(value.uncachedInputTokens, value.outputTokens, value.cacheReadTokens, value.cacheWriteTokens)
+                if (cut != null && counts != null) UsageSnapshot(cut, counts) else null
+            }
             if (!item.agentAvailable) return SessionDirectoryEntry(
-                item.sessionId, null, "unavailable", -1, item.updatedAt.toDirectoryTime(), null,
+                item.sessionId, null, "unavailable", -1, item.updatedAt.toDirectoryTime(), null, parent, mode, usage,
             )
-            val values = (item.projections as? DshOptional.Value)?.value?.values
             val workingDirectory = (values?.workingDirectory as? DshOptional.Value)?.value
             val title = (values?.title as? DshOptional.Value)?.value
-            val kind = (item.projections as? DshOptional.Value)?.value?.kind
-            val asOf = (item.projections as? DshOptional.Value)?.value?.asOfSeq?.toDirectoryTime()
+            val kind = projection?.kind
+            val asOf = projection?.asOfSeq?.toDirectoryTime()
             val metadata = if (title == null && workingDirectory == null) null
             else DirectoryDisplayMetadata.native(title, workingDirectory, kind, asOf, item.blank)
             return SessionDirectoryEntry(
                 item.sessionId, workingDirectory, if (item.running) "running" else "available",
-                -1, item.updatedAt.toDirectoryTime(), metadata,
+                -1, item.updatedAt.toDirectoryTime(), metadata, parent, mode, usage,
             )
         }
 

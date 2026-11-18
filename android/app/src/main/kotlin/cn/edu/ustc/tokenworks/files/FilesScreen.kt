@@ -8,6 +8,7 @@ import android.net.Uri
 import android.os.ParcelFileDescriptor
 import android.provider.DocumentsContract
 import android.provider.OpenableColumns
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
@@ -17,18 +18,71 @@ import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.*
 import java.io.OutputStream
 
 @Composable
 internal fun FilesScreen(coordinator: FilesCoordinator, sessionId: String, onBack: () -> Unit) {
+    val state by coordinator.state.collectAsState()
+    val context = LocalContext.current
+    var pane by rememberSaveable(sessionId) { mutableStateOf(FilesPane.ATTACHMENTS) }
+    var pickerError by remember(coordinator) { mutableStateOf(false) }
+    val saveWorkspaceFile = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/octet-stream")) { uri ->
+        coordinator.finishWorkspaceSavePicker(uri?.let { DocumentExportTarget(context, it) })
+    }
+    val leave = {
+        coordinator.cancel()
+        onBack()
+    }
+    BackHandler {
+        val parts = state.workspaceListing?.parts.orEmpty()
+        if (pane == FilesPane.WORKSPACE && parts.isNotEmpty() && !state.busy) coordinator.browseWorkspace(parts.dropLast(1))
+        else leave()
+    }
+    Column(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing)) {
+        TabRow(selectedTabIndex = pane.ordinal) {
+            FilesPane.entries.forEach { item ->
+                Tab(selected = pane == item, enabled = !state.pickerActive, onClick = {
+                    pane = item
+                    if (item == FilesPane.WORKSPACE && state.workspaceListing == null) coordinator.browseWorkspace()
+                }, modifier = Modifier.heightIn(min = TokenWorksSpacing.minimumTouchTarget),
+                    text = { Text(stringResource(item.label)) })
+            }
+        }
+        if (pane == FilesPane.EXPORTS && pickerError) Box(Modifier.padding(horizontal = TokenWorksSpacing.lg)) {
+            TokenWorksStatusNotice(stringResource(R.string.workspace_files_picker_unavailable), tone = TokenWorksNoticeTone.ERROR)
+        }
+        when (pane) {
+            FilesPane.ATTACHMENTS -> FileAttachmentsPanel(coordinator, sessionId, leave)
+            FilesPane.WORKSPACE -> WorkspaceBrowser(state, coordinator::browseWorkspace, coordinator::addWorkspaceExport, coordinator::cancel, leave)
+            FilesPane.EXPORTS -> ExportsScreen(state, { file ->
+                pickerError = false
+                if (coordinator.startWorkspaceSavePicker(file)) {
+                    try { saveWorkspaceFile.launch(FilePreview.displayName(file.name)) }
+                    catch (_: Exception) { coordinator.finishWorkspaceSavePicker(null); pickerError = true }
+                }
+            }, coordinator::removeWorkspaceExport, coordinator::cancel, leave)
+        }
+    }
+}
+
+private enum class FilesPane(val label: Int) {
+    ATTACHMENTS(R.string.workspace_files_attachments),
+    WORKSPACE(R.string.workspace_files_browser),
+    EXPORTS(R.string.workspace_files_exports),
+}
+
+@Composable
+private fun FileAttachmentsPanel(coordinator: FilesCoordinator, sessionId: String, onBack: () -> Unit) {
     val state by coordinator.state.collectAsState()
     val context = LocalContext.current
     val actions = rememberCoroutineScope()
@@ -80,9 +134,9 @@ internal fun FilesScreen(coordinator: FilesCoordinator, sessionId: String, onBac
         coordinator.pickerFinished()
         if (uri != null) coordinator.export(DocumentExportTarget(context, uri))
     }
-    Column(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing).verticalScroll(rememberScrollState()).padding(TokenWorksSpacing.lg),
+    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(TokenWorksSpacing.lg),
         verticalArrangement = Arrangement.spacedBy(TokenWorksSpacing.md)) {
-        Text("文件与附件", style = MaterialTheme.typography.headlineSmall, modifier = Modifier.semantics { heading() })
+        Text(stringResource(R.string.workspace_files_title), style = MaterialTheme.typography.headlineSmall, modifier = Modifier.semantics { heading() })
         Text("图片供模型识图；普通文件上传仅准备文件附件。发送均由会话中的发送按钮确认。预览不会执行 HTML 或脚本。", style = MaterialTheme.typography.bodyMedium)
         if (state.busy) TokenWorksStatusNotice(
             if (state.operation == FilesOperation.PREPARE_IMAGE) "正在手机上处理图片，尚未发送…" else "正在传输… ${state.progressBytes} 字节" + (state.totalBytes?.let { " / $it" } ?: ""),

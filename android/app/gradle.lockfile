@@ -213,6 +213,7 @@ com.google.testing.platform:android-test-plugin:0.0.9-alpha03=_internal-unified-
 com.google.testing.platform:core-proto:0.0.9-alpha03=_internal-unified-test-platform-android-device-provider-ddmlib,_internal-unified-test-platform-android-test-plugin-host-apk-installer,_internal-unified-test-platform-android-test-plugin-result-listener-gradle
 com.google.testing.platform:core:0.0.9-alpha03=_internal-unified-test-platform-core
 com.google.testing.platform:launcher:0.0.9-alpha03=_internal-unified-test-platform-android-test-plugin-host-additional-test-output,_internal-unified-test-platform-android-test-plugin-host-device-info,_internal-unified-test-platform-android-test-plugin-host-logcat,_internal-unified-test-platform-launcher
+com.google.zxing:core:3.5.4=debugAndroidTestCompileClasspath,debugCompileClasspath,debugRuntimeClasspath,debugUnitTestCompileClasspath,debugUnitTestRuntimeClasspath,releaseCompileClasspath,releaseRuntimeClasspath,releaseUnitTestCompileClasspath,releaseUnitTestRuntimeClasspath
 com.nimbusds:nimbus-jose-jwt:10.5=debugAndroidTestCompileClasspath,debugAndroidTestRuntimeClasspath,debugRuntimeClasspath,debugUnitTestRuntimeClasspath,releaseRuntimeClasspath,releaseUnitTestRuntimeClasspath
 com.squareup.okhttp3:mockwebserver:4.12.0=debugAndroidTestCompileClasspath,debugAndroidTestRuntimeClasspath
 com.squareup.okhttp3:okhttp-tls:4.12.0=debugAndroidTestCompileClasspath,debugAndroidTestRuntimeClasspath

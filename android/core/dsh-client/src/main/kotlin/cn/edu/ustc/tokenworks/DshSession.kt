@@ -9,6 +9,9 @@ import java.util.TreeMap
 import java.util.UUID
 import java.util.concurrent.atomic.AtomicBoolean
 
+/** An addressed child is read through its durable parent link, never as an ordinary session. */
+data class DshSubagentAddress(val parentSessionId: String, val mode: String)
+
 /** One native follower. Cached history is display-only; every command needs a live baseline. */
 class DshSessionReader(
     private val transport: DshTransport,
@@ -16,6 +19,7 @@ class DshSessionReader(
     owner: CoroutineScope,
     private val maxMessages: Int = 30,
     private val cache: DshTranscriptCache? = null,
+    private val subagent: DshSubagentAddress? = null,
 ) : AutoCloseable {
     private val scope = CoroutineScope(SupervisorJob(owner.coroutineContext[Job]) + Dispatchers.Default)
     private val mutable = MutableStateFlow(SessionReadState(SessionReadPhase.CONNECTING))
@@ -100,7 +104,9 @@ class DshSessionReader(
         return DshMethods.SessionFork.output.decode(value).sessionId
     }
 
-    private fun requireReady() { if (closed.get() || mutable.value.readOnly) throw DshFailure("session.read_only") }
+    private fun requireReady() {
+        if (closed.get() || mutable.value.readOnly || subagent != null) throw DshFailure("session.read_only")
+    }
     private suspend fun <I> unit(endpoint: String, codec: DshCodec<I>, input: I) { requireReady(); call(endpoint, codec, input) }
     private suspend fun <I> call(endpoint: String, codec: DshCodec<I>, input: I): JsonValue =
         transport.native(endpoint, codec.encode(input) as JsonObject)
@@ -148,8 +154,12 @@ class DshSessionReader(
         }
     }
 
-    private fun address() = DshSessionFollowInputRequestAddress.Case1(DshSessionFollowInputRequestAddressCase1("session", sessionId))
-    private fun pageAddress() = DshSessionPageInputRequestAddress.Case1(DshSessionPageInputRequestAddressCase1("session", sessionId))
+    private fun address(): DshSessionFollowInputRequestAddress = subagent?.let {
+        DshSessionFollowInputRequestAddress.Case2(DshSessionFollowInputRequestAddressCase2("subagent", it.parentSessionId, sessionId, it.mode))
+    } ?: DshSessionFollowInputRequestAddress.Case1(DshSessionFollowInputRequestAddressCase1("session", sessionId))
+    private fun pageAddress(): DshSessionPageInputRequestAddress = subagent?.let {
+        DshSessionPageInputRequestAddress.Case2(DshSessionPageInputRequestAddressCase2("subagent", it.parentSessionId, sessionId, it.mode))
+    } ?: DshSessionPageInputRequestAddress.Case1(DshSessionPageInputRequestAddressCase1("session", sessionId))
     private suspend fun nativePage(openingCursor: Long, beforeSeq: Long): DshTranscriptPage {
         val request = DshSessionPageInputRequest(pageAddress(), DshOptional.Value(openingCursor.toDouble()), DshOptional.Value(beforeSeq.toDouble()), DshOptional.Value(maxOf(2, maxMessages).toDouble()))
         return DshTranscriptPage.decode(call("session/page", DshMethods.SessionPage.input, DshSessionPageInput(request)))
@@ -225,8 +235,14 @@ class DshSessionReader(
     }
 
     private suspend fun baseline(root: JsonObject) {
-        val nextIdentity = DshTranscriptIdentity.parse(root.obj("header"))
-        if (nextIdentity.id != sessionId) { discardCache(); throw ProtocolException() }
+        val header = root.obj("header")
+        val nextIdentity = DshTranscriptIdentity.parse(header)
+        val child = (header.fields["origin"] as? JsonString)?.value == "subagent"
+        if (nextIdentity.id != sessionId || child != (subagent != null) ||
+            (subagent != null && (header.fields["parentSession"] as? JsonString)?.value != subagent.parentSessionId)) {
+            discardCache()
+            throw ProtocolException()
+        }
         val cursor = root.integer("cursor", -1)
         val records = root.array("records").map { DshTranscriptRecord.fromNative((it as? JsonObject ?: throw ProtocolException()).obj("event")) }
         val assistant = assistant(root.fields["assistantStream"] ?: JsonNull)

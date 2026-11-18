@@ -63,4 +63,24 @@ class DirectoryRowsTest {
             NativeResource.parse(jsonObject("kind" to "runtime".json()))
         }
     }
+    @Test fun coldDirectoryKeepsAccountingAndOnlyNativeSubagentOriginNests() {
+        val scoped = DshSessionListResultItemsItem(
+            agentAvailable = false, sessionId = sessionId, updatedAt = 1000.0, running = false, blank = false,
+            parentSessionId = DshOptional.Value(otherSessionId),
+            projections = DshOptional.Value(DshSessionListResultItemsItemProjections("cached", 10.0,
+                DshSessionListResultItemsItemProjectionsValues(
+                    subagent = DshOptional.Value(DshSessionListResultItemsItemProjectionsValuesSubagent.Case2(
+                        DshSessionListResultItemsItemProjectionsValuesSubagentCase2("one-shot", seq = 1.0),
+                    )),
+                    tokenUsage = DshOptional.Value(DshSessionListResultItemsItemProjectionsValuesTokenUsage(10.0, 4.0, 2.0, 0.0)),
+                ),
+            )),
+        )
+        val regular = SessionDirectoryEntry.from(scoped)
+        assertNull(regular.parentSessionId)
+        assertEquals(UsageSnapshot(10, UsageCounts(10, 4, 2)), regular.usageSnapshot)
+        val child = SessionDirectoryEntry.from(scoped.copy(origin = DshOptional.Value("subagent")))
+        assertEquals(otherSessionId, child.parentSessionId)
+        assertEquals("one-shot", child.subagentMode)
+    }
 }

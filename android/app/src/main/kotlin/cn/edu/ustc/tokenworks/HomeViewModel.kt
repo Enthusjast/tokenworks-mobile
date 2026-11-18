@@ -45,6 +45,9 @@ class HomeViewModel @Inject constructor(private val login: LoginController) : Vi
     fun rotateDeviceKey(runtimeId: String) = login.rotateDeviceKey(runtimeId)
     fun reconcileDeviceRotation(runtimeId: String) = login.reconcileDeviceRotation(runtimeId)
     val state = login.state
+    internal val activeTransport = login.activeTransport
+    internal val shareApi get() = login.shareApi
+    internal val usage = login.usage
     val appUpdateEvents = login.appUpdateEvents
     fun openAppUpdates() = login.openAppUpdates()
     fun closeAppUpdates() = login.closeAppUpdates()

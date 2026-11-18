@@ -12,6 +12,7 @@ internal class SessionCoordinator(
 ) {
     private val drafts = ConversationDrafts()
     private val transcripts = EncryptedTranscriptCache(context)
+    val usage = UsageCoordinator(context, scope)
     var foreground = false
         private set
     var backgroundHold = false
@@ -45,6 +46,12 @@ internal class SessionCoordinator(
     init {
         outbox.load()
         scope.launch {
+            val selection = mutable.map { it.presentationOwner?.fingerprint to it.selectedRuntimeId }.distinctUntilChanged()
+            combine(selection, routes.activeTransport) { (owner, runtime), transport ->
+                Triple(owner, runtime, transport?.takeIf { it.runtimeId == runtime })
+            }.collect { (owner, runtime, transport) -> usage.select(owner, runtime, transport) }
+        }
+        scope.launch {
             outbox.state.collect { delivery ->
                 val route = commandRoute()
                 mutable.update { home -> home.copy(pendingPrompts = delivery.entries.filter { it.route == route },
@@ -64,6 +71,7 @@ internal class SessionCoordinator(
     suspend fun clearOwner(ownerId: String) {
         outbox.clearOwner(ownerId)
         transcripts.clearOwner(ownerId)
+        usage.clearOwner(ownerId)
     }
     suspend fun revokeRuntime(row: RuntimeRow) {
         drafts.revokeRuntime(row.id)
@@ -71,11 +79,13 @@ internal class SessionCoordinator(
         mutable.value.presentationOwner?.fingerprint?.let {
             outbox.revokeRuntime(it, row.hostId, row.id)
             transcripts.clearRuntime(it, row.hostId, row.id)
+            usage.clearRuntime(it, row.id)
         }
     }
     suspend fun directoryChanged(selected: String?, stamp: Long) {
         if (selected == null) {
             retireSession(true)
+            routes.close()
             mutable.update { home -> home.copy(selectedSessionId = null, sessions = emptyList(), sessionError = null, loadingSessions = false) }
         } else if (foreground) {
             loadSessions(selected, stamp)
@@ -86,15 +96,19 @@ internal class SessionCoordinator(
     private fun route(runtime: String): DshTransport = routes.route(runtime)
     /** Directory rows for one runtime; a failing call keeps the previous rows and reports the error. */
     private suspend fun loadSessions(runtime: String, stamp: Long) {
-        val client = DshSessionClient(route(runtime))
+        val transport = route(runtime)
+        val client = DshSessionClient(transport)
         try {
             mutable.update { home -> home.copy(loadingSessions = true, sessionError = null) }
             val page = client.sessions()
             current(stamp)
             if (mutable.value.selectedRuntimeId != runtime) return
+            if (routes.activeTransport.value !== transport) return
             val access = mutable.value.runtimes.firstOrNull { it.id == runtime }?.access
             val rows = page.items.filter { access == null || it.viewScope(access, now()) }
             mutable.update { home -> home.copy(sessions = rows, loadingSessions = false) }
+            usage.select(mutable.value.presentationOwner?.fingerprint, runtime, transport)
+            usage.directory(rows)
         } catch (cancelled: CancellationException) {
             throw cancelled
         } catch (error: Exception) {
@@ -121,8 +135,9 @@ internal class SessionCoordinator(
     fun openRuntime(id: String) {
         if (!writable()) return
         if (!foreground || mutable.value.phase != HomePhase.READY || mutable.value.binding != null || mutable.value.pairingOpen) return
-        val row = mutable.value.runtimes.firstOrNull { it.id == id } ?: return
-        if (mutable.value.selectedRuntimeId == id && mutable.value.sessions.isNotEmpty()) return
+        if (mutable.value.runtimes.none { it.id == id }) return
+        if (mutable.value.selectedRuntimeId == id && mutable.value.sessions.isNotEmpty() &&
+            routes.activeTransport.value?.runtimeId == id) return
         desired = id to null
         retireSession(false)
         mutable.update { home -> home.copy(selectedRuntimeId = id, selectedSessionId = null, sessions = emptyList(), sessionError = null, loadingSessions = true) }
@@ -158,7 +173,7 @@ internal class SessionCoordinator(
         mutable.update { home -> home.copy(reader = null, terminal = null, files = null, pendingPrompts = emptyList(), loadingSessions = false, submitting = false, modelSelectionOpen = false, modelBusy = false, composer = null) }
     }
 
-    private fun ensureWatcher(runtime: String, sessionId: String) {
+    private fun ensureWatcher(runtime: String, sessionId: String, child: Boolean) {
         val connection = route(runtime)
         interactions.start(connection)
         watcherJob?.cancel()
@@ -166,12 +181,20 @@ internal class SessionCoordinator(
             interactions.state.collect { mutable.update { home -> home.copy(interactions = it.interactions, interactionError = it.error) } }
         }
         terminal?.close()
+        if (child) {
+            terminal = null
+            files?.close()
+            files = null
+            fileSession = null
+            mutable.update { it.copy(terminal = null, files = null) }
+            return
+        }
         terminal = TerminalWatcher(connection, sessionId, scope)
         if (fileSession != sessionId || files == null) {
             files?.close()
             files = FilesCoordinator(connection, java.io.File(context.noBackupFilesDir, "file-preview"), scope, sessionId)
             fileSession = sessionId
-        }
+        } else files?.attachTransport(connection)
         mutable.update { home -> home.copy(terminal = terminal, files = files) }
     }
 
@@ -182,13 +205,17 @@ internal class SessionCoordinator(
     }
 
     private fun follow(runtime: String, session: String, stamp: Long, reopen: Boolean) {
+        val entry = mutable.value.sessions.firstOrNull { it.id == session }
+        val childAddress = entry?.parentSessionId?.let { DshSubagentAddress(it, entry.subagentMode) }
+        val ownerDraft = if (childAddress == null) draftResource(runtime, session) else null
         if (reopen) {
             outbox.cancelSending()
-            ensureWatcher(runtime, session)
+            ensureWatcher(runtime, session, child = childAddress != null)
             readerJob?.cancel(); readerJob = null
             reader?.close(); reader = null
-            mutable.update { home -> home.copy(selectedRuntimeId = runtime, selectedSessionId = session, sessionError = null, sessionActionError = null, reader = null, composer = draftResource(runtime, session)?.let { drafts.open(it) }) }
-            val next = DshSessionReader(route(runtime), session, scope, cache = commandRoute()?.let { transcripts.forRoute(it) })
+            mutable.update { home -> home.copy(selectedRuntimeId = runtime, selectedSessionId = session, sessionError = null, sessionActionError = null, reader = null, composer = ownerDraft?.let { drafts.open(it) }) }
+            val next = DshSessionReader(route(runtime), session, scope, cache = commandRoute()?.let { transcripts.forRoute(it) },
+                subagent = childAddress)
             reader = next
             mutable.update { home -> home.copy(pendingPrompts = outbox.state.value.entries.filter { it.route == commandRoute() }) }
             readerJob = scope.launch {
@@ -196,11 +223,15 @@ internal class SessionCoordinator(
                     if (generation != stamp || reader !== next) return@collect
                     mutable.update { home -> home.copy(reader = state) }
                     if (backgroundHold && state.phase in setOf(SessionReadPhase.AUTH_REQUIRED, SessionReadPhase.REVOKED, SessionReadPhase.ERROR, SessionReadPhase.CLOSED)) onAuthorityLost()
-                    if (state.phase == SessionReadPhase.READY) mutable.value.sessions.firstOrNull { it.id == session }?.let { readMarks?.mark(session, it.updatedAt) }
+                    if (state.phase == SessionReadPhase.READY) {
+                        val row = mutable.value.sessions.firstOrNull { it.id == session }
+                        row?.let { readMarks?.mark(session, it.updatedAt) }
+                        state.window?.let { usage.observe(session, row?.metadata?.title, it) }
+                    }
                 }
             }
         } else {
-            mutable.update { home -> home.copy(selectedRuntimeId = runtime, selectedSessionId = session, composer = draftResource(runtime, session)?.let { drafts.open(it) }) }
+            mutable.update { home -> home.copy(selectedRuntimeId = runtime, selectedSessionId = session, composer = ownerDraft?.let { drafts.open(it) }) }
         }
     }
 
@@ -212,6 +243,8 @@ internal class SessionCoordinator(
 
     /** Draft text stays in foreground memory only; it is never persisted. */
     fun editDraft(value: TextFieldValue) {
+        val selected = mutable.value.selectedSessionId
+        if (mutable.value.sessions.any { it.id == selected && it.parentSessionId != null }) return
         if (!writable()) return
         val owner = mutable.value.presentationOwner ?: return
         val runtime = mutable.value.selectedRuntimeId ?: return
@@ -397,6 +430,7 @@ internal class SessionCoordinator(
                 retireWatcher()
                 readerJob?.cancel(); readerJob = null
                 reader?.close(); reader = null
+                files?.detachTransport()
                 routes.close()
                 mutable.update { it.copy(reader = null, loadingSessions = false, submitting = false) }
             } else mutable.update { it.copy(loadingSessions = false, submitting = false) }
@@ -415,9 +449,11 @@ internal class SessionCoordinator(
         val owner = account.localOwner() ?: return false
         if (mutable.value.presentationOwner?.fingerprint != owner.fingerprint || mutable.value.runtimes.none { it.id == runtimeId && it.access != null }) return false
         val stamp = generation
-        val page = DshSessionClient(route(runtimeId)).sessions()
+        val transport = route(runtimeId)
+        val page = DshSessionClient(transport).sessions()
         current(stamp)
         if (!foreground || account.localOwner()?.fingerprint != owner.fingerprint || mutable.value.presentationOwner?.fingerprint != owner.fingerprint) return false
+        if (routes.activeTransport.value !== transport) return false
         val access = mutable.value.runtimes.firstOrNull { it.id == runtimeId }?.access ?: return false
         val rows = page.items.filter { it.viewScope(access, now()) }
         if (notificationReferenceExpiry?.let { now() >= it } == true) return false
@@ -425,6 +461,8 @@ internal class SessionCoordinator(
         retireSession(false)
         desired = runtimeId to sessionId
         mutable.update { it.copy(selectedRuntimeId = runtimeId, selectedSessionId = sessionId, sessions = rows, sessionError = null) }
+        usage.select(owner.fingerprint, runtimeId, transport)
+        usage.directory(rows)
         follow(runtimeId, sessionId, stamp, reopen = true)
         return true
     }

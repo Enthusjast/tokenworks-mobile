@@ -172,6 +172,7 @@ dependencies {
     implementation(libs.appauth)
     implementation(libs.firebase.messaging)
     implementation("androidx.exifinterface:exifinterface:1.4.1")
+    implementation("com.google.zxing:core:3.5.4")
     implementation(files(boundedRtcAar).builtBy(buildWebRtcAndroid))
     implementation(libs.hilt.android)
     kapt(libs.hilt.compiler)

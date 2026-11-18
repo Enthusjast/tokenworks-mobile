@@ -7,7 +7,10 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
-enum class FilesOperation { IDLE, LOAD, UPLOAD, PREPARE_IMAGE, EXPORT }
+enum class FilesOperation { IDLE, LOAD, UPLOAD, PREPARE_IMAGE, BROWSE, EXPORT }
+
+data class WorkspaceExportItem(val file: WorkspaceExportFile, val saved: Boolean = false)
+
 data class FilesUiState(
     val visible: Boolean = false,
     val path: String = "",
@@ -20,12 +23,18 @@ data class FilesUiState(
     val error: String? = null,
     val exported: Boolean = false,
     val pickerActive: Boolean = false,
+    val workspaceListing: WorkspaceFileListing? = null,
+    val workspaceExports: List<WorkspaceExportItem> = emptyList(),
+    val exportCancelled: Boolean = false,
 ) { val busy get() = operation != FilesOperation.IDLE }
 
 /** All resolver/picker access is injected. Closing never closes the shared authenticated transport. */
-class FilesCoordinator(transport: DshTransport, privateDirectory: File, owner: CoroutineScope,
+class FilesCoordinator(transport: DshTransport, private val privateDirectory: File, owner: CoroutineScope,
     private val boundSessionId: String? = null) : AutoCloseable {
-    private val client = DshFilesClient(transport, privateDirectory)
+    private val runtimeId = transport.runtimeId
+    private var activeTransport: DshTransport? = transport
+    private var client = DshFilesClient(transport, privateDirectory)
+    private var workspace = boundSessionId?.let { DshWorkspaceFiles(transport, it) }
     private val scope = CoroutineScope(SupervisorJob(owner.coroutineContext[Job]) + Dispatchers.IO)
     private val mutableState = MutableStateFlow(FilesUiState())
     val state: StateFlow<FilesUiState> = mutableState.asStateFlow()
@@ -33,15 +42,43 @@ class FilesCoordinator(transport: DshTransport, privateDirectory: File, owner: C
     private var generation = 0L
     private var imageSessionId: String? = boundSessionId
     private var closed = false
+    private var pendingWorkspaceSave: WorkspaceExportFile? = null
+    private var pendingWorkspaceDestination: FileExportTarget? = null
+
+    /** A document picker may outlive the foreground route, but never its session. */
+    @Synchronized fun detachTransport() {
+        activeTransport = null
+        workspace = null
+    }
+
+    @Synchronized fun attachTransport(transport: DshTransport) {
+        if (closed || transport.runtimeId != runtimeId) return
+        if (activeTransport !== transport) {
+            activeTransport = transport
+            client = DshFilesClient(transport, privateDirectory)
+            workspace = boundSessionId?.let { DshWorkspaceFiles(transport, it) }
+        }
+        pendingWorkspaceDestination?.let { destination ->
+            pendingWorkspaceDestination = null
+            finishWorkspaceSavePicker(destination)
+        }
+    }
 
     @Synchronized fun open() { mutableState.value = mutableState.value.copy(visible = true) }
     @Synchronized fun pickerStarted() { mutableState.value = mutableState.value.copy(pickerActive = true) }
     @Synchronized fun pickerFinished() { mutableState.value = mutableState.value.copy(pickerActive = false) }
-    fun load(path: String) = receive(path) { progress -> client.download(path, progress) }
-    fun loadAttachment(sessionId: String, attachment: NativeImageReference) = receive("attachment") { progress -> client.attachment(sessionId, attachment, progress) }
+    @Synchronized fun load(path: String) {
+        val files = client
+        receive(path) { progress -> files.download(path, progress) }
+    }
+    @Synchronized fun loadAttachment(sessionId: String, attachment: NativeImageReference) {
+        val files = client
+        receive("attachment") { progress -> files.attachment(sessionId, attachment, progress) }
+    }
 
     @Synchronized private fun receive(path: String, fetch: suspend ((Long) -> Unit) -> StagedFile) {
-        cancel()
+        if (closed || mutableState.value.operation == FilesOperation.EXPORT || mutableState.value.pickerActive) return
+        invalidate()
         mutableState.value.preview?.close()
         val id = generation
         mutableState.value = mutableState.value.copy(visible = true, path = path, preview = null,
@@ -60,14 +97,15 @@ class FilesCoordinator(transport: DshTransport, privateDirectory: File, owner: C
     }
 
     @Synchronized fun upload(sessionId: String, name: String, sizeBytes: Long?, source: () -> InputStream) {
-        if (mutableState.value.busy) return
+        if (closed || mutableState.value.busy || mutableState.value.pickerActive) return
         if (mutableState.value.uploaded.size >= 16) { mutableState.value = mutableState.value.copy(error = "files.too_many_attachments"); return }
         val id = generation
+        val files = client
         mutableState.value = mutableState.value.copy(visible = true, operation = FilesOperation.UPLOAD,
             progressBytes = 0, totalBytes = sizeBytes, error = null)
         job = scope.launch {
             try {
-                val uploaded = client.upload(sessionId, name, sizeBytes, source) { progress(id, it) }
+                val uploaded = files.upload(sessionId, name, sizeBytes, source) { progress(id, it) }
                 ensureActive()
                 synchronized(this@FilesCoordinator) { if (id == generation) mutableState.value = mutableState.value.copy(
                     uploaded = mutableState.value.uploaded + uploaded, operation = FilesOperation.IDLE) }
@@ -129,29 +167,157 @@ class FilesCoordinator(transport: DshTransport, privateDirectory: File, owner: C
     }
     @Synchronized fun clearImages() { mutableState.value = mutableState.value.copy(images = emptyList()) }
 
+    @Synchronized fun browseWorkspace(parts: List<String> = emptyList()) {
+        val client = workspace ?: return
+        if (closed || mutableState.value.busy || mutableState.value.pickerActive) return
+        val id = generation
+        mutableState.value = mutableState.value.copy(operation = FilesOperation.BROWSE, error = null, exported = false)
+        job = scope.launch {
+            try {
+                val listing = client.list(parts)
+                ensureActive()
+                synchronized(this@FilesCoordinator) {
+                    if (id == generation) mutableState.value = mutableState.value.copy(
+                        workspaceListing = listing, operation = FilesOperation.IDLE,
+                    )
+                }
+            } catch (cancelled: CancellationException) { throw cancelled }
+            catch (error: Exception) { failed(id, error) }
+        }
+    }
+
+    @Synchronized fun addWorkspaceExport(file: WorkspaceExportFile) {
+        val current = mutableState.value
+        if (closed || current.busy || current.pickerActive || file !in current.workspaceListing?.entries.orEmpty()) return
+        if (file.sizeBytes > DshWorkspaceFiles.MAX_FILE_BYTES) return
+        val previous = current.workspaceExports.firstOrNull { it.file.parts == file.parts }
+        if (previous?.file == file) return
+        if (previous == null && current.workspaceExports.size >= 32) {
+            mutableState.value = current.copy(error = "files.export_list_full")
+            return
+        }
+        mutableState.value = current.copy(
+            workspaceExports = current.workspaceExports.filterNot { it === previous } + WorkspaceExportItem(file),
+            error = null, exported = false,
+        )
+    }
+
+    @Synchronized fun removeWorkspaceExport(file: WorkspaceExportFile) {
+        val current = mutableState.value
+        if (current.busy || current.pickerActive) return
+        mutableState.value = current.copy(workspaceExports = current.workspaceExports.filterNot { it.file == file })
+    }
+
+    @Synchronized fun startWorkspaceSavePicker(file: WorkspaceExportFile): Boolean {
+        val current = mutableState.value
+        if (closed || workspace == null || current.busy || current.pickerActive || current.workspaceExports.none { it.file == file }) return false
+        pendingWorkspaceSave = file
+        mutableState.value = current.copy(pickerActive = true, error = null, exported = false, exportCancelled = false)
+        return true
+    }
+
+    @Synchronized fun finishWorkspaceSavePicker(target: FileExportTarget?) {
+        val file = pendingWorkspaceSave
+        val client = workspace
+        // ActivityResult can run before onStart reconnects the foreground route.
+        if (target != null && file != null && !closed && client == null && activeTransport == null) {
+            if (pendingWorkspaceDestination == null) pendingWorkspaceDestination = target else rejectTarget(target)
+            return
+        }
+        clearWorkspacePicker()
+        if (target == null) return
+        if (closed || client == null || file == null || mutableState.value.busy) {
+            rejectTarget(target)
+            return
+        }
+        save(target, file.sizeBytes, file) { destination, report -> client.save(file, destination, report) }
+    }
+
+    private fun clearWorkspacePicker() {
+        if (pendingWorkspaceSave != null) pickerFinished()
+        pendingWorkspaceSave = null
+        val abandoned = pendingWorkspaceDestination
+        pendingWorkspaceDestination = null
+        abandoned?.let(::rejectTarget)
+    }
+
     /** Call only after the user confirms ACTION_CREATE_DOCUMENT, with a delete-on-abort target. */
     @Synchronized fun export(target: FileExportTarget) {
         val file = mutableState.value.preview
-        if (mutableState.value.busy || file == null) { target.abort(); return }
+        if (closed || mutableState.value.busy || file == null) {
+            rejectTarget(target)
+            return
+        }
+        val files = client
+        save(target, file.sizeBytes, null) { destination, report -> files.export(file, destination, report) }
+    }
+
+    // Even cancellation before dispatch must run the cleanup for an already-created document.
+    @OptIn(ExperimentalCoroutinesApi::class)
+    private fun rejectTarget(target: FileExportTarget) {
+        val id = generation
+        scope.launch(start = CoroutineStart.ATOMIC) {
+            try { target.abort() }
+            catch (_: Exception) {
+                synchronized(this@FilesCoordinator) {
+                    if (id == generation && !closed) mutableState.value = mutableState.value.copy(error = "files.destination_cleanup_failed")
+                }
+            }
+        }
+    }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    private fun save(target: FileExportTarget, size: Long, workspaceFile: WorkspaceExportFile?,
+                     transfer: suspend (FileExportTarget, (Long) -> Unit) -> Unit) {
         val id = generation
         mutableState.value = mutableState.value.copy(operation = FilesOperation.EXPORT, progressBytes = 0,
-            totalBytes = file.sizeBytes, error = null, exported = false)
-        job = scope.launch {
+            totalBytes = size, error = null, exported = false, exportCancelled = false)
+        job = scope.launch(start = CoroutineStart.ATOMIC) {
+            val context = currentCoroutineContext()
+            val destination = object : FileExportTarget by target {
+                override fun commit() = synchronized(this@FilesCoordinator) {
+                    context.ensureActive()
+                    if (id != generation || closed) throw CancellationException()
+                    target.commit()
+                    val current = mutableState.value
+                    mutableState.value = current.copy(operation = FilesOperation.IDLE, exported = true,
+                        workspaceExports = if (workspaceFile == null) current.workspaceExports else current.workspaceExports.map {
+                            if (it.file == workspaceFile) it.copy(saved = true) else it
+                        })
+                }
+            }
             try {
-                client.export(file, target) { progress(id, it) }; ensureActive()
-                synchronized(this@FilesCoordinator) { if (id == generation) mutableState.value = mutableState.value.copy(operation = FilesOperation.IDLE, exported = true) }
-            } catch (cancelled: CancellationException) { throw cancelled
+                transfer(destination) { progress(id, it) }
+            } catch (cancelled: CancellationException) {
+                synchronized(this@FilesCoordinator) {
+                    if (id == generation) mutableState.value = mutableState.value.copy(
+                        operation = FilesOperation.IDLE, progressBytes = 0, totalBytes = null, exportCancelled = true,
+                    )
+                }
+                throw cancelled
             } catch (error: Exception) { failed(id, error) }
         }
     }
 
     @Synchronized fun removeUpload(receiptId: String) { mutableState.value = mutableState.value.copy(uploaded = mutableState.value.uploaded.filterNot { it.receiptId == receiptId }) }
     @Synchronized fun cancel() {
-        generation++; job?.cancel(); job = null
+        if (mutableState.value.operation == FilesOperation.EXPORT) {
+            job?.cancel()
+            return
+        }
+        invalidate()
+        clearWorkspacePicker()
         mutableState.value = mutableState.value.copy(operation = FilesOperation.IDLE, progressBytes = 0, totalBytes = null)
     }
+    private fun invalidate() {
+        generation++
+        job?.cancel()
+        job = null
+    }
     @Synchronized fun dismiss() {
-        cancel(); mutableState.value.preview?.close()
+        invalidate()
+        clearWorkspacePicker()
+        mutableState.value.preview?.close()
         mutableState.value = FilesUiState(uploaded = mutableState.value.uploaded, images = mutableState.value.images)
     }
     @Synchronized private fun progress(id: Long, count: Long) { if (id == generation) mutableState.value = mutableState.value.copy(progressBytes = count) }
