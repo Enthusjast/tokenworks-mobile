@@ -1,0 +1,35 @@
+# Install as coturn's private turnserver.conf (mode 0600, readable by coturn).
+# Replace the realm and both addresses with the real DNS name and interface IP.
+# For a 1:1 NAT, also set external-ip=PUBLIC_IP/INTERFACE_IP and preserve the
+# relay port numbers on the firewall/NAT. Allow inbound UDP 3478 and 49160-49259.
+realm=turn.example.invalid
+listening-ip=192.0.2.10
+relay-ip=192.0.2.10
+listening-port=3478
+min-port=49160
+max-port=49259
+
+# Generate a random secret (e.g. openssl rand -hex 32). Set it here and in the
+# Host's rtc.json turn.sharedSecret (also mode 0600, owned by the Host user).
+# Point the Host plugin's rtcConfigFile at that private JSON file. Use the same
+# reachable DNS name in stunUrls/turn.urls and synchronize both servers' clocks.
+use-auth-secret
+# static-auth-secret=REPLACE
+fingerprint
+no-tcp
+no-tcp-relay
+no-tls
+no-dtls
+no-cli
+no-multicast-peers
+user-quota=32
+total-quota=100
+
+# This IPv4 deployment must not relay to private infrastructure or link-local services.
+denied-peer-ip=0.0.0.0-0.255.255.255
+denied-peer-ip=10.0.0.0-10.255.255.255
+denied-peer-ip=100.64.0.0-100.127.255.255
+denied-peer-ip=127.0.0.0-127.255.255.255
+denied-peer-ip=169.254.0.0-169.254.255.255
+denied-peer-ip=172.16.0.0-172.31.255.255
+denied-peer-ip=192.168.0.0-192.168.255.255

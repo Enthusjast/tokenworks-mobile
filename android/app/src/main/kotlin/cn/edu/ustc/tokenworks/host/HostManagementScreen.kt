@@ -13,7 +13,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 
 private fun HostConnectionPath.label() = when (this) {
-    HostConnectionPath.AUTO -> "同身份自动路径（未同意时跳过点对点与 TURN）"
+    HostConnectionPath.AUTO -> "自动选择连接路径"
     HostConnectionPath.LAN -> "局域网"
     HostConnectionPath.P2P -> "点对点（不经过 TURN）"
     HostConnectionPath.TURN -> "TURN 加密转发（仅中继候选）"
@@ -44,7 +44,7 @@ fun HostManagementScreen(
     }) { padding ->
         LazyColumn(Modifier.fillMaxSize().padding(padding), contentPadding = PaddingValues(TokenWorksSpacing.lg), verticalArrangement = Arrangement.spacedBy(TokenWorksSpacing.md)) {
             item {
-                Text("连接只在相同安装身份与运行配置内回退，不会自动切换电脑。草稿和待发送操作不随路径迁移。", style = MaterialTheme.typography.bodyMedium)
+                Text("自动选择只在相同安装身份与运行配置内回退；固定连接不会改用其他路径。草稿和待发送操作不随路径迁移。", style = MaterialTheme.typography.bodyMedium)
                 if (state.busy) LinearProgressIndicator(Modifier.fillMaxWidth().padding(top = TokenWorksSpacing.sm))
                 state.error?.let { TokenWorksStatusNotice("操作失败：$it", tone = TokenWorksNoticeTone.ERROR) }
                 state.notice?.let { TokenWorksStatusNotice(it) }
@@ -70,24 +70,36 @@ fun HostManagementScreen(
                             val available = row.identity.relayAuthorized || !state.relayManagementAvailable
                             if (!available) Text("独立局域网授权未与中继身份合并；请在仅局域网模式使用。")
                             val rtcConsent = state.rtcConsents[row.identity.runtimeId] == true
+                            val rtcEnabled = rtcConsent && state.rtcSupported
                             if (HostConnectionPath.P2P in row.paths) {
                                 Text("允许为此所有者和运行配置建立点对点 / TURN 连接。声明的 STUN / TURN 服务会看到网络地址及流量元数据，但看不到原生请求内容；不会申请摄像头或麦克风。", style = MaterialTheme.typography.bodySmall)
+                                if (!state.rtcSupported) Text("此设备不支持点对点和 TURN。", style = MaterialTheme.typography.bodySmall)
                                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                                     Text("允许点对点和 TURN", Modifier.weight(1f).padding(top = 12.dp))
-                                    Switch(checked = rtcConsent, onCheckedChange = { onRtcConsent(row.identity.runtimeId, it) }, enabled = !state.busy && available,
+                                    Switch(checked = rtcConsent, onCheckedChange = { onRtcConsent(row.identity.runtimeId, it) },
+                                        enabled = !state.busy && available && (state.rtcSupported || rtcConsent),
                                         modifier = Modifier.semantics { contentDescription = "允许此运行配置的点对点和 TURN" })
                                 }
                             }
                             row.paths.forEach { path ->
                                 val status = row.status[path] ?: HostPathStatus()
-                                val consentAllowed = path !in setOf(HostConnectionPath.P2P, HostConnectionPath.TURN) || rtcConsent
+                                val consentAllowed = path !in setOf(HostConnectionPath.P2P, HostConnectionPath.TURN) || rtcEnabled
                                 Text("${path.label()} · ${if (path == HostConnectionPath.AUTO) "仅在同身份内回退" else status.reachability.label()}")
+                                if (path == HostConnectionPath.AUTO) {
+                                    val order = listOfNotNull("局域网", "点对点".takeIf { rtcEnabled }, "TURN".takeIf { rtcEnabled },
+                                        "加密中继".takeIf { HostConnectionPath.RELAY in row.paths })
+                                    Text(order.joinToString(" → "), style = MaterialTheme.typography.bodySmall)
+                                } else row.connectionFailures[path]?.let { count ->
+                                    Text("本次登录连接或检测失败 $count 次", style = MaterialTheme.typography.bodySmall)
+                                }
                                 status.error?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
                                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                     if (path != HostConnectionPath.AUTO) OutlinedButton(onClick = { onProbe(row.identity.runtimeId, path) }, enabled = !state.busy && available && consentAllowed,
                                         modifier = Modifier.semantics { contentDescription = "检测 ${group.alias} 的运行配置 ${row.identity.runtimeId}：${path.label()}" }) { Text("检测") }
                                     Button(onClick = { onConnect(row.identity.runtimeId, path) }, enabled = !state.busy && available && consentAllowed,
-                                        modifier = Modifier.semantics { contentDescription = "连接 ${group.alias} 的运行配置 ${row.identity.runtimeId}：${path.label()}" }) { Text("连接") }
+                                        modifier = Modifier.semantics { contentDescription = "连接 ${group.alias} 的运行配置 ${row.identity.runtimeId}：${path.label()}${if (path == HostConnectionPath.AUTO) "" else "（固定路径）"}" }) {
+                                        Text(if (path == HostConnectionPath.AUTO) "连接" else "固定连接")
+                                    }
                                 }
                             }
                             if (row.identity.relayAuthorized && state.relayManagementAvailable)

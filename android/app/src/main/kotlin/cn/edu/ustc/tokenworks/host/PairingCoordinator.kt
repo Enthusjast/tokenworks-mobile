@@ -19,7 +19,7 @@ enum class PairingPhase { ENTRY, REVIEW, PAIRING, READY, REVOKING, SAVE_REQUIRED
 data class PairingPreview(val origin: String, val runtimeId: String, val installationId: String, val tlsPin: String, val expiresAt: Long,
     val hostStaticPublicKey: String, val hostKeyEpoch: Long)
 data class PairedLanDevice(val runtimeId: String, val installationId: String, val origin: String, val pairId: String,
-    val hostKeyEpoch: Long, val deviceKeyEpoch: Long)
+    val hostKeyEpoch: Long, val deviceKeyEpoch: Long, val relayBound: Boolean = false)
 data class PairingState(
     val phase: PairingPhase = PairingPhase.ENTRY, val preview: PairingPreview? = null,
     val devices: List<PairedLanDevice> = emptyList(), val busy: Boolean = false, val error: String? = null,
@@ -48,7 +48,8 @@ class PairingCoordinator(
     val state: StateFlow<PairingState> = mutable.asStateFlow()
 
     private fun live() { if (closed.get()) throw CancellationException(); current() }
-    private fun publicDevice(value: LanCredentials) = PairedLanDevice(value.runtimeId, value.installationId, value.origin, value.pairId, value.hostKeyEpoch, value.deviceKeyEpoch)
+    private fun publicDevice(value: LanCredentials) = PairedLanDevice(value.runtimeId, value.installationId, value.origin, value.pairId,
+        value.hostKeyEpoch, value.deviceKeyEpoch, relayBound = value.manifest.fields["relay"] is JsonObject)
     private fun devices(): List<PairedLanDevice> = synchronized(lock) { credentials.values.map(::publicDevice) }
     private fun pendingPhase() = if (accepted) PairingPhase.SAVE_REQUIRED else PairingPhase.UNKNOWN
     private fun code(error: Exception): String = when (error) {
@@ -224,12 +225,13 @@ class PairingCoordinator(
         val value = credentials[runtimeId] ?: throw LanPairingException("e2e.repair_required")
         connections.relayTransport(api, value).also { transports.add(it) }
     }
-    fun encryptedTransport(runtimeId: String, routeKind: String, path: DshTransportPath, outer: CarrierOuterDialer,
-        api: RemoteApi?): EncryptedDshTransport = synchronized(lock) {
+    fun rtcTransport(runtimeId: String, path: DshTransportPath, outer: CarrierOuterDialer,
+        api: RemoteApi?): DshRtcTransport = synchronized(lock) {
         live()
         if (rotation?.previous?.runtimeId == runtimeId) throw LanPairingException("e2e.rotation_pending")
         val value = credentials[runtimeId] ?: throw LanPairingException("e2e.repair_required")
-        connections.encryptedTransport(value, signer, routeKind, path, outer, api).also { transports.add(it) }
+        transports.removeAll { it.state.value.phase == DshTransportPhase.CLOSED }
+        connections.rtcTransport(value, signer, path, outer, api).also { transports.add(it) }
     }
     fun pairingControl(runtimeId: String, api: RemoteApi?): PairingControlClient = synchronized(lock) {
         live()

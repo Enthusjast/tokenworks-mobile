@@ -15,6 +15,7 @@ class CarrierReceiver internal constructor(
     private val admit: (ByteArray, Int, Int) -> Unit,
     private val admitBuffer: (ByteBuffer) -> Unit,
     private val reject: (IOException) -> Unit,
+    private val admitStreamBuffer: (ByteBuffer) -> Unit = admitBuffer,
 ) {
     fun receive(bytes: ByteArray, offset: Int = 0, length: Int = bytes.size - offset) {
         require(offset >= 0 && length >= 0 && offset <= bytes.size - length)
@@ -22,6 +23,8 @@ class CarrierReceiver internal constructor(
     }
     /** Reserves before allocation; the callback's remaining bytes are consumed only after admission. */
     fun receive(bytes: ByteBuffer) { admitBuffer(bytes) }
+    /** Only a dedicated ordered stream reader may wait for queue credit. */
+    internal fun receiveStream(bytes: ByteBuffer) { admitStreamBuffer(bytes) }
     fun fail(code: String) {
         val safe = if (code.matches(Regex("^[a-z0-9][a-z0-9/._-]{0,63}$"))) code else "e2e/outer_failed"
         reject(IOException(safe))

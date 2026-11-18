@@ -11,7 +11,7 @@ object DshRecoveryPolicy {
     private val revoked = setOf(
         "access.revoked", "access.denied", "device.invalid", "device.registration_conflict",
         "access/revoked", "access/denied", "device/invalid", "device/registration_conflict",
-        "gateway/interactions-forbidden", "gateway/peer-disposed", "remote-access/denied",
+        "gateway/interactions-forbidden", "gateway/forbidden", "gateway/peer-disposed", "remote-access/denied", "lan.revoked",
     )
     private val protocol = setOf(
         "gateway/protocol", "gateway/arguments-invalid", "gateway/input-invalid", "gateway/result-invalid",
@@ -38,11 +38,11 @@ object DshRecoveryPolicy {
         val auth = code.startsWith("auth.") || code.startsWith("auth/") || code.startsWith("lease.") || code.startsWith("lease/")
         val action = when {
             code in revoked -> DshRecoveryAction.REVOKED
-            auth -> DshRecoveryAction.AUTH_REQUIRED
+            auth || code in setOf("gateway/unauthorized", "lan.auth_required") -> DshRecoveryAction.AUTH_REQUIRED
             code.startsWith("protocol.") || code.startsWith("protocol/") || code in protocol ||
                 code == "network.invalid_response" || code.startsWith("session.") && code != "session.stream_ended" -> DshRecoveryAction.MANUAL_RETRY
             code.startsWith("network.") || code.startsWith("network/") || code.startsWith("relay.") ||
-                code == "session.stream_ended" || code == "native mux closed" || code == "native events stream ended" ||
+                code in setOf("wire/disconnected", "rtc.unavailable", "session.stream_ended", "native mux closed", "native events stream ended") ||
                 code in setOf("gateway/internal", "gateway/cancelled", "gateway/service-unavailable", "gateway/context-unavailable", "gateway/lookup-unavailable") -> DshRecoveryAction.BACKOFF
             else -> DshRecoveryAction.MANUAL_RETRY
         }

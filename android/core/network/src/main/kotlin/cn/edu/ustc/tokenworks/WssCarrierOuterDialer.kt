@@ -55,8 +55,11 @@ internal class WssCarrierOuterDialer(private val options: OkHttpClient, private 
             override fun onOpen(handshake: ServerHandshake) { state.opened() }
             override fun onMessage(bytes: ByteBuffer) {
                 if (bytes.remaining() !in 1..65537) { state.fail(IOException("e2e/outer_binary_bounds")); return }
-                try { receiver.receive(bytes) }
-                catch (_: Exception) { state.fail(IOException("e2e/inbound_budget")) }
+                try { receiver.receiveStream(bytes) }
+                catch (error: IOException) { state.fail(error) }
+                catch (error: InterruptedException) {
+                    Thread.currentThread().interrupt(); state.fail(SocketException("e2e/closed"))
+                }
             }
             override fun onMessage(text: String) { state.fail(IOException("e2e/binary_required")) }
             override fun onClose(code: Int, reason: String, remote: Boolean) { state.fail(EOFException("e2e/truncated")) }

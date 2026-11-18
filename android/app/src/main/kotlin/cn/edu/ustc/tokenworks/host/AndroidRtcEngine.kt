@@ -22,7 +22,8 @@ internal class AndroidRtcEngine(
     // Eight owned sockets (including pending disposal), plus a single factory disposal.
     private val disposal = ThreadPoolExecutor(1, 1, 0, TimeUnit.MILLISECONDS, ArrayBlockingQueue(16))
     private val cleanup = CoroutineScope(SupervisorJob() + Dispatchers.IO)
-    override fun dialer(runtime: String, path: DshTransportPath, current: () -> Unit) = CarrierOuterDialer { receiver, purpose ->
+    override suspend fun open(runtime: String, path: DshTransportPath, current: () -> Unit,
+        receiver: CarrierReceiver, purpose: String): CarrierOuterSocket {
         if (purpose != "native") throw IOException("e2e/rtc_purpose")
         var opening: AndroidRtcSocket? = null
         try {
@@ -36,7 +37,7 @@ internal class AndroidRtcEngine(
                             try {
                                 initialize(application)
                                 factory = PeerConnectionFactory.builder().createPeerConnectionFactory()
-                            } catch (_: LinkageError) { throw IOException("e2e/rtc_unsupported") }
+                            } catch (_: LinkageError) { throw RemoteRequestException("rtc.unsupported") }
                         }
                         AndroidRtcSocket(runtime, path, receiver, factory!!, current, { controlFactory(runtime) }, ::retire).also {
                             sockets.add(it); opening = it
@@ -44,7 +45,7 @@ internal class AndroidRtcEngine(
                     } catch (failure: Throwable) { releaseOwner(ownerKey); throw failure }
                 }
             }
-            socket.open(); socket
+            socket.open(); return socket
         } catch (failure: Throwable) { opening?.close(); throw failure }
     }
     override fun closeRuntime(runtime: String) {

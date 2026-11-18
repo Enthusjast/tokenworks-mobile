@@ -1,0 +1,9 @@
+{
+  "enabled": true,
+  "stunUrls": ["stun:turn.example.invalid:3478"],
+  "turn": {
+    "urls": ["turn:turn.example.invalid:3478?transport=udp"],
+    "sharedSecret": "REPLACE",
+    "credentialTtlSeconds": 300
+  }
+}

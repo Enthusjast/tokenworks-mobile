@@ -322,7 +322,7 @@ class NativeTransportTest {
         val factory = LanConnectionFactory.withOperatorClient(operatorClient)
         val outer = CarrierOuterDialer { _, _ -> error("bound RTC cannot dial without authority") }
         val routes = listOf(factory.transport(credentials, signer),
-            factory.encryptedTransport(credentials, signer, "p2p", DshTransportPath.P2P, outer, null))
+            factory.rtcTransport(credentials, signer, DshTransportPath.P2P, outer, null))
         routes.forEach { route ->
             route.use {
                 val error = runCatching { route.probeIdentity() }.exceptionOrNull()

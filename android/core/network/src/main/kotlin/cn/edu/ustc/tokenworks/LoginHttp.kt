@@ -350,8 +350,10 @@ class RemoteApi internal constructor(private val http: LoginHttp, private val co
             }
             try {
                 val carrier = http.carrier(request, credentials, signer, purpose, lease)
-                carrier.responseNonce?.let { value -> mutex.withLock { nonce = value } }
-                return carrier
+                try {
+                    carrier.responseNonce?.let { value -> mutex.withLock { nonce = value } }
+                    return carrier
+                } catch (error: Exception) { carrier.close(); throw error }
             } catch (error: CarrierUpgradeException) {
                 if (attempt != 0 || error.status != 401 || !error.nonceChallenge || error.nonce == null) throw error
                 mutex.withLock { nonce = error.nonce }

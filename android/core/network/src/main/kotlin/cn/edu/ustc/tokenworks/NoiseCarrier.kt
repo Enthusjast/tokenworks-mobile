@@ -46,7 +46,7 @@ private object CarrierBudgets {
     }
 }
 
-/** Callback-only admission: never blocks the library reader or creates a coroutine for a frame. */
+/** RTC callbacks admit immediately; the WSS reader can apply bounded TCP backpressure. */
 private class CarrierInbound(private val budget: String) {
     private val lock = Object()
     private val queue = ArrayDeque<ByteArray>()
@@ -56,11 +56,20 @@ private class CarrierInbound(private val budget: String) {
     private var sealed = false
     private var failure: IOException? = null
     fun offer(value: ByteArray, start: Int, count: Int) = enqueue(count) { value.copyOfRange(start, start + count) }
-    fun offer(value: ByteBuffer) = enqueue(value.remaining()) { ByteArray(value.remaining()).also(value::get) }
-    private inline fun enqueue(count: Int, copy: () -> ByteArray) = synchronized(lock) {
+    fun offer(value: ByteBuffer, waitForCredit: Boolean = false) = enqueue(value.remaining(), waitForCredit) {
+        ByteArray(value.remaining()).also(value::get)
+    }
+    private inline fun enqueue(count: Int, waitForCredit: Boolean = false, copy: () -> ByteArray) = synchronized(lock) {
+        if (count !in 1..CARRIER_QUEUE_BYTES) throw IOException("e2e/inbound_budget")
+        val deadline = if (waitForCredit) System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(CARRIER_TIMEOUT_MILLIS) else 0L
+        while (!ended && !sealed && count > CARRIER_QUEUE_BYTES - bytes) {
+            if (!waitForCredit) throw IOException("e2e/inbound_budget")
+            val left = deadline - System.nanoTime()
+            if (left <= 0) throw SocketTimeoutException("e2e/inbound_timeout")
+            TimeUnit.NANOSECONDS.timedWait(lock, left)
+        }
         if (sealed) throw IOException("e2e/record_after_close")
         if (ended) return@synchronized
-        if (count == 0 || count > CARRIER_QUEUE_BYTES - bytes) throw IOException("e2e/inbound_budget")
         CarrierBudgets.reserve(budget, count)
         val saved = try { copy() } catch (error: Throwable) { CarrierBudgets.release(budget, count); throw error }
         queue.addLast(saved); bytes += count; lock.notifyAll()
@@ -79,6 +88,7 @@ private class CarrierInbound(private val budget: String) {
         first.copyInto(target, start, offset, offset + copied)
         offset += copied; bytes -= copied; CarrierBudgets.release(budget, copied)
         if (offset == first.size) { first.fill(0); queue.removeFirst(); offset = 0 }
+        lock.notifyAll()
         copied
     }
     fun discard() = synchronized(lock) {
@@ -99,7 +109,8 @@ internal class CarrierSocket private constructor(
     private val readGate = Any()
     private var engine: E2eSession? = null
     private var outer: CarrierOuterSocket? = null
-    private val receiver = CarrierReceiver({ bytes, offset, length -> inbound.offer(bytes, offset, length) }, { inbound.offer(it) }, { inbound.end(it) })
+    private val receiver = CarrierReceiver({ bytes, offset, length -> inbound.offer(bytes, offset, length) },
+        { inbound.offer(it) }, { inbound.end(it) }, { inbound.offer(it, waitForCredit = true) })
     private val creditGate = Any()
     private var libraryBytes = 0
     private val cipherIn = ByteBuffer.allocateDirect(65535)
@@ -115,6 +126,7 @@ internal class CarrierSocket private constructor(
     private var remoteClosed = false
     private var outputClosed = false
     @Volatile private var ready = false
+    @Volatile private var authDispatched = false
     @Volatile private var timeout = 30_000
     @Volatile var consumed: ((Int) -> Unit)? = null
     val queuedCiphertextBytes: Long get() = outer?.queuedWriteBytes ?: 0
@@ -211,7 +223,11 @@ internal class CarrierSocket private constructor(
         }
         val auth = JsonDocument.of(authFields).canonicalBytes()
         if (auth.size > 8192 - 16) throw DshFailure("e2e.auth_bounds")
-        plainOut.clearCompat(); plainOut.put(auth); encryptRecord(); auth.fill(0)
+        try {
+            plainOut.clearCompat(); plainOut.put(auth)
+            authDispatched = true
+            encryptRecord()
+        } finally { auth.fill(0) }
         val readySize = decryptRecord(8192)
         val readyBytes = ByteArray(readySize); plainIn.get(readyBytes)
         val response = JsonDocument.parse(readyBytes).root
@@ -341,7 +357,7 @@ internal class CarrierSocket private constructor(
             socket.absoluteDeadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(15)
             try {
                 if (routeKind in setOf("p2p", "turn")) {
-                    socket.outer = withTimeout(20_000) { dialer.open(socket.receiver, purpose) }
+                    withTimeout(20_000) { socket.outer = dialer.open(socket.receiver, purpose) }
                     socket.absoluteDeadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(15)
                     return withTimeout(15_000) { runInterruptible(Dispatchers.IO) { socket.handshake(); socket } }
                 }
@@ -349,11 +365,16 @@ internal class CarrierSocket private constructor(
                     socket.outer = dialer.open(socket.receiver, purpose)
                     runInterruptible(Dispatchers.IO) { socket.handshake(); socket }
                 }
-            } catch (_: TimeoutCancellationException) {
+            } catch (error: Exception) {
                 socket.close()
-                currentCoroutineContext().ensureActive()
-                throw SocketTimeoutException("network.unavailable")
-            } catch (error: Exception) { socket.close(); throw error }
+                if (error is TimeoutCancellationException) currentCoroutineContext().ensureActive()
+                // A close after proof dispatch can be an authorization rejection from the peer.
+                // Until encrypted Ready, it is not evidence that the physical route is unavailable.
+                if (socket.authDispatched && !socket.ready && (error is IOException || error is TimeoutCancellationException))
+                    throw DshFailure("e2e.auth_unconfirmed").also { it.initCause(error) }
+                if (error is TimeoutCancellationException) throw SocketTimeoutException("network.unavailable")
+                throw error
+            }
         }
     }
 }

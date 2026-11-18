@@ -40,26 +40,39 @@ internal class HostCoordinator(
     private var pairingStoreOwnerId: String? = null
     private var pairingCollector: Job? = null
     private var rtcRoutes: AndroidRtcRoutes? = null
+    private val routeFailures = MutableStateFlow<Map<HostResourceIdentity, Map<HostConnectionPath, Long>>>(emptyMap())
     private val managementFlow = HostManagementCoordinator(scope, ::managementApi,
         pendingPairing = { pairingBlocked() || withContext(Dispatchers.IO) { pairingStore?.loadPending() != null } },
         revokeLocal = ::managementRevoked, refreshDirectory = { fetchDirectory(generation) },
         connectPath = { runtime, path ->
             if (!foreground || mutable.value.phase != HomePhase.READY || pairingBlocked()) throw RemoteRequestException("lan.pending_authorization")
             if (!mutable.value.lanOnly && !account.requireFreshCredential()) throw RemoteRequestException("auth.expired")
-            closeBinding(); retireAppUpdates(); leavePairing(); sessions.retireSession(false)
             routes.select(runtime, path)
+            closeBinding(); retireAppUpdates(); leavePairing(); sessions.retireSession(false)
             mutable.update { it.copy(selectedRuntimeId = null, selectedSessionId = null, sessions = emptyList()) }
             sessions.openRuntime(runtime)
-        }, probePath = routes::probe, changeRtcConsent = routes::setRtcConsent, readRtcConsent = routes::rtcConsent)
+        }, probePath = routes::probe, changeRtcConsent = routes::setRtcConsent, readRtcConsent = routes::rtcConsent,
+        recordProbeFailure = ::recordRouteFailure)
     val management: StateFlow<HostManagementState> = managementFlow.state
     init {
+        routes.onFailure = { identity, failure -> recordRouteFailure(identity, HostConnectionPath.valueOf(failure.path.name)) }
         scope.launch {
             val directory = mutable.map { Triple(it.runtimes, it.pairing?.devices.orEmpty(), it.lanOnly) }.distinctUntilChanged()
                 .map { (runtimes, devices, lanOnly) -> groupHostDirectory(runtimes, devices, lanOnly) }
-            combine(directory, mutable.map { it.selectedRuntimeId }.distinctUntilChanged(), routes.state) { hosts, selected, transport ->
-                Triple(hosts, selected, transport)
-            }.collect { (hosts, selected, transport) -> managementFlow.directory(hosts, selected, transport) }
+            combine(directory, mutable.map { it.selectedRuntimeId }.distinctUntilChanged(), routes.state, routeFailures) { hosts, selected, transport, failures ->
+                managementFlow.directory(hosts, selected, transport, failures, rtcRoutes?.supported == true)
+            }.collect()
         }
+    }
+    private fun recordRouteFailure(identity: HostResourceIdentity, path: HostConnectionPath) {
+        routeFailures.update { all ->
+            val paths = all[identity].orEmpty()
+            all + (identity to (paths + (path to ((paths[path] ?: 0L) + 1L))))
+        }
+    }
+    private fun forgetRoute(runtime: String) {
+        routes.forget(runtime)
+        routeFailures.update { all -> all.filterKeys { it.runtimeId != runtime } }
     }
     private suspend fun managementApi(): HostManagementApi {
         if (mutable.value.phase != HomePhase.READY || mutable.value.lanOnly || !account.requireFreshCredential()) throw RemoteRequestException("auth.expired")
@@ -81,7 +94,7 @@ internal class HostCoordinator(
             is ManagementTarget.Grant -> row.id == target.runtimeId
             else -> false
         } }
-        affected.forEach { sessions.revokeRuntime(it); routes.forget(it.id) }
+        affected.forEach { sessions.revokeRuntime(it); forgetRoute(it.id) }
         if (target !is ManagementTarget.Grant || target.userId == checkpoint?.userId) {
             val removed = affected.mapTo(HashSet()) { it.id }
             mutable.update { it.copy(runtimes = it.runtimes.filterNot { row -> row.id in removed }, selectedRuntimeId = it.selectedRuntimeId?.takeUnless { id -> id in removed }) }
@@ -94,7 +107,8 @@ internal class HostCoordinator(
         mutable.update { it.copy(selectedSessionId = null, sessions = emptyList(), sessionError = null) }
         managementFlow.open(!mutable.value.lanOnly)
         val home = mutable.value
-        managementFlow.directory(groupHostDirectory(home.runtimes, home.pairing?.devices.orEmpty(), home.lanOnly), home.selectedRuntimeId, routes.state.value)
+        managementFlow.directory(groupHostDirectory(home.runtimes, home.pairing?.devices.orEmpty(), home.lanOnly),
+            home.selectedRuntimeId, routes.state.value, routeFailures.value, rtcRoutes?.supported == true)
     }
     fun closeManagement() = managementFlow.close()
     fun refreshManagement() = managementFlow.refresh()
@@ -129,6 +143,7 @@ internal class HostCoordinator(
         retireBinding(preserveSelection)
         retireAppUpdates(preserveSelection)
         retirePairing()
+        routeFailures.value = emptyMap()
     }
     override fun unavailable() {
         managementFlow.fence()
@@ -137,6 +152,7 @@ internal class HostCoordinator(
         retireAppUpdates()
         routes.close()
         retirePairing()
+        routeFailures.value = emptyMap()
     }
     override suspend fun ready(owner: CommandOwner, stamp: Long) {
         sessions.acceptedOwner(owner)
@@ -190,7 +206,7 @@ internal class HostCoordinator(
                 val next = items.firstOrNull { it.id == old.id }?.access
                 if (old.id !in visible || next == null || next.hostId != old.hostId || next.installationId != old.access?.installationId ||
                     next.grantVersion != old.access?.grantVersion || next.role != old.access?.role || next.bindings != old.access?.bindings || next.expiresAt != old.access?.expiresAt) {
-                    sessions.revokeRuntime(old); routes.forget(old.id)
+                    sessions.revokeRuntime(old); forgetRoute(old.id)
                 }
             }
             current(stamp)
@@ -408,7 +424,8 @@ internal class HostCoordinator(
         if (mutable.value.pairingOpen) pairing?.reconcileRotation(runtimeId)
     }
     private fun retireLanRuntime(runtimeId: String) {
-        if (mutable.value.selectedRuntimeId == runtimeId) { sessions.retireSession(true); routes.close() }
+        if (mutable.value.selectedRuntimeId == runtimeId) sessions.retireSession(true)
+        forgetRoute(runtimeId)
     }
     fun back() {
         if (management.value.open) { closeManagement(); return }

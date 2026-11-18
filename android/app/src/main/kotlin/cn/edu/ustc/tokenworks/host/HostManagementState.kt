@@ -7,6 +7,7 @@ data class HostPathStatus(val reachability: HostReachability = HostReachability.
 data class ManagedHostRuntime(
     val identity: HostResourceIdentity, val alias: String, val paths: Set<HostConnectionPath>,
     val status: Map<HostConnectionPath, HostPathStatus> = emptyMap(),
+    val connectionFailures: Map<HostConnectionPath, Long> = emptyMap(),
 )
 data class ManagedHostGroup(val hostId: String, val alias: String, val runtimes: List<ManagedHostRuntime>)
 
@@ -15,7 +16,7 @@ internal fun groupHostDirectory(relay: List<RuntimeRow>, lan: List<PairedLanDevi
     val matched = mutableSetOf<Pair<String, String>>()
     val rows = if (lanOnly) mutableListOf() else relay.map { row ->
         val installation = row.access?.installationId
-        val paired = installation != null && lan.any { it.runtimeId == row.id && it.installationId == installation }
+        val paired = installation != null && lan.any { it.runtimeId == row.id && it.installationId == installation && it.relayBound }
         if (paired) matched += row.id to installation!!
         ManagedHostRuntime(HostResourceIdentity(row.hostId, installation, row.id, true), row.hostAlias,
             if (paired) HostConnectionPath.entries.toSet() else setOf(HostConnectionPath.RELAY))
@@ -41,5 +42,6 @@ data class HostManagementState(
     val hosts: List<ManagedHostGroup> = emptyList(), val selectedRuntimeId: String? = null,
     val transport: DshTransportState? = null, val confirmation: ManagementTarget? = null,
     val rtcConsents: Map<String, Boolean> = emptyMap(),
+    val rtcSupported: Boolean = false,
     val mutationUnknown: Boolean = false, val relayManagementAvailable: Boolean = false,
 )

@@ -2,11 +2,14 @@ package cn.edu.ustc.tokenworks
 
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.runInterruptible
 import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.job
 import org.apache.hc.core5.http.ContentType
 import org.apache.hc.core5.http.HttpHost
@@ -22,9 +25,12 @@ import org.apache.hc.core5.http.protocol.RequestContent
 import org.apache.hc.core5.http.protocol.RequestTargetHost
 import org.java_websocket.WebSocket
 import org.java_websocket.client.WebSocketClient
+import org.java_websocket.drafts.Draft
 import org.java_websocket.drafts.Draft_6455
+import org.java_websocket.enums.HandshakeState
 import org.java_websocket.framing.Framedata
 import org.java_websocket.framing.PongFrame
+import org.java_websocket.handshake.ClientHandshake
 import org.java_websocket.handshake.ServerHandshake
 import java.io.ByteArrayOutputStream
 import java.io.FilterInputStream
@@ -71,24 +77,31 @@ internal class NativeHttpClient(private val dialer: CarrierDialer) : AutoCloseab
     private val processor = HttpProcessorBuilder.create().add(RequestContent()).add(RequestTargetHost()).build()
     private val executor = HttpRequestExecutor(config, null, null)
     fun live() { if (ended.get()) throw DshFailure("transport/changed") }
-    private suspend fun socket(purpose: String = "native"): CarrierSocket = coroutineScope {
-        val openingJob = coroutineContext.job
-        synchronized(gate) { live(); opening.add(openingJob) }
+    private suspend fun socket(purpose: String = "native"): CarrierSocket {
+        var acquired: CarrierSocket? = null
         try {
-            val socket = dialer.open(purpose)
-            try {
-                synchronized(gate) {
-                    live()
-                    if (purpose == "native") {
-                        val previous = peerGeneration
-                        if (previous != null && previous != socket.peerGeneration) { close(); throw DshFailure("transport/changed") }
-                        peerGeneration = socket.peerGeneration
+            return coroutineScope {
+                val openingJob = coroutineContext.job
+                synchronized(gate) { live(); opening.add(openingJob) }
+                try {
+                    val socket = dialer.open(purpose).also { acquired = it }
+                    currentCoroutineContext().ensureActive()
+                    synchronized(gate) {
+                        live()
+                        if (purpose == "native") {
+                            val previous = peerGeneration
+                            if (previous != null && previous != socket.peerGeneration) { close(); throw DshFailure("transport/changed") }
+                            peerGeneration = socket.peerGeneration
+                        }
+                        sockets.add(socket)
                     }
-                    sockets.add(socket)
-                }
-                socket
-            } catch (error: Exception) { socket.close(); throw error }
-        } finally { opening.remove(openingJob) }
+                    socket
+                } finally { opening.remove(openingJob) }
+            }
+        } catch (error: Exception) {
+            acquired?.let { sockets.remove(it); it.close() }
+            throw error
+        }
     }
     suspend fun probe() {
         val connection = acquire()
@@ -131,7 +144,7 @@ internal class NativeHttpClient(private val dialer: CarrierDialer) : AutoCloseab
         }
     }
     private fun json(response: org.apache.hc.core5.http.ClassicHttpResponse): ByteArray {
-        if (response.code !in 200..299) throw DshFailure(when (response.code) { 401 -> "gateway/unauthorized"; 403 -> "gateway/forbidden"; 404, 426 -> "gateway/unsupported"; else -> "gateway/http_error" })
+        if (response.code !in 200..299) throw nativeHttpFailure(response.code)
         val entity = response.entity ?: throw DshFailure("gateway/invalid_response")
         val type = entity.contentType?.substringBefore(';')?.trim()?.lowercase()
         if (type != "application/json" && type?.endsWith("+json") != true) throw DshFailure("gateway/invalid_response")
@@ -166,6 +179,7 @@ internal class NativeHttpClient(private val dialer: CarrierDialer) : AutoCloseab
             val request = request("GET", currentPath)
             request.setHeader("Accept", "*/*"); range?.let { request.setHeader("Range", it.header()) }
             val downloaded = exchange(request) { response ->
+                if (response.code == 401 || response.code == 403 || response.code == 410) throw nativeHttpFailure(response.code)
                 if (response.code == 302) {
                     if (hop != 0) throw DshFailure("files/http_error")
                     val location = response.getHeaders("Location").singleOrNull()?.value ?: throw DshFailure("files/http_error")
@@ -301,7 +315,7 @@ internal class NativeHttpClient(private val dialer: CarrierDialer) : AutoCloseab
         val opened = CompletableDeferred<DshMux>()
         val mux = AtomicReference<DshMux?>()
         val credits = SocketWriteCredits(carrier)
-        val client = object : WebSocketClient(URI("ws://dsh-native.invalid/api/remote.mux"), Draft_6455(emptyList(), WireBudget.FRAME_BYTES), emptyMap(), 15_000) {
+        val client = object : WebSocketClient(URI("ws://dsh-native.invalid/api/remote.mux"), NativeMuxDraft(opened), emptyMap(), 15_000) {
             override fun reconnect() { throw IllegalStateException("e2e/reconnect_forbidden") }
             override fun reconnectBlocking(): Boolean { throw IllegalStateException("e2e/reconnect_forbidden") }
             override fun onOpen(handshake: ServerHandshake) {
@@ -312,11 +326,14 @@ internal class NativeHttpClient(private val dialer: CarrierDialer) : AutoCloseab
                     queuedWriteBytes = { credits.queued() },
                 )
                 mux.set(created); muxes.add(created)
-                if (!opened.complete(created)) created.close()
+                if (!opened.complete(created)) { muxes.remove(created); created.close() }
             }
             override fun onMessage(message: String) { mux.get()?.receive(message) ?: carrier.close() }
             override fun onMessage(bytes: ByteBuffer) { mux.get()?.fail("wire/binary_forbidden"); carrier.close() }
-            override fun onClose(code: Int, reason: String, remote: Boolean) { mux.get()?.fail("wire/disconnected"); opened.completeExceptionally(DshFailure("wire/disconnected")); sockets.remove(carrier); carrier.close() }
+            override fun onClose(code: Int, reason: String, remote: Boolean) {
+                mux.get()?.let { muxes.remove(it); it.fail("wire/disconnected") }
+                opened.completeExceptionally(DshFailure("wire/disconnected")); sockets.remove(carrier); carrier.close()
+            }
             override fun onError(error: Exception) { mux.get()?.fail("wire/disconnected"); opened.completeExceptionally(DshFailure("wire/disconnected")); carrier.close() }
             override fun onWebsocketPing(connection: WebSocket, frame: Framedata) {
                 if (!credits.pong(frame.payloadData.remaining()) { sendFrame(PongFrame().also { it.setPayload(frame.payloadData) }) }) carrier.close()
@@ -329,7 +346,14 @@ internal class NativeHttpClient(private val dialer: CarrierDialer) : AutoCloseab
         carrier.soTimeout = 0
         carrier.limitHeaders(32768)
         try { client.connect(); return withTimeout(15_000) { opened.await() }.also { live() } }
-        catch (error: Exception) { carrier.close(); client.closeConnection(1006, ""); throw error }
+        catch (error: Exception) {
+            opened.cancel()
+            mux.get()?.let { muxes.remove(it); it.close() }
+            sockets.remove(carrier); carrier.close(); client.closeConnection(1006, "")
+            currentCoroutineContext().ensureActive()
+            if (error is TimeoutCancellationException) throw RemoteRequestException("network.timeout")
+            throw error
+        }
     }
     override fun close() {
         if (!ended.compareAndSet(false, true)) return
@@ -344,6 +368,29 @@ internal class NativeHttpClient(private val dialer: CarrierDialer) : AutoCloseab
     private fun boundedBytes(source: InputStream, limit: Int): ByteArray {
         val out = ByteArrayOutputStream(minOf(limit, 8192)); val buffer = ByteArray(8192)
         while (true) { val count = source.read(buffer); if (count < 0) return out.toByteArray(); if (count > limit - out.size()) throw DshFailure("gateway/response_too_large"); out.write(buffer, 0, count) }
+    }
+}
+
+private fun nativeHttpFailure(status: Int): DshFailure = DshFailure(when (status) {
+    401 -> "gateway/unauthorized"
+    403 -> "gateway/forbidden"
+    410 -> "access.revoked"
+    404, 426 -> "gateway/unsupported"
+    else -> "gateway/http_error"
+})
+
+/** Preserve the status before the websocket library reports a generic disconnect. */
+private class NativeMuxDraft(private val opened: CompletableDeferred<DshMux>) : Draft_6455(emptyList(), WireBudget.FRAME_BYTES) {
+    override fun copyInstance(): Draft = NativeMuxDraft(opened)
+    override fun acceptHandshakeAsClient(request: ClientHandshake, response: ServerHandshake): HandshakeState {
+        val status = response.httpStatus.toInt()
+        if (status != 101) {
+            opened.completeExceptionally(nativeHttpFailure(status))
+            return HandshakeState.NOT_MATCHED
+        }
+        return super.acceptHandshakeAsClient(request, response).also {
+            if (it != HandshakeState.MATCHED) opened.completeExceptionally(DshFailure("gateway/invalid_response"))
+        }
     }
 }
 

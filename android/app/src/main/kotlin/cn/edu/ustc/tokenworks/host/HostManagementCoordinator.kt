@@ -14,6 +14,7 @@ internal class HostManagementCoordinator(
     private val probePath: (String, HostConnectionPath) -> DshTransport,
     private val changeRtcConsent: (String, Boolean) -> Unit,
     private val readRtcConsent: (String) -> Boolean,
+    private val recordProbeFailure: (HostResourceIdentity, HostConnectionPath) -> Unit = { _, _ -> },
 ) {
     private val mutable = MutableStateFlow(HostManagementState())
     val state: StateFlow<HostManagementState> = mutable.asStateFlow()
@@ -33,9 +34,13 @@ internal class HostManagementCoordinator(
         if (relay) refresh()
     }
     fun close() { val pending = uncertain; fence(); uncertain = pending }
-    fun directory(hosts: List<ManagedHostGroup>, selected: String?, transport: DshTransportState?) {
+    fun directory(hosts: List<ManagedHostGroup>, selected: String?, transport: DshTransportState?,
+        failures: Map<HostResourceIdentity, Map<HostConnectionPath, Long>> = emptyMap(), rtcSupported: Boolean = false) {
         val old = mutable.value.hosts.flatMap { it.runtimes }.associateBy { it.identity }
-        mutable.update { it.copy(hosts = hosts.map { group -> group.copy(runtimes = group.runtimes.map { row -> row.copy(status = old[row.identity]?.status.orEmpty()) }) }, selectedRuntimeId = selected, transport = transport,
+        mutable.update { it.copy(hosts = hosts.map { group -> group.copy(runtimes = group.runtimes.map { row ->
+            row.copy(status = old[row.identity]?.status.orEmpty(), connectionFailures = failures[row.identity].orEmpty())
+        }) }, selectedRuntimeId = selected, transport = transport,
+            rtcSupported = rtcSupported,
             rtcConsents = hosts.flatMap { it.runtimes }.associate { it.identity.runtimeId to readRtcConsent(it.identity.runtimeId) }) }
     }
     fun setRtcConsent(runtime: String, enabled: Boolean) {
@@ -165,11 +170,20 @@ internal class HostManagementCoordinator(
             status(row.identity, path, HostPathStatus(HostReachability.REACHABLE))
         } catch (error: TimeoutCancellationException) {
             currentCoroutineContext().ensureActive()
+            recordProbeFailure(row.identity, path)
             status(row.identity, path, HostPathStatus(HostReachability.UNREACHABLE, "network.timeout"))
         } catch (cancelled: CancellationException) { throw cancelled }
         catch (error: Exception) {
-            val code = homeErrorCode(error)
-            val authority = code.contains("auth") || code.contains("revoked") || code.contains("denied")
+            currentCoroutineContext().ensureActive()
+            val code = (error as? LanPairingException)?.code ?: homeErrorCode(error)
+            val authority = when (route?.state?.value?.phase) {
+                DshTransportPhase.AUTH_REQUIRED, DshTransportPhase.REVOKED -> true
+                else -> when (DshRecoveryPolicy.classify(code).action) {
+                    DshRecoveryAction.AUTH_REQUIRED, DshRecoveryAction.REVOKED -> true
+                    else -> false
+                }
+            }
+            recordProbeFailure(row.identity, path)
             status(row.identity, path, HostPathStatus(if (authority) HostReachability.AUTH_REQUIRED else HostReachability.UNREACHABLE, code))
         } finally { route?.close() }
     }

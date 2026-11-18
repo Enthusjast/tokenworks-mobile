@@ -23,11 +23,9 @@ class LanConnectionFactory private constructor(private val operatorClient: OkHtt
     suspend fun reconcileRotation(signer: DeviceProofSigner, intent: NoiseDeviceRotationIntent) =
         transport(intent.replacement, signer).use { it.reconcileEncrypted() }
 
-    fun encryptedTransport(credentials: LanCredentials, signer: DeviceProofSigner, routeKind: String,
-        path: DshTransportPath, outer: CarrierOuterDialer, api: RemoteApi?): EncryptedDshTransport =
-        NativeRouteTransport(credentials, path, api) { lease ->
-            CarrierDialer { purpose -> CarrierSocket.open(outer, credentials, signer, routeKind, purpose, lease) }
-        }
+    fun rtcTransport(credentials: LanCredentials, signer: DeviceProofSigner, path: DshTransportPath,
+        outer: CarrierOuterDialer, api: RemoteApi?): DshRtcTransport =
+        DshRtcTransport(credentials, signer, path, outer, api)
 
     fun pairingControl(credentials: LanCredentials, signer: DeviceProofSigner, api: RemoteApi?): PairingControlClient {
         val bound = credentials.manifest.fields["relay"] is JsonObject

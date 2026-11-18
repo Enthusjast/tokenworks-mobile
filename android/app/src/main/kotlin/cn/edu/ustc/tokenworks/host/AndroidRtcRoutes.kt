@@ -33,7 +33,7 @@ internal class AndroidRtcRoutes(
             try { delegate.close() } finally { synchronized(guard) { transports.remove(this) } }
         }
     }
-    override val supported: Boolean get() = RtcPlatformAvailability.available(application.classLoader)
+    override val supported: Boolean by lazy { RtcPlatformAvailability.available(application.classLoader) }
     private fun consentKey(runtime: String): String {
         current(); Contract.uuid(runtime)
         val identity = owner() ?: throw RemoteRequestException("rtc.owner_required")
@@ -59,32 +59,32 @@ internal class AndroidRtcRoutes(
                     retiring = transports.filter { it.runtimeId == runtime }
                 }
                 if (!preferences.edit().putBoolean(key, enabled).commit()) throw RemoteRequestException("storage.unavailable")
-                if (enabled) consentFlags[runtime] = AtomicBoolean(true)
+                if (enabled && consentFlags[runtime]?.get() != true) consentFlags[runtime] = AtomicBoolean(true)
             }
         } finally {
             if (!enabled) try { retiring.forEach(OwnedTransport::close) } finally { active?.closeRuntime(runtime) }
         }
     }
-    override fun transport(runtime: String, path: DshTransportPath): EncryptedDshTransport {
+    override fun transport(runtime: String, path: DshTransportPath): EncryptedDshTransport = synchronized(guard) {
         require(path == DshTransportPath.P2P || path == DshTransportPath.TURN)
         if (!consent(runtime)) throw RemoteRequestException("rtc.consent_required")
         if (!supported) throw RemoteRequestException("rtc.unsupported")
-        val grant: AtomicBoolean
-        val active = synchronized(guard) {
-            if (closed) throw RemoteRequestException("transport.closed")
-            grant = consentFlags.getOrPut(runtime) { AtomicBoolean(true) }
-            engine ?: AndroidRtcEngine(application, boundOwner ?: throw RemoteRequestException("rtc.owner_required"),
-                current,
-                { target -> pairing.pairingControl(target, api()) }).also { engine = it }
+        val grant = consentFlags.getOrPut(runtime) { AtomicBoolean(true) }
+        fun requireConsent() {
+            current()
+            if (!grant.get()) throw RemoteRequestException("rtc.consent_required")
         }
-        return synchronized(guard) {
-            if (closed || !grant.get()) throw RemoteRequestException("rtc.consent_required")
-            transports.removeAll { it.state.value.phase == DshTransportPhase.CLOSED }
-            if (transports.size >= 8) throw RemoteRequestException("rtc.unavailable")
-            OwnedTransport(pairing.encryptedTransport(runtime, if (path == DshTransportPath.P2P) "p2p" else "turn", path,
-                active.dialer(runtime, path) { current(); if (!grant.get()) throw java.io.IOException("e2e/rtc_consent_revoked") }, api()))
-                .also { transports.add(it) }
+        val outer = CarrierOuterDialer { receiver, purpose ->
+            val active = synchronized(guard) {
+                requireConsent()
+                if (closed) throw RemoteRequestException("rtc.consent_required")
+                engine ?: AndroidRtcEngine(application, boundOwner ?: throw RemoteRequestException("rtc.owner_required"),
+                    current, { target -> pairing.pairingControl(target, api()) }).also { engine = it }
+            }
+            active.open(runtime, path, ::requireConsent, receiver, purpose)
         }
+        transports.removeAll { it.state.value.phase == DshTransportPhase.CLOSED }
+        OwnedTransport(pairing.rtcTransport(runtime, path, outer, api())).also { transports.add(it) }
     }
     fun selectedCandidates(runtime: String): List<RtcCandidateFacts> = synchronized(guard) { engine?.selectedCandidates(runtime).orEmpty() }
     override fun close() {
@@ -100,7 +100,7 @@ internal class AndroidRtcRoutes(
 }
 
 internal interface RtcNativeOwner : AutoCloseable {
-    fun dialer(runtime: String, path: DshTransportPath, current: () -> Unit): CarrierOuterDialer
+    suspend fun open(runtime: String, path: DshTransportPath, current: () -> Unit, receiver: CarrierReceiver, purpose: String): CarrierOuterSocket
     fun closeRuntime(runtime: String)
     fun selectedCandidates(runtime: String): List<RtcCandidateFacts>
 }

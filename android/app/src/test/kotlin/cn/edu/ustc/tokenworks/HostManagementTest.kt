@@ -13,7 +13,8 @@ class HostManagementTest {
         jsonObject("id" to runtime.json(), "host_id" to host.json()).let { base ->
             if (installationId == null) base else JsonObject(base.fields + ("installation_id" to installationId.json()))
         }))
-    private fun lan(id: String = installation) = PairedLanDevice(runtime, id, "https://192.168.1.2:8443", other, 1, 1)
+    private fun lan(id: String = installation, relayBound: Boolean = true) =
+        PairedLanDevice(runtime, id, "https://192.168.1.2:8443", other, 1, 1, relayBound)
 
     @Test fun pathsMergeOnlyWithExactAuthoritativeInstallationAndRuntime() {
         val merged = groupHostDirectory(listOf(row(installation)), listOf(lan()), false).single().runtimes.single()
@@ -25,6 +26,9 @@ class HostManagementTest {
             assertEquals(setOf(HostConnectionPath.RELAY), separate.single { it.identity.relayAuthorized }.paths)
             assertEquals(setOf(HostConnectionPath.AUTO, HostConnectionPath.LAN, HostConnectionPath.P2P, HostConnectionPath.TURN), separate.single { !it.identity.relayAuthorized }.paths)
         }
+        val independent = groupHostDirectory(listOf(row(installation)), listOf(lan(relayBound = false)), false).flatMap { it.runtimes }
+        assertEquals(2, independent.size)
+        assertEquals(setOf(HostConnectionPath.RELAY), independent.single { it.identity.relayAuthorized }.paths)
     }
     @Test fun lostPathNeverSelectsAnotherPhysicalHostOrAuthorityNamespace() {
         val selected = HostResourceIdentity(host, installation, runtime, true)

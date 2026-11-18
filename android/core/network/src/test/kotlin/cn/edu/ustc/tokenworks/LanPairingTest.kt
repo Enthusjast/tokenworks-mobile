@@ -249,7 +249,7 @@ class LanPairingTest {
     @Test fun selectorNeverReplaysAnAmbiguousWriteButAllowsNewExplicitRelayCommands() = runBlocking {
         disconnectApi = true
         val relay = RecordingRelay(runtime)
-        ConnectionSelector(transport(), relay, installation).use { selector ->
+        ConnectionSelector(listOf(transport(), relay), installation).use { selector ->
             failure("network.unavailable") { selector.native("session/prompt", jsonObject()) }
             assertEquals(0, relay.calls.get())
             assertEquals(1, requests.count { it.path == "/api/session/prompt" })
@@ -260,7 +260,7 @@ class LanPairingTest {
             assertEquals(1, requests.count { it.path == "/api/session/prompt" })
         }
         val uploadRelay = RecordingRelay(runtime)
-        ConnectionSelector(transport(), uploadRelay, installation).use { selector ->
+        ConnectionSelector(listOf(transport(), uploadRelay), installation).use { selector ->
             failure("network.unavailable") { selector.upload("/api/session/uploadFileBinary?sessionId=s&name=a", "text/plain", ByteArrayInputStream(byteArrayOf(1)), 1) }
             assertEquals(0, uploadRelay.uploads.get())
             selector.upload("/api/session/uploadFileBinary?sessionId=s&name=a", "text/plain", ByteArrayInputStream(byteArrayOf(1)), 1)
@@ -271,7 +271,7 @@ class LanPairingTest {
     @Test fun selectorMayRetryReviewedReadOnceOnSelectedRelay() = runBlocking {
         disconnectApi = true
         val relay = RecordingRelay(runtime)
-        ConnectionSelector(transport(), relay, installation).use { selector ->
+        ConnectionSelector(listOf(transport(), relay), installation).use { selector ->
             assertEquals("relay", (selector.native("session/list", jsonObject()) as JsonString).value)
             assertEquals(1, relay.calls.get())
             assertEquals(1, requests.count { it.path == "/api/session/list" })
@@ -280,7 +280,7 @@ class LanPairingTest {
 
     @Test fun boundConnectionRejectsStaleAnswersWithoutSendingThemToEitherPeer() = runBlocking {
         val relay = RecordingRelay(runtime)
-        ConnectionSelector(transport(), relay, installation).use { selector ->
+        ConnectionSelector(listOf(transport(), relay), installation).use { selector ->
             val bound = selector.connect()
             val mux = bound.openMux()
             val events = mux.open(DSH_EVENTS_ENDPOINT, jsonObject())
@@ -300,18 +300,18 @@ class LanPairingTest {
 
     @Test fun selectorRejectsIdentityAuthAndPinFailuresWithoutSilentFallback() = runBlocking {
         val relay = RecordingRelay(runtime)
-        assertThrows(LanPairingException::class.java) { ConnectionSelector(transport(), relay, "77777777-7777-4777-8777-777777777777") }
+        assertThrows(LanPairingException::class.java) { ConnectionSelector(listOf(transport(), relay), "77777777-7777-4777-8777-777777777777") }
         identityStatus = 401
-        ConnectionSelector(transport(), relay, installation).use { selector ->
+        ConnectionSelector(listOf(transport(), relay), installation).use { selector ->
             failure("auth.proof_invalid") { selector.native("session/list", jsonObject()) }
         }
         identityStatus = 200
         identityInstallation = "77777777-7777-4777-8777-777777777777"
-        ConnectionSelector(transport(), relay, installation).use { selector ->
+        ConnectionSelector(listOf(transport(), relay), installation).use { selector ->
             failure("e2e.repair_required") { selector.native("session/list", jsonObject()) }
         }
         val wrongPin = credentialDocument().with("tlsPin" to ("sha256/" + java.util.Base64.getEncoder().encodeToString(ByteArray(32))).json())
-        ConnectionSelector(DshLanTransport(LanCredentials.parse(wrongPin), signer, client), relay, installation).use { selector ->
+        ConnectionSelector(listOf(DshLanTransport(LanCredentials.parse(wrongPin), signer, client), relay), installation).use { selector ->
             failure("lan.tls_failed") { selector.native("session/list", jsonObject()) }
         }
         assertEquals(0, relay.calls.get())
@@ -358,7 +358,7 @@ class LanPairingTest {
     @Test fun failedDownloadNeverAppendsRelayBytesToAPartiallyWrittenSink() = runBlocking {
         truncatedDownload = true
         val relay = RecordingRelay(runtime)
-        ConnectionSelector(transport(), relay, installation).use { selector ->
+        ConnectionSelector(listOf(transport(), relay), installation).use { selector ->
             val sink = ByteArrayOutputStream()
             try {
                 selector.download("/api/session/downloadFileBinary?sessionId=s&name=a", sink, 100)
@@ -373,7 +373,7 @@ class LanPairingTest {
     @Test fun selectedRelayMuxSupportsNativeEventsTerminalAndUplink() = runBlocking {
         disconnectProbe = true
         val relay = RecordingRelay(runtime)
-        ConnectionSelector(transport(), relay, installation).use { selector ->
+        ConnectionSelector(listOf(transport(), relay), installation).use { selector ->
             val mux = selector.openMux()
             val follow = mux.open("session/follow", jsonObject("args" to jsonObject()))
             val terminal = mux.open("terminal/create", jsonObject())

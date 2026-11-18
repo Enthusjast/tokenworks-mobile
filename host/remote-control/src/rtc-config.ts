@@ -6,8 +6,12 @@ import type { RTCPeerConnectionConfig } from 'werift'
 
 // UDP is the only TURN transport enabled by this adapter. Additional transports
 // require independent interoperability and certificate-validation evidence.
-const stunUrl = z.string().max(512).regex(/^stun:(?:\[[0-9a-fA-F:]+\]|[a-zA-Z0-9.-]+)(?::[0-9]{1,5})?$/)
-const turnUrl = z.string().max(512).regex(/^turn:(?:\[[0-9a-fA-F:]+\]|[a-zA-Z0-9.-]+)(?::[0-9]{1,5})?\?transport=udp$/)
+const validIcePort = (url: string): boolean => {
+  const port = /:(\d{1,5})(?=\?|$)/.exec(url)?.[1]
+  return port === undefined || (Number(port) >= 1 && Number(port) <= 65535)
+}
+const stunUrl = z.string().max(512).regex(/^stun:(?:\[[0-9a-fA-F:]+\]|[a-zA-Z0-9.-]+)(?::[0-9]{1,5})?$/).refine(validIcePort)
+const turnUrl = z.string().max(512).regex(/^turn:(?:\[[0-9a-fA-F:]+\]|[a-zA-Z0-9.-]+)(?::[0-9]{1,5})?\?transport=udp$/).refine(validIcePort)
 export const rtcConfigSchema = z.strictObject({
   enabled: z.boolean().default(false),
   stunUrls: z.array(stunUrl).max(4).default([]),

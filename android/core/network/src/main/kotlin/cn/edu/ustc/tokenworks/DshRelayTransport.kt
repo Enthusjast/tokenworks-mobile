@@ -1,5 +1,8 @@
 package cn.edu.ustc.tokenworks
 
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -30,8 +33,11 @@ internal class NativeRouteTransport(
         val previous = route
         if (previous != null && !previous.retired && (lease == null || lease!!.usable())) return@withLock previous
         previous?.close(); route = null; lease = null
-        val token = if (credentials.manifest.fields["relay"] is JsonObject)
-            (api ?: throw DshFailure("e2e.relay_authority_required")).boundNativeLease(credentials) else null
+        val token = when {
+            api != null -> api.boundNativeLease(credentials)
+            credentials.manifest.fields["relay"] is JsonObject -> throw DshFailure("e2e.relay_authority_required")
+            else -> null
+        }
         live()
         lateinit var created: EncryptedRoute
         val generationDialer = dialer(token)
@@ -49,15 +55,26 @@ internal class NativeRouteTransport(
         }
         created
     }
-    private suspend fun <T> operation(block: suspend (EncryptedRoute) -> T): T {
-        val selected = current()
-        try { return block(selected).also { live() } }
-        finally { if (!ended.get() && route === selected) mutable.value = selected.state.value }
+    private suspend fun <T> operation(discard: (T) -> Unit = {}, block: suspend (EncryptedRoute) -> T): T {
+        val context = currentCoroutineContext()
+        context.ensureActive()
+        val selected = try { current() }
+        catch (cancelled: CancellationException) { throw cancelled }
+        catch (error: Exception) {
+            context.ensureActive()
+            synchronized(gate) { if (!ended.get()) mutable.value = routeFailure(path, error) }
+            throw error
+        }
+        try {
+            val result = block(selected)
+            try { context.ensureActive(); live() } catch (error: Exception) { discard(result); throw error }
+            return result
+        } finally { synchronized(gate) { if (!ended.get() && route === selected) mutable.value = selected.state.value } }
     }
     override suspend fun native(endpoint: String, args: JsonObject) = operation { it.native(endpoint, args) }
-    override suspend fun openMux() = operation { it.openMux() }
+    override suspend fun openMux() = operation(DshMux::close) { it.openMux() }
     override suspend fun probeIdentity() = operation { it.probe() }
-    override suspend fun connect() = operation { it.connect() }
+    override suspend fun connect() = operation(DshConnection::close) { it.connect() }
     override suspend fun download(path: String, sink: OutputStream, maxBytes: Long, range: DshByteRange?) = operation { it.download(path, sink, maxBytes, range) }
     override suspend fun upload(path: String, mediaType: String, source: InputStream, sizeBytes: Long) = operation { it.upload(path, mediaType, source, sizeBytes) }
     override fun close() = synchronized(gate) {
@@ -69,6 +86,9 @@ internal class NativeRouteTransport(
 }
 
 class DshRelayTransport private constructor(private val route: NativeRouteTransport) : EncryptedDshTransport by route {
-    constructor(api: RemoteApi, credentials: LanCredentials) : this(NativeRouteTransport(credentials, DshTransportPath.RELAY, api,
-        { lease -> CarrierDialer { purpose -> api.openCarrier(credentials.runtimeId, lease ?: throw DshFailure("e2e.relay_unbound"), credentials, purpose) } }))
+    constructor(api: RemoteApi, credentials: LanCredentials) : this(
+        NativeRouteTransport(credentials, DshTransportPath.RELAY, api) { lease ->
+            CarrierDialer { purpose -> api.openCarrier(credentials.runtimeId, checkNotNull(lease), credentials, purpose) }
+        },
+    )
 }

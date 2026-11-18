@@ -23,6 +23,9 @@ test('RTC is operator opt-in, never implicitly contacts public STUN, and P2P exc
   assert.equal(credential.expiresAt, 1_300_000)
   assert.throws(() => rtcConfigSchema.parse({ enabled: true, stunUrls: ['https://undeclared.invalid'] }))
   assert.throws(() => rtcConfigSchema.parse({ turn: { urls: ['turns:localhost'], sharedSecret: 's'.repeat(32) } }))
+  assert.throws(() => rtcConfigSchema.parse({ stunUrls: ['stun:turn.example.test:65536'] }))
+  assert.throws(() => rtcConfigSchema.parse({ turn: { urls: ['turn:turn.example.test:0?transport=udp'], sharedSecret: 's'.repeat(32) } }))
+  assert.doesNotThrow(() => rtcConfigSchema.parse({ stunUrls: ['stun:[2001:db8::1]', 'stun:[2001:db8::1]:65535'] }))
 })
 
 test('RTC secrets require a bounded owner-only regular file and refuse symlinks', async t => {
