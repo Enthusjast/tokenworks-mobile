@@ -21,6 +21,7 @@ import { installRemoteTools } from './remote-tools.js'
 import { isSupportedDshVersion } from './product-access.generated.js'
 import { NotificationReferences } from './notification-references.js'
 import { installWorkspaceExports } from './workspace-exports.js'
+import { sessionDeletionPlugin } from './session-deletion.js'
 export { NotificationReferences } from './notification-references.js'
 export type { NotificationReferenceOptions, NotificationReferenceStatus } from './notification-references.js'
 import type { JournalKeyProtector } from './journal-key-protection.js'
@@ -75,6 +76,8 @@ export interface Config {
   lan?: { host: string; port: number; certificateKey: string }
   /** Operator-owned private RTC settings; never accepts model-supplied ICE credentials. */
   rtcConfigFile?: string
+  /** Opt-in private local session store; never derive a deletion root from workspace paths. */
+  sessionDeletionRoot?: string
 }
 export const Config: z<Config> = z.object({
   enabled: z.boolean().default(false),
@@ -87,6 +90,7 @@ export const Config: z<Config> = z.object({
   pairing: z.object({ directory: z.string(), origin: z.string(), certificateCert: z.string() }),
   lan: z.object({ host: z.string(), port: z.number(), certificateKey: z.string() }),
   rtcConfigFile: z.string(),
+  sessionDeletionRoot: z.string(),
 })
 
 export async function apply(ctx: Context, config: Config = {}, credentials?: HostCredentialProvider, security?: LanSecurity): Promise<void> {
@@ -104,6 +108,9 @@ export async function apply(ctx: Context, config: Config = {}, credentials?: Hos
     const store = new LanPairingStore(options.pairing.directory, options.runtimeId!, installationId, security.pairingProtector)
     const pairing = await LanPairing.open({ origin: options.pairing.origin, runtimeId: options.runtimeId!, installationId }, options.pairing.certificateCert, store, scope.connection)
     installWorkspaceExports(scope)
+    if (options.sessionDeletionRoot) {
+      await scope.plugin(sessionDeletionPlugin(options.sessionDeletionRoot, versions.dsh)).await()
+    }
     const gateway = new NativeGateway(scope.connection, scope.typertGateway)
     const carrier = new NoiseCarrier(pairing, gateway, versions.dsh, origin)
     carrier.setRtcControl(new RtcCarrierHost(pairing, carrier, rtcConfig))
