@@ -17,6 +17,7 @@
     "build:noise": "python3 tools/native/build-noise.py all",
     "test:noise": "python3 tools/native/test-noise.py",
     "contracts:typert": "tsx tools/generate-typert-contract.ts",
+    "contracts:typert:capture": "tsx tools/capture-native-golden.ts",
     "contracts:product-access": "tsx tools/generate-product-access.ts",
     "contracts:product-access:check": "tsx tools/generate-product-access.ts --check",
     "prepare:rtc": "node host/remote-control/scripts/patch-werift.mjs",

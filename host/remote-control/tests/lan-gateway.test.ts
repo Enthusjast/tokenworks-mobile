@@ -30,16 +30,27 @@ import { pairNoiseClient, openNoiseClient, noiseDpop, noiseHttpRequest } from '.
 import { nativeFileVersionPath } from '../src/remote-native-client.js'
 
 const installationId = 'bbbbbbbb-2222-4222-8222-222222222222', runtimeId = 'aaaaaaaa-1111-4111-8111-111111111111'
+const linuxPairing = { skip: process.platform !== 'linux' && 'requires the Linux private pairing store', timeout: 90_000 }
 
 async function fixture(t: TestContext, bound = false) {
   const directory = await mkdtemp(join(tmpdir(), 'tokenworks-noise-host-'))
+  const cleanup: Array<() => unknown> = [() => rm(directory, { recursive: true, force: true })]
+  t.after(async () => {
+    const errors: unknown[] = []
+    for (const close of cleanup.reverse()) {
+      try { await close() } catch (error) { errors.push(error) }
+    }
+    if (errors.length) throw new AggregateError(errors, 'LAN fixture cleanup failed')
+  })
   const native = await createIsolatedNativeAssembly(directory)
+  cleanup.push(() => native.ctx.fiber.dispose(), () => native.peer.dispose())
   const certPath = join(directory, 'certificate.pem'), keyPath = join(directory, 'key.pem')
   execFileSync('openssl', ['req', '-x509', '-newkey', 'rsa:2048', '-nodes', '-keyout', keyPath, '-out', certPath, '-days', '1', '-subj', '/CN=localhost', '-addext', 'subjectAltName=IP:127.0.0.1,DNS:localhost'], { stdio: 'ignore' })
   const cert = await readFile(certPath, 'utf8'), key = await readFile(keyPath, 'utf8'), reserve = reserveServer()
   reserve.listen(0, '127.0.0.1'); await once(reserve, 'listening'); const address = reserve.address(); assert.ok(address && typeof address === 'object')
   const ended = once(reserve, 'close'); reserve.close(); await ended
   const origin = `https://127.0.0.1:${address.port}`, master = randomBytes(32)
+  cleanup.push(() => master.fill(0))
   const protector: JournalKeyProtector = { id: 'real-test-aes-key', async wrap(bytes, context) {
     const iv = randomBytes(12), cipher = createCipheriv('aes-256-gcm', master, iv); cipher.setAAD(context); return Buffer.concat([iv, cipher.update(bytes), cipher.final(), cipher.getAuthTag()])
   }, async unwrap(bytes, context) {
@@ -47,6 +58,7 @@ async function fixture(t: TestContext, bound = false) {
   } }
   const storePath = join(directory, 'pairing'), store = new LanPairingStore(storePath, runtimeId, installationId, protector)
   const pairing = await LanPairing.open({ origin, runtimeId, installationId }, cert, store, native.ctx.connection)
+  cleanup.push(() => pairing.close())
   const peers: PeerScope[] = [], plaintext: Buffer[] = []
   let dropResponse = false
   class ObservedGateway extends NativeGateway {
@@ -62,8 +74,8 @@ async function fixture(t: TestContext, bound = false) {
   const gateway = new ObservedGateway(native.ctx.connection, native.ctx.typertGateway)
   const carrier = new NoiseCarrier(pairing, gateway, nativeVersion, origin)
   const lan = new LanGateway({ host: '127.0.0.1', port: address.port, certificate: { cert, key }, connection: native.ctx.connection, gateway, carrier, pairing })
+  cleanup.push(() => lan.close(), () => { carrier.close(); gateway.close() })
   await lan.listen()
-  t.after(async () => { carrier.close(); pairing.close(); gateway.close(); await lan.close(); await native.peer.dispose(); await native.ctx.fiber.dispose(); master.fill(0); await rm(directory, { recursive: true, force: true }) })
   const owner = { account_id: randomUUID(), organization_id: randomUUID(), deployment_sha256: 'a'.repeat(64), user_id: randomUUID(), device_id: randomUUID() }
   const relay = { issuer: origin, organizationId: owner.organization_id, deploymentSha256: owner.deployment_sha256, userId: owner.user_id, deviceId: owner.device_id }
   const credential = await pairNoiseClient({ origin, ca: cert, descriptor: pairing.begin(), owner, ...(bound ? { relay } : {}) })
@@ -79,7 +91,7 @@ async function fixture(t: TestContext, bound = false) {
     return { ok: true, data: facts }
   }, () => ({ sessions: native.ctx.sessions.list().map(session => session.id), workspaces: [] }))
   carrier.setRelayAuthority((id, token, pairedOwner) => access.admitFresh(id, token, pairedOwner))
-  t.after(() => access.close())
+  cleanup.push(() => access.close())
   return { ...native, directory, storePath, cert, key, origin, store, pairing, gateway, carrier, lan, peers, plaintext, credential, owner, relay, protector, access, relayLease, loseResponse() { dropResponse = true }, restoreResponse() { dropResponse = false } }
 }
 
@@ -99,7 +111,7 @@ async function publicRequest(origin: string, ca: string, path: string) {
   const pending = Promise.withResolvers<number>(); const request = httpsRequest(origin + path, { ca, agent: false }, response => { response.resume(); pending.resolve(response.statusCode!) }); request.on('error', pending.reject); request.end(); return pending.promise
 }
 
-test('real TLS + fixed Noise passes exact native unary/binary/mux bytes, stable paired Peer, and hides postTLS Relay canaries', { timeout: 90_000 }, async t => {
+test('real TLS + fixed Noise passes exact native unary/binary/mux bytes, stable paired Peer, and hides postTLS Relay canaries', linuxPairing, async t => {
   const f = await fixture(t, true)
   assert.equal((await publicRequest(f.origin, f.cert, '/pair/tls')), 204)
   await assert.rejects(openNoiseClient({ origin: f.origin, ca: f.cert, credential: f.credential }))
@@ -149,7 +161,7 @@ test('real TLS + fixed Noise passes exact native unary/binary/mux bytes, stable 
   assert.equal(Buffer.concat(postTLS).includes(Buffer.from(canary)), false); assert.equal(Buffer.concat(postTLS).includes(Buffer.from('client-request')), false); assert.equal(Buffer.concat(postTLS).includes(Buffer.from('/api/')), false)
 })
 
-test('wrong local key/P256, peer mix, replay and downgrade never reach NativeGateway; revoke closes native streams durably', { timeout: 90_000 }, async t => {
+test('wrong local key/P256, peer mix, replay and downgrade never reach NativeGateway; revoke closes native streams durably', linuxPairing, async t => {
   const f = await fixture(t), before = f.peers.length
   const wrong = generateNoiseStatic()
   await assert.rejects(openNoiseClient({ origin: f.origin, ca: f.cert, credential: { ...f.credential, privateKey: wrong.privateKey } }))
@@ -179,7 +191,7 @@ test('wrong local key/P256, peer mix, replay and downgrade never reach NativeGat
   for (const name of await readdir(f.storePath)) assert.equal((await readFile(join(f.storePath, name))).includes(Buffer.from(f.credential.token)), false)
 })
 
-test('lost native write response dispatches once, Host rotate-and-revoke-all commits one operation and does not restore old keys', { timeout: 90_000 }, async t => {
+test('lost native write response dispatches once, Host rotate-and-revoke-all commits one operation and does not restore old keys', linuxPairing, async t => {
   const f = await fixture(t)
   f.loseResponse()
   const connection = await openNoiseClient({ origin: f.origin, ca: f.cert, credential: f.credential }); t.after(connection.close)
@@ -230,7 +242,7 @@ test('lost native write response dispatches once, Host rotate-and-revoke-all com
   await assert.rejects(new LanPairingStore(f.storePath, runtimeId, installationId, f.protector).devices(), /upgrade-required/)
 })
 
-test('old-key authenticated device rotation commits before ACK, new-key read reconciles, and control cannot enter native APIs', { timeout: 90_000 }, async t => {
+test('old-key authenticated device rotation commits before ACK, new-key read reconciles, and control cannot enter native APIs', linuxPairing, async t => {
   const f = await fixture(t), live = await openNoiseClient({ origin: f.origin, ca: f.cert, credential: f.credential }); t.after(live.close)
   const oldPeer = f.peers.at(-1)!, oldClosed = Promise.withResolvers<void>(); live.stream.once('close', oldClosed.resolve)
   const denied = await noiseHttpRequest({ origin: f.origin, ca: f.cert, credential: f.credential, purpose: 'pairing-control' }, 'GET', '/api/session/list')
@@ -254,7 +266,7 @@ test('old-key authenticated device rotation commits before ACK, new-key read rec
   assert.deepEqual(await f.store.devices(), [])
 })
 
-test('native large file bodies cross multiple Noise records without exceeding carrier write credits', { timeout: 90_000 }, async t => {
+test('native large file bodies cross multiple Noise records without exceeding carrier write credits', linuxPairing, async t => {
   const f = await fixture(t), client = { origin: f.origin, ca: f.cert, credential: f.credential }
   const created = await noiseHttpRequest(client, 'POST', '/api/session/create', Buffer.from(JSON.stringify(rpc('session/create', { request: { cwd: f.cwd, agentPreset: 'golden' } }))), { 'Content-Type': 'application/json' })
   assert.equal(created.status, 200); assert.equal(JSON.parse(created.body.toString()).result.ok, true)

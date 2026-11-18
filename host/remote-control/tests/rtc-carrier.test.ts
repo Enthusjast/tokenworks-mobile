@@ -149,8 +149,9 @@ async function isolatedTurn(t: TestContext) {
   return rtcConfigSchema.parse({ enabled: true, turn: { urls: [`turn:127.0.0.1:${port}?transport=udp`], sharedSecret } })
 }
 const rpc = (method: string, args: object) => ({ type: 'client-request', rpcId: randomUUID(), method, payload: { args } })
+const linuxPairing = { skip: process.platform !== 'linux' && 'requires the Linux private pairing store' }
 
-for (const routeKind of ['p2p', 'turn'] as const) test(`real ${routeKind} selected-candidate + SAME Noise + native unary/binary/mux/approval canary and cleanup`, { timeout: 90_000 }, async t => {
+for (const routeKind of ['p2p', 'turn'] as const) test(`real ${routeKind} selected-candidate + SAME Noise + native unary/binary/mux/approval canary and cleanup`, { ...linuxPairing, timeout: 90_000 }, async t => {
   const config = routeKind === 'turn' ? await isolatedTurn(t) : rtcConfigSchema.parse({ enabled: true })
   const f = await fixture(t, config), configResponse = await f.control('/pair/rtc/config')
   assert.equal(configResponse.status, 200); assert.equal(JSON.parse(configResponse.body.toString()).enabled, true)
@@ -221,7 +222,7 @@ for (const routeKind of ['p2p', 'turn'] as const) test(`real ${routeKind} select
   assert.equal(f.rtc.activeCount, 0)
 })
 
-test('authenticated offer ownership, strict body, pair/Host PC caps, real TTL, revoke and Host cleanup', { timeout: 90_000 }, async t => {
+test('authenticated offer ownership, strict body, pair/Host PC caps, real TTL, revoke and Host cleanup', { ...linuxPairing, timeout: 90_000 }, async t => {
   const f = await fixture(t, rtcConfigSchema.parse({ enabled: true })), pc = new RTCPeerConnection(rtcPeerConfig(rtcConfigSchema.parse({ enabled: true }), 'p2p', f.credential.deviceId))
   t.after(() => pc.close()); pc.createDataChannel('tokenworks-native', { protocol: 'twm-noise.v1', ordered: true }); await pc.setLocalDescription(await pc.createOffer())
   const other = await pairNoiseClient({ origin: f.origin, ca: f.cert, descriptor: f.pairing.begin() })
@@ -252,7 +253,7 @@ test('authenticated offer ownership, strict body, pair/Host PC caps, real TTL, r
   f.rtc.close(); assert.equal(f.rtc.enabled, false)
 })
 
-test('unordered, text and extra-channel ingress retire physical RTC carriers without fallback', { timeout: 90_000 }, async t => {
+test('unordered, text and extra-channel ingress retire physical RTC carriers without fallback', { ...linuxPairing, timeout: 90_000 }, async t => {
   const f = await fixture(t, rtcConfigSchema.parse({ enabled: true }))
   await assert.rejects(f.rtcDial('p2p', { raw: true, unordered: true })); await f.rtc.drain(); assert.equal(f.rtc.activeCount, 0)
   const text = await f.rtcDial('p2p', { raw: true }), textClosed = text.dc.stateChanged.watch(state => state === 'closed', 5000)
@@ -263,7 +264,7 @@ test('unordered, text and extra-channel ingress retire physical RTC carriers wit
   assert.equal(f.rtc.activeCount, 0)
 })
 
-test('RTC pair proof is independent of encrypted signaling owner and wrong Noise key never admits native', { timeout: 90_000 }, async t => {
+test('RTC pair proof is independent of encrypted signaling owner and wrong Noise key never admits native', { ...linuxPairing, timeout: 90_000 }, async t => {
   const f = await fixture(t, rtcConfigSchema.parse({ enabled: true }))
   const other = await pairNoiseClient({ origin: f.origin, ca: f.cert, descriptor: f.pairing.begin() })
   await assert.rejects(f.rtcDial('p2p', { noiseCredential: other }))
@@ -273,7 +274,7 @@ test('RTC pair proof is independent of encrypted signaling owner and wrong Noise
   await f.rtc.drain(); assert.equal(f.rtc.activeCount, 0)
 })
 
-test('aborting encrypted signaling during real ICE gathering closes its pending PC and tasks', { timeout: 30_000 }, async t => {
+test('aborting encrypted signaling during real ICE gathering closes its pending PC and tasks', { ...linuxPairing, timeout: 30_000 }, async t => {
   // An actual bound UDP sink deliberately never replies: this is a declared
   // path-failure test, not fake STUN/TURN readiness or a timing sleep.
   const sink = createSocket('udp4'); sink.bind(0, '127.0.0.1'); await once(sink, 'listening'); t.after(() => sink.close())
@@ -289,7 +290,7 @@ test('aborting encrypted signaling during real ICE gathering closes its pending 
   assert.deepEqual(hostPeer.sctpTransport?.getCarrierQueueBytes(), { inbound: 0, outbound: 0, pendingWriteBytes: 0 })
 })
 
-test('operator-disabled RTC returns explicit unsupported through encrypted pair control without creating a PC', { timeout: 30_000 }, async t => {
+test('operator-disabled RTC returns explicit unsupported through encrypted pair control without creating a PC', { ...linuxPairing, timeout: 30_000 }, async t => {
   const f = await fixture(t, rtcConfigSchema.parse({}))
   const config = await f.control('/pair/rtc/config')
   assert.equal(config.status, 200)
@@ -299,7 +300,7 @@ test('operator-disabled RTC returns explicit unsupported through encrypted pair 
   assert.equal(f.rtc.activeCount, 0)
 })
 
-test('actual TURN failure returns exact availability without undeclared TCP; invalid SDP stays terminal', { timeout: 30_000 }, async t => {
+test('actual TURN failure returns exact availability without undeclared TCP; invalid SDP stays terminal', { ...linuxPairing, timeout: 30_000 }, async t => {
   const clientConfig = await isolatedTurn(t)
   const sink = createSocket('udp4'); sink.bind(0, '127.0.0.1'); await once(sink, 'listening'); t.after(() => sink.close())
   let tcpAttempts = 0
@@ -318,7 +319,7 @@ test('actual TURN failure returns exact availability without undeclared TCP; inv
   assert.equal(invalid.status, 409); assert.equal(f.rtc.activeCount, 0)
 })
 
-test('absent optional RTC module returns authenticated exact unsupported JSON', { timeout: 30_000 }, async t => {
+test('absent optional RTC module returns authenticated exact unsupported JSON', { ...linuxPairing, timeout: 30_000 }, async t => {
   const f = await fixture(t, rtcConfigSchema.parse({}), false)
   const result = await f.control('/pair/rtc/config')
   assert.equal(result.status, 404); assert.deepEqual(JSON.parse(result.body.toString()), { code: 'rtc/unsupported' })
@@ -370,7 +371,7 @@ for (const spec of [
   { name: 'viewer', role: 'viewer', installationOwner: false },
   { name: 'operator', role: 'operator', installationOwner: false },
   { name: 'partial-owner', role: 'owner', installationOwner: true },
-] as const) test(`Relay ${spec.name} signaling retains restricted RTC authority, cannot answer owner waterfall, and revocation fences PC`, { timeout: 45_000 }, async t => {
+] as const) test(`Relay ${spec.name} signaling retains restricted RTC authority, cannot answer owner waterfall, and revocation fences PC`, { ...linuxPairing, timeout: 45_000 }, async t => {
   const f = await fixture(t, rtcConfigSchema.parse({ enabled: true }))
   async function ownerRpc(method: string, args: object) {
     const carrier = await f.rtcDial('p2p'); assert.ok(carrier.noise)

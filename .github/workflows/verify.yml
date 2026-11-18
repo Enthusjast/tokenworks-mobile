@@ -1,0 +1,63 @@
+name: Verify
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  native-contracts:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: gradle/actions/setup-gradle@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: services/remote/go.mod
+          cache-dependency-path: services/remote/go.sum
+      - run: npm ci --ignore-scripts
+      - name: Compare generated Typert JSON and Kotlin and check recorded calls
+        run: |
+          npm run contracts:product-access:check
+          npm run contracts:typert:check
+          node --import tsx --test --test-name-pattern='compatibility decision' host/remote-control/tests/native-golden.test.ts
+      - name: Check Kotlin compatibility and golden codecs
+        working-directory: android
+        run: ./gradlew --max-workers=2 -PjvmOnly=true :core:dsh-protocol:test
+      - name: Check Relay admission against the same compatibility fixtures
+        working-directory: services/remote
+        run: go test ./internal/store -run 'Test(NativeVersionAdmissionMatchesCanonicalCompatibilityCases|OwnerBindingsMatchCanonicalNativeProductAccess)$'
+
+  host-linux:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - name: Install native integration prerequisites
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends coturn libsecret-1-dev libssl-dev pkg-config
+          rustup toolchain install 1.96.0 --profile minimal
+      - run: npm ci --ignore-scripts
+      - run: npm run check
+      - run: npm run build
+      - name: Run all Host tests
+        timeout-minutes: 8
+        env:
+          TOKENWORKS_TEST_TURNSERVER: /usr/bin/turnserver
+        run: npm test

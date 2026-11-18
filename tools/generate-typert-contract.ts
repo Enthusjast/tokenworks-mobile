@@ -1,7 +1,7 @@
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { assertNativePackages, nativeMethods as methods, nativeVersion as version, nativeVersionRange as versionRange, nativeSchema as schemaOf, type NativeSchema as Schema } from './native-contract.js'
 import { fileURLToPath } from 'node:url'
-import { checkTypertContracts } from './typert-contract-check.js'
+import { checkTypertContracts, normalizeContractLines } from './typert-contract-check.js'
 import { createHash } from 'node:crypto'
 import { z } from 'zod'
 import { buildNativeVectors } from './native-golden-vectors.js'
@@ -10,9 +10,14 @@ import { checkNativeCapture, type NativeCapture } from './capture-native-golden.
 import { productAccessOutputs } from './product-access-contract.js'
 assertNativePackages()
 const captured = JSON.parse(await readFile(new URL('../contracts/typert/golden/native-captured.json', import.meta.url), 'utf8')) as NativeCapture
-checkNativeCapture(captured)
-const modelHash = createHash('sha256').update(await readFile(new URL('../' + captured.execution.model.fixture, import.meta.url))).digest('hex')
-if (captured.execution.model.sha256 !== modelHash) throw new Error('Native execution fixture changed: recapture installed-native golden calls')
+try {
+  checkNativeCapture(captured)
+  const model = await readFile(new URL('../' + captured.execution.model.fixture, import.meta.url), 'utf8')
+  const modelHash = createHash('sha256').update(normalizeContractLines(model)).digest('hex')
+  if (captured.execution.model.sha256 !== modelHash) throw new Error('Native execution fixture changed')
+} catch (cause) {
+  throw new Error('Native golden evidence is stale; recapture with `npm run contracts:typert:capture`, then run `npm run contracts:typert`', { cause })
+}
 
 type Binding = { type: string; codec: string }
 const declarations: string[] = []

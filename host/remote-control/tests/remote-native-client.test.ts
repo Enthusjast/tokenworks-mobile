@@ -25,6 +25,8 @@ import type { JournalKeyProtector } from '../src/journal-key-protection.js'
 import type { RemoteTarget, RemoteCredential } from '../src/remote-targets.js'
 import type { SessionPromptRequest } from '@deepseek-ai/dsh-api-session-controller/types'
 
+const linuxPairing = { skip: process.platform !== 'linux' && 'requires the Linux private pairing store', timeout: 90_000 }
+
 async function fixture(t: TestContext) {
   const root = await mkdtemp(join(tmpdir(), 'remote-native-client-')), native = await createIsolatedNativeAssembly(root)
   const certPath = join(root, 'tls.pem'), keyPath = join(root, 'tls-key.pem')
@@ -65,7 +67,7 @@ async function fixture(t: TestContext) {
   return { ...native, target, credential, pairing, carrier, gateway }
 }
 
-test('production pinned bootstrap and public Connection/Gateway clients perform actual native unary, streams and binary HTTP', { timeout: 90_000 }, async t => {
+test('production pinned bootstrap and public Connection/Gateway clients perform actual native unary, streams and binary HTTP', linuxPairing, async t => {
   const f = await fixture(t), signal = AbortSignal.timeout(60_000)
   const identity = await pinnedRequest(f.target, { method: 'GET', path: '/pair/identity', headers: { authorization: `DPoP ${f.credential.token}`, 'x-tokenworks-device-id': f.credential.pairId,
     dpop: await signPairingProof(f.target, f.credential, 'GET', '/pair/identity') } }, signal)
@@ -128,7 +130,7 @@ test('native file version negotiation cannot redirect authority, paths or repeat
   }
 })
 
-test('address, target identity, TLS chain and SPKI failures are rejected without alternate routing', { timeout: 90_000 }, async t => {
+test('address, target identity, TLS chain and SPKI failures are rejected without alternate routing', linuxPairing, async t => {
   const policy = { allowedAddresses: ['192.168.4.10'], allowPrivate: false, allowLoopback: false }
   assert.throws(() => assertRemoteAddress(policy, '192.168.4.10'), /address-policy/)
   assert.doesNotThrow(() => assertRemoteAddress({ ...policy, allowPrivate: true }, '192.168.4.10'))
@@ -152,7 +154,7 @@ test('address, target identity, TLS chain and SPKI failures are rejected without
     dialOuter: signal => dialRemoteOuter(f.target, f.credential, 'native', signal) }))
 })
 
-test('production admission accepts the supported family without a default pin and preserves explicit exact pins', { timeout: 90_000 }, async t => {
+test('production admission accepts the supported family without a default pin and preserves explicit exact pins', linuxPairing, async t => {
   const f = await fixture(t)
   for (const [version, expectedDshVersion, accepted] of [
     ['0.2.2-rc.1', undefined, true], ['0.2.2-rc.2', undefined, true], ['0.2.2', undefined, true], ['0.2.2-rc.2+build.7', undefined, true],
@@ -174,7 +176,7 @@ test('production admission accepts the supported family without a default pin an
   }
 })
 
-test('production initiator rekeys at the real record boundary and validates authenticated CLOSE in both directions', { timeout: 180_000 }, async t => {
+test('production initiator rekeys at the real record boundary and validates authenticated CLOSE in both directions', { ...linuxPairing, timeout: 180_000 }, async t => {
   const f = await fixture(t), signal = AbortSignal.timeout(150_000)
   // A generic byte consumer is a test fixture, not a native RPC or readiness stand-in.
   class EchoGateway extends NativeGateway {

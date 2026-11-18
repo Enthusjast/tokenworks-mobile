@@ -13,7 +13,9 @@ import { LanPairing } from '../src/lan-pairing.js'
 import { LanPairingStore } from '../src/lan-pairing-store.js'
 import type { JournalKeyProtector } from '../src/journal-key-protection.js'
 
-test('Desktop settings exposes real QR only to an owner and guards pairing mutations against CSRF', { timeout: 30_000 }, async t => {
+test('Desktop settings exposes real QR only to an owner and guards pairing mutations against CSRF', {
+  timeout: 30_000, skip: process.platform !== 'linux' && 'requires the Linux private pairing store',
+}, async t => {
   const f = await host({ probe: false }); t.after(() => f.close())
   const certPath = join(f.directory, 'desktop-cert.pem'), keyPath = join(f.directory, 'desktop-key.pem')
   execFileSync('openssl', ['req', '-x509', '-newkey', 'rsa:2048', '-nodes', '-keyout', keyPath, '-out', certPath, '-days', '1', '-subj', '/CN=localhost', '-addext', 'subjectAltName=DNS:localhost'], { stdio: 'ignore' })

@@ -28,8 +28,9 @@ function config(targetId = 'target'): RemoteTargetConfig {
     allowedAddresses: ['127.0.0.1'], allowLoopback: true, workspaces: [{ workspaceId: 'workspace', canonicalRoot: '/approved' }], allowedActions: ['discover', 'create_session', 'prompt', 'files.read'], allowedAgentPresets: ['approved-preset'],
     allowedPaths: [{ path: '/approved/exact.txt', actions: ['read', 'download'], maxBytes: 4096 }] }
 }
+const linuxPrivateFiles = { skip: process.platform !== 'linux' && 'requires the Linux private pairing store' }
 
-test('targets default disabled and local caller is protected, source-bound and direct-only', async t => {
+test('targets default disabled and local caller is protected, source-bound and direct-only', linuxPrivateFiles, async t => {
   const dataDir = await mkdtemp(join(tmpdir(), 'remote-targets-')); t.after(() => rm(dataDir, { recursive: true, force: true }))
   const options = { dataDir, sourceInstallationId: randomUUID(), sourceRuntimeId: randomUUID(), protector: protector(randomBytes(32)) }
   const store = new RemoteTargetStore(options); t.after(() => store.close())
@@ -50,7 +51,7 @@ test('targets default disabled and local caller is protected, source-bound and d
   await assert.rejects(store.configure({ ...config('unsafe'), allowedPaths: [{ path: '/approved/../escape', actions: ['read'], maxBytes: 10 }] }))
 })
 
-test('real native pairing persists independent P256/Noise/token intent before POST and reconciles a lost reply without replay', { timeout: 60_000 }, async t => {
+test('real native pairing persists independent P256/Noise/token intent before POST and reconciles a lost reply without replay', { ...linuxPrivateFiles, timeout: 60_000 }, async t => {
   const f = await host({ probe: false }); t.after(() => f.close())
   const master = randomBytes(32), protection = protector(master), sourceDir = join(f.directory, 'source')
   const certPath = join(f.directory, 'target-cert.pem'), keyPath = join(f.directory, 'target-key.pem')

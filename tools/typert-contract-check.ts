@@ -4,6 +4,8 @@ import { pathToFileURL } from 'node:url'
 
 export type TypertContractCandidate = { path: string; content: string }
 
+export const normalizeContractLines = (text: string): string => text.replaceAll('\r\n', '\n')
+
 /**
  * Verifies generated contracts match disk content, comparing line-ending-normalized
  * text only: CRLF-vs-LF drift (e.g. Windows checkouts) is accepted, while stale
@@ -13,8 +15,8 @@ export type TypertContractCandidate = { path: string; content: string }
 export async function checkTypertContracts(candidates: TypertContractCandidate[], root: string): Promise<void> {
   const base = pathToFileURL(root + sep)
   for (const { path, content } of candidates) {
-    const expected = content.replaceAll('\r\n', '\n')
+    const expected = normalizeContractLines(content)
     const actual = await readFile(new URL(path, base), 'utf8').catch(() => '')
-    if (actual.replaceAll('\r\n', '\n') !== expected) throw new Error(`${path} is stale; run npm run contracts:typert`)
+    if (normalizeContractLines(actual) !== expected) throw new Error(`${path} is stale; run npm run contracts:typert`)
   }
 }

@@ -14,6 +14,7 @@ import Loader, { type EntryOptions } from '@deepseek-ai/cordis-plugin-loader'
 import { Peer } from '@deepseek-ai/dsh-client-connection'
 import type { TypertContribution } from '@deepseek-ai/dsh-typert-registry'
 import { carrier, assertNativePackages, nativeMethods, nativeRoundTrip, nativeVersion, type Carrier } from './native-contract.js'
+import { normalizeContractLines } from './typert-contract-check.js'
 import type {} from '@deepseek-ai/dsh-api-gateway'
 import type {} from '@deepseek-ai/dsh-api-session-controller'
 import type {} from '@deepseek-ai/dsh-api-terminal-controller'
@@ -239,7 +240,7 @@ async function executeNativeFixture(root: string): Promise<NativeCapture> {
       isolation: 'Separate child process with allowlisted environment, fresh HOME/XDG/cwd/storage/persistence/attachments/credentials under one private temporary directory, removed after exit. Installed native Gateway, Agent and providers; offline model fixture only; no HTTP listener, user profiles, inherited secrets or network; bash --noprofile --norc.',
       execution: {
         dispatcher: '@deepseek-ai/dsh-api-gateway invoke/stream', providers: rows.map(row => row.id === 'offline-model' ? modelFixture : row.name!),
-        model: { fixture: modelFixture, sha256: createHash('sha256').update(await readFile(join(repository, modelFixture))).digest('hex') },
+        model: { fixture: modelFixture, sha256: createHash('sha256').update(normalizeContractLines(await readFile(join(repository, modelFixture), 'utf8'))).digest('hex') },
         environmentKeys, networkAttempts,
       }, calls, notCaptured: [],
     }
