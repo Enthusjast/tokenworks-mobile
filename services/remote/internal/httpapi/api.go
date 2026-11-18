@@ -103,6 +103,7 @@ type Config struct {
 	HostClientIDs []string
 	Releases      *releases.Catalog
 	Push          *push.Service
+	SessionShares SessionShareRepository
 }
 
 type deviceRequest struct {
@@ -196,6 +197,9 @@ func New(database Repository, identity *auth.Authenticator, configs ...Config) *
 	mux.Handle("GET /v2/tunnel-leases/{lease_id}", api.installationAuthenticated(http.HandlerFunc(api.inspectTunnelLease)))
 	mux.Handle("GET /v2/runtimes/{id}/tunnel", api.installationAuthenticated(http.HandlerFunc(api.hostTunnel)))
 	mux.Handle("GET /v2/runtimes/{id}/carrier", api.phoneAuthenticated(http.HandlerFunc(api.carrier)))
+	if len(configs) > 0 && configs[0].SessionShares != nil {
+		api.mountSessionShares(mux, configs[0].SessionShares)
+	}
 	return &Handler{router: routerWithJSONErrors(mux), realtime: realtime, api: api}
 }
 

@@ -81,6 +81,14 @@ func run() error {
 	if err != nil {
 		return err
 	}
+	var sessionShares *store.SessionShares
+	if os.Getenv("REMOTE_SESSION_SHARING") == "true" {
+		sessionShares, err = store.NewSessionShares(context.Background(), database, recovery.Epoch())
+		if err != nil {
+			return errors.New("remote session share storage is unavailable; apply the session_shares.sql migration")
+		}
+		apiConfig.SessionShares = sessionShares
+	}
 	consumer, err := database.NewControlConsumer(context.Background(), nodeID)
 	if err != nil {
 		return errors.New("remote control consumer is unavailable or already active")
@@ -169,6 +177,13 @@ func run() error {
 			apiConfig.Push.Run(controlCtx)
 		}
 	}()
+	sessionSharesDone := make(chan struct{})
+	go func() {
+		defer close(sessionSharesDone)
+		if sessionShares != nil {
+			sessionShares.Run(controlCtx)
+		}
+	}()
 	go func() {
 		defer close(controlDone)
 		if err := control.RunConsumer(controlCtx, consumer, handler); err != nil {
@@ -181,6 +196,7 @@ func run() error {
 		<-proofsDone
 		<-recoveryDone
 		<-pushDone
+		<-sessionSharesDone
 	}()
 	result := make(chan error, 1)
 	go func() { result <- server.ListenAndServe() }()
