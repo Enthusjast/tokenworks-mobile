@@ -313,6 +313,22 @@ class TokenWorksAppShellTest {
         rule.runOnIdle { assertEquals(1, appearances); assertEquals(1, updates); assertEquals(1, usage) }
     }
 
+    @Test fun settingsSearchFindsActionsInsideCollapsedGroups() {
+        var usageOpens = 0
+        val usage = label(R.string.usage_title)
+        rule.setContent { FixtureTheme { WorkspaceSettings(state(), {}, {}, {}, {}, {}, {}, {}, { usageOpens++ }) } }
+        val about = label(R.string.settings_group_about)
+        clickSettingsItem(about)
+        rule.onNodeWithText(usage).assertDoesNotExist()
+        val list = rule.onNode(hasScrollAction())
+        list.performScrollToNode(hasTestTag("settings-search"))
+        rule.onNodeWithTag("settings-search").performTextInput(usage)
+        val usageAction = hasText(label(R.string.usage_settings_detail)) and hasClickAction()
+        list.performScrollToNode(usageAction)
+        rule.onNode(usageAction).assertIsDisplayed().performClick()
+        rule.runOnIdle { assertEquals(1, usageOpens) }
+    }
+
     @Test fun wideWindowKeepsDirectoryAndNavigationUsable() {
         var hosts = 0
         var settings = 0

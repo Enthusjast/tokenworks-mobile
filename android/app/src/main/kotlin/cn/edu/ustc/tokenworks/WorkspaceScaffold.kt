@@ -26,6 +26,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.ModalDrawerSheet
@@ -35,6 +36,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.rememberDrawerState
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
@@ -234,8 +236,10 @@ internal fun WorkspaceScaffold(
                     ColumnDivider(Modifier.align(Alignment.CenterEnd))
                 }
             }
-            Box(Modifier.weight(1f).fillMaxHeight().testTag("workspace-content")
-                .focusRequester(contentFocus).focusRestorer().focusGroup()) { content(toggleNavigation) }
+            Box(Modifier.weight(1f).fillMaxHeight().background(MaterialTheme.colorScheme.background)
+                .testTag("workspace-content").focusRequester(contentFocus).focusRestorer().focusGroup()) {
+                CompositionLocalProvider(LocalContentColor provides MaterialTheme.colorScheme.onBackground) { content(toggleNavigation) }
+            }
         }
     }
     if (!chromeVisible || layout.leftPane == WorkspaceLeftPane.SIDEBAR) {

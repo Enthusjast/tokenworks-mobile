@@ -2,6 +2,7 @@ package cn.edu.ustc.tokenworks
 
 import android.content.ContextWrapper
 import android.content.res.Configuration
+import android.graphics.Color
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Box
@@ -17,6 +18,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
@@ -24,6 +26,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertWidthIsEqualTo
+import androidx.compose.ui.test.captureToImage
 import androidx.compose.ui.test.click
 import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
@@ -48,6 +51,25 @@ import org.junit.runner.RunWith
 @RunWith(AndroidJUnit4::class)
 class WorkspaceScaffoldTest {
     @get:Rule val rule = createAndroidComposeRule<ComponentActivity>()
+
+    @Test fun workspaceCanvasFollowsLightAndDarkAppTheme() {
+        var dark by mutableStateOf(false)
+        rule.setContent {
+            TokenWorksTheme(darkTheme = dark) {
+                WorkspaceScaffold(
+                    workspaceLayout(WorkspaceViewport(375, 800), true, false, true), chromeVisible = true,
+                    railContent = {}, navigationContent = {}, content = {},
+                )
+            }
+        }
+        fun luminance(): Float {
+            val image = rule.onNodeWithTag("workspace-content").captureToImage().asAndroidBitmap()
+            return Color.luminance(image.getPixel(image.width / 2, image.height / 2))
+        }
+        assertTrue("Workspace must paint its light canvas", luminance() > 0.80f)
+        rule.runOnIdle { dark = true }
+        assertTrue("Dark theme must not expose the light window backdrop", luminance() < 0.20f)
+    }
 
     @Test fun closedDrawerDoesNotMountNavigationOrStealHorizontalGestures() {
         rule.setContent {
