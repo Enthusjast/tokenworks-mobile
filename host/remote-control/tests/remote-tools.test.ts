@@ -12,6 +12,7 @@ import Gateway from '@deepseek-ai/dsh-api-gateway'
 import * as ApiRemotes from '@deepseek-ai/dsh-api-remotes'
 import { Peer } from '@deepseek-ai/dsh-client-connection'
 import { SessionId } from '@deepseek-ai/dsh-session'
+import type { FileUploadValue } from '@deepseek-ai/dsh-client-file-upload/types'
 import type { ToolCallId } from '@deepseek-ai/dsh-llm'
 import type { ToolExecutionResult } from '@deepseek-ai/dsh-tools'
 import type { PeerScope } from '@deepseek-ai/dsh-typert-protocol'
@@ -54,16 +55,29 @@ async function target(t: TestContext) {
   const runtimeId = randomUUID(), installationId = randomUUID(), origin = `https://127.0.0.1:${address.port}`
   const pairing = await LanPairing.open({ origin, runtimeId, installationId }, cert, new LanPairingStore(join(directory, 'pairing'), runtimeId, installationId, protector()), native.ctx.connection)
   let lose: string | undefined, dispatches = 0
+  const posts = new Map<string, number>()
   class ObservedNativeGateway extends NativeGateway {
     override accept(socket: Duplex, peer: PeerScope): void {
       dispatches++
-      if (!lose) { super.accept(socket, peer); return }
-      let prefix = '', drop = false, classified = false
+      const lostEndpoint = lose
+      let prefix = '', drop = false
+      // The native client uses one request per authenticated stream.
+      const observeRequest = (data: Buffer) => {
+        prefix += data.toString('latin1', 0, 32768 - prefix.length)
+        const end = prefix.indexOf('\r\n')
+        if (end === -1) { assert.ok(prefix.length < 32768); return }
+        socket.off('data', observeRequest)
+        const endpoint = /^POST \/api\/([^ ?]+)[ ?]/.exec(prefix.slice(0, end))?.[1]
+        if (!endpoint) return
+        posts.set(endpoint, (posts.get(endpoint) ?? 0) + 1)
+        drop = endpoint === lostEndpoint
+      }
+      socket.on('data', observeRequest)
+      if (!lostEndpoint) { super.accept(socket, peer); return }
       const bridge = new Duplex({ read() {}, write(bytes, _encoding, callback) { if (drop) { socket.destroy(); callback(new Error('fixture/lost-response')) } else socket.write(bytes, callback) }, destroy(error, callback) { socket.destroy(); callback(error) } })
-      bridge.on('error', () => {}); socket.on('data', data => {
-        if (!classified) { prefix += data.toString('latin1'); assert.ok(prefix.length <= 32768); if (prefix.includes('\r\n')) { classified = true; drop = prefix.startsWith(`POST /api/${lose}`) } }
-        bridge.push(data)
-      }); socket.on('end', () => bridge.push(null)); socket.on('close', () => bridge.destroy())
+      bridge.on('error', () => {})
+      socket.on('data', data => bridge.push(data))
+      socket.on('end', () => bridge.push(null)); socket.on('close', () => bridge.destroy())
       super.accept(bridge, peer)
     }
   }
@@ -72,20 +86,24 @@ async function target(t: TestContext) {
   const workspace = await native.ctx.typertGateway.invoke({ namespace: 'workspace', method: 'create', args: { request: { path: native.cwd } }, peer: native.peer }) as { workspace: { workspaceId: string } }
   const filePath = join(native.cwd, 'native-bytes.bin'), bytes = Buffer.concat([Buffer.from('real native cross-host bytes'), randomBytes(1024), Buffer.from([0, 255, 128])]); await writeFile(filePath, bytes)
   t.after(async () => { carrier.close(); pairing.close(); gateway.close(); await lan.close(); await native.peer.dispose(); await native.ctx.fiber.dispose(); await rm(directory, { recursive: true, force: true }) })
-  return { ...native, cert, origin, pairing, runtimeId, installationId, workspaceId: workspace.workspace.workspaceId, filePath, bytes, dispatches: () => dispatches, lose(endpoint?: string) { lose = endpoint } }
+  return { ...native, cert, origin, pairing, runtimeId, installationId, workspaceId: workspace.workspace.workspaceId, filePath, bytes, dispatches: () => dispatches,
+    posts: (endpoint: string) => posts.get(endpoint) ?? 0, lose(endpoint?: string) { lose = endpoint } }
 }
 
-test('actual source registry/open turn/owner approval and independently paired native targets exercise B19', { timeout: 180_000 }, async t => {
+test('same-name independently paired native targets isolate routing, permissions and lost responses', {
+  timeout: 180_000, skip: process.platform === 'linux' ? false : 'requires the Linux private pairing store',
+}, async t => {
   const [a, b] = await Promise.all([target(t), target(t)]), source = await host({ probe: false })
   t.after(() => source.close())
   await source.ctx.plugin(Gateway).await(); await source.ctx.plugin(ApiRemotes).await()
   const options = { dataDir: join(source.directory, 'outbound'), sourceInstallationId: randomUUID(), sourceRuntimeId: source.runtimeId, protector: protector() }
   const tools = await installRemoteTools(source.ctx, options); t.after(() => tools.close())
   assert.equal((await tools.targets.status()).enabled, false)
+  const displayName = 'Shared host name'
   for (const [id, native] of [['a', a], ['b', b]] as const) {
     const full = native.pairing.begin(), { code: _code, expiresAt: _expiresAt, ...descriptor } = full
-    const config = { id, displayName: `Independent ${id}`, route: 'direct', descriptor, origin: native.origin, tlsPin: descriptor.tlsPin, allowedAddresses: ['127.0.0.1/32'], allowLoopback: true, allowPrivate: true, trustedCertificate: native.cert,
-      workspaces: [{ workspaceId: native.workspaceId, canonicalRoot: native.cwd }], allowedActions: [...REMOTE_ACTIONS], allowedAgentPresets: ['golden'], allowedPaths: [{ path: native.filePath, actions: ['read', 'stat', 'download'], maxBytes: 1024 * 1024 }, { path: native.cwd, actions: ['list'], maxBytes: 1024 * 1024 }], sessionBindings: [] } satisfies RemoteTargetConfig
+    const config = { id, displayName, route: 'direct', descriptor, origin: native.origin, tlsPin: descriptor.tlsPin, allowedAddresses: ['127.0.0.1/32'], allowLoopback: true, allowPrivate: true, trustedCertificate: native.cert,
+      workspaces: [{ workspaceId: native.workspaceId, canonicalRoot: native.cwd }], allowedActions: REMOTE_ACTIONS.filter(action => id === 'a' || action !== 'files.list'), allowedAgentPresets: ['golden'], allowedPaths: [{ path: native.filePath, actions: ['read', 'stat', 'download'], maxBytes: 1024 * 1024 }, { path: native.cwd, actions: ['list'], maxBytes: 1024 * 1024 }], sessionBindings: [] } satisfies RemoteTargetConfig
     assert.equal((await tools.targets.configure(config)).expectedDshVersion, undefined)
     if (id === 'a') {
       for (const expectedDshVersion of ['0.2.2-rc.1', '0.2.2-rc.2', '0.2.2', '0.2.2-rc.2+build.7']) {
@@ -133,18 +151,38 @@ test('actual source registry/open turn/owner approval and independently paired n
       return batch.results[0]!.result
     } finally { toolSet.dispose() }
   }
-  const value = async (pending: Promise<ToolExecutionResult>) => {
+  const value = async <T = Record<string, unknown>>(pending: Promise<ToolExecutionResult>) => {
     const result = await pending
     if (result.isError) assert.fail(JSON.stringify(result))
     // The actual registry has already validated the closed tool output schema.
-    const checked = result.value as { state: string; operationId: string; data: Record<string, unknown> }
+    const checked = result.value as { targetId?: string; state: string; operationId: string; data: T }
     return checked
   }
-  assert.equal((await value(call('remote_discover', { targetId: 'a' }))).state, 'authenticated')
-  assert.ok(Array.isArray((await value(call('remote_workspaces', { targetId: 'a' }))).data))
-  const createdA = await value(call('remote_create_session', { targetId: 'a', workspaceId: a.workspaceId, agentPreset: 'golden' }, 'allowed-once'))
-  const createdB = await value(call('remote_create_session', { targetId: 'b', workspaceId: b.workspaceId, agentPreset: 'golden' }, 'allowed-once'))
+  const discovered = await value<{ targetId: string; displayName: string; runtimeId: string; state: string }[]>(call('remote_discover', {}))
+  assert.equal(discovered.state, 'configured')
+  assert.notEqual(a.runtimeId, b.runtimeId)
+  assert.notEqual(a.installationId, b.installationId)
+  assert.deepEqual(discovered.data.map(({ targetId, displayName, runtimeId, state }) => ({ targetId, displayName, runtimeId, state })).sort((left, right) => left.targetId.localeCompare(right.targetId)),
+    [{ targetId: 'a', displayName, runtimeId: a.runtimeId, state: 'paired' }, { targetId: 'b', displayName, runtimeId: b.runtimeId, state: 'paired' }])
+  for (const [targetId, native] of [['a', a], ['b', b]] as const) {
+    const identity = await value(call('remote_discover', { targetId }))
+    assert.equal(identity.targetId, targetId)
+    assert.equal(identity.state, 'authenticated')
+    assert.equal(identity.data.runtimeId, native.runtimeId)
+    assert.equal(identity.data.installationId, native.installationId)
+    const workspaces = await value<{ workspaceId: string; path: string }[]>(call('remote_workspaces', { targetId }))
+    assert.deepEqual(workspaces.data.map(({ workspaceId, path }) => ({ workspaceId, path })), [{ workspaceId: native.workspaceId, path: native.cwd }])
+  }
+  const createCallId = randomUUID()
+  const createdA = await value(call('remote_create_session', { targetId: 'a', workspaceId: a.workspaceId, agentPreset: 'golden' }, 'allowed-once', createCallId))
+  const createdB = await value(call('remote_create_session', { targetId: 'b', workspaceId: b.workspaceId, agentPreset: 'golden' }, 'allowed-once', createCallId))
+  assert.notEqual(createdA.operationId, createdB.operationId)
+  const [opA, opB] = await Promise.all([tools.ledger.get(createdA.operationId), tools.ledger.get(createdB.operationId)])
+  assert.deepEqual([opA.targetRuntimeId, opB.targetRuntimeId], [a.runtimeId, b.runtimeId])
   const sessionA = createdA.data.sessionId as string, sessionB = createdB.data.sessionId as string
+  assert.notEqual(sessionA, sessionB)
+  assert.ok(a.ctx.agents.get(SessionId(sessionA))); assert.equal(a.ctx.agents.get(SessionId(sessionB)), undefined)
+  assert.ok(b.ctx.agents.get(SessionId(sessionB))); assert.equal(b.ctx.agents.get(SessionId(sessionA)), undefined)
   const deniedBefore = a.ctx.sessions.list().length
   assert.equal((await call('remote_create_session', { targetId: 'a', workspaceId: a.workspaceId, agentPreset: 'golden' }, 'rejected')).isError, true); assert.equal(a.ctx.sessions.list().length, deniedBefore)
   assert.equal((await call('remote_prompt', { targetId: 'a', sessionId: sessionA, text: 'deny injected approval', approved: true })).isError, true)
@@ -162,7 +200,20 @@ test('actual source registry/open turn/owner approval and independently paired n
     assert.equal(denied.isError, true); assert.match(JSON.stringify(denied), /source final guard denies remote prompt/)
     assert.equal(a.ctx.agents.get(SessionId(sessionA))!.session.snapshotEvents().filter(event => event.type === 'user/message').length, beforeGuard)
   } finally { denyGuard() }
-  assert.equal((await call('remote_prompt', { targetId: 'b', sessionId: sessionA, text: 'wrong target' })).isError, true)
+  const deniedCalls = b.dispatches()
+  for (const [name, args, reason] of [
+    ['remote_prompt', { targetId: 'b', sessionId: sessionA, text: 'wrong target' }, /remote\/session-denied/],
+    ['remote_create_session', { targetId: 'b', workspaceId: a.workspaceId, agentPreset: 'golden' }, /remote\/workspace-denied/],
+    ['remote_files', { targetId: 'b', sessionId: sessionB, action: 'list', path: b.cwd }, /remote\/action-denied/],
+    ['remote_files', { targetId: 'b', sessionId: sessionB, action: 'stat', path: a.filePath }, /remote\/path-policy-unavailable/],
+  ] as const) {
+    const denied = await call(name, args)
+    assert.equal(denied.isError, true)
+    assert.match(JSON.stringify(denied), reason)
+  }
+  assert.equal(b.dispatches(), deniedCalls, 'policy denials must not open a native stream')
+  const statB = await value(call('remote_files', { targetId: 'b', sessionId: sessionB, action: 'stat', path: b.filePath }))
+  assert.equal(statB.data.absolutePath, b.filePath)
   const prompt = await value(call('remote_prompt', { targetId: 'a', sessionId: sessionA, text: 'native remote prompt' }, 'allowed-once'))
   const waited = await value(call('remote_wait', { operationId: prompt.operationId, timeoutMs: 10_000 }))
   assert.equal(waited.state, 'turn-ended'); assert.deepEqual(waited.data.reason, { kind: 'completed' })
@@ -174,37 +225,59 @@ test('actual source registry/open turn/owner approval and independently paired n
   assert.equal(download.data.sha256, createHash('sha256').update(a.bytes).digest('hex'))
   const metadata = await tools.spool.metadata(download.data.handle as string, (await tools.targets.target('a')).ownerSha256, AbortSignal.timeout(1000))
   assert.deepEqual(await tools.spool.read(metadata, AbortSignal.timeout(1000)), a.bytes)
-  const upload = await value(call('remote_files', { targetId: 'b', sessionId: sessionB, action: 'upload', fileHandle: metadata.handle, name: 'cross-host.bin' }, 'allowed-once'))
+  const upload = await value<FileUploadValue>(call('remote_files', { targetId: 'b', sessionId: sessionB, action: 'upload', fileHandle: metadata.handle, name: 'cross-host.bin' }, 'allowed-once'))
   assert.ok(upload.data.receiptId)
+  assert.equal(upload.data.file.bytes, a.bytes.length)
   assert.equal((await call('remote_prompt', { targetId: 'a', sessionId: sessionA, text: 'reject target-bound receipt', uploads: [upload.operationId] })).isError, true)
   const attachmentPrompt = await value(call('remote_prompt', { targetId: 'b', sessionId: sessionB, text: 'actual receiving native file bytes', uploads: [upload.operationId] }, 'allowed-once'))
   assert.equal((await value(call('remote_wait', { operationId: attachmentPrompt.operationId, timeoutMs: 10_000 }))).state, 'turn-ended')
   const beforeUnknown = a.ctx.sessions.list().length
-  const lostCreateCallId = randomUUID()
-  a.lose('session/create ')
+  const lostCreateCallId = randomUUID(), createPostsBefore = a.posts('session/create')
+  a.lose('session/create')
   assert.equal((await call('remote_create_session', { targetId: 'a', workspaceId: a.workspaceId, agentPreset: 'golden' }, 'allowed-once', lostCreateCallId)).isError, true)
   a.lose()
-  const unknown = (await tools.ledger.list()).find(operation => operation.kind === 'create_session' && operation.state === 'outcome-unknown')!
+  const unknown = (await tools.ledger.list()).find(operation => operation.callId === lostCreateCallId)!
   assert.ok(unknown); assert.equal(a.ctx.sessions.list().length, beforeUnknown + 1)
+  assert.equal(unknown.state, 'outcome-unknown')
   const afterUnknown = a.ctx.sessions.list().length
   const reconciled = await value(call('remote_reconcile', { operationId: unknown.operationId })); assert.equal(reconciled.state, 'outcome-unknown'); assert.equal(a.ctx.sessions.list().length, afterUnknown)
-  assert.equal((await value(call('remote_create_session', { targetId: 'a', workspaceId: a.workspaceId, agentPreset: 'golden' }, undefined, lostCreateCallId))).state, 'outcome-unknown')
+  const createReplay = await value(call('remote_create_session', { targetId: 'a', workspaceId: a.workspaceId, agentPreset: 'golden' }, undefined, lostCreateCallId))
+  assert.equal(createReplay.operationId, unknown.operationId)
+  assert.equal(createReplay.state, 'outcome-unknown')
   assert.equal(a.ctx.sessions.list().length, afterUnknown)
-  const lostPromptCallId = randomUUID(), lostText = 'native prompt ACK lost exactly once'
-  a.lose('session/prompt ')
-  assert.equal((await call('remote_prompt', { targetId: 'a', sessionId: sessionA, text: lostText }, 'allowed-once', lostPromptCallId)).isError, true)
+  assert.equal(a.posts('session/create'), createPostsBefore + 1)
+  const lostPromptCallId = randomUUID(), promptPostsBefore = a.posts('session/prompt')
+  const lostPromptArgs = { targetId: 'a', sessionId: sessionA, text: 'native prompt ACK lost exactly once' }
+  a.lose('session/prompt')
+  assert.equal((await call('remote_prompt', lostPromptArgs, 'allowed-once', lostPromptCallId)).isError, true)
   a.lose()
   const unknownPrompt = (await tools.ledger.list()).find(operation => operation.callId === lostPromptCallId)!
   assert.equal(unknownPrompt.state, 'outcome-unknown')
   assert.equal((await value(call('remote_reconcile', { operationId: unknownPrompt.operationId }))).state, 'turn-ended')
-  const lostUploadCallId = randomUUID()
-  b.lose('session/uploadFileBinary?')
-  assert.equal((await call('remote_files', { targetId: 'b', sessionId: sessionB, action: 'upload', fileHandle: metadata.handle, name: 'lost-receipt.bin' }, 'allowed-once', lostUploadCallId)).isError, true)
+  const promptReplay = await value(call('remote_prompt', lostPromptArgs, undefined, lostPromptCallId))
+  assert.equal(promptReplay.operationId, unknownPrompt.operationId)
+  assert.equal(promptReplay.state, 'observed-terminal')
+  assert.equal(a.posts('session/prompt'), promptPostsBefore + 1)
+  const lostMessages = a.ctx.agents.get(SessionId(sessionA))!.session.snapshotEvents().filter(event =>
+    event.type === 'user/message' && 'rpcId' in event.data.source && event.data.source.rpcId === unknownPrompt.requestId)
+  assert.equal(lostMessages.length, 1)
+  const lostUploadCallId = randomUUID(), uploadPostsBefore = b.posts('session/uploadFileBinary')
+  const lostUploadArgs = { targetId: 'b', sessionId: sessionB, action: 'upload', fileHandle: metadata.handle, name: 'lost-receipt.bin' }
+  b.lose('session/uploadFileBinary')
+  assert.equal((await call('remote_files', lostUploadArgs, 'allowed-once', lostUploadCallId)).isError, true)
   b.lose()
   const unknownUpload = (await tools.ledger.list()).find(operation => operation.callId === lostUploadCallId)!
   assert.equal(unknownUpload.state, 'outcome-unknown')
   assert.equal((await value(call('remote_reconcile', { operationId: unknownUpload.operationId }))).state, 'outcome-unknown')
-  assert.equal((await value(call('remote_files', { targetId: 'b', sessionId: sessionB, action: 'upload', fileHandle: metadata.handle, name: 'lost-receipt.bin' }, undefined, lostUploadCallId))).state, 'outcome-unknown')
+  const uploadReplay = await value(call('remote_files', lostUploadArgs, undefined, lostUploadCallId))
+  assert.equal(uploadReplay.operationId, unknownUpload.operationId)
+  assert.equal(uploadReplay.state, 'outcome-unknown')
+  assert.equal(b.posts('session/uploadFileBinary'), uploadPostsBefore + 1)
+  for (const name of [upload.data.file.name, lostUploadArgs.name]) {
+    const chunks: Uint8Array[] = []
+    for await (const chunk of b.ctx.attachments.readFileStream({ ...upload.data.file, name })) chunks.push(chunk)
+    assert.deepEqual(Buffer.concat(chunks), a.bytes)
+  }
   const reopened = new RemoteOperationLedger(options)
   assert.equal((await reopened.get(unknown.operationId)).state, 'outcome-unknown'); reopened.close()
   const sourceAudit = handle.agent.session.snapshotEvents()
