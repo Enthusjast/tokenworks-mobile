@@ -36,7 +36,8 @@ class EncryptedFileOutboxStore internal constructor(
 
     companion object {
         internal const val MAX_FILE_BYTES = 10 * 1024 * 1024
-        private const val VERSION = 2
+        private const val VERSION = 3
+        private const val LEGACY_VERSION = 2
         private const val MAX_ENTRY_BYTES = DshCommandOutbox.MAX_TEXT_BYTES + NativeImagePart.MAX_BATCH_ENCODED_BYTES + 4096
         private val DOMAIN = "tokenworks-mobile/dsh-command-outbox/v2".toByteArray(Charsets.UTF_8)
         private val ENTRY_DOMAIN = "tokenworks-mobile/dsh-command-entry/v2".toByteArray(Charsets.UTF_8)
@@ -130,6 +131,7 @@ class EncryptedFileOutboxStore internal constructor(
                 payload.text(entry.text)
                 payload.text(entry.mode)
                 payload.writeInt(entry.state.ordinal)
+                payload.writeBoolean(entry.neverAttempted)
                 payload.writeInt(entry.receipts.size)
                 entry.receipts.forEach { payload.text(it) }
                 payload.writeInt(entry.images.size)
@@ -145,7 +147,8 @@ class EncryptedFileOutboxStore internal constructor(
     }
 
     private fun decode(bytes: ByteArray, key: SecretKey): OutboxCheckpoint = DataInputStream(ByteArrayInputStream(bytes)).use { input ->
-        if (input.readInt() != VERSION) corrupt()
+        val version = input.readInt()
+        if (version != LEGACY_VERSION && version != VERSION) corrupt()
         val revision = input.readLong()
         if (revision <= 0) corrupt()
         val count = input.readInt()
@@ -165,6 +168,12 @@ class EncryptedFileOutboxStore internal constructor(
                     val text = payload.text(DshCommandOutbox.MAX_TEXT_BYTES)
                     val mode = payload.text(16)
                     val state = PromptDeliveryState.entries.getOrNull(payload.readInt()) ?: corrupt()
+                    // A legacy PENDING entry may already have been retried under this request ID.
+                    val neverAttempted = if (version == LEGACY_VERSION) false else when (payload.readUnsignedByte()) {
+                        0 -> false
+                        1 -> true
+                        else -> corrupt()
+                    }
                     val receiptCount = payload.readInt()
                     if (receiptCount !in 0..16) corrupt()
                     val receipts = List(receiptCount) { payload.text(4096) }
@@ -181,7 +190,7 @@ class EncryptedFileOutboxStore internal constructor(
                         NativeImagePart(mediaType, data, name)
                     }
                     if (payload.read() != -1) corrupt()
-                    entries.add(PromptOutboxEntry(requestId, route, text, mode, state, receipts, images))
+                    entries.add(PromptOutboxEntry(requestId, route, text, mode, state, receipts, images, neverAttempted))
                 }
             } finally { clear.fill(0) }
         }

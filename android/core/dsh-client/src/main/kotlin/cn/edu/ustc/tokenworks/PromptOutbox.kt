@@ -22,16 +22,19 @@ class PromptOutboxEntry(
     val state: PromptDeliveryState = PromptDeliveryState.PENDING,
     receipts: List<String> = emptyList(),
     images: List<NativeImagePart> = emptyList(),
+    internal val neverAttempted: Boolean = false,
 ) {
     val receipts: List<String> = Collections.unmodifiableList(ArrayList(receipts))
     val images: List<NativeImagePart> = Collections.unmodifiableList(ArrayList(images))
     val sessionId: String get() = route.sessionId
     val payloadBytes: Int = validateNativePrompt(text, this.receipts, this.images)
     val imageBytes: Int = this.images.sumOf { it.encodedBytes }
+    val canEdit: Boolean get() = state == PromptDeliveryState.PENDING && neverAttempted
 
     init {
         Contract.uuid(requestId)
         require(mode == "queue" || mode == "steer") { "prompt mode invalid" }
+        require(!neverAttempted || state == PromptDeliveryState.PENDING)
     }
 
     fun copy(
@@ -42,11 +45,12 @@ class PromptOutboxEntry(
         state: PromptDeliveryState = this.state,
         receipts: List<String> = this.receipts,
         images: List<NativeImagePart> = this.images,
-    ) = PromptOutboxEntry(requestId, route, text, mode, state, receipts, images)
+        neverAttempted: Boolean = this.neverAttempted && state == PromptDeliveryState.PENDING,
+    ) = PromptOutboxEntry(requestId, route, text, mode, state, receipts, images, neverAttempted)
 
     override fun equals(other: Any?): Boolean = other is PromptOutboxEntry && requestId == other.requestId &&
         route == other.route && text == other.text && mode == other.mode && state == other.state &&
-        receipts == other.receipts && images == other.images
+        receipts == other.receipts && images == other.images && neverAttempted == other.neverAttempted
 
     override fun hashCode(): Int {
         var result = requestId.hashCode()
@@ -55,7 +59,8 @@ class PromptOutboxEntry(
         result = 31 * result + mode.hashCode()
         result = 31 * result + state.hashCode()
         result = 31 * result + receipts.hashCode()
-        return 31 * result + images.hashCode()
+        result = 31 * result + images.hashCode()
+        return 31 * result + neverAttempted.hashCode()
     }
 
     override fun toString(): String = "PromptOutboxEntry(requestId=$requestId, state=$state, imageCount=${images.size})"

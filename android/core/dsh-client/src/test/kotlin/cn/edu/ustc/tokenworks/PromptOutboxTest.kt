@@ -44,6 +44,27 @@ class PromptOutboxTest {
         assertEquals(first.requestId, open().pending(route).single().requestId)
     }
 
+    @Test fun localEditCreatesFreshIdentityAndCannotRewriteAnyAttemptedPayload() = runBlocking {
+        val prepared = open().prepare(route, "original", receipts = listOf("receipt"), images = listOf(nativeOutboxImage()))
+        val outbox = open()
+        assertTrue(outbox.pending(route).single().canEdit)
+        assertNull(outbox.editPendingText(prepared.requestId, route.copy(sessionId = "wrong"), "changed"))
+        val edited = outbox.editPendingText(prepared.requestId, route, "changed")!!
+        assertNotEquals(prepared.requestId, edited.requestId)
+        assertEquals(prepared.receipts, edited.receipts)
+        assertEquals(prepared.images, edited.images)
+        assertEquals("changed", edited.text)
+        assertNull(outbox.markSending(prepared.requestId, route))
+        assertFalse(outbox.markSending(edited.requestId, route)!!.canEdit)
+        assertNull(outbox.editPendingText(edited.requestId, route, "racing change"))
+        assertNull(outbox.abandon(edited.requestId, route))
+        outbox.markUnknown(edited.requestId, route)
+        assertFalse(outbox.retry(edited.requestId, route)!!.canEdit)
+        val restarted = open()
+        assertNull(restarted.editPendingText(edited.requestId, route, "late change"))
+        assertEquals("changed", restarted.pending(route).single().text)
+    }
+
     @Test fun settleAndAbandonAreDurable() = runBlocking {
         val outbox = open()
         val settled = outbox.prepare(route, "one")
@@ -212,7 +233,9 @@ class PromptOutboxTest {
         val unknown = recovered.pending(route).single()
         assertEquals(prepared.copy(state = PromptDeliveryState.OUTCOME_UNKNOWN), unknown)
         val retry = recovered.retry(prepared.requestId, route)!!
-        assertEquals(prepared, retry)
+        val attempted = prepared.copy(neverAttempted = false)
+        assertEquals(attempted, retry)
+        assertFalse(retry.canEdit)
         assertEquals(prepared.route.ownerId, retry.route.ownerId)
         assertEquals(prepared.sessionId, retry.sessionId)
         originalImages.zip(retry.images).forEach { (original, restored) ->
@@ -225,7 +248,7 @@ class PromptOutboxTest {
             WireJson.encode(filePromptArguments(route.sessionId, retry.requestId, "", emptyList(), "steer", retry.images)))
         assertNull(recovered.retry(prepared.requestId, route.copy(ownerId = "different-owner")))
         assertNull(recovered.retry(prepared.requestId, route.copy(sessionId = "different-session")))
-        assertEquals(listOf(prepared), recovered.pending(route))
+        assertEquals(listOf(attempted), recovered.pending(route))
     }
 
     @Test fun constructorCopiesAndStoreSnapshotsFreezeBothReceiptAndImageLists() = runBlocking {

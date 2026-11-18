@@ -56,7 +56,8 @@ class DshCommandOutbox private constructor(private val store: DshOutboxStore, ch
 
     suspend fun prepare(route: DshCommandRoute, text: String, mode: String = "queue", receipts: List<String> = emptyList(),
                         images: List<NativeImagePart> = emptyList()): PromptOutboxEntry {
-        val entry = PromptOutboxEntry(UUID.randomUUID().toString(), route, text, mode, receipts = receipts, images = images)
+        val entry = PromptOutboxEntry(UUID.randomUUID().toString(), route, text, mode, receipts = receipts,
+            images = images, neverAttempted = true)
         return change { entries -> (entries + entry) to entry }
     }
 
@@ -66,6 +67,17 @@ class DshCommandOutbox private constructor(private val store: DshOutboxStore, ch
         it.copy(state = PromptDeliveryState.PENDING)
     }
 
+    /** Only a proven-unsent payload can change. Replace its identity to fence a racing send. */
+    suspend fun editPendingText(requestId: String, route: DshCommandRoute, text: String): PromptOutboxEntry? = change { entries ->
+        val entry = entries.firstOrNull { it.requestId == requestId && it.route == route && it.canEdit }
+        if (entry == null || entry.text == text) entries to entry
+        else {
+            val revised = entry.copy(requestId = UUID.randomUUID().toString(), text = text)
+            entries.map { if (it === entry) revised else it } to revised
+        }
+    }
+
+        check(it.canEdit) { "prompt already attempted" }
     suspend fun markSending(requestId: String, route: DshCommandRoute): PromptOutboxEntry? = update(requestId, route) {
         check(it.state == PromptDeliveryState.PENDING) { "explicit retry required" }
         it.copy(state = PromptDeliveryState.SENDING)
@@ -81,7 +93,9 @@ class DshCommandOutbox private constructor(private val store: DshOutboxStore, ch
     }
 
     suspend fun settle(requestId: String, route: DshCommandRoute): PromptOutboxEntry? = remove { it.requestId == requestId && it.route == route }.firstOrNull()
-    suspend fun abandon(requestId: String): PromptOutboxEntry? = remove { it.requestId == requestId }.firstOrNull()
+    suspend fun abandon(requestId: String, route: DshCommandRoute? = null): PromptOutboxEntry? = remove {
+        it.requestId == requestId && (route == null || it.route == route) && it.state != PromptDeliveryState.SENDING
+    }.firstOrNull()
     suspend fun clearOwner(ownerId: String): List<PromptOutboxEntry> = remove { it.route.ownerId == ownerId }
     suspend fun clearHost(ownerId: String, hostId: String): List<PromptOutboxEntry> = remove { it.route.ownerId == ownerId && it.route.hostId == hostId }
     suspend fun revokeRuntime(ownerId: String, hostId: String, runtimeId: String): List<PromptOutboxEntry> = remove {

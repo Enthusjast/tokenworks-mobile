@@ -56,7 +56,8 @@ class NativeImagePromptOutboxTest {
             assertEquals(PromptDeliveryState.OUTCOME_UNKNOWN, recovered.pending(prepared.route).single().state)
             assertTrue(transport.prompts.tryReceive().isFailure)
             val retry = recovered.retry(prepared.requestId, prepared.route)!!
-            assertEquals(prepared, retry)
+            assertEquals(prepared.copy(neverAttempted = false), retry)
+            assertFalse(retry.canEdit)
             recovered.markSending(retry.requestId, retry.route)
             reader.prompt(retry.text, retry.requestId, retry.mode, retry.receipts, retry.images)
             val second = withTimeout(5000) { transport.prompts.receive() }
