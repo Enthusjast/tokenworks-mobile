@@ -22,7 +22,6 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedCard
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
@@ -104,10 +103,14 @@ internal fun AppearanceSettingsContent(
                             AppearancePersistence.WRITE_ERROR -> R.string.appearance_write_error
                         }
                         val failed = state.persistence == AppearancePersistence.READ_ERROR || state.persistence == AppearancePersistence.WRITE_ERROR
-                        Text(
+                        if (failed) TokenWorksStatusNotice(
+                            stringResource(status),
+                            modifier = Modifier.testTag("appearance-persistence").semantics { liveRegion = LiveRegionMode.Polite },
+                            tone = TokenWorksNoticeTone.ERROR,
+                        ) else Text(
                             stringResource(status),
                             style = MaterialTheme.typography.bodySmall,
-                            color = if (failed) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.testTag("appearance-persistence").semantics { liveRegion = LiveRegionMode.Polite },
                         )
                         if (state.persistence == AppearancePersistence.LOADING || state.persistence == AppearancePersistence.SAVING) {
@@ -222,10 +225,10 @@ private fun AppearanceChatPreview(preferences: AppearancePreferences) {
     Text(stringResource(R.string.workspace_appearance_chat_preview), style = MaterialTheme.typography.titleMedium,
         modifier = Modifier.semantics { heading() })
     TokenWorksTheme(darkTheme = dark) {
-        Surface(color = MaterialTheme.colorScheme.background, shape = MaterialTheme.shapes.medium) {
+        Surface(color = MaterialTheme.colorScheme.background, shape = tokenWorksSquircle(TokenWorksRadius.lg)) {
             Column(Modifier.fillMaxWidth().padding(TokenWorksSpacing.lg), verticalArrangement = Arrangement.spacedBy(TokenWorksSpacing.lg)) {
                 Surface(Modifier.align(Alignment.End).widthIn(max = 280.dp),
-                    color = MaterialTheme.colorScheme.primaryContainer, shape = MaterialTheme.shapes.large) {
+                    color = MaterialTheme.colorScheme.primaryContainer, shape = tokenWorksSquircle(TokenWorksRadius.lg)) {
                     val style = MaterialTheme.typography.bodyLarge
                     Text(stringResource(R.string.workspace_appearance_sample_user), Modifier.padding(TokenWorksSpacing.md),
                         color = MaterialTheme.colorScheme.onPrimaryContainer,
@@ -236,7 +239,7 @@ private fun AppearanceChatPreview(preferences: AppearancePreferences) {
                 Text(stringResource(R.string.appearance_body_preview),
                     style = body.copy(fontSize = body.fontSize * preferences.bodyScale, lineHeight = body.lineHeight * preferences.bodyScale),
                     modifier = Modifier.fillMaxWidth().testTag("appearance-body-preview"))
-                Surface(color = MaterialTheme.colorScheme.surfaceContainerLow, shape = MaterialTheme.shapes.small) {
+                Surface(color = MaterialTheme.colorScheme.surfaceContainerLow, shape = tokenWorksSquircle(TokenWorksRadius.md)) {
                     Box(Modifier.fillMaxWidth().padding(TokenWorksSpacing.md)) {
                         val code = MaterialTheme.typography.bodyMedium
                         Text(stringResource(R.string.appearance_code_preview), fontFamily = FontFamily.Monospace,

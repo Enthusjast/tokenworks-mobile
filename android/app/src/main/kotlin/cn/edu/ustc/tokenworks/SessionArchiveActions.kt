@@ -7,6 +7,8 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 
 @Composable
@@ -16,14 +18,18 @@ internal fun SessionArchiveActions(archived: Boolean, epoch: String?, enabled: B
     LaunchedEffect(enabled, authority) {
         if (!enabled || !authority) { confirm = false; stopActivity = false }
     }
-    OutlinedCard(Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            Text(if (archived) "已归档，仍可读取历史" else "会话归档", style = MaterialTheme.typography.titleMedium)
-            Text(if (archived) "恢复后可继续对话。归档状态与电脑端共用。" else "保留历史和工作区位置；有活动的会话默认拒绝归档。", style = MaterialTheme.typography.bodySmall)
-            if (authority) OutlinedButton({ stopActivity = false; confirm = true }, enabled = enabled && epoch != null, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)) {
+    Surface(Modifier.fillMaxWidth(), shape = tokenWorksSquircle(TokenWorksRadius.lg),
+        color = MaterialTheme.colorScheme.surfaceContainerLow) {
+        Column(Modifier.padding(TokenWorksSpacing.lg), verticalArrangement = Arrangement.spacedBy(TokenWorksSpacing.md)) {
+            Text(if (archived) "已归档，仍可读取历史" else "会话归档", style = MaterialTheme.typography.titleMedium,
+                modifier = Modifier.semantics { heading() })
+            Text(if (archived) "恢复后可继续对话。归档状态与电脑端共用。" else "保留历史和工作区位置；有活动的会话默认拒绝归档。",
+                style = MaterialTheme.typography.bodySmall, color = tokenWorksSurfaces().textTertiary)
+            if (authority) OutlinedButton({ stopActivity = false; confirm = true }, enabled = enabled && epoch != null,
+                modifier = Modifier.fillMaxWidth().heightIn(min = TokenWorksSpacing.minimumTouchTarget)) {
                 Text(if (archived) "恢复会话" else "归档会话")
             }
-            TextButton(onRefresh, modifier = Modifier.heightIn(min = 48.dp)) { Text("刷新会话状态") }
+            TextButton(onRefresh, modifier = Modifier.heightIn(min = TokenWorksSpacing.minimumTouchTarget)) { Text("刷新会话状态") }
         }
     }
     if (confirm && enabled && authority && epoch != null) AlertDialog(onDismissRequest = { confirm = false }, title = { Text(if (archived) "恢复此会话？" else "归档此会话？") },

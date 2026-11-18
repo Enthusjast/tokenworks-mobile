@@ -59,9 +59,11 @@ fun HostManagementScreen(
             if (state.hosts.isEmpty()) item { TokenWorksEmptyState(title = "没有可用的授权电脑。") }
             state.hosts.forEach { group ->
                 item(key = "host:${group.hostId}") {
-                    OutlinedCard(Modifier.fillMaxWidth()) { Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Text(group.alias, style = MaterialTheme.typography.titleMedium)
-                        Text("电脑身份：${group.hostId}", style = MaterialTheme.typography.bodySmall)
+                    Surface(Modifier.fillMaxWidth(), shape = tokenWorksSquircle(TokenWorksRadius.lg),
+                        color = MaterialTheme.colorScheme.surfaceContainerLow) {
+                        Column(Modifier.padding(TokenWorksSpacing.lg), verticalArrangement = Arrangement.spacedBy(TokenWorksSpacing.sm)) {
+                        Text(group.alias, style = MaterialTheme.typography.titleMedium, modifier = Modifier.semantics { heading() })
+                        Text("电脑身份：${group.hostId}", style = MaterialTheme.typography.bodySmall, color = tokenWorksSurfaces().textTertiary)
                         group.runtimes.forEach { row ->
                             Text("运行配置：${row.identity.runtimeId}")
                             Text("安装身份：${row.identity.installationId ?: "服务端未提供，禁止合并路径"}", style = MaterialTheme.typography.bodySmall)
@@ -95,7 +97,7 @@ fun HostManagementScreen(
                 }
             }
             if (state.relayManagementAvailable) {
-                item { Text("账号设备", style = MaterialTheme.typography.titleLarge) }
+                item { Text("账号设备", style = MaterialTheme.typography.titleLarge, modifier = Modifier.semantics { heading() }) }
                 state.devices.forEach { device -> item(key = "device:${device.id}") {
                     ManagementRecord("${device.name}${if (device.current) "（当前手机）" else ""}", device.id, device.state,
                         !state.busy && !state.mutationUnknown && device.state == "active", { onRevoke(ManagementTarget.Device(device.id)) })
