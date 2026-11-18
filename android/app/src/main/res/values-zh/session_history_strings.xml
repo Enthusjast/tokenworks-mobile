@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="session_history_snapshot">会话快照</string>
+    <string name="session_history_empty">没有已记录的事件。</string>
+    <string name="session_history_event_range">事件 #0–#%1$d（不含未提交的实时内容或附件文件）。</string>
+    <string name="session_history_role_user">用户</string>
+    <string name="session_history_role_assistant">助手</string>
+    <string name="session_history_role_tool">工具</string>
+    <string name="session_history_role_event">事件</string>
+</resources>

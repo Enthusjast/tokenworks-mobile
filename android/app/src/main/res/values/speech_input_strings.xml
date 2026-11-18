@@ -1,0 +1,29 @@
+<resources>
+    <string name="speech_input_title">Speech to text</string>
+    <string name="speech_input_privacy">Recognized text only goes into your draft and is never sent automatically. The app does not save, upload, or forward audio. The microphone turns on only after you start recognition.</string>
+    <string name="speech_input_on_device_notice">Speech recognition runs on this device and will not automatically switch to an online service.</string>
+    <string name="speech_input_system_notice">On-device speech recognition is unavailable. The system speech service may send audio to its provider for online processing. Preferring offline recognition does not guarantee it, and the app does not control this.</string>
+    <string name="speech_input_system_consent">Allow the system speech service this time</string>
+    <string name="speech_input_system_unavailable">No system speech service is available. You can still type.</string>
+    <string name="speech_input_finishing">Waiting for the result… Leaving the app cancels recognition immediately.</string>
+    <string name="speech_input_listening">Listening… Leaving the app cancels recognition immediately.</string>
+    <string name="speech_input_awaiting_permission">Waiting for the microphone permission request. Recognition will not start if you close this dialog or leave the app.</string>
+    <string name="speech_input_text_label">Recognized text (editable)</string>
+    <string name="speech_input_stop">Stop listening</string>
+    <string name="speech_input_start">Start recognition</string>
+    <string name="speech_input_clear">Clear</string>
+    <string name="speech_input_insert">Insert into draft</string>
+    <string name="speech_input_cancel">Cancel</string>
+    <string name="speech_input_error_permission_request">Could not request microphone permission. Recognition did not start.</string>
+    <string name="speech_input_error_permission_denied">Microphone permission was not granted. Recognition did not start. You can manage permissions in system settings.</string>
+    <string name="speech_input_error_system_consent">On-device speech recognition is unavailable. You must explicitly allow the system speech service for this attempt.</string>
+    <string name="speech_input_error_unavailable">No speech recognition service is available. You can still type.</string>
+    <string name="speech_input_error_permission_required">Microphone permission is required. You can revoke it in system settings.</string>
+    <string name="speech_input_error_no_match">No text was recognized. You can start again.</string>
+    <string name="speech_input_error_network">The speech service network is unavailable. Nothing was sent to the session.</string>
+    <string name="speech_input_error_busy">The speech service is busy. Try again later.</string>
+    <string name="speech_input_error_recognition">Speech recognition failed (error %1$d). Nothing was sent to the session.</string>
+    <string name="speech_input_error_start">Could not start the speech service. Check microphone permissions and system services.</string>
+    <string name="speech_input_error_stop">Could not stop recognition. The microphone has been released. You can start again.</string>
+    <string name="speech_input_error_text_limit">The text was too long and was safely shortened to at most %1$d characters.</string>
+</resources>

@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="session_history_snapshot">Session snapshot</string>
+    <string name="session_history_empty">No events have been recorded.</string>
+    <string name="session_history_event_range">Events #0–#%1$d (excluding uncommitted live content and attachment files).</string>
+    <string name="session_history_role_user">User</string>
+    <string name="session_history_role_assistant">Assistant</string>
+    <string name="session_history_role_tool">Tool</string>
+    <string name="session_history_role_event">Event</string>
+</resources>

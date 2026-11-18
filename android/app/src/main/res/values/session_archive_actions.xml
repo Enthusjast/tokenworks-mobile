@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="session_archive_archived_title">Archived · History is still readable</string>
+    <string name="session_archive_title">Session archive</string>
+    <string name="session_archive_archived_description">Restore the session to continue the conversation. Archive status is shared with the computer.</string>
+    <string name="session_archive_description">Archiving keeps the session history and workspace location. By default, archiving is refused while the session has activity in progress.</string>
+    <string name="session_archive_refresh">Refresh session status</string>
+    <string name="session_archive_restore_prompt">Restore this session?</string>
+    <string name="session_archive_prompt">Archive this session?</string>
+    <string name="session_archive_restore_detail">This restores the same session and keeps its history. Existing commands are not resent.</string>
+    <string name="session_archive_detail">After archiving, you must restore the session before sending more messages.</string>
+    <string name="session_archive_request_stop">Also request to stop current activity</string>
+    <string name="session_archive_stop_detail">Archive confirmation only means the archive status was saved. If you requested a stop, it may still be in progress. External actions that already occurred are not undone.</string>
+    <string name="session_archive_confirm_restore">Confirm restore</string>
+    <string name="session_archive_confirm">Confirm archive</string>
+</resources>

@@ -1,4 +1,4 @@
 <resources>
-    <string name="onboarding_source_open">查看登录来源与账号</string>
-    <string name="onboarding_source_close">收起登录来源与账号</string>
+    <string name="onboarding_source_open">Show sign-in source and account</string>
+    <string name="onboarding_source_close">Hide sign-in source and account</string>
 </resources>
