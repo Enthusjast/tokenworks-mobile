@@ -56,7 +56,7 @@ class WorkspaceLayoutTest {
         }
     }
 
-    @Test fun expandedColumnsMatchTheReferenceRules() {
+    @Test fun expandedColumnsAdaptToAvailableChatWidth() {
         data class Case(
             val width: Int, val session: Boolean, val panel: Boolean, val expanded: Boolean,
             val pane: WorkspaceLeftPane, val navigation: Int, val panelWidth: Int, val shown: Boolean,
@@ -64,7 +64,7 @@ class WorkspaceLayoutTest {
         val cases = listOf(
             // 840 keeps the panel at its 360 dp floor while chat still holds 412 dp.
             Case(840, true, true, true, WorkspaceLeftPane.RAIL, 68, 360, true),
-            Case(840, true, false, true, WorkspaceLeftPane.RAIL, 68, 360, false),
+            Case(840, true, false, true, WorkspaceLeftPane.SIDEBAR, 320, 360, false),
             Case(960, true, false, true, WorkspaceLeftPane.SIDEBAR, 320, 360, false),
             Case(960, true, true, true, WorkspaceLeftPane.RAIL, 68, 360, true),
             Case(1119, true, false, true, WorkspaceLeftPane.SIDEBAR, 320, 360, false),
@@ -107,13 +107,14 @@ class WorkspaceLayoutTest {
         }
     }
 
-    @Test fun sidebarOnlyUnfoldsWhenChatKeepsSixHundred() {
+    @Test fun sidebarPreservesReadableChatWhenAThirdPaneAppears() {
         for (width in 840..1600 step 8) {
             for (panel in listOf(false, true)) {
                 val layout = workspaceLayout(WorkspaceViewport(width, 960), true, panel, true)
                 if (layout.leftPane != WorkspaceLeftPane.SIDEBAR) continue
                 val chat = width.dp - layout.navigationWidth - (if (layout.panelShown) layout.panelWidth else 0.dp)
-                assertTrue("width=$width panel=$panel chat=$chat", chat >= 600.dp)
+                val required = if (layout.panelShown) 600.dp else 400.dp
+                assertTrue("width=$width panel=$panel chat=$chat", chat >= required)
             }
         }
     }

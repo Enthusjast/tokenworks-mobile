@@ -1,0 +1,62 @@
+<resources xmlns:tools="http://schemas.android.com/tools" tools:locale="en">
+    <string name="chat_audit_attach">Attach a file</string>
+    <string name="chat_audit_voice">Dictate a message</string>
+    <string name="chat_audit_shortcuts">Prompt shortcuts</string>
+    <string name="chat_audit_slash">/ Skills</string>
+    <string name="chat_audit_mention">\@ Files</string>
+    <string name="chat_audit_draft_memory">Draft kept in memory while the app is in use, not saved to disk</string>
+    <string name="chat_audit_selected_model">Model: %1$s</string>
+    <string name="chat_audit_select_text">Select text</string>
+    <string name="chat_audit_quote_code">Quote code</string>
+    <plurals name="chat_audit_new_messages">
+        <item quantity="one">%d new message</item>
+        <item quantity="other">%d new messages</item>
+    </plurals>
+    <string name="chat_audit_workspace">Workspace: %1$s</string>
+    <string name="chat_audit_tokens">%1$s input · %2$s output tokens</string>
+    <string name="chat_audit_cache_tokens">%1$s cache read · %2$s cache write tokens</string>
+    <string name="chat_audit_usage_total">%1$s session tokens</string>
+    <string name="chat_audit_estimated_cost">Estimated cost: %1$s</string>
+    <string name="chat_audit_partial_cost">Known usage cost: %1$s</string>
+    <string name="chat_audit_cost_unavailable">Cost unavailable</string>
+    <plurals name="chat_audit_pending">
+        <item quantity="one">%d local pending send</item>
+        <item quantity="other">%d local pending sends</item>
+    </plurals>
+    <plurals name="chat_audit_attachment_count">
+        <item quantity="one">%d file attached</item>
+        <item quantity="other">%d files attached</item>
+    </plurals>
+    <string name="chat_audit_queue">Send history</string>
+    <string name="chat_audit_queue_explanation">Send outcome unknown? Retry or remove the local record. Requests are not retried automatically.</string>
+    <string name="chat_audit_queue_empty">No local pending sends.</string>
+    <string name="chat_audit_edit_pending">Edit unsent text</string>
+    <string name="chat_audit_remove_pending">Remove the local record? This does not cancel anything on the host.</string>
+    <string name="chat_audit_save">Save</string>
+    <string name="chat_audit_replay">Replay conversation</string>
+    <string name="chat_audit_replay_partial">Only loaded, saved messages are included. Earlier history or messages still in progress may be missing.</string>
+    <string name="chat_audit_replay_position">Message %1$d of %2$d</string>
+    <string name="chat_audit_previous">Previous</string>
+    <string name="chat_audit_next">Next</string>
+    <string name="chat_audit_play">Play</string>
+    <string name="chat_audit_pause">Pause</string>
+    <string name="chat_audit_restart">Restart</string>
+    <string name="chat_audit_export_pdf">Export conversation as PDF</string>
+    <string name="chat_audit_export_partial">Only loaded, saved messages will be exported. Load older history first if needed.</string>
+    <string name="chat_audit_export_progress">Saving PDF…</string>
+    <string name="chat_audit_export_success">PDF saved.</string>
+    <string name="chat_audit_export_failed">Could not save the PDF.</string>
+    <string name="chat_audit_export_filename">conversation.pdf</string>
+    <string name="chat_audit_image">Image</string>
+    <string name="chat_audit_media_dimensions">%1$s · %2$d × %3$d · %4$d bytes</string>
+    <string name="chat_audit_text_size_rejected">The draft would be too long to add this text.</string>
+    <string name="chat_audit_cached_notice">Cached history · Read-only until the connection is restored</string>
+    <string name="chat_audit_terminal">Remote terminal</string>
+    <string name="chat_audit_files">Files and attachments</string>
+    <string name="chat_audit_rejected_phone">Declined on phone</string>
+    <string name="chat_home_lan_entry">Connect only to paired LAN hosts</string>
+    <string name="chat_home_lan_entry_detail">This option uses saved LAN pairings on this device. It does not use unverified relay-account access.</string>
+    <string name="chat_home_lan_pending_authorization">LAN pairing is not confirmed. Open Pairing to save, reconcile, or revoke it. Removing the local record does not revoke host access.</string>
+    <string name="chat_home_lan_removed_with_account">Account access expired and local keys were cleared. LAN pairing is not confirmed; check and revoke it in the host settings.</string>
+    <string name="chat_home_transport_changed">The connection path changed. Requests on the old path are not retried automatically. Check the current conversation before continuing.</string>
+</resources>

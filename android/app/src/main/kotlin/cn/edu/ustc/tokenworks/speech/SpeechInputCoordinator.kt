@@ -7,6 +7,7 @@ import android.os.Bundle
 import android.speech.RecognitionListener
 import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
+import androidx.annotation.StringRes
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -17,8 +18,25 @@ internal data class SpeechInputState(
     val finishing: Boolean = false,
     val awaitingPermission: Boolean = false,
     val text: String = "",
-    val error: String? = null,
+    val error: SpeechInputError? = null,
 )
+
+internal sealed interface SpeechInputError {
+    enum class Message(@StringRes val resourceId: Int) : SpeechInputError {
+        PermissionRequest(R.string.speech_input_error_permission_request),
+        PermissionDenied(R.string.speech_input_error_permission_denied),
+        SystemConsent(R.string.speech_input_error_system_consent),
+        Unavailable(R.string.speech_input_error_unavailable),
+        PermissionRequired(R.string.speech_input_error_permission_required),
+        NoMatch(R.string.speech_input_error_no_match),
+        Network(R.string.speech_input_error_network),
+        Busy(R.string.speech_input_error_busy),
+        Start(R.string.speech_input_error_start),
+        Stop(R.string.speech_input_error_stop),
+    }
+
+    data class Formatted(@StringRes val resourceId: Int, val argument: Int) : SpeechInputError
+}
 
 /** The Android recognizer is the only platform boundary; no audio leaves this component via app code. */
 internal interface SpeechRecognitionPlatform {
@@ -104,7 +122,7 @@ internal class SpeechInputCoordinator(private val platform: SpeechRecognitionPla
             if (!permissionInFlight) return
             permissionInFlight = false
             pendingSystemConsent = null
-            mutable.value = mutable.value.copy(awaitingPermission = false, error = "无法请求麦克风权限；没有开始识别。")
+            mutable.value = mutable.value.copy(awaitingPermission = false, error = SpeechInputError.Message.PermissionRequest)
         }
     }
 
@@ -123,14 +141,14 @@ internal class SpeechInputCoordinator(private val platform: SpeechRecognitionPla
                 grantedSystemConsent = consent
                 mutable.value = mutable.value.copy(awaitingPermission = true)
             }
-        } else mutable.value = mutable.value.copy(error = "麦克风权限未获准。没有开始识别；可在系统设置中管理权限。")
+        } else mutable.value = mutable.value.copy(error = SpeechInputError.Message.PermissionDenied)
     }
 
     private fun canUseProvider(allowSystemProvider: Boolean): Boolean {
         if (onDeviceAvailable || (allowSystemProvider && systemAvailable)) return true
         mutable.value = mutable.value.copy(error = if (systemAvailable)
-            "此设备没有可用的本机识别服务。使用系统语音服务前需要本次明确同意。"
-        else "没有可用的语音识别服务；仍可使用键盘输入。")
+            SpeechInputError.Message.SystemConsent
+        else SpeechInputError.Message.Unavailable)
         return false
     }
 
@@ -154,11 +172,11 @@ internal class SpeechInputCoordinator(private val platform: SpeechRecognitionPla
                 override fun onError(error: Int) {
                     if (!live()) return
                     mutable.value = mutable.value.copy(listening = false, finishing = false, error = when (error) {
-                        SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS -> "需要麦克风权限；可在系统设置中撤销。"
-                        SpeechRecognizer.ERROR_NO_MATCH, SpeechRecognizer.ERROR_SPEECH_TIMEOUT -> "没有识别到文字，可重新开始。"
-                        SpeechRecognizer.ERROR_NETWORK, SpeechRecognizer.ERROR_NETWORK_TIMEOUT -> "语音服务网络不可用；未向会话发送任何内容。"
-                        SpeechRecognizer.ERROR_RECOGNIZER_BUSY -> "语音服务正在使用中，请稍后重试。"
-                        else -> "语音识别失败（$error）；未向会话发送任何内容。"
+                        SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS -> SpeechInputError.Message.PermissionRequired
+                        SpeechRecognizer.ERROR_NO_MATCH, SpeechRecognizer.ERROR_SPEECH_TIMEOUT -> SpeechInputError.Message.NoMatch
+                        SpeechRecognizer.ERROR_NETWORK, SpeechRecognizer.ERROR_NETWORK_TIMEOUT -> SpeechInputError.Message.Network
+                        SpeechRecognizer.ERROR_RECOGNIZER_BUSY -> SpeechInputError.Message.Busy
+                        else -> SpeechInputError.Formatted(R.string.speech_input_error_recognition, error)
                     })
                     retire()
                 }
@@ -187,7 +205,7 @@ internal class SpeechInputCoordinator(private val platform: SpeechRecognitionPla
             if (closed || generation != id) return
             retire()
             mutable.value = mutable.value.copy(listening = false, finishing = false,
-                error = "无法启动语音服务；请检查麦克风权限和系统服务。")
+                error = SpeechInputError.Message.Start)
         }
     }
 
@@ -201,7 +219,7 @@ internal class SpeechInputCoordinator(private val platform: SpeechRecognitionPla
         } catch (_: Exception) {
             if (closed || generation != id) return
             retire()
-            mutable.value = mutable.value.copy(listening = false, finishing = false, error = "无法结束识别；已释放麦克风，可重新开始。")
+            mutable.value = mutable.value.copy(listening = false, finishing = false, error = SpeechInputError.Message.Stop)
         }
     }
 
@@ -247,8 +265,10 @@ private const val MAX_SPEECH_TEXT_LENGTH = 32_768
 private fun Bundle?.recognizedText(): String =
     this?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)?.firstOrNull().orEmpty()
 
-private fun textLimitError(text: String): String? =
-    if (text.length > MAX_SPEECH_TEXT_LENGTH) "文字过长，已安全截断至 32768 字符以内。" else null
+private val speechTextLimitError = SpeechInputError.Formatted(R.string.speech_input_error_text_limit, MAX_SPEECH_TEXT_LENGTH)
+
+private fun textLimitError(text: String): SpeechInputError? =
+    if (text.length > MAX_SPEECH_TEXT_LENGTH) speechTextLimitError else null
 
 private fun boundedSpeechText(text: String): String {
     if (text.length <= MAX_SPEECH_TEXT_LENGTH) return text

@@ -2,59 +2,98 @@ package cn.edu.ustc.tokenworks
 
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
-import android.graphics.Color
-import android.graphics.pdf.PdfRenderer
-import android.os.ParcelFileDescriptor
+import android.content.Context
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.selection.SelectionContainer
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
-/** Native-only rendering: no WebView, JavaScript, external URI, or filename-based decoder. */
+/** No HTML, WebView, external URI, or filename-based decoder. Render one bounded page at a time. */
 @Composable
 fun FilePreviewScreen(file: StagedFile, modifier: Modifier = Modifier) {
-    val resource = remember(file) { PreviewBitmap() }
-    var bitmap by remember(file) { mutableStateOf<Bitmap?>(null) }
-    var text by remember(file) { mutableStateOf<String?>(null) }
-    var error by remember(file) { mutableStateOf<String?>(null) }
-    var loading by remember(file) { mutableStateOf(true) }
+    val context = LocalContext.current.applicationContext
+    var page by remember(file) { mutableIntStateOf(0) }
+    var pages by remember(file) { mutableIntStateOf(0) }
+    var truncated by remember(file) { mutableStateOf(false) }
+    val resource = remember(file, page) { PreviewBitmap() }
+    var bitmap by remember(resource) { mutableStateOf<Bitmap?>(null) }
+    var text by remember(resource) { mutableStateOf<String?>(null) }
+    var status by remember(resource) { mutableStateOf<Int?>(null) }
+    var loading by remember(resource) { mutableStateOf(true) }
     DisposableEffect(resource) { onDispose { resource.close() } }
-    LaunchedEffect(file) {
+    LaunchedEffect(resource) {
         try {
-            withContext(Dispatchers.IO) {
-                when {
-                    file.mediaType in FilePreview.IMAGE_TYPES -> resource.decodeImage(file)
-                    file.mediaType == "application/pdf" -> resource.decodePdf(file)
-                    FilePreview.previewable(file.mediaType) -> Unit
+            val result = withContext(Dispatchers.IO) {
+                previewDecoder.withLock {
+                    when {
+                        file.sizeBytes > FilePreview.MAX_PREVIEW_BYTES -> PreviewInfo(status = R.string.files_audit_large_preview)
+                        file.mediaType in FilePreview.IMAGE_TYPES -> {
+                            resource.decodeImage(file)
+                            PreviewInfo()
+                        }
+                        file.mediaType == "application/pdf" -> resource.decodePdf(context, file, page)
+                        FilePreview.previewable(file.mediaType) -> {
+                            val plain = FilePreview.decodeText(file.file) ?: error("Invalid preview text")
+                            val end = if (plain.getOrNull(MAX_DISPLAY_TEXT - 1)?.isHighSurrogate() == true) MAX_DISPLAY_TEXT - 1 else MAX_DISPLAY_TEXT
+                            PreviewInfo(text = plain.take(end), status = R.string.files_audit_text_truncated.takeIf { plain.length > end })
+                        }
+                        else -> PreviewInfo(status = R.string.files_audit_unsupported_preview)
+                    }
                 }
             }
+            status = result.status
+            text = result.text
+            pages = result.pages
+            truncated = result.truncated
             bitmap = resource.get()
-            if (file.mediaType !in FilePreview.IMAGE_TYPES && file.mediaType != "application/pdf" && FilePreview.previewable(file.mediaType)) {
-                text = withContext(Dispatchers.IO) { FilePreview.decodeText(file.file) }
-                if (text == null) error = "文本过大或编码不受支持，请保存后查看。"
-            }
-        } catch (cancelled: CancellationException) { resource.close(); throw cancelled
-        } catch (_: Exception) { error = "无法安全预览此文件，仍可保存原文件。"
-        } finally { loading = false }
+        } catch (cancelled: CancellationException) { throw cancelled }
+        catch (_: Exception) { status = R.string.files_audit_preview_failed }
+        finally { loading = false }
     }
-    Column(modifier.fillMaxWidth().verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        if (loading) { CircularProgressIndicator(); Text("正在生成安全预览…") }
-        error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
-        bitmap?.let { Image(it.asImageBitmap(), contentDescription = "文件预览：${file.name}", modifier = Modifier.fillMaxWidth().heightIn(max = 560.dp)) }
-        if (file.mediaType == "application/pdf" && bitmap != null) Text("PDF 第 1 页 · 预览已限制分辨率，保存可查看完整文件。", style = MaterialTheme.typography.bodySmall)
+    Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(TokenWorksSpacing.sm)) {
+        if (loading) {
+            LinearProgressIndicator(Modifier.fillMaxWidth())
+            Text(stringResource(R.string.files_audit_rendering))
+        }
+        if (pages > 1) {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                TextButton({ page-- }, enabled = !loading && page > 0, modifier = Modifier.weight(1f).heightIn(min = TokenWorksSpacing.minimumTouchTarget)) {
+                    Text(stringResource(R.string.files_audit_previous_page))
+                }
+                TextButton({ page++ }, enabled = !loading && page + 1 < pages, modifier = Modifier.weight(1f).heightIn(min = TokenWorksSpacing.minimumTouchTarget)) {
+                    Text(stringResource(R.string.files_audit_next_page))
+                }
+            }
+        }
+        if (pages > 0) Text(stringResource(R.string.files_audit_pdf_position, page + 1, pages), style = MaterialTheme.typography.labelLarge)
+        if (truncated) Text(stringResource(R.string.files_audit_pdf_truncated, pages), style = MaterialTheme.typography.bodySmall)
+        status?.let { Text(stringResource(it), style = MaterialTheme.typography.bodyMedium) }
+        bitmap?.let {
+            val description = if (pages > 0) stringResource(R.string.files_audit_pdf_description, file.name, page + 1)
+                else stringResource(R.string.files_audit_image_description, file.name)
+            Image(it.asImageBitmap(), contentDescription = description, modifier = Modifier.fillMaxWidth().heightIn(max = 560.dp))
+        }
         text?.let { SelectionContainer { Text(it, style = MaterialTheme.typography.bodyMedium) } }
-        if (!loading && !FilePreview.previewable(file.mediaType)) Text("此类型不在应用内执行或预览。请保存到你选择的位置。")
     }
 }
+
+private const val MAX_DISPLAY_TEXT = 32_768
+private val previewDecoder = Mutex()
+private data class PreviewInfo(val text: String? = null, val status: Int? = null, val pages: Int = 0, val truncated: Boolean = false)
 
 /** Caps decoded pixel memory independently of the encoded 20 MiB limit. */
 private class PreviewBitmap : AutoCloseable {
@@ -66,30 +105,20 @@ private class PreviewBitmap : AutoCloseable {
         val options = BitmapFactory.Options().apply { inJustDecodeBounds = true }
         BitmapFactory.decodeFile(file.file.path, options)
         val width = options.outWidth; val height = options.outHeight
-        require(width > 0 && height > 0 && width.toLong() * height <= 100_000_000L)
+        require(width in 1..32_768 && height in 1..32_768 && width.toLong() * height <= 100_000_000L)
         var sample = 1
-        while ((width.toLong() / sample) * (height.toLong() / sample) > 2_000_000L) sample *= 2
+        while (((width.toLong() + sample - 1) / sample) * ((height.toLong() + sample - 1) / sample) > 2_000_000L ||
+            (maxOf(width, height) + sample - 1) / sample > 2048) sample *= 2
         options.inJustDecodeBounds = false; options.inSampleSize = sample; options.inPreferredConfig = Bitmap.Config.ARGB_8888
         val result = BitmapFactory.decodeFile(file.file.path, options) ?: error("image.invalid")
         if (result.allocationByteCount > 8_000_000) { result.recycle(); error("image.budget") }
         publish(result)
     }
-    fun decodePdf(file: StagedFile) {
-        ParcelFileDescriptor.open(file.file, ParcelFileDescriptor.MODE_READ_ONLY).use { descriptor ->
-            PdfRenderer(descriptor).use { pdf ->
-                require(pdf.pageCount > 0)
-                pdf.openPage(0).use { page ->
-                    require(page.width > 0 && page.height > 0)
-                    val scale = minOf(1.0, 1400.0 / maxOf(page.width, page.height))
-                    val width = maxOf(1, (page.width * scale).toInt()); val height = maxOf(1, (page.height * scale).toInt())
-                    require(width.toLong() * height <= 2_000_000L)
-                    val result = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
-                    try { result.eraseColor(Color.WHITE); page.render(result, null, null, PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY)
-                        publish(result)
-                    } catch (error: Throwable) { result.recycle(); throw error }
-                }
-            }
-        }
+    suspend fun decodePdf(context: Context, file: StagedFile, index: Int): PreviewInfo {
+        val page = renderPdfPreviewPage(context, file.file, index)
+        publish(page.bitmap)
+        currentCoroutineContext().ensureActive()
+        return PreviewInfo(pages = page.pages, truncated = page.truncated)
     }
     @Synchronized override fun close() { closed = true; bitmap?.recycle(); bitmap = null }
 }

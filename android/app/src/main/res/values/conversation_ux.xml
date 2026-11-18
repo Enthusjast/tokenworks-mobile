@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<resources>
+<resources xmlns:tools="http://schemas.android.com/tools" tools:locale="en">
     <string name="conversation_history_cached">Showing history confirmed saved on this device. Reconnect to check the current task status.</string>
     <string name="conversation_history_cache_error">The local history cache cannot be read or updated right now. You can still read messages online.</string>
     <string name="conversation_history_requires_host">This content is available only when the computer is online.</string>

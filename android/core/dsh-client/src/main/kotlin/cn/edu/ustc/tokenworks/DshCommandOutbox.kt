@@ -67,12 +67,15 @@ class DshCommandOutbox private constructor(private val store: DshOutboxStore, ch
         it.copy(state = PromptDeliveryState.PENDING)
     }
 
-    /** Only a proven-unsent payload can change. Replace its identity to fence a racing send. */
-    suspend fun editPendingText(requestId: String, route: DshCommandRoute, text: String): PromptOutboxEntry? = change { entries ->
+    /** Editing text or mode is allowed only before any attempt. A new ID fences a racing dispatch. */
+    suspend fun editPendingText(requestId: String, route: DshCommandRoute, text: String?, mode: String? = null): PromptOutboxEntry? = change { entries ->
         val entry = entries.firstOrNull { it.requestId == requestId && it.route == route && it.canEdit }
-        if (entry == null || entry.text == text) entries to entry
+        if (entry == null) return@change entries to null
+        val nextText = text ?: entry.text
+        val nextMode = mode ?: entry.mode
+        if (entry.text == nextText && entry.mode == nextMode) entries to entry
         else {
-            val revised = entry.copy(requestId = UUID.randomUUID().toString(), text = text)
+            val revised = entry.copy(requestId = UUID.randomUUID().toString(), text = nextText, mode = nextMode)
             entries.map { if (it === entry) revised else it } to revised
         }
     }

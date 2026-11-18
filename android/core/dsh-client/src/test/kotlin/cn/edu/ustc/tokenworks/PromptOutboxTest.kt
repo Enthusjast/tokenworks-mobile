@@ -49,14 +49,16 @@ class PromptOutboxTest {
         val outbox = open()
         assertTrue(outbox.pending(route).single().canEdit)
         assertNull(outbox.editPendingText(prepared.requestId, route.copy(sessionId = "wrong"), "changed"))
-        val edited = outbox.editPendingText(prepared.requestId, route, "changed")!!
+        val edited = outbox.editPendingText(prepared.requestId, route, "changed", mode = "steer")!!
         assertNotEquals(prepared.requestId, edited.requestId)
         assertEquals(prepared.receipts, edited.receipts)
         assertEquals(prepared.images, edited.images)
         assertEquals("changed", edited.text)
+        assertEquals("steer", edited.mode)
         assertNull(outbox.markSending(prepared.requestId, route))
         assertFalse(outbox.markSending(edited.requestId, route)!!.canEdit)
         assertNull(outbox.editPendingText(edited.requestId, route, "racing change"))
+        assertNull(outbox.editPendingText(edited.requestId, route, null, mode = "queue"))
         assertNull(outbox.abandon(edited.requestId, route))
         outbox.markUnknown(edited.requestId, route)
         assertFalse(outbox.retry(edited.requestId, route)!!.canEdit)

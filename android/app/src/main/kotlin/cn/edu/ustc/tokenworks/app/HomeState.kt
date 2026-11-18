@@ -4,7 +4,7 @@ import android.net.Uri
 
 enum class HomePhase { LOADING, UNCONFIGURED, INVALID_CONFIGURATION, SIGNED_OUT, RECOVERING, RECOVERY_ERROR, REAUTHENTICATE, RENEWING, CLEARING, STARTING, BROWSER, EXCHANGING, ENROLL, PREPARING, AUTHENTICATING, REGISTERING, RECONCILING, REGISTRATION_UNKNOWN, READY }
 class BrowserLaunch(val id: Long, val uri: Uri)
-class BiometricLaunch(val id: Long, val operation: AuthenticatedKeyOperation<*>, val title: String = "确认登记此设备", val subtitle: String = "将这部手机的独立密钥登记到当前账号")
+class BiometricLaunch(val id: Long, val operation: AuthenticatedKeyOperation<*>, val title: String, val subtitle: String)
 class DocumentPickLaunch(val id: String, val purpose: DocumentPickPurpose = DocumentPickPurpose.FILE, val output: Uri? = null)
 class ExportSaveLaunch(val id: String, val name: String) { override fun toString() = "ExportSaveLaunch" }
 enum class ApprovalUiStage { IDLE, PREPARING, AUTHENTICATING, SENDING }
@@ -19,14 +19,17 @@ data class HomeState(
     val sessions: List<SessionDirectoryEntry> = emptyList(), val loadingSessions: Boolean = false, val sessionError: String? = null,
     val reader: SessionReadState? = null,
     val modelCatalog: DshModelCatalog? = null, val modelSelectionOpen: Boolean = false, val modelBusy: Boolean = false, val modelError: String? = null,
+    val modelSelectionRevision: Long = 0,
     val sessionActionError: String? = null, val submitting: Boolean = false,
     val appUpdates: AppUpdateUiState? = null, val appUpdateSettings: Boolean = false,
     val notify: NotifyUiState = NotifyUiState(), val notifySettingsOpen: Boolean = false,
+    val notifyCenter: NotificationCenterState = NotificationCenterState(),
     val backgroundReadOnly: Boolean = false,
     val binding: HostBindingState? = null, val pendingBindingId: String? = null,
     val creation: SessionCreationState? = null,
     val composer: MessageComposerState? = null,
     val interactions: List<PendingInteraction> = emptyList(),
+    val interactionDecisions: List<InteractionDecision> = emptyList(),
     val interactionError: String? = null,
     val terminal: TerminalWatcher? = null,
     val files: FilesCoordinator? = null,

@@ -13,6 +13,8 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.platform.LocalClipboardManager
@@ -48,7 +50,8 @@ private fun safeWebTarget(value: String): Boolean = runCatching {
     uri.scheme?.lowercase() in setOf("http", "https") && !uri.host.isNullOrBlank() && uri.userInfo == null && value.none { it.isISOControl() }
 }.getOrDefault(false)
 
-private data class PreparedMessage(val document: MessageMarkdownDocument, val links: Map<MessageTextRange, String>, val excessLinks: Boolean)
+private data class PreparedMessage(val document: MessageMarkdownDocument, val links: Map<MessageTextRange, String>,
+    val previews: List<FilesPreviewLink>, val excessLinks: Boolean)
 
 /** One formatting generation per continuous append stream, scoped to this composition identity. */
 private class MessageFormattingContinuity(var source: String, var generation: Int = 0) {
@@ -75,7 +78,8 @@ private fun MessageMarkdownDocument.forEachSpan(action: (MessageInline) -> Unit)
 
 /** Presentation only. No HTML, remote resources, automatic launches or generated intents. */
 @Composable
-internal fun RichMessageText(text: String, initial: Int = 16 * 1024, interactive: Boolean = true) {
+internal fun RichMessageText(text: String, initial: Int = 16 * 1024, interactive: Boolean = true,
+    onQuoteCode: ((String) -> Unit)? = null, onPreviewFile: ((FilesPreviewLink) -> Unit)? = null) {
     val continuity = remember { MessageFormattingContinuity(text) }
     continuity.update(text)
     var limit by remember { mutableIntStateOf(initial.coerceAtLeast(1)) }
@@ -88,16 +92,19 @@ internal fun RichMessageText(text: String, initial: Int = 16 * 1024, interactive
         prepared = withContext(Dispatchers.Default) {
             val document = parseMessageMarkdown(text, end)
             val links = linkedMapOf<MessageTextRange, String>()
+            val previews = linkedMapOf<String, FilesPreviewLink>()
             var excess = false
             document.forEachSpan { span -> span.link?.let { range ->
                 if (range !in links && links.size <= 128) {
                     val target = range.text(text)
                     if (safeWebTarget(target)) {
                         if (links.size < 128) links[range] = target else excess = true
+                    } else if (previews.size < 8) {
+                        FilesPreviewLink.parse(target)?.let { previews.putIfAbsent(it.path, it) }
                     }
                 }
             } }
-            PreparedMessage(document, links, excess)
+            PreparedMessage(document, links, previews.values.toList(), excess)
         }
     }
     // An append may retain the single last formatted projection until the new one is ready.
@@ -129,8 +136,14 @@ internal fun RichMessageText(text: String, initial: Int = 16 * 1024, interactive
                     }.padding(start = 12.dp), interactive = interactive, onLink = { requestedLink = it })
                 }
                 is MessageMarkdownBlock.Code -> MessageCode(current.document.source, block,
-                    current.document.visibleEnd < current.document.source.length, text, end, interactive)
+                    current.document.visibleEnd < current.document.source.length, text, end, interactive, onQuoteCode)
                 is MessageMarkdownBlock.Table -> MessageTable(current, block, interactive) { requestedLink = it }
+            }
+        }
+        if (interactive && !raw && current != null && current.document.source == text) {
+            if (onPreviewFile != null) current.previews.forEach { link -> FilesLinkPreviewCard(link, onPreviewFile) }
+            current.links.values.asSequence().distinct().take(3).forEach { target ->
+                WebLinkPreview(target) { requestedLink = target }
             }
         }
         if (current?.excessLinks == true && !raw) Text(stringResource(R.string.chat_link_limit), style = MaterialTheme.typography.bodySmall)
@@ -149,6 +162,22 @@ internal fun RichMessageText(text: String, initial: Int = 16 * 1024, interactive
     }
     if (interactive && linkFailed) AlertDialog(onDismissRequest = { linkFailed = false }, title = { Text(stringResource(R.string.chat_link_failed)) },
         confirmButton = { TextButton({ linkFailed = false }, Modifier.heightIn(min = 48.dp)) { Text(stringResource(R.string.chat_link_cancel)) } })
+}
+
+/** Display only existing link metadata. Never resolve, fetch or open a link during composition. */
+@Composable
+private fun WebLinkPreview(target: String, onOpen: () -> Unit) {
+    val uri = remember(target) { Uri.parse(target) }
+    Surface(onClick = onOpen, modifier = Modifier.fillMaxWidth().heightIn(min = TokenWorksSpacing.minimumTouchTarget),
+        shape = tokenWorksSquircle(TokenWorksRadius.md), color = MaterialTheme.colorScheme.surfaceContainerLow) {
+        Column(Modifier.padding(TokenWorksSpacing.md), verticalArrangement = Arrangement.spacedBy(TokenWorksSpacing.xxs)) {
+            Text(stringResource(R.string.chat_web_link_preview), style = MaterialTheme.typography.labelSmall)
+            Text(uri.host.orEmpty(), style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            uri.encodedPath?.takeIf { it.isNotBlank() && it != "/" }?.let { path ->
+                Text(path, style = MaterialTheme.typography.bodySmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
+        }
+    }
 }
 
 @Composable
@@ -193,11 +222,26 @@ private fun MessageInlineText(message: PreparedMessage, spans: List<MessageInlin
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun MessageCode(source: String, block: MessageMarkdownBlock.Code, truncated: Boolean,
-    latestSource: String, latestEnd: Int, interactive: Boolean) {
+    latestSource: String, latestEnd: Int, interactive: Boolean, onQuoteCode: ((String) -> Unit)?) {
     val clipboard = LocalClipboardManager.current
     val reading = LocalTokenWorksReadingStyle.current
     val surfaces = tokenWorksSurfaces()
     val content = remember(source, block.content) { block.content.text(source) }
+    val language = remember(source, block.language) { block.language?.text(source) }
+    var spans by remember(content, language) { mutableStateOf<List<CodeSpan>>(emptyList()) }
+    LaunchedEffect(content, language) { spans = withContext(Dispatchers.Default) { chatCodeSpans(content, language) } }
+    val styled = remember(content, spans, surfaces.codeWellBackground) {
+        val dark = surfaces.codeWellBackground.luminance() < 0.45f
+        buildAnnotatedString {
+            append(content)
+            for (span in spans) addStyle(SpanStyle(color = when (span.tone) {
+                CodeTone.KEYWORD -> if (dark) Color(0xFFD8B4FE) else Color(0xFF6424A4)
+                CodeTone.STRING -> if (dark) Color(0xFF86EFAC) else Color(0xFF176637)
+                CodeTone.COMMENT -> if (dark) Color(0xFFB7C3D2) else Color(0xFF435366)
+                CodeTone.NUMBER -> if (dark) Color(0xFFFFCA86) else Color(0xFF884500)
+            }), span.start, span.end)
+        }
+    }
     var copied by remember(content) { mutableStateOf(false) }
     var copyFailed by remember(content) { mutableStateOf(false) }
     val currentSource by rememberUpdatedState(latestSource)
@@ -215,7 +259,7 @@ private fun MessageCode(source: String, block: MessageMarkdownBlock.Code, trunca
                     .padding(horizontal = TokenWorksSpacing.md, vertical = TokenWorksSpacing.xs),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Text(block.language?.text(source) ?: stringResource(R.string.chat_code), Modifier.weight(1f),
+                Text(language ?: stringResource(R.string.chat_code), Modifier.weight(1f),
                     style = MaterialTheme.typography.labelSmall, color = surfaces.codeWellHeaderForeground,
                     maxLines = 1, overflow = TextOverflow.Ellipsis)
                 if (interactive) TextButton({
@@ -240,8 +284,14 @@ private fun MessageCode(source: String, block: MessageMarkdownBlock.Code, trunca
                         style = MaterialTheme.typography.labelSmall)
                 }
             }
+            if (interactive && onQuoteCode != null) TextButton({
+                if (latestSource == source && complete) onQuoteCode(markdownCodeQuote(content, language))
+            }, enabled = complete && latestSource == source && content.isNotBlank(),
+                modifier = Modifier.heightIn(min = 48.dp).padding(horizontal = TokenWorksSpacing.sm)) {
+                Text(stringResource(R.string.chat_audit_quote_code), style = MaterialTheme.typography.labelSmall)
+            }
             Box(Modifier.fillMaxWidth().padding(TokenWorksSpacing.md)) {
-                MessageSelection(interactive) { Text(content,
+                MessageSelection(interactive) { Text(styled,
                     if (reading.wrapCode) Modifier.fillMaxWidth() else Modifier.horizontalScroll(rememberScrollState(), enabled = interactive),
                     color = surfaces.codeWellForeground,
                     fontFamily = FontFamily.Monospace,

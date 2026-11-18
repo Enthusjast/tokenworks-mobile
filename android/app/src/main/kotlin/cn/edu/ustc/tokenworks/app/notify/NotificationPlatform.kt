@@ -33,11 +33,11 @@ internal fun notificationsPermitted(context: Context): Boolean =
 
 internal fun notificationChannels(context: Context) {
     val manager = context.getSystemService(NotificationManager::class.java)
-    manager.createNotificationChannel(NotificationChannel(REFERENCE_CHANNEL, "会话事件提醒", NotificationManager.IMPORTANCE_DEFAULT).apply {
-        description = "仅提醒有会话事件，不包含会话内容"; lockscreenVisibility = Notification.VISIBILITY_SECRET
+    manager.createNotificationChannel(NotificationChannel(REFERENCE_CHANNEL, context.getString(R.string.platform_notice_channel), NotificationManager.IMPORTANCE_DEFAULT).apply {
+        description = context.getString(R.string.platform_notice_channel_detail); lockscreenVisibility = Notification.VISIBILITY_SECRET
     })
-    manager.createNotificationChannel(NotificationChannel(CONNECTION_CHANNEL, "后台连接", NotificationManager.IMPORTANCE_LOW).apply {
-        description = "显式开启的只读连接"; lockscreenVisibility = Notification.VISIBILITY_SECRET
+    manager.createNotificationChannel(NotificationChannel(CONNECTION_CHANNEL, context.getString(R.string.platform_connection_channel), NotificationManager.IMPORTANCE_LOW).apply {
+        description = context.getString(R.string.platform_connection_channel_detail); lockscreenVisibility = Notification.VISIBILITY_SECRET
     })
 }
 
@@ -60,7 +60,7 @@ internal fun showReferenceNotification(context: Context, reference: PushReferenc
     val pending = PendingIntent.getActivity(context, reference.notificationId.hashCode(), referenceIntent(context, reference),
         PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
     val notification = NotificationCompat.Builder(context, REFERENCE_CHANNEL).setSmallIcon(R.drawable.ic_tokenworks)
-        .setContentTitle("会话有新事件").setContentText("打开应用后验证访问权限并查看。")
+        .setContentTitle(context.getString(R.string.platform_notice_title)).setContentText(context.getString(R.string.platform_notice_detail))
         .setContentIntent(pending).setAutoCancel(true).setVisibility(NotificationCompat.VISIBILITY_SECRET)
         .setTimeoutAfter((reference.expiresAt - System.currentTimeMillis()).coerceAtLeast(1)).build()
     try { NotificationManagerCompat.from(context).notify(reference.notificationId, 1, notification) } catch (_: SecurityException) { }
@@ -129,9 +129,9 @@ internal fun Service.enterSelectedConnectionForeground(serviceClass: Class<out S
     val stop = PendingIntent.getService(this, 0, Intent(this, serviceClass).setAction(CONNECTION_STOP), PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
     val open = PendingIntent.getActivity(this, 0, Intent(this, MainActivity::class.java), PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
     val notification = NotificationCompat.Builder(this, CONNECTION_CHANNEL).setSmallIcon(R.drawable.ic_tokenworks)
-        .setContentTitle("后台只读连接已开启").setContentText("仅接收所选会话的更新；不会自动发送命令。")
+        .setContentTitle(getString(R.string.platform_connection_title)).setContentText(getString(R.string.platform_connection_detail))
         .setContentIntent(open).setOngoing(true).setVisibility(NotificationCompat.VISIBILITY_SECRET)
-        .addAction(0, "停止连接", stop).build()
+        .addAction(0, getString(R.string.platform_connection_stop), stop).build()
     if (Build.VERSION.SDK_INT >= 29) startForeground(CONNECTION_ID, notification, android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE)
     else startForeground(CONNECTION_ID, notification)
 }

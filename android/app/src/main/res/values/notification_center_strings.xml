@@ -1,0 +1,12 @@
+<resources xmlns:tools="http://schemas.android.com/tools" tools:locale="en">
+    <string name="notification_center_title">Notification center</string>
+    <string name="notification_center_back">Close notification center</string>
+    <string name="notification_center_empty">No recent notifications</string>
+    <string name="notification_center_empty_detail">Recent session notifications received by this app appear here until they expire.</string>
+    <string name="notification_center_disclaimer">Open a notification to check its session. Opening it never approves a request or submits an answer.</string>
+    <string name="notification_center_interaction">Approval or question</string>
+    <string name="notification_center_completed">Task completion</string>
+    <string name="notification_center_open">Open session</string>
+    <string name="notification_center_checking">Checking session access…</string>
+    <string name="notification_center_unavailable">Could not open this session. The notification may have expired, access may have changed, or the host may be unavailable.</string>
+</resources>

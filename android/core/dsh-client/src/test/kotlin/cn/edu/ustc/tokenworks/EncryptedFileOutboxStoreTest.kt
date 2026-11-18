@@ -77,7 +77,7 @@ class EncryptedFileOutboxStoreTest {
         DshCommandOutbox.open(EncryptedFileOutboxStore(file, OutboxKeyProvider { key }))
             .prepare(route, "", images = listOf(nativeOutboxImage()))
         val original = file.readBytes()
-        for (version in listOf(0, 1, 3, Int.MAX_VALUE)) {
+        for (version in listOf(0, 1, 4, Int.MAX_VALUE)) {
             val clear = decryptManifest(original, key)
             ByteBuffer.wrap(clear).putInt(version)
             val encrypted = encryptManifest(clear, key)
@@ -85,6 +85,26 @@ class EncryptedFileOutboxStoreTest {
             file.writeBytes(encrypted)
             assertCorruptUnchanged(encrypted)
         }
+    }
+
+    @Test fun versionTwoPendingEntryIsReadableButNotProvenUnsent() = runBlocking {
+        val routeBytes = binary { it.text(route.ownerId); it.text(route.hostId); it.text(route.runtimeId); it.text(route.sessionId) }
+        val id = "00000000-0000-4000-8000-000000000002"
+        val oldPayload = binary {
+            it.text(id); it.text("preserved"); it.text("queue")
+            it.writeInt(PromptDeliveryState.PENDING.ordinal); it.writeInt(0); it.writeInt(0)
+        }
+        val oldEntry = encrypt(oldPayload, "tokenworks-mobile/dsh-command-entry/v2".toByteArray() + routeBytes)
+        val manifest = binary {
+            it.writeInt(2); it.writeLong(1); it.writeInt(1)
+            it.writeInt(routeBytes.size); it.write(routeBytes); it.writeInt(oldEntry.size); it.write(oldEntry)
+        }
+        file.writeBytes(encryptManifest(manifest, key))
+        val outbox = DshCommandOutbox.open(EncryptedFileOutboxStore(file, OutboxKeyProvider { key }))
+        assertEquals("preserved", outbox.pending(route).single().text)
+        assertFalse(outbox.pending(route).single().canEdit)
+        assertNull(outbox.editPendingText(id, route, "rewrite"))
+        assertEquals(id, outbox.retry(id, route)!!.requestId)
     }
 
     @Test fun entryCiphertextRemainsAuthenticatedInsideAnAuthenticManifest() = runBlocking {

@@ -1,4 +1,4 @@
-<resources>
+<resources xmlns:tools="http://schemas.android.com/tools" tools:locale="en">
     <string name="media_panel_title">Session images</string>
     <string name="media_panel_hint">Choose an image or use the system camera. Images must still be uploaded, pass a safety check, and be staged on the computer. Native image validation runs when you send. Sending an image as a regular file does not mean the model has seen it.</string>
     <string name="media_gallery">Choose from system photos</string>

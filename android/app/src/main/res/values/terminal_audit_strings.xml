@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources xmlns:tools="http://schemas.android.com/tools" tools:locale="en">
+    <string name="terminal_tab_title">%1$d · %2$s</string>
+    <string name="terminal_status_dimensions">%1$s · %2$d×%3$d</string>
+    <string name="terminal_exit_code"> · Exit code %1$d</string>
+    <string name="terminal_state_connected">Connected</string>
+    <string name="terminal_state_disconnected">Disconnected</string>
+    <string name="terminal_state_reconnecting">Reconnecting</string>
+    <string name="terminal_state_read_only">Read-only</string>
+    <string name="terminal_state_exited">Process ended</string>
+    <string name="terminal_state_failed">Process failed</string>
+    <string name="terminal_reconnecting">Connection lost. Restoring the screen; unconfirmed input won’t be sent again.</string>
+    <string name="terminal_search">Search output</string>
+    <string name="terminal_search_label">Find in this terminal</string>
+    <string name="terminal_search_in_progress">Searching…</string>
+    <string name="terminal_search_hint">Enter text to find</string>
+    <string name="terminal_no_matches">No matches</string>
+    <string name="terminal_match_count">Match %1$d of %2$d</string>
+    <string name="terminal_previous_match">Previous</string>
+    <string name="terminal_next_match">Next</string>
+    <string name="terminal_match_limit">Match %1$d of the first 2,000</string>
+    <string name="terminal_latest_output">Latest output</string>
+    <string name="terminal_select_output">Select output text</string>
+    <string name="terminal_enter">Enter</string>
+    <string name="terminal_direct_input">Direct input</string>
+    <string name="terminal_direct_input_label">Type directly into the terminal</string>
+    <string name="terminal_paste">Paste into terminal</string>
+    <string name="terminal_fit">Fit terminal: %1$d×%2$d</string>
+    <string name="terminal_key_page_up">Page Up</string>
+    <string name="terminal_key_page_down">Page Down</string>
+</resources>

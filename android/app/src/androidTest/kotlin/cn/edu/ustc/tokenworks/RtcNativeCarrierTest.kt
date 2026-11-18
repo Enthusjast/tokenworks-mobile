@@ -112,7 +112,7 @@ class RtcNativeCarrierTest {
             val terminal = TerminalWatcher(route, sessionId, scope)
             try {
                 withTimeout(20_000) { reader.state.first { it.phase == SessionReadPhase.READY } }
-                interactions.start(route)
+                interactions.start(route, sessionId)
                 withTimeout(20_000) { interactions.state.first { it.phase == InteractionWatcher.Phase.ONLINE } }
                 terminal.open()
                 withTimeout(20_000) { terminal.state.first { it.writable } }
@@ -123,7 +123,8 @@ class RtcNativeCarrierTest {
                 assertEquals(InteractionWatcher.Phase.ONLINE, interactions.state.value.phase)
                 assertTrue(terminal.state.value.writable)
                 files.download(large.string("path")).use { assertEquals(large.string("sha256"), it.sha256) }
-                interactions.approve(pending.eventId)
+                // This fixture exercises the native carrier after verification, not the device prompt.
+                interactions.approve(pending.eventId, sessionId, verify = { assertTrue(terminal.state.value.writable) })
                 withTimeout(20_000) { reader.state.first { !it.running } }
                 files.download(fixture.obj("artifacts").string("workspace") + "/approval-allow.txt").use {
                     assertEquals("authorized", it.file.readText(Charsets.UTF_8))

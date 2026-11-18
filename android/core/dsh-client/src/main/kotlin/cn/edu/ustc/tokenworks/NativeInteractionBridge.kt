@@ -13,6 +13,7 @@ class NativeInteractionBridge(
     private val post: suspend (endpoint: String, args: JsonObject) -> JsonValue,
     owner: CoroutineScope,
     private val nowMillis: () -> Long = { System.nanoTime() / 1_000_000 },
+    private val sessionId: String? = null,
 ) : InteractionBridge {
     private val lock = Any()
     private val scope = CoroutineScope(owner.coroutineContext + SupervisorJob(owner.coroutineContext[Job]))
@@ -26,13 +27,16 @@ class NativeInteractionBridge(
     private val waits = mutableMapOf<String, Job>()
     private val waitStreams = mutableMapOf<String, DshStream>()
     private val deadlines = mutableMapOf<String, Long>()
+    private val initialRemaining = mutableMapOf<String, Long>()
     private var closed = false
 
     init {
         scope.launch { events.pending.collect { values -> synchronized(lock) {
-            live = values
-            val keys = values.map { it.key }.toSet()
+            live = if (sessionId == null) values else values.filter { it.agentId == sessionId }
+            val keys = live.map { it.key }.toSet()
             waits.keys.filter { it !in keys }.forEach { waits.remove(it)?.cancel() }
+            deadlines.keys.retainAll(keys)
+            initialRemaining.keys.retainAll(keys)
             publish()
         } } }
         scope.launch { while (isActive) { delay(100); synchronized(lock) { publish() } } }
@@ -76,7 +80,8 @@ class NativeInteractionBridge(
                         val remaining = deadlines[waterfall.key]?.let { (it - nowMillis()).coerceAtLeast(0) }
                         if (remaining == 0L) { events.expire(waterfall.key); null }
                         else PendingInteraction.Question(waterfall.key, waterfall.agentId, callId, timed, cards,
-                            remainingMs = remaining, busy = waterfall.busy, attempted = waterfall.attempted, error = waterfall.error)
+                            remainingMs = remaining, busy = waterfall.busy, attempted = waterfall.attempted, error = waterfall.error,
+                            initialRemainingMs = initialRemaining[waterfall.key])
                     }
                     else -> null
                 }
@@ -103,6 +108,8 @@ class NativeInteractionBridge(
                             val remaining = DshUserQuestionsAttachWaitResult.codec.decode(value).remainingMs
                             if (!remaining.isFinite() || remaining < 0 || remaining > Long.MAX_VALUE.toDouble() / 2) throw ProtocolException()
                             synchronized(lock) {
+                                if (events.pending.value.none { it.key == waterfall.key }) return@launch
+                                initialRemaining.putIfAbsent(waterfall.key, remaining.toLong())
                                 val deadline = started + remaining.toLong()
                                 deadlines[waterfall.key] = minOf(deadlines[waterfall.key] ?: deadline, deadline)
                                 publish()
@@ -115,7 +122,14 @@ class NativeInteractionBridge(
             } catch (cancelled: CancellationException) { throw cancelled }
             catch (_: Exception) { mutableErrors.value = "interaction.wait_failed" }
             finally {
-                synchronized(lock) { if (waitStreams[waterfall.key] === stream) waitStreams.remove(waterfall.key) }
+                synchronized(lock) {
+                    if (waitStreams[waterfall.key] === stream) {
+                        waitStreams.remove(waterfall.key)
+                        // An unconsumed closed claim can no longer authorize an answer. If the
+                        // result is already in flight, let the existing acknowledgement settle.
+                        if (events.pending.value.any { it.key == waterfall.key && !it.attempted }) events.expire(waterfall.key)
+                    }
+                }
                 stream.close()
             }
         }
@@ -125,7 +139,7 @@ class NativeInteractionBridge(
 
     /** Full native values.userQuestions projection for one agent, not a waterfall payload. */
     fun updateUserQuestions(agentId: String, projection: JsonObject) = synchronized(lock) {
-        if (closed) return@synchronized
+        if (closed || (sessionId != null && agentId != sessionId)) return@synchronized
         try {
             val next = projection.array("active").mapNotNull { value ->
                 val item = value as? JsonObject ?: throw ProtocolException()
@@ -161,6 +175,17 @@ class NativeInteractionBridge(
         catch (error: Exception) { mutableErrors.value = "interaction.result_unconfirmed"; throw error }
     }
 
+    internal fun requirePendingApproval(eventId: String): PendingInteraction.Approval {
+        // The event list is the authority, not a delayed UI projection.
+        val active = events.pending.value.firstOrNull {
+            it.key == eventId && it.event == "approval/request" && (sessionId == null || it.agentId == sessionId)
+        }
+            ?: throw DshFailure("interaction.stale")
+        if (active.attempted || active.busy) throw DshFailure("interaction.already_attempted")
+        return PendingInteraction.Approval(active.key, active.agentId, active.request.string("toolName"),
+            active.request.text("callId"), active.request.text("reason"))
+    }
+
     override suspend fun approve(eventId: String) {
         if (find(eventId) !is PendingInteraction.Approval) throw DshFailure("interaction.invalid_action")
         result(eventId, "allowed-once".json())
@@ -170,6 +195,7 @@ class NativeInteractionBridge(
         val current = find(eventId)
         if (current is PendingInteraction.Question) {
             if (current.phase == PendingInteraction.QuestionPhase.CONTINUED) throw DshFailure("interaction.already_continued")
+            if (current.timed && current.remainingMs == null) throw DshFailure("interaction.wait_failed")
             try { events.answer(eventId, DshEventOutcome.Next) }
             catch (error: Exception) { mutableErrors.value = "interaction.result_unconfirmed"; throw error }
         } else result(eventId, "rejected".json())
@@ -177,6 +203,8 @@ class NativeInteractionBridge(
 
     override suspend fun submitAnswers(eventId: String, answers: List<InteractionBridge.AnsweredQuestion>) {
         val current = find(eventId) as? PendingInteraction.Question ?: throw DshFailure("interaction.stale")
+        if (current.phase == PendingInteraction.QuestionPhase.OPEN && current.timed && current.remainingMs == null)
+            throw DshFailure("interaction.wait_failed")
         try { validateQuestionAnswers(current, answers) }
         catch (error: DshFailure) { mutableErrors.value = error.code; throw error }
         val payload = jsonObject("answers" to JsonArray(answers.map { item -> jsonObject(
@@ -224,7 +252,7 @@ class NativeInteractionBridge(
             closed = true
             streams = waitStreams.values.toList(); waitStreams.clear()
             jobs = directSends.values.toList() + waits.values
-            directSends.clear(); waits.clear(); deadlines.clear(); continued.clear(); live = emptyList()
+            directSends.clear(); waits.clear(); deadlines.clear(); initialRemaining.clear(); continued.clear(); live = emptyList()
             mutable.value = emptyList()
         }
         // Cancel the actual native claim synchronously, before the owner closes its mux.

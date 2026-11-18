@@ -280,7 +280,9 @@ internal class AccountCoordinator(
                 operation = beginKeyOperation(stamp) { local.beginRegistration(request.signatureRequest) }
                 current(stamp)
                 val id = ++nextAuthenticationId
-                mutable.update { home -> home.copy(phase = HomePhase.AUTHENTICATING, authenticationId = id, biometric = BiometricLaunch(id, operation!!), deviceName = actualName) }
+                val launch = BiometricLaunch(id, operation!!, context.getString(R.string.platform_enrollment_title),
+                    context.getString(R.string.platform_enrollment_detail))
+                mutable.update { home -> home.copy(phase = HomePhase.AUTHENTICATING, authenticationId = id, biometric = launch, deviceName = actualName) }
             } catch (error: CancellationException) { throw error }
             catch (error: Exception) {
                 if (generation == stamp) {

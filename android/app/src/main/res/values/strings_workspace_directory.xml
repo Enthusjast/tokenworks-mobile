@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<resources>
+<resources xmlns:tools="http://schemas.android.com/tools" tools:locale="en">
     <string name="workspace_directory_title">Workspaces</string>
     <string name="workspace_directory_archived">Archived</string>
     <string name="workspace_directory_back">Back to workspaces</string>

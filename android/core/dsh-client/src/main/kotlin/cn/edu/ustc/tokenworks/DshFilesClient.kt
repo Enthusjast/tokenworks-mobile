@@ -43,6 +43,9 @@ class DshFilesClient(private val transport: DshTransport, stagingDirectory: File
     suspend fun download(path: String, onProgress: (Long) -> Unit = {}): StagedFile =
         preview.fetch(path, maxBytes = MAX_UPLOAD_BYTES, onProgress = onProgress)
 
+    suspend fun preview(path: String, onProgress: (Long) -> Unit = {}): StagedFile =
+        preview.fetch(path, onProgress = onProgress)
+
     suspend fun attachment(sessionId: String, attachment: NativeImageReference, onProgress: (Long) -> Unit = {}): StagedFile {
         require(sessionId.isNotBlank())
         val args = jsonObject("request" to jsonObject("sessionId" to sessionId.json(), "attachment" to attachment.json()))
@@ -94,16 +97,19 @@ class DshFilesClient(private val transport: DshTransport, stagingDirectory: File
     }
 
     suspend fun upload(sessionId: String, name: String, sizeBytes: Long?, source: () -> InputStream,
+                       onUploadStarted: (Long) -> Unit = {}, onPreparing: ((Long) -> Unit)? = null,
                        onProgress: (Long) -> Unit = {}): UploadedAttachment {
         require(sessionId.isNotBlank() && sessionId.length <= 4096)
         if (sizeBytes != null && sizeBytes !in 0..MAX_UPLOAD_BYTES) throw RemoteRequestException("files.too_large")
-        val staged = preview.stage(name, MAX_UPLOAD_BYTES, onProgress) { sink ->
+        val staged = preview.stage(name, MAX_UPLOAD_BYTES, onPreparing ?: onProgress) { sink ->
             val count = source().use { copy(it, sink) }
             if (sizeBytes != null && count != sizeBytes) throw RemoteRequestException("files.size_mismatch")
             DshDownload("application/octet-stream", count, null, null)
         }
         try {
             val context = currentCoroutineContext()
+            context.ensureActive()
+            onUploadStarted(staged.sizeBytes)
             var sent = 0L
             val result = staged.file.inputStream().use { raw ->
                 val checked = object : java.io.FilterInputStream(raw) {

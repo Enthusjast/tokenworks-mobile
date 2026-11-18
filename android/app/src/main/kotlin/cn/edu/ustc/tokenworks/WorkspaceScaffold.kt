@@ -86,8 +86,8 @@ internal data class WorkspaceLayoutSpec(
 
 /**
  * Splits an expanded window into navigation, chat and panel columns. The panel keeps 30% of the
- * window (clamped to 360..420 dp) but never starves chat below 400 dp; the sidebar only unfolds
- * when chat still keeps 600 dp next to it.
+ * window (clamped to 360..420 dp) but never starves chat below 400 dp. Reserve a full sidebar
+ * on tablets without a panel, and keep 600 dp of chat when both side panes are open.
  */
 internal fun workspaceLayout(
     viewport: WorkspaceViewport,
@@ -111,8 +111,8 @@ internal fun workspaceLayout(
     val panelWidth = minOf(TokenWorksMetrics.panelIdeal(viewport.widthDp), room)
     val available = hasSession && panelWidth >= TokenWorksMetrics.panelMin
     val panelShown = available && panelRequested
-    val fits = width - TokenWorksMetrics.sidebarWidth -
-        (if (panelShown) panelWidth else 0.dp) >= TokenWorksMetrics.chatComfort
+    val minimum = if (panelShown) TokenWorksMetrics.chatComfort else TokenWorksMetrics.chatMin
+    val fits = width - TokenWorksMetrics.sidebarWidth - (if (panelShown) panelWidth else 0.dp) >= minimum
     val leftPane = if (navigationExpanded && fits) WorkspaceLeftPane.SIDEBAR else WorkspaceLeftPane.RAIL
     return WorkspaceLayoutSpec(
         size = size,
@@ -179,7 +179,7 @@ internal fun WorkspaceScaffold(
     navigationContent: @Composable (closeNavigation: () -> Unit) -> Unit,
     content: @Composable (toggleNavigation: () -> Unit) -> Unit,
 ) {
-    var drawerRequested by remember { mutableStateOf(false) }
+    var drawerRequested by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(false) }
     val closeNavigation: () -> Unit = { drawerRequested = false }
     val toggleNavigation: () -> Unit = { drawerRequested = !drawerRequested }
     val drawerState = rememberDrawerState(
@@ -212,6 +212,9 @@ internal fun WorkspaceScaffold(
         }
     }
     // A pane change re-measures the drawer anchors; keep the drawer closed unless someone asked.
+    LaunchedEffect(layout.leftPane, chromeVisible) {
+        if (!chromeVisible || layout.leftPane == WorkspaceLeftPane.SIDEBAR) drawerRequested = false
+    }
     LaunchedEffect(drawerState.isOpen, drawerRequested) {
         if (!drawerRequested && drawerState.isOpen) drawerState.close()
     }

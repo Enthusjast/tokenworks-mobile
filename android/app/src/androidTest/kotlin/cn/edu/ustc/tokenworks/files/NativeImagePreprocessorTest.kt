@@ -43,8 +43,8 @@ class NativeImagePreprocessorTest {
         assertTrue("blue channel", kotlin.math.abs(Color.blue(expected) - Color.blue(actual)) < 45)
     }
     private fun rejected(bytes: ByteArray) {
-        try { prepare(bytes); fail("Expected image rejection") } catch (expected: IllegalArgumentException) {
-            assertTrue(expected.message.orEmpty().contains("未发送"))
+        try { prepare(bytes); fail("Expected image rejection") } catch (expected: NativeImagePreparationException) {
+            assertTrue(expected.code.startsWith("files.image_"))
         }
     }
 
@@ -70,7 +70,7 @@ class NativeImagePreprocessorTest {
             } finally { bitmap.recycle() }
             val output = Base64.decode(result.part.data, Base64.NO_WRAP)
             assertFalse(String(output, Charsets.ISO_8859_1).contains("Exif"))
-            assertTrue(result.notice.contains("原文件保持不变"))
+            assertEquals(orientation != 1, result.correctedOrientation)
         }
     }
 
@@ -87,7 +87,7 @@ class NativeImagePreprocessorTest {
                     assertEquals(0, Color.alpha(output.getPixel(0, 0)))
                     assertTrue(Color.alpha(output.getPixel(16, 12)) in 110..130)
                 } finally { output.recycle() }
-                assertTrue(result.notice.contains("保留透明通道"))
+                assertFalse(result.reducedSize)
             }
         } finally { original.recycle() }
     }
@@ -107,7 +107,7 @@ class NativeImagePreprocessorTest {
             val output = decode(result)
             try { assertTrue(output.hasAlpha()); assertTrue(Color.alpha(output.getPixel(0, 0)) < 255) }
             finally { output.recycle() }
-            assertTrue(result.notice.contains("已缩小"))
+            assertTrue(result.reducedSize)
         } finally { bitmap.recycle() }
     }
 

@@ -1,0 +1,5 @@
+<resources xmlns:tools="http://schemas.android.com/tools" tools:locale="en">
+    <string name="files_camera_take_photo">Take a photo</string>
+    <string name="files_camera_permission">Camera access was not granted. You can still select a photo.</string>
+    <string name="composer_add_image">Add an image</string>
+</resources>

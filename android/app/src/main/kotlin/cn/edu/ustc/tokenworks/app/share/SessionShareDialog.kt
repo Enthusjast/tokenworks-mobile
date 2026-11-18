@@ -130,7 +130,8 @@ internal fun SessionShareDialog(
             var saved = false
             try {
                 withContext(Dispatchers.IO) {
-                    val snapshot = StagedSessionHistory(context.cacheDir)
+                    val copy = if (format == SessionExportFormat.MARKDOWN) SessionHistoryMarkdownCopy.from(context.resources) else null
+                    val snapshot = StagedSessionHistory(context.cacheDir, copy)
                     staged = snapshot
                     source.connect().use { snapshot.collect(it, address, title, format) }
                 }
@@ -181,7 +182,7 @@ internal fun SessionShareDialog(
         task = scope.launch {
             try {
                 val sealed = withContext(Dispatchers.IO) {
-                    StagedSessionHistory(context.cacheDir).use { snapshot ->
+                    StagedSessionHistory(context.cacheDir, SessionHistoryMarkdownCopy.from(context.resources)).use { snapshot ->
                         source.connect().use {
                             snapshot.collect(it, address, title, SessionExportFormat.MARKDOWN, SessionSharePublication.MAX_BYTES.toLong())
                         }

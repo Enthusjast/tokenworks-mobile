@@ -6,6 +6,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
@@ -21,29 +22,45 @@ internal fun SessionArchiveActions(archived: Boolean, epoch: String?, enabled: B
     Surface(Modifier.fillMaxWidth(), shape = tokenWorksSquircle(TokenWorksRadius.lg),
         color = MaterialTheme.colorScheme.surfaceContainerLow) {
         Column(Modifier.padding(TokenWorksSpacing.lg), verticalArrangement = Arrangement.spacedBy(TokenWorksSpacing.md)) {
-            Text(if (archived) "已归档，仍可读取历史" else "会话归档", style = MaterialTheme.typography.titleMedium,
-                modifier = Modifier.semantics { heading() })
-            Text(if (archived) "恢复后可继续对话。归档状态与电脑端共用。" else "保留历史和工作区位置；有活动的会话默认拒绝归档。",
-                style = MaterialTheme.typography.bodySmall, color = tokenWorksSurfaces().textTertiary)
+            Text(
+                stringResource(if (archived) R.string.session_archive_archived_title else R.string.session_archive_title),
+                style = MaterialTheme.typography.titleMedium,
+                modifier = Modifier.semantics { heading() },
+            )
+            Text(
+                stringResource(if (archived) R.string.session_archive_archived_description else R.string.session_archive_description),
+                style = MaterialTheme.typography.bodySmall,
+                color = tokenWorksSurfaces().textTertiary,
+            )
             if (authority) OutlinedButton({ stopActivity = false; confirm = true }, enabled = enabled && epoch != null,
                 modifier = Modifier.fillMaxWidth().heightIn(min = TokenWorksSpacing.minimumTouchTarget)) {
-                Text(if (archived) "恢复会话" else "归档会话")
+                Text(stringResource(if (archived) R.string.conversation_restore else R.string.conversation_archive))
             }
-            TextButton(onRefresh, modifier = Modifier.heightIn(min = TokenWorksSpacing.minimumTouchTarget)) { Text("刷新会话状态") }
+            TextButton(onRefresh, modifier = Modifier.heightIn(min = TokenWorksSpacing.minimumTouchTarget)) {
+                Text(stringResource(R.string.session_archive_refresh))
+            }
         }
     }
-    if (confirm && enabled && authority && epoch != null) AlertDialog(onDismissRequest = { confirm = false }, title = { Text(if (archived) "恢复此会话？" else "归档此会话？") },
+    if (confirm && enabled && authority && epoch != null) AlertDialog(
+        onDismissRequest = { confirm = false },
+        title = { Text(stringResource(if (archived) R.string.session_archive_restore_prompt else R.string.session_archive_prompt)) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Text(if (archived) "恢复同一会话并保留历史，不会重发已有命令。" else "归档后需先恢复才能继续发送消息。")
+                Text(stringResource(if (archived) R.string.session_archive_restore_detail else R.string.session_archive_detail))
                 if (!archived) {
                     Row(Modifier.fillMaxWidth().toggleable(stopActivity, role = Role.Checkbox, onValueChange = { stopActivity = it }), verticalAlignment = Alignment.CenterVertically) {
                         Checkbox(stopActivity, null)
-                        Text("同时请求停止当前活动")
+                        Text(stringResource(R.string.session_archive_request_stop))
                     }
-                    Text("归档确认只表示状态已保存。停止可能仍在处理中，已产生的外部操作不会撤销。", style = MaterialTheme.typography.bodySmall)
+                    Text(stringResource(R.string.session_archive_stop_detail), style = MaterialTheme.typography.bodySmall)
                 }
             }
-        }, confirmButton = { TextButton({ confirm = false; onArchive(epoch, !archived, !archived && stopActivity) }) { Text(if (archived) "确认恢复" else "确认归档") } },
-        dismissButton = { TextButton({ confirm = false }) { Text("取消") } })
+        },
+        confirmButton = {
+            TextButton({ confirm = false; onArchive(epoch, !archived, !archived && stopActivity) }) {
+                Text(stringResource(if (archived) R.string.session_archive_confirm_restore else R.string.session_archive_confirm))
+            }
+        },
+        dismissButton = { TextButton({ confirm = false }) { Text(stringResource(R.string.action_cancel)) } },
+    )
 }

@@ -1,0 +1,12 @@
+<resources xmlns:tools="http://schemas.android.com/tools" tools:locale="en">
+    <string name="host_queue_title">Queued on computer</string>
+    <string name="host_queue_empty">Nothing is waiting on the computer.</string>
+    <string name="host_queue_next_turn">Next turn</string>
+    <string name="host_queue_next_step">Next step</string>
+    <string name="host_queue_non_text">Message with non-text content</string>
+    <string name="host_queue_confirm_remove">Remove this message if it is still queued? This cannot undo work that has already started.</string>
+    <string name="host_queue_changed">The queue changed before the operation. Review the refreshed list before trying again.</string>
+    <string name="host_queue_outcome_unknown">The operation could not be confirmed. No automatic retry was sent.</string>
+    <string name="host_queue_unavailable">The computer queue could not be verified.</string>
+    <string name="host_queue_truncated">Showing the first 32 user messages in the computer queue.</string>
+</resources>

@@ -1,5 +1,6 @@
 package cn.edu.ustc.tokenworks
 
+import android.content.res.Resources
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
 import java.io.BufferedOutputStream
@@ -9,6 +10,7 @@ import java.io.OutputStream
 import java.io.RandomAccessFile
 import java.security.SecureRandom
 import java.util.Base64
+import java.util.Locale
 import javax.crypto.Cipher
 import javax.crypto.spec.GCMParameterSpec
 import javax.crypto.spec.SecretKeySpec
@@ -78,13 +80,35 @@ private fun OutputStream.literal(text: String) {
     write('\n'.code)
 }
 
-private fun OutputStream.markdown(event: JsonObject) {
+internal data class SessionHistoryMarkdownCopy(
+    val title: String,
+    val empty: String,
+    val eventRange: String,
+    val user: String,
+    val assistant: String,
+    val tool: String,
+    val event: String,
+) {
+    companion object {
+        fun from(resources: Resources) = SessionHistoryMarkdownCopy(
+            title = resources.getString(R.string.session_history_snapshot),
+            empty = resources.getString(R.string.session_history_empty),
+            eventRange = resources.getString(R.string.session_history_event_range),
+            user = resources.getString(R.string.session_history_role_user),
+            assistant = resources.getString(R.string.session_history_role_assistant),
+            tool = resources.getString(R.string.session_history_role_tool),
+            event = resources.getString(R.string.session_history_role_event),
+        )
+    }
+}
+
+private fun OutputStream.markdown(event: JsonObject, copy: SessionHistoryMarkdownCopy) {
     val type = event.string("type")
     val role = when (type) {
-        "user/message", "user/message-appended", "agent/inbox/spliced" -> "用户"
-        "assistant/message" -> "助手"
-        "tool/call", "tool/result" -> "工具"
-        else -> "事件"
+        "user/message", "user/message-appended", "agent/inbox/spliced" -> copy.user
+        "assistant/message" -> copy.assistant
+        "tool/call", "tool/result" -> copy.tool
+        else -> copy.event
     }
     text("## $role · #${event.integer("seq", 0)}\n\n")
     val data = event["data"] as? JsonObject
@@ -115,7 +139,7 @@ internal class SessionShareSizeException : IllegalArgumentException()
 internal class SealedSessionShare(val ciphertext: ByteArray, val fragment: String)
 
 /** Native pagination runs newest first. Spool encrypted pages and replay backwards for chronological output. */
-internal class StagedSessionHistory(directory: File) : AutoCloseable {
+internal class StagedSessionHistory(directory: File, private val markdownCopy: SessionHistoryMarkdownCopy?) : AutoCloseable {
     private val key = ByteArray(32).also(random::nextBytes)
     private val file = File.createTempFile("session-export-", ".tmp", directory).let { path ->
         val opened = try { RandomAccessFile(path, "rw") }
@@ -130,6 +154,7 @@ internal class StagedSessionHistory(directory: File) : AutoCloseable {
     suspend fun collect(connection: DshConnection, address: DshSessionPageInputRequestAddress, title: String,
         format: SessionExportFormat, maxBody: Long = Long.MAX_VALUE) {
         check(cut == null)
+        val copy = if (format == SessionExportFormat.MARKDOWN) checkNotNull(markdownCopy) else null
         val lifetime = currentCoroutineContext()
         cut = readSessionHistory(address, connection::native) { events ->
             val offset = file.filePointer
@@ -146,20 +171,20 @@ internal class StagedSessionHistory(directory: File) : AutoCloseable {
             })
             for (event in events) {
                 lifetime.ensureActive()
-                if (format == SessionExportFormat.JSONL) { output.text(WireJson.encode(event)); output.write('\n'.code) }
-                else output.markdown(event)
+                if (copy == null) { output.text(WireJson.encode(event)); output.write('\n'.code) }
+                else output.markdown(event, copy)
             }
             output.flush()
             file.write(cipher.doFinal())
             file.writeInt(Math.toIntExact(file.filePointer - offset))
         }
-        if (format == SessionExportFormat.MARKDOWN) {
+        if (copy != null) {
             val cursor = checkNotNull(cut)
             val bytes = ByteArrayOutputStream()
-            bytes.text("# 会话快照\n\n")
+            bytes.text("# ${copy.title}\n\n")
             bytes.literal(title)
-            bytes.text(if (cursor == -1L) "没有已记录的事件。\n" else
-                "事件 #0–#$cursor（不含未提交的实时内容或附件文件）。\n\n")
+            // Event identifiers retain ASCII digits just like the per-event headings.
+            bytes.text(if (cursor == -1L) "${copy.empty}\n" else "${String.format(Locale.ROOT, copy.eventRange, cursor)}\n\n")
             val preamble = bytes.toByteArray()
             if (plainSize + preamble.size > maxBody) throw SessionShareSizeException()
             header = preamble

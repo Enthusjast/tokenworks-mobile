@@ -29,7 +29,7 @@ import androidx.compose.ui.semantics.semantics
 
 @Composable
 internal fun WorkspaceBrowser(state: FilesUiState, browse: (List<String>) -> Unit, add: (WorkspaceExportFile) -> Unit,
-                              cancel: () -> Unit, onBack: () -> Unit) {
+                              preview: (WorkspaceExportFile) -> Unit, cancel: () -> Unit, onBack: () -> Unit) {
     val listing = state.workspaceListing
     val parts = listing?.parts.orEmpty()
     val enabled = !state.busy && !state.pickerActive
@@ -50,6 +50,10 @@ internal fun WorkspaceBrowser(state: FilesUiState, browse: (List<String>) -> Uni
                     modifier = Modifier.heightIn(min = TokenWorksSpacing.minimumTouchTarget)) {
                     Text(stringResource(R.string.workspace_files_parent))
                 }
+                if (parts.size > 1) OutlinedButton({ browse(emptyList()) }, enabled = enabled,
+                    modifier = Modifier.heightIn(min = TokenWorksSpacing.minimumTouchTarget)) {
+                    Text(stringResource(R.string.workspace_files_root))
+                }
                 TextButton({ browse(parts) }, enabled = enabled, modifier = Modifier.heightIn(min = TokenWorksSpacing.minimumTouchTarget)) {
                     Text(stringResource(R.string.workspace_files_refresh))
                 }
@@ -69,6 +73,13 @@ internal fun WorkspaceBrowser(state: FilesUiState, browse: (List<String>) -> Uni
                     val alreadyAdded = state.workspaceExports.any { it.file == entry }
                     val tooLarge = entry.sizeBytes > DshWorkspaceFiles.MAX_FILE_BYTES
                     Text(stringResource(R.string.workspace_files_size, fileSize(entry.sizeBytes)), style = MaterialTheme.typography.bodyMedium)
+                    if (entry.sizeBytes <= FilePreview.MAX_PREVIEW_BYTES) {
+                        val label = stringResource(R.string.files_audit_preview_file, entry.name)
+                        TextButton({ preview(entry) }, enabled = enabled,
+                            modifier = Modifier.heightIn(min = TokenWorksSpacing.minimumTouchTarget).semantics { contentDescription = label }) {
+                            Text(stringResource(R.string.files_audit_preview_short))
+                        }
+                    }
                     when {
                         tooLarge -> Text(stringResource(R.string.workspace_files_too_large, fileSize(DshWorkspaceFiles.MAX_FILE_BYTES)))
                         alreadyAdded -> Text(stringResource(R.string.workspace_files_added))
@@ -159,7 +170,7 @@ private fun WorkspaceFileStatus(state: FilesUiState, cancel: () -> Unit) {
 }
 
 @Composable
-private fun workspaceFileError(code: String): String = when (code) {
+internal fun workspaceFileError(code: String): String = when (code) {
     "remote-access/denied", "gateway/peer-disposed", "access.revoked", "access/revoked" -> stringResource(R.string.workspace_files_denied)
     "workspace-export/unavailable", "gateway/lookup-not-found" -> stringResource(R.string.workspace_files_unavailable)
     "workspace-export/unsupported", "gateway/invocation-unavailable", "gateway/definition-unavailable" -> stringResource(R.string.workspace_files_unsupported)
@@ -168,7 +179,22 @@ private fun workspaceFileError(code: String): String = when (code) {
     "files.integrity_mismatch" -> stringResource(R.string.workspace_files_integrity_error)
     "files.destination_unavailable" -> stringResource(R.string.workspace_files_destination_unavailable)
     "files.destination_cleanup_failed" -> stringResource(R.string.workspace_files_cleanup_error)
+    "files.too_large" -> stringResource(R.string.files_audit_preview_limit)
+    "files.invalid_path" -> stringResource(R.string.files_audit_invalid_path)
+    "files.document_unavailable" -> stringResource(R.string.files_audit_document_read_error)
+    "files.too_many_attachments" -> stringResource(R.string.files_audit_attachment_count_limit)
+    "files.image_session_changed" -> stringResource(R.string.files_audit_image_session_changed)
+    "files.image_count_limit" -> stringResource(R.string.files_audit_image_count_limit)
+    "files.image_batch_limit" -> stringResource(R.string.files_audit_image_batch_limit)
+    "files.image_source_too_large" -> stringResource(R.string.files_audit_image_source_too_large)
+    "files.image_dimensions" -> stringResource(R.string.files_audit_image_dimensions_invalid)
+    "files.image_orientation" -> stringResource(R.string.files_audit_image_orientation_invalid)
+    "files.image_encode", "files.image_prepare_failed" -> stringResource(R.string.files_audit_image_prepare_failed)
+    "files.image_encoded_too_large" -> stringResource(R.string.files_audit_image_encoded_too_large)
+    "files.image_invalid" -> stringResource(R.string.files_audit_image_invalid)
+    "files.image_animated" -> stringResource(R.string.files_audit_image_animated)
+    "files.upload_too_large" -> stringResource(R.string.files_audit_upload_limit)
     else -> stringResource(R.string.workspace_files_generic_error, code)
 }
 
-@Composable private fun fileSize(bytes: Long): String = Formatter.formatShortFileSize(LocalContext.current, bytes)
+@Composable internal fun fileSize(bytes: Long): String = Formatter.formatShortFileSize(LocalContext.current, bytes)

@@ -1,0 +1,12 @@
+<resources>
+    <string name="host_queue_title">电脑端队列</string>
+    <string name="host_queue_empty">电脑端没有等待发送的消息。</string>
+    <string name="host_queue_next_turn">下一轮</string>
+    <string name="host_queue_next_step">下一步</string>
+    <string name="host_queue_non_text">带有非文本内容的消息</string>
+    <string name="host_queue_confirm_remove">若消息仍在排队，则将其移除。已开始的操作不会撤销。</string>
+    <string name="host_queue_changed">操作前队列已变化，请查看刷新后的列表再试。</string>
+    <string name="host_queue_outcome_unknown">未能确认操作结果，未自动重试。</string>
+    <string name="host_queue_unavailable">无法核对电脑端队列。</string>
+    <string name="host_queue_truncated">仅显示电脑端队列中的前 32 条用户消息。</string>
+</resources>

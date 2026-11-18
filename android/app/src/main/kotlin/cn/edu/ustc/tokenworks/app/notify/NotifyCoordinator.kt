@@ -26,6 +26,9 @@ internal class NotifyCoordinator(
     private var registrationJob: Job? = null
     private var watchJob: Job? = null
     private var referenceJob: Job? = null
+    private var referenceGeneration = 0L
+    private var centerExpiryJob: Job? = null
+    private val inbox = NotificationInbox()
     private var serviceSelection: Pair<String?, String?>? = null
     private var desiredBackground = false
     private var serviceActive = false
@@ -66,8 +69,50 @@ internal class NotifyCoordinator(
             binding != null && owner != null, desiredBackground, serviceActive, connectionOwner() != null && selected && sessions.foreground, busy, error)
         if (next != home.value.notify) home.update { it.copy(notify = next) }
     }
-    fun openSettings() { home.update { it.copy(notifySettingsOpen = true) }; permissionChanged() }
+    fun openSettings() { closeCenter(); home.update { it.copy(notifySettingsOpen = true) }; permissionChanged() }
     fun closeSettings() { home.update { it.copy(notifySettingsOpen = false) } }
+
+    fun openCenter() {
+        if (home.value.phase != HomePhase.READY || home.value.notifyCenter.open) return
+        closeSettings()
+        home.update { it.copy(notifyCenter = NotificationCenterState(open = true)) }
+        scheduleCenterExpiry()
+    }
+
+    fun closeCenter() {
+        if (home.value.notifyCenter.openingId != null) retireReference()
+        centerExpiryJob?.cancel(); centerExpiryJob = null
+        home.update { it.copy(notifyCenter = NotificationCenterState()) }
+    }
+
+    fun openCenterEntry(id: String) {
+        val center = home.value.notifyCenter
+        if (!center.open || center.openingId != null || !sessions.foreground) return
+        val reference = inbox.resolve(id)
+        if (reference == null) {
+            home.update { it.copy(notifyCenter = it.notifyCenter.copy(unavailable = true)) }
+        } else openReference(reference, centerEntry = id)
+    }
+
+    fun foreground(active: Boolean) { if (!active) { retireReference(); closeCenter() } }
+
+    private fun scheduleCenterExpiry() {
+        centerExpiryJob?.cancel(); centerExpiryJob = null
+        if (!home.value.notifyCenter.open) return
+        centerExpiryJob = scope.launch {
+            while (isActive && home.value.notifyCenter.open) {
+                refreshCenter()
+                val expiry = inbox.nextExpiry() ?: break
+                delay((expiry - account.now()).coerceIn(1L, 60_000L))
+            }
+        }
+    }
+
+    private fun refreshCenter() {
+        val owner = activeOwner()?.takeIf(::optedIn)
+        inbox.removeInvalid(owner, binding, account.now())
+        home.update { if (!it.notifyCenter.open) it else it.copy(notifyCenter = it.notifyCenter.copy(entries = inbox.projection())) }
+    }
     fun permissionChanged() {
         if (!notificationsPermitted(context)) { stopBackground(); firebase.disable() }
         else if (activeOwner()?.let(::optedIn) == true && binding == null) register()
@@ -87,6 +132,7 @@ internal class NotifyCoordinator(
             val old = binding
             binding = null
             preferences.edit().remove("binding:${owner.fingerprint}").commit()
+            retireReference()
             cancelReferences()
             publish(null, false)
             if (old != null) scope.launch {
@@ -119,7 +165,14 @@ internal class NotifyCoordinator(
                     PushRegistrationApi(resource).revoke(issued)
                     throw IllegalStateException()
                 }
+                if (binding != issued) {
+                    retireReference()
+                    seen.clear()
+                    if (home.value.notifyCenter.openingId != null)
+                        home.update { it.copy(notifyCenter = it.notifyCenter.copy(openingId = null, unavailable = true)) }
+                }
                 binding = issued
+                scheduleCenterExpiry()
                 publish(null, false)
             } catch (error: CancellationException) { throw error }
             catch (_: Exception) { publish("push.registration_unavailable", false) }
@@ -132,23 +185,48 @@ internal class NotifyCoordinator(
             val owner = withTimeoutOrNull(10_000) { home.first { it.phase == HomePhase.READY }; activeOwner() } ?: return@launch
             if (!optedIn(owner) || !reference.matches(owner, binding, account.now()) || !seen.add(reference.notificationId)) return@launch
             while (seen.size > 128) seen.remove(seen.first())
+            inbox.accept(reference)
+            scheduleCenterExpiry()
             showReferenceNotification(context, reference)
         }
     }
-    fun openReference(reference: PushReference) {
-        // This method is called only by an explicit MainActivity notification PendingIntent.
-        referenceJob?.cancel()
-        referenceJob = scope.launch {
-            val owner = withTimeoutOrNull(10_000) { home.first { it.phase == HomePhase.READY }; activeOwner() }
-            if (owner == null || !optedIn(owner) || !reference.matches(owner, binding, account.now())) { publish("push.reference_rejected", false); return@launch }
-            sessions.notificationReferenceExpiry = reference.expiresAt
-            try {
-                if (!resolve(reference.runtimeId, reference.sessionId, owner.fingerprint)) publish("push.reference_rejected", false)
-                else publish(null, false)
-            } catch (error: CancellationException) { throw error }
-            catch (_: Exception) { publish("push.reference_rejected", false) }
-            finally { if (sessions.notificationReferenceExpiry == reference.expiresAt) sessions.notificationReferenceExpiry = null }
+    fun openReference(reference: PushReference) = openReference(reference, centerEntry = null)
+
+    private fun openReference(reference: PushReference, centerEntry: String?) {
+        if (centerEntry == null && home.value.notifyCenter.open) closeCenter()
+        retireReference()
+        val route = referenceGeneration
+        if (centerEntry != null) home.update {
+            it.copy(notifyCenter = it.notifyCenter.copy(openingId = centerEntry, unavailable = false))
         }
+        referenceJob = scope.launch(start = CoroutineStart.LAZY) {
+            val owner = withTimeoutOrNull(10_000) { home.first { it.phase == HomePhase.READY }; activeOwner() }
+            val stamp = account.generation
+            fun stillCurrent() = route == referenceGeneration && stamp == account.generation &&
+                (centerEntry == null || (home.value.notifyCenter.open && home.value.notifyCenter.openingId == centerEntry))
+            fun report(opened: Boolean) {
+                if (!stillCurrent()) return
+                if (centerEntry == null) publish(if (opened) null else "push.reference_rejected", false)
+                else if (opened) {
+                    centerExpiryJob?.cancel(); centerExpiryJob = null
+                    home.update { it.copy(notifyCenter = NotificationCenterState()) }
+                } else home.update { it.copy(notifyCenter = it.notifyCenter.copy(openingId = null, unavailable = true)) }
+            }
+            try {
+                if (!stillCurrent() || !sessions.foreground || owner == null || !optedIn(owner) ||
+                    !reference.matches(owner, binding, account.now())) { report(false); return@launch }
+                sessions.notificationReferenceExpiry = reference.expiresAt
+                report(resolve(reference.runtimeId, reference.sessionId, owner.fingerprint))
+            } catch (error: CancellationException) { throw error }
+            catch (_: Exception) { report(false) }
+            finally { if (route == referenceGeneration) sessions.notificationReferenceExpiry = null }
+        }.also { it.start() }
+    }
+
+    private fun retireReference() {
+        ++referenceGeneration
+        referenceJob?.cancel(); referenceJob = null
+        sessions.notificationReferenceExpiry = null
     }
     fun setBackground(enabled: Boolean) {
         if (!enabled) { stopBackground(); return }
@@ -188,10 +266,13 @@ internal class NotifyCoordinator(
         val manager = context.getSystemService(android.app.NotificationManager::class.java)
         manager.activeNotifications.filter { it.id != CONNECTION_ID }.forEach { manager.cancel(it.tag, it.id) }
         seen.clear()
+        inbox.clear()
+        refreshCenter()
     }
     fun authorityLost() {
         registrationJob?.cancel(); registrationJob = null
-        referenceJob?.cancel(); referenceJob = null
+        retireReference()
+        closeCenter()
         firebase.disable(); binding = null; configured = null
         stopBackground(); cancelReferences()
     }

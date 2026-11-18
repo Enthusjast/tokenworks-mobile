@@ -1,0 +1,12 @@
+<resources>
+    <string name="notification_center_title">通知中心</string>
+    <string name="notification_center_back">关闭通知中心</string>
+    <string name="notification_center_empty">暂无近期通知</string>
+    <string name="notification_center_empty_detail">此处仅显示应用收到且尚未过期的会话通知。</string>
+    <string name="notification_center_disclaimer">打开通知可核对会话，不会自动批准请求或提交回答。</string>
+    <string name="notification_center_interaction">审批或提问</string>
+    <string name="notification_center_completed">任务完成</string>
+    <string name="notification_center_open">打开会话</string>
+    <string name="notification_center_checking">正在核对会话权限…</string>
+    <string name="notification_center_unavailable">未能打开会话。通知可能已过期，权限可能已变更，或电脑暂时不可用。</string>
+</resources>

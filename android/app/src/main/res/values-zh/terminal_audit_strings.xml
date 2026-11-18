@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="terminal_tab_title">%1$d · %2$s</string>
+    <string name="terminal_status_dimensions">%1$s · %2$d×%3$d</string>
+    <string name="terminal_exit_code"> · 退出代码 %1$d</string>
+    <string name="terminal_state_connected">已连接</string>
+    <string name="terminal_state_disconnected">未连接</string>
+    <string name="terminal_state_reconnecting">正在重新连接</string>
+    <string name="terminal_state_read_only">只读</string>
+    <string name="terminal_state_exited">进程已结束</string>
+    <string name="terminal_state_failed">进程运行失败</string>
+    <string name="terminal_reconnecting">连接中断，正在恢复屏幕。未确认的输入不会重新发送。</string>
+    <string name="terminal_search">搜索输出</string>
+    <string name="terminal_search_label">在此终端查找</string>
+    <string name="terminal_search_in_progress">正在查找…</string>
+    <string name="terminal_search_hint">输入要查找的文字</string>
+    <string name="terminal_no_matches">没有匹配项</string>
+    <string name="terminal_match_count">第 %1$d 项，共 %2$d 项</string>
+    <string name="terminal_previous_match">上一项</string>
+    <string name="terminal_next_match">下一项</string>
+    <string name="terminal_match_limit">前 2000 项中的第 %1$d 项</string>
+    <string name="terminal_latest_output">跳到最新输出</string>
+    <string name="terminal_select_output">选择输出文本</string>
+    <string name="terminal_enter">回车</string>
+    <string name="terminal_direct_input">直接输入</string>
+    <string name="terminal_direct_input_label">直接输入到终端</string>
+    <string name="terminal_paste">粘贴到终端</string>
+    <string name="terminal_fit">适配终端：%1$d×%2$d</string>
+    <string name="terminal_key_page_up">上一页</string>
+    <string name="terminal_key_page_down">下一页</string>
+</resources>

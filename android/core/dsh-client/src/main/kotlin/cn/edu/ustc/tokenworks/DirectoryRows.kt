@@ -149,15 +149,17 @@ class SessionDirectoryEntry private constructor(
                 val counts = UsageCounts.fromProjection(value.uncachedInputTokens, value.outputTokens, value.cacheReadTokens, value.cacheWriteTokens)
                 if (cut != null && counts != null) UsageSnapshot(cut, counts) else null
             }
-            if (!item.agentAvailable) return SessionDirectoryEntry(
-                item.sessionId, null, "unavailable", -1, item.updatedAt.toDirectoryTime(), null, parent, mode, usage,
-            )
             val workingDirectory = (values?.workingDirectory as? DshOptional.Value)?.value
             val title = (values?.title as? DshOptional.Value)?.value
             val kind = projection?.kind
             val asOf = projection?.asOfSeq?.toDirectoryTime()
             val metadata = if (title == null && workingDirectory == null) null
             else DirectoryDisplayMetadata.native(title, workingDirectory, kind, asOf, item.blank)
+            // Cold sessions may still have authorized cached display projections. They do not
+            // establish availability or a live workspace association.
+            if (!item.agentAvailable) return SessionDirectoryEntry(
+                item.sessionId, null, "unavailable", -1, item.updatedAt.toDirectoryTime(), metadata, parent, mode, usage,
+            )
             return SessionDirectoryEntry(
                 item.sessionId, workingDirectory, if (item.running) "running" else "available",
                 -1, item.updatedAt.toDirectoryTime(), metadata, parent, mode, usage,

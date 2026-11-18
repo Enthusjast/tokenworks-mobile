@@ -1,4 +1,4 @@
-<resources>
+<resources xmlns:tools="http://schemas.android.com/tools" tools:locale="en">
     <string name="chat_title">Session %1$s</string>
     <string name="chat_authorized_computer">Authorized computer</string>
     <string name="chat_live_subtitle">%1$s · Live connection</string>

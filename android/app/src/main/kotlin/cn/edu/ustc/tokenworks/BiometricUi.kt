@@ -21,7 +21,8 @@ internal class BiometricUi(private val activity: FragmentActivity, private val o
         onOpened(launch.id)
         try {
             active.authenticate(BiometricPrompt.PromptInfo.Builder().setTitle(launch.title).setSubtitle(launch.subtitle)
-                .setAllowedAuthenticators(BiometricManager.Authenticators.BIOMETRIC_STRONG).setNegativeButtonText("取消").build(), launch.operation.cryptoObject)
+                .setAllowedAuthenticators(BiometricManager.Authenticators.BIOMETRIC_STRONG)
+                .setNegativeButtonText(activity.getString(R.string.interaction_biometric_cancel)).build(), launch.operation.cryptoObject)
         } catch (_: Exception) { onCancelled(launch.id) }
     }
     fun cancel() { val previous = prompt; prompt = null; boundId = null; previous?.cancelAuthentication() }

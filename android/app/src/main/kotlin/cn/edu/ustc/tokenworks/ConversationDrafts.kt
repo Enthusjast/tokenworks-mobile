@@ -11,6 +11,8 @@ class ConversationResource(val owner: CommandOwner, val hostId: String, val runt
     override fun toString() = "ConversationResource"
 }
 
+internal const val MAX_DRAFT_CHARACTERS = 65_536
+
 data class MessageComposerState(val resource: ConversationResource, val value: TextFieldValue = TextFieldValue(), val mode: String = "queue", val revision: Long = 0) {
     override fun toString() = "MessageComposerState(revision=$revision)"
 }
@@ -30,7 +32,7 @@ internal class ConversationDrafts(private val maxEntries: Int = 16, private val 
     fun current(resource: ConversationResource): MessageComposerState? = entries[resource]
     fun edit(candidate: MessageComposerState): MessageComposerState? {
         val current = entries[candidate.resource] ?: return null
-        if (candidate.revision != current.revision || candidate.mode !in setOf("queue", "steer") || candidate.value.text.length > 65_536) return null
+        if (candidate.revision != current.revision || candidate.mode !in setOf("queue", "steer") || candidate.value.text.length > MAX_DRAFT_CHARACTERS) return null
         if (candidate.value == current.value && candidate.mode == current.mode) return current
         return candidate.copy(revision = ++revision).also { entries.remove(candidate.resource); entries[candidate.resource] = it; trim(candidate.resource) }
     }
@@ -79,4 +81,12 @@ internal fun MessageComposerState.withLocalQuote(text: String): MessageComposerS
     val prefix = value.text.takeIf { it.isNotEmpty() }?.let { "$it\n\n" }.orEmpty()
     val combined = prefix + quote + "\n\n"
     return copy(value = TextFieldValue(combined, TextRange(combined.length)))
+}
+
+/** A quote is a local draft edit, never a submission or a server-side reply. */
+internal fun TextFieldValue.appendChatQuote(text: String): TextFieldValue? {
+    if (text.isBlank() || text.length > MAX_DRAFT_CHARACTERS - this.text.length) return null
+    val quote = text.lineSequence().joinToString("\n") { "> $it" }
+    val combined = this.text.takeIf { it.isNotEmpty() }?.let { "$it\n\n" }.orEmpty() + quote + "\n\n"
+    return if (combined.length <= MAX_DRAFT_CHARACTERS) TextFieldValue(combined, TextRange(combined.length)) else null
 }

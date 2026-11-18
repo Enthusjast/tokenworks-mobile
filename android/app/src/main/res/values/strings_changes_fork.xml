@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<resources>
+<resources xmlns:tools="http://schemas.android.com/tools" tools:locale="en">
     <string name="changes_fork_changes_title">Workspace changes</string>
     <string name="changes_fork_changes_subtitle">Read-only Git snapshot of the configured workspace. Changes are not attributed to this turn.</string>
     <string name="changes_fork_back">Back to session</string>

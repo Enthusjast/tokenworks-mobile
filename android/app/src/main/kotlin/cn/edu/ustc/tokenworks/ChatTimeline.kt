@@ -226,6 +226,10 @@ internal fun ChatTranscript(
     onMessageAction: ((String) -> Unit)?,
     onPreviewMedia: ((NativeImageReference) -> Unit)?,
     modifier: Modifier = Modifier,
+    onPreviewGallery: ((List<NativeImageReference>, Int) -> Unit)? = null,
+    onPreviewFile: ((FilesPreviewLink) -> Unit)? = null,
+    messageUsage: Map<Long, UsageCounts> = emptyMap(),
+    onSelectText: ((String) -> Unit)? = null,
 ) {
     val background = if (interactive) Modifier else Modifier.clearAndSetSemantics { }
         .pointerInput(Unit) {
@@ -251,7 +255,9 @@ internal fun ChatTranscript(
                     Box(gap) {
                         ConversationMessage(row.item, if (interactive) onQuote else null,
                             if (interactive) onMessageAction else null, if (interactive) onPreviewMedia else null,
-                            interactive = interactive)
+                            interactive = interactive, onPreviewGallery = onPreviewGallery.takeIf { interactive },
+                            onPreviewFile = onPreviewFile.takeIf { interactive }, usage = messageUsage[row.item.seq],
+                            onSelectText = onSelectText.takeIf { interactive })
                     }
                 }
                 is ChatTimelineRow.ToolGroup, is ChatTimelineRow.TurnProcess -> {
@@ -262,9 +268,13 @@ internal fun ChatTranscript(
                         }
                     }
                     if (expanded) items(row.members().orEmpty(), key = { it.id }, contentType = { "message" }) { item ->
-                        ConversationMessage(item, if (interactive) onQuote else null,
-                            if (interactive) onMessageAction else null, if (interactive) onPreviewMedia else null,
-                            interactive = interactive)
+                        Box(Modifier.animateItem()) {
+                            ConversationMessage(item, if (interactive) onQuote else null,
+                                if (interactive) onMessageAction else null, if (interactive) onPreviewMedia else null,
+                                interactive = interactive, onPreviewGallery = onPreviewGallery.takeIf { interactive },
+                                onPreviewFile = onPreviewFile.takeIf { interactive }, usage = messageUsage[item.seq],
+                                onSelectText = onSelectText.takeIf { interactive })
+                        }
                     }
                 }
                 is ChatTimelineRow.TurnFootnote -> item(key = row.key, contentType = "footnote") {

@@ -1,0 +1,5 @@
+<resources>
+    <string name="files_camera_take_photo">拍照</string>
+    <string name="files_camera_permission">相机权限未授予；仍可从相册选择图片。</string>
+    <string name="composer_add_image">添加图片</string>
+</resources>

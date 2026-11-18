@@ -25,11 +25,16 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Slider
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
@@ -164,6 +169,7 @@ internal fun AppearanceSettingsContent(
                             value = preferences.bodyScale,
                             enabled = state.editable,
                             tag = "body",
+                            maximum = MAX_BODY_READING_SCALE,
                             onChange = { onChange(preferences.copy(bodyScale = it)) },
                         )
                     }
@@ -257,10 +263,26 @@ private fun AppearanceChatPreview(preferences: AppearancePreferences) {
 }
 
 @Composable
-private fun AppearanceScaleControls(label: String, value: Float, enabled: Boolean, tag: String, onChange: (Float) -> Unit) {
-    val percentage = stringResource(R.string.appearance_scale_value, (value * 100).roundToInt())
+private fun AppearanceScaleControls(label: String, value: Float, enabled: Boolean, tag: String,
+    maximum: Float = MAX_READING_SCALE, onChange: (Float) -> Unit) {
+    var draft by remember { mutableFloatStateOf(value) }
+    LaunchedEffect(value, enabled) { draft = value }
+    val percentage = stringResource(R.string.appearance_scale_value, (draft * 100).roundToInt())
     Text(percentage, Modifier.testTag("appearance-$tag-value").semantics { stateDescription = percentage })
-    Text(stringResource(R.string.appearance_scale_range), style = MaterialTheme.typography.bodySmall)
+    Text(stringResource(R.string.appearance_slider_range, (MIN_READING_SCALE * 100).roundToInt(),
+        (maximum * 100).roundToInt()), style = MaterialTheme.typography.bodySmall)
+    Slider(
+        value = draft,
+        onValueChange = { draft = it },
+        onValueChangeFinished = { if (draft != value) onChange(draft) },
+        valueRange = MIN_READING_SCALE..maximum,
+        steps = ((maximum - MIN_READING_SCALE) * 10).roundToInt() - 1,
+        enabled = enabled,
+        modifier = Modifier.fillMaxWidth().testTag("appearance-$tag-slider").semantics {
+            contentDescription = label
+            stateDescription = percentage
+        },
+    )
     val smaller = stringResource(R.string.appearance_smaller_label, label)
     val larger = stringResource(R.string.appearance_larger_label, label)
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(TokenWorksSpacing.sm)) {
@@ -271,8 +293,8 @@ private fun AppearanceScaleControls(label: String, value: Float, enabled: Boolea
                 .semantics { contentDescription = smaller },
         ) { Text(stringResource(R.string.appearance_smaller)) }
         OutlinedButton(
-            onClick = { onChange(boundedReadingScale(((value * 10).roundToInt() + 1) / 10f)) },
-            enabled = enabled && value < MAX_READING_SCALE,
+            onClick = { onChange(boundedReadingScale(((value * 10).roundToInt() + 1) / 10f).coerceAtMost(maximum)) },
+            enabled = enabled && value < maximum,
             modifier = Modifier.weight(1f).heightIn(min = TokenWorksSpacing.minimumTouchTarget).testTag("appearance-$tag-larger")
                 .semantics { contentDescription = larger },
         ) { Text(stringResource(R.string.appearance_larger)) }

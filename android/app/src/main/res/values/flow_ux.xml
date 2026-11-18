@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<resources>
+<resources xmlns:tools="http://schemas.android.com/tools" tools:locale="en">
     <string name="flow_binding_step_input">Step 1 · Enter request details</string>
     <string name="flow_binding_step_review">Step 2 · Verify the computer</string>
     <string name="flow_binding_step_wait">Step 3 · Wait for independent confirmation</string>

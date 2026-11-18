@@ -1,0 +1,30 @@
+<resources xmlns:tools="http://schemas.android.com/tools" tools:locale="en">
+    <string name="settings_search">Search settings</string>
+    <string name="settings_search_empty">No matching settings</string>
+    <string name="settings_group_security">Security</string>
+    <string name="settings_group_notifications">Notifications</string>
+    <string name="settings_group_appearance">Appearance</string>
+    <string name="settings_group_about">About this app</string>
+    <string name="settings_group_expanded">Expanded</string>
+    <string name="settings_group_collapsed">Collapsed</string>
+    <string name="settings_manage_devices">Computers and devices</string>
+    <string name="settings_manage_devices_detail">Review linked devices, installations and access</string>
+    <string name="settings_notification_preferences">Notifications and background connection</string>
+    <string name="settings_notification_preferences_detail">Manage alerts and keep the selected session connected</string>
+    <string name="settings_notification_center">Notification center</string>
+    <string name="settings_notification_center_detail">Recent approvals, questions and completed turns</string>
+    <string name="settings_secure_pairing">Secure local pairing</string>
+    <string name="settings_secure_pairing_detail">Pair with a computer on the same network</string>
+    <string name="settings_lan_notice">Currently connected to local devices only. Sign in to use remote relay.</string>
+    <string name="settings_relay_sign_in">Sign in to remote relay</string>
+    <string name="settings_copy_account">Copy account information</string>
+    <string name="settings_account_copied">Account information copied</string>
+    <string name="settings_copy_failed">Could not access the clipboard.</string>
+    <string name="settings_verify_exit">Verify your identity to sign out</string>
+    <string name="settings_verify_exit_failed">You were not signed out. Verify with a biometric or your device screen lock and try again.</string>
+    <plurals name="workspace_unread_sessions">
+        <item quantity="one">%d unread session</item>
+        <item quantity="other">%d unread sessions</item>
+    </plurals>
+    <string name="workspace_unread_overflow">99+</string>
+</resources>

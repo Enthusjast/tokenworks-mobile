@@ -1,4 +1,4 @@
-<resources>
+<resources xmlns:tools="http://schemas.android.com/tools" tools:locale="en">
     <string name="app_name">TokenWorks Mobile</string>
     <string name="nav_sessions">Sessions</string>
     <string name="nav_computers">Computers</string>

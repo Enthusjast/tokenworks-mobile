@@ -47,6 +47,9 @@ class LoginController internal constructor(
 
     fun openNotifySettings() = notifications.openSettings()
     fun closeNotifySettings() = notifications.closeSettings()
+    fun openNotificationCenter() = notifications.openCenter()
+    fun closeNotificationCenter() = notifications.closeCenter()
+    fun openNotificationCenterEntry(id: String) = notifications.openCenterEntry(id)
     fun setNotificationsEnabled(enabled: Boolean) = notifications.setEnabled(enabled)
     fun setBackgroundConnectionEnabled(enabled: Boolean) = notifications.setBackground(enabled)
     fun refreshNotificationPermission() = notifications.permissionChanged()
@@ -57,9 +60,10 @@ class LoginController internal constructor(
     internal fun backgroundServiceStarted() = notifications.serviceStarted()
     internal fun backgroundServiceStopped() = notifications.serviceStopped()
     internal fun stopBackgroundConnection() = notifications.stopBackground()
-    fun approveInteraction(eventId: String) = sessions.approveInteraction(eventId)
+    internal fun approveInteraction(eventId: String, verify: suspend () -> Unit) = sessions.approveInteraction(eventId, verify)
     fun retryPrompt(requestId: String) = sessions.retryPrompt(requestId)
     fun abandonPrompt(requestId: String) = sessions.abandonPrompt(requestId)
+    fun revisePendingPrompt(requestId: String, text: String? = null, mode: String? = null) = sessions.revisePendingPrompt(requestId, text, mode)
     fun rejectInteraction(eventId: String, message: String) = sessions.rejectInteraction(eventId, message)
     fun submitAnswers(eventId: String, answers: List<InteractionBridge.AnsweredQuestion>) = sessions.submitAnswers(eventId, answers)
     fun openAppUpdates() = hosts.openAppUpdates()
@@ -76,7 +80,7 @@ class LoginController internal constructor(
     fun register(name: String) = account.register(name)
     fun cancel() { notifications.stopBackground(); account.cancel() }
     fun refresh() = hosts.refresh()
-    fun foreground(active: Boolean) = hosts.foreground(active)
+    fun foreground(active: Boolean) { notifications.foreground(active); hosts.foreground(active) }
     fun openRuntime(id: String) = sessions.openRuntime(id)
     fun openSession(id: String) = sessions.openSession(id)
     fun closeSession() = sessions.closeSession()
@@ -110,6 +114,7 @@ class LoginController internal constructor(
     fun authenticationCancelled(id: Long) = account.authenticationCancelled(id)
     fun callback(uri: String) = account.callback(uri)
     fun prompt(text: String, mode: String = "queue") = sessions.prompt(text, mode)
+    fun chooseDraftDelivery(mode: String) = sessions.chooseDraftDelivery(mode)
     fun enterLanOnly() = account.enterLanOnly()
     fun openPairing() = hosts.openPairing()
     fun closePairing() = hosts.closePairing()

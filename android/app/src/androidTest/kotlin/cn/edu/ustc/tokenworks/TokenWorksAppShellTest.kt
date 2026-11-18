@@ -242,9 +242,15 @@ class TokenWorksAppShellTest {
         rule.runOnIdle { assertEquals(2, closes) }
     }
 
-    @Test fun settingsRequireLogoutConfirmationAndCancelDoesNotExit() {
+    @Test fun settingsSignOutRequiresCurrentOwnerAndSuccessfulVerification() {
         var exits = 0
-        rule.setContent { FixtureTheme(darkTheme = false) { WorkspaceSettings(state(), {}, {}, { exits++ }, {}, {}, {}, {}, {}) } }
+        var account by mutableStateOf(state().copy(presentationOwner = CommandOwner(runtimeA, workspace, "a".repeat(64), sessionA, runtimeB)))
+        var verification: ((Boolean) -> Unit)? = null
+        rule.setContent {
+            FixtureTheme(darkTheme = false) {
+                WorkspaceSettings(account, {}, {}, { exits++ }, {}, {}, {}, {}, {}, verifyExit = { verification = it })
+            }
+        }
         saveFixture("settings-light", dark = false)
         clickSettingsItem(label(R.string.action_exit_account))
         rule.onNodeWithText(label(R.string.settings_exit_title)).assertIsDisplayed()
@@ -253,6 +259,14 @@ class TokenWorksAppShellTest {
         rule.runOnIdle { assertEquals(0, exits) }
         clickSettingsItem(label(R.string.action_exit_account))
         rule.onNode(hasText(label(R.string.action_exit_account)) and hasAnyAncestor(isDialog())).performClick()
+        rule.runOnIdle { assertEquals(0, exits); verification!!(false) }
+        clickSettingsItem(label(R.string.action_exit_account))
+        rule.onNode(hasText(label(R.string.action_exit_account)) and hasAnyAncestor(isDialog())).performClick()
+        rule.runOnIdle { account = account.copy(presentationOwner = CommandOwner(runtimeA, workspace, "a".repeat(64), sessionB, runtimeB)) }
+        rule.runOnIdle { verification!!(true); assertEquals(0, exits) }
+        clickSettingsItem(label(R.string.action_exit_account))
+        rule.onNode(hasText(label(R.string.action_exit_account)) and hasAnyAncestor(isDialog())).performClick()
+        rule.runOnIdle { verification!!(true) }
         rule.runOnIdle { assertEquals(1, exits) }
     }
 

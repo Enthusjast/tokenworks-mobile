@@ -1,6 +1,8 @@
 package cn.edu.ustc.tokenworks
 
 import java.util.Base64
+import java.io.File
+import java.io.OutputStream
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
 
@@ -49,6 +51,25 @@ class DshWorkspaceFiles(private val transport: DshTransport, private val session
             }
         }
         return WorkspaceFileListing(path, decoded, boolean(result, "truncated"))
+    }
+
+    /** Same pinned file grant as Save, but stage only an explicitly selected bounded file. */
+    suspend fun preview(file: WorkspaceExportFile, stagingDirectory: File, onProgress: (Long) -> Unit = {}): StagedFile {
+        val limit = FilePreview.MAX_PREVIEW_BYTES.toLong()
+        if (file.sizeBytes !in 0..limit) throw RemoteRequestException("files.too_large")
+        return FilePreview(transport, stagingDirectory).stage(file.name, limit, onProgress) { sink ->
+            save(file, object : FileExportTarget {
+                override fun open(): OutputStream = sink
+                override fun commit() = Unit // FilePreview verifies and owns the private file.
+                override fun abort() = Unit
+            })
+            val declared = when (file.name.substringAfterLast('.', "").lowercase()) {
+                "json" -> "application/json"
+                "txt", "md", "log", "csv", "tsv", "kt", "java", "js", "ts", "py", "go", "rs", "sh", "yaml", "yml", "toml" -> "text/plain"
+                else -> "application/octet-stream"
+            }
+            DshDownload(declared, file.sizeBytes, null, null)
+        }
     }
 
     /** One bounded response at a time on a pinned authenticated route; no in-memory whole file. */

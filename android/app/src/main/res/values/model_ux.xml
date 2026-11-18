@@ -1,4 +1,4 @@
-<resources>
+<resources xmlns:tools="http://schemas.android.com/tools" tools:locale="en">
     <string name="models_title">Choose a model</string>
     <string name="models_not_current">The catalog does not show the current model in real time. Changes here apply only to this session.</string>
     <string name="models_back">Back to session</string>

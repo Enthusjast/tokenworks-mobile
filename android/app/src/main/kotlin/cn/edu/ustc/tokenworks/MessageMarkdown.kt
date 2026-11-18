@@ -38,6 +38,19 @@ internal fun parseMessageMarkdown(text: String, visibleEnd: Int): MessageMarkdow
     return MessageMarkdownParser(text, end).parse()
 }
 
+/** Fence longer than any run in the content, so quoted code cannot close its own fence. */
+internal fun markdownCodeQuote(code: String, language: String?): String {
+    var run = 0
+    var longest = 2
+    for (character in code) {
+        run = if (character == '`') run + 1 else 0
+        longest = maxOf(longest, run)
+    }
+    val fence = "`".repeat(longest + 1)
+    val label = language.orEmpty().takeWhile { it.isLetterOrDigit() || it in "_+-" }.take(24)
+    return "$fence$label\n$code${if (code.endsWith('\n')) "" else "\n"}$fence"
+}
+
 private class MessageMarkdownParser(private val source: String, private val end: Int) {
     private data class Line(val start: Int, val end: Int, val next: Int, val content: Int)
     private data class Fence(val character: Char, val count: Int, val info: Int)

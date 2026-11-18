@@ -1,4 +1,4 @@
-<resources>
+<resources xmlns:tools="http://schemas.android.com/tools" tools:locale="en">
     <string name="onboarding_source_open">Show sign-in source and account</string>
     <string name="onboarding_source_close">Hide sign-in source and account</string>
 </resources>

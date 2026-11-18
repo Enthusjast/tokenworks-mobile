@@ -46,8 +46,8 @@ class NotifyPlatformTest {
             showReferenceNotification(context, reference)
             await("generic reference notification posted") { manager.activeNotifications.any { it.tag == reference.notificationId } }
             val posted = manager.activeNotifications.single { it.tag == reference.notificationId }.notification
-            assertEquals("会话有新事件", posted.extras.getCharSequence(Notification.EXTRA_TITLE).toString())
-            assertEquals("打开应用后验证访问权限并查看。", posted.extras.getCharSequence(Notification.EXTRA_TEXT).toString())
+            assertEquals(context.getString(R.string.platform_notice_title), posted.extras.getCharSequence(Notification.EXTRA_TITLE).toString())
+            assertEquals(context.getString(R.string.platform_notice_detail), posted.extras.getCharSequence(Notification.EXTRA_TEXT).toString())
             assertEquals(Notification.VISIBILITY_SECRET, posted.visibility)
             assertEquals(context.packageName, posted.contentIntent.creatorPackage)
             if (Build.VERSION.SDK_INT >= 31) assertTrue(posted.contentIntent.isImmutable)
@@ -77,8 +77,8 @@ class NotifyPlatformTest {
                 val notification = manager.activeNotifications.single { it.id == CONNECTION_ID }.notification
                 assertTrue(notification.flags and Notification.FLAG_ONGOING_EVENT != 0)
                 assertTrue(notification.flags and Notification.FLAG_FOREGROUND_SERVICE != 0)
-                assertEquals("后台只读连接已开启", notification.extras.getCharSequence(Notification.EXTRA_TITLE).toString())
-                assertEquals("停止连接", notification.actions.single().title.toString())
+                assertEquals(context.getString(R.string.platform_connection_title), notification.extras.getCharSequence(Notification.EXTRA_TITLE).toString())
+                assertEquals(context.getString(R.string.platform_connection_stop), notification.actions.single().title.toString())
                 notification.actions.single().actionIntent.send()
                 await("stop action tears down service notification") { manager.activeNotifications.none { it.id == CONNECTION_ID } }
                 // The actual production service rejects restart without selected authenticated authority.
@@ -108,7 +108,8 @@ class NotifyPlatformTest {
                 assertTrue(home.value.backgroundReadOnly)
                 assertNull(home.value.composer)
                 sessions.editDraft(TextFieldValue("MUST NOT ENTER")); sessions.prompt("MUST NOT SEND")
-                sessions.sendDraft(); sessions.retryPrompt(id); sessions.cancelSession(); sessions.approveInteraction(id)
+                sessions.sendDraft(); sessions.retryPrompt(id); sessions.cancelSession()
+                sessions.approveInteraction(id) { error("background approval must not request biometrics") }
                 assertNull(home.value.composer)
                 assertFalse(home.value.submitting)
                 sessions.fence(closeKeys = true, preserveSelection = false)

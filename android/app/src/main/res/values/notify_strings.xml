@@ -1,4 +1,4 @@
-<resources>
+<resources xmlns:tools="http://schemas.android.com/tools" tools:locale="en">
     <string name="notify_title">Notifications and background connection</string>
     <string name="notify_back">Back to workspace settings</string>
     <string name="notify_privacy">Notifications contain only opaque references, not session titles, messages, tool arguments, or audio. Opening one rechecks your current account and permissions. It never approves requests or sends commands automatically.</string>

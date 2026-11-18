@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<resources>
+<resources xmlns:tools="http://schemas.android.com/tools" tools:locale="en">
     <string name="session_archive_archived_title">Archived · History is still readable</string>
     <string name="session_archive_title">Session archive</string>
     <string name="session_archive_archived_description">Restore the session to continue the conversation. Archive status is shared with the computer.</string>

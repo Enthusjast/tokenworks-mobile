@@ -40,12 +40,7 @@ fun HostBindingScreen(state: HostBindingState, subject: String, onPreview: (Stri
         Box(Modifier.fillMaxSize().padding(insets).imePadding(), contentAlignment = Alignment.TopCenter) {
             Column(Modifier.widthIn(max = TokenWorksSpacing.readingWidth).fillMaxWidth().verticalScroll(rememberScrollState()).padding(cn.edu.ustc.tokenworks.TokenWorksSpacing.lg),
                 verticalArrangement = Arrangement.spacedBy(TokenWorksSpacing.lg)) {
-                Text(stringResource(when (state.phase) {
-                    HostBindingPhase.ENTER -> R.string.flow_binding_step_input
-                    HostBindingPhase.LOADING, HostBindingPhase.REVIEW -> R.string.flow_binding_step_review
-                    HostBindingPhase.CONFIRMING, HostBindingPhase.WAITING_HOST -> R.string.flow_binding_step_wait
-                    else -> R.string.flow_binding_step_result
-                }), style = MaterialTheme.typography.titleMedium, modifier = Modifier.semantics { heading() })
+                BindingProgress(state.phase)
                 if (state.phase == HostBindingPhase.ENTER) key(state.formRevision) {
                     Text(stringResource(R.string.conversation_binding_request), style = MaterialTheme.typography.titleSmall, modifier = Modifier.semantics { heading() })
                     BindingEntry(state.id, state.error, onPreview, onQuery)
@@ -67,19 +62,41 @@ fun HostBindingScreen(state: HostBindingState, subject: String, onPreview: (Stri
                                 Checkbox(checked, onCheckedChange = null)
                                 Text(stringResource(R.string.conversation_binding_consent), Modifier.weight(1f))
                             }
-                            Button(onConfirm, enabled = checked && details.canConfirm(), modifier = Modifier.fillMaxWidth().heightIn(min = TokenWorksSpacing.minimumTouchTarget)) { Text("确认绑定这台电脑") }
+                            Button(onConfirm, enabled = checked && details.canConfirm(), modifier = Modifier.fillMaxWidth().heightIn(min = TokenWorksSpacing.minimumTouchTarget)) { Text(stringResource(R.string.binding_confirm_computer)) }
                         }
                         HostBindingPhase.UNKNOWN, HostBindingPhase.WAITING_HOST, HostBindingPhase.WAITING_ACCESS, HostBindingPhase.ERROR -> {
-                            if (state.id.isNotEmpty()) OutlinedButton(onRefresh, Modifier.fillMaxWidth().heightIn(min = TokenWorksSpacing.minimumTouchTarget)) { Text("查询绑定状态") }
-                            TextButton(onEnter, Modifier.fillMaxWidth().heightIn(min = TokenWorksSpacing.minimumTouchTarget)) { Text("重新输入绑定信息") }
+                            if (state.id.isNotEmpty()) OutlinedButton(onRefresh, Modifier.fillMaxWidth().heightIn(min = TokenWorksSpacing.minimumTouchTarget)) { Text(stringResource(R.string.binding_check_status)) }
+                            TextButton(onEnter, Modifier.fillMaxWidth().heightIn(min = TokenWorksSpacing.minimumTouchTarget)) { Text(stringResource(R.string.binding_reenter)) }
                         }
-                        HostBindingPhase.UNAVAILABLE -> OutlinedButton(onEnter, Modifier.fillMaxWidth().heightIn(min = TokenWorksSpacing.minimumTouchTarget)) { Text("输入其他绑定申请") }
-                        HostBindingPhase.READY -> Button(onBack, Modifier.fillMaxWidth().heightIn(min = TokenWorksSpacing.minimumTouchTarget)) { Text("查看授权的电脑") }
+                        HostBindingPhase.UNAVAILABLE -> OutlinedButton(onEnter, Modifier.fillMaxWidth().heightIn(min = TokenWorksSpacing.minimumTouchTarget)) { Text(stringResource(R.string.binding_another)) }
+                        HostBindingPhase.READY -> Button(onBack, Modifier.fillMaxWidth().heightIn(min = TokenWorksSpacing.minimumTouchTarget)) { Text(stringResource(R.string.binding_show_computers)) }
                         else -> Unit
                     }
                     if (state.phase != HostBindingPhase.REVIEW) state.details?.let { BindingFacts(it) }
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun BindingProgress(phase: HostBindingPhase) {
+    val stages = listOf(R.string.flow_binding_step_input, R.string.flow_binding_step_review,
+        R.string.flow_binding_step_wait, R.string.flow_binding_step_result)
+    val step = when (phase) {
+        HostBindingPhase.ENTER -> 0
+        HostBindingPhase.LOADING, HostBindingPhase.REVIEW -> 1
+        HostBindingPhase.CONFIRMING, HostBindingPhase.WAITING_HOST, HostBindingPhase.WAITING_ACCESS -> 2
+        else -> 3
+    }
+    val current = stringResource(stages[step])
+    Text(current, style = MaterialTheme.typography.titleMedium, modifier = Modifier.semantics { heading() })
+    val progress = stringResource(R.string.binding_step_progress, step + 1, stages.size)
+    Row(Modifier.fillMaxWidth().clearAndSetSemantics { stateDescription = progress },
+        horizontalArrangement = Arrangement.spacedBy(TokenWorksSpacing.xs)) {
+        stages.forEachIndexed { index, _ ->
+            Surface(Modifier.weight(1f).height(4.dp), shape = tokenWorksSquircle(2.dp),
+                color = if (index <= step) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant) {}
         }
     }
 }
@@ -95,20 +112,31 @@ private fun BindingEntry(initialId: String, error: String?, onPreview: (String, 
     val idValid = runCatching { Contract.uuid(id.trim().lowercase()) }.isSuccess
     val codeValid = runCatching { Contract.nonce(code.trim()) }.isSuccess
     Text(stringResource(R.string.flow_binding_input_help))
-    OutlinedTextField(id, { if (it.length <= 64) id = it }, singleLine = true, label = { Text("绑定申请编号") },
-        supportingText = { Text(if (idTouched && !idValid) "请填写电脑显示的完整申请编号。" else "填写申请编号，不要输入网址。") }, isError = idTouched && !idValid,
+    PairingQrButton { raw ->
+        val payload = HostBindingQr.parse(raw)
+        if (payload == null) false else {
+            id = payload.id
+            code = payload.code
+            visible = false
+            idTouched = false
+            codeTouched = false
+            true
+        }
+    }
+    OutlinedTextField(id, { if (it.length <= 64) id = it }, singleLine = true, label = { Text(stringResource(R.string.binding_request_number)) },
+        supportingText = { Text(if (idTouched && !idValid) stringResource(R.string.binding_request_invalid) else stringResource(R.string.binding_request_hint)) }, isError = idTouched && !idValid,
         keyboardOptions = KeyboardOptions(autoCorrectEnabled = false, keyboardType = KeyboardType.Ascii),
         modifier = Modifier.fillMaxWidth().onFocusChanged { if (!it.isFocused && id.isNotEmpty()) idTouched = true })
-    OutlinedTextField(code, { if (it.length <= 64) code = it }, singleLine = true, label = { Text("电脑显示的绑定码") },
-        supportingText = { Text(if (codeTouched && !codeValid) "请复制完整绑定码，保留字母大小写。" else "绑定码仅用于本次申请，请勿转发给他人。") }, isError = codeTouched && !codeValid,
+    OutlinedTextField(code, { if (it.length <= 64) code = it }, singleLine = true, label = { Text(stringResource(R.string.binding_code_label)) },
+        supportingText = { Text(if (codeTouched && !codeValid) stringResource(R.string.binding_code_invalid) else stringResource(R.string.binding_code_hint)) }, isError = codeTouched && !codeValid,
         visualTransformation = if (visible) VisualTransformation.None else PasswordVisualTransformation(),
         keyboardOptions = KeyboardOptions(autoCorrectEnabled = false, keyboardType = KeyboardType.Password),
-        trailingIcon = { TextButton({ visible = !visible }, Modifier.heightIn(min = TokenWorksSpacing.minimumTouchTarget)) { Text(if (visible) "隐藏" else "显示") } },
+        trailingIcon = { TextButton({ visible = !visible }, Modifier.heightIn(min = TokenWorksSpacing.minimumTouchTarget)) { Text(if (visible) stringResource(R.string.binding_hide_code) else stringResource(R.string.binding_show_code)) } },
         modifier = Modifier.fillMaxWidth().onFocusChanged { if (!it.isFocused && code.isNotEmpty()) codeTouched = true })
     error?.let { cn.edu.ustc.tokenworks.TokenWorksStatusNotice(bindingError(it), isError = true) }
-    Button({ onPreview(id, code) }, enabled = idValid && codeValid, modifier = Modifier.fillMaxWidth().heightIn(min = TokenWorksSpacing.minimumTouchTarget)) { Text("核对电脑信息") }
-    Text("已在手机确认过的申请，可以只填写申请编号查询结果。", color = MaterialTheme.colorScheme.onSurfaceVariant)
-    OutlinedButton({ onQuery(id) }, enabled = idValid, modifier = Modifier.fillMaxWidth().heightIn(min = TokenWorksSpacing.minimumTouchTarget)) { Text("仅查询已确认申请") }
+    Button({ onPreview(id, code) }, enabled = idValid && codeValid, modifier = Modifier.fillMaxWidth().heightIn(min = TokenWorksSpacing.minimumTouchTarget)) { Text(stringResource(R.string.binding_review_computer)) }
+    Text(stringResource(R.string.binding_check_help), color = MaterialTheme.colorScheme.onSurfaceVariant)
+    OutlinedButton({ onQuery(id) }, enabled = idValid, modifier = Modifier.fillMaxWidth().heightIn(min = TokenWorksSpacing.minimumTouchTarget)) { Text(stringResource(R.string.binding_query_confirmed)) }
 }
 
 @Composable
@@ -118,11 +146,11 @@ private fun BindingFacts(details: HostBindingDetails) {
     Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(TokenWorksSpacing.lg)) {
             HorizontalDivider()
             Text(stringResource(R.string.conversation_binding_verify), style = MaterialTheme.typography.titleMedium, modifier = Modifier.semantics { heading() })
-            BindingFact("组织", details.organizationName)
-            BindingFact("电脑名称", details.hostAlias)
-            BindingFact("运行环境", details.profile)
-            if (details.dshVersion.isNotEmpty()) BindingFact("DSH 版本", details.dshVersion)
-            Text("安装密钥指纹", style = MaterialTheme.typography.labelLarge)
+            BindingFact(stringResource(R.string.binding_organization), details.organizationName)
+            BindingFact(stringResource(R.string.binding_computer_name), details.hostAlias)
+            BindingFact(stringResource(R.string.binding_runtime), details.profile)
+            if (details.dshVersion.isNotEmpty()) BindingFact(stringResource(R.string.binding_dsh_version), details.dshVersion)
+            Text(stringResource(R.string.binding_key_fingerprint), style = MaterialTheme.typography.labelLarge)
             SelectionContainer {
                 Text(details.keyThumbprint.chunked(8).joinToString(" "), style = MaterialTheme.typography.bodyMedium.copy(fontFamily = FontFamily.Monospace, textDirection = TextDirection.Ltr))
             }
@@ -133,11 +161,11 @@ private fun BindingFacts(details: HostBindingDetails) {
                 Text(stringResource(R.string.flow_binding_copy_fingerprint))
             }
             if (copied) Text(stringResource(R.string.flow_binding_fingerprint_copied), modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite })
-            Text("请核对全部字符，不能只比较电脑名称。", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            BindingFact("工作区", if (details.workspaces.isEmpty()) "尚未配置可用工作区" else details.workspaces.joinToString("\n") { it.reference })
-            BindingFact("申请编号", details.id)
+            Text(stringResource(R.string.binding_verify_full), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            BindingFact(stringResource(R.string.binding_workspace_label), if (details.workspaces.isEmpty()) stringResource(R.string.binding_no_workspaces) else details.workspaces.joinToString("\n") { it.reference })
+            BindingFact(stringResource(R.string.binding_public_number), details.id)
             val expiry = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss").withZone(ZoneId.systemDefault()).format(Instant.ofEpochMilli(details.expiresAt))
-            Text("申请有效至 $expiry", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(stringResource(R.string.binding_expires_at, expiry), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             HorizontalDivider()
         }
 }
@@ -150,18 +178,18 @@ private fun BindingFacts(details: HostBindingDetails) {
 @Composable private fun BindingStatus(state: HostBindingState) {
     val busy = state.phase in setOf(HostBindingPhase.LOADING, HostBindingPhase.CONFIRMING, HostBindingPhase.CHECKING)
     val title = when (state.phase) {
-        HostBindingPhase.LOADING -> "正在核对电脑信息"
-        HostBindingPhase.REVIEW -> "确认本次绑定申请"
-        HostBindingPhase.CONFIRMING -> "正在确认绑定"
-        HostBindingPhase.CHECKING -> "正在查询绑定结果"
-        HostBindingPhase.UNKNOWN -> "绑定结果待核对"
-        HostBindingPhase.WAITING_HOST -> "手机已确认，等待电脑确认"
-        HostBindingPhase.WAITING_ACCESS -> "双方已确认，当前未查到可用授权"
-        HostBindingPhase.READY -> "绑定已完成"
-        HostBindingPhase.UNAVAILABLE -> "此绑定申请当前不可用"
-        HostBindingPhase.ERROR -> "暂时无法核对绑定"
-        HostBindingPhase.PAUSED, HostBindingPhase.CLOSED -> "已暂停核对绑定"
-        HostBindingPhase.ENTER -> "输入绑定信息"
+        HostBindingPhase.LOADING -> stringResource(R.string.binding_checking_computer)
+        HostBindingPhase.REVIEW -> stringResource(R.string.binding_review_request)
+        HostBindingPhase.CONFIRMING -> stringResource(R.string.binding_confirming)
+        HostBindingPhase.CHECKING -> stringResource(R.string.binding_checking_result)
+        HostBindingPhase.UNKNOWN -> stringResource(R.string.binding_result_unknown)
+        HostBindingPhase.WAITING_HOST -> stringResource(R.string.binding_wait_computer)
+        HostBindingPhase.WAITING_ACCESS -> stringResource(R.string.binding_wait_access)
+        HostBindingPhase.READY -> stringResource(R.string.binding_ready)
+        HostBindingPhase.UNAVAILABLE -> stringResource(R.string.binding_unavailable)
+        HostBindingPhase.ERROR -> stringResource(R.string.binding_check_error)
+        HostBindingPhase.PAUSED, HostBindingPhase.CLOSED -> stringResource(R.string.binding_check_paused)
+        HostBindingPhase.ENTER -> stringResource(R.string.binding_enter_details)
     }
     Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(TokenWorksSpacing.md)) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(TokenWorksSpacing.md)) {
@@ -174,10 +202,10 @@ private fun BindingFacts(details: HostBindingDetails) {
                     })
             }
             when (state.phase) {
-                HostBindingPhase.UNKNOWN -> Text("确认可能已经送达。请查询原申请的状态，避免重复操作。")
-                HostBindingPhase.WAITING_HOST -> Text("请回到发起申请的电脑，核对账号并完成独立确认。")
-                HostBindingPhase.WAITING_ACCESS -> Text("请刷新状态，或联系管理员核对当前授权。")
-                HostBindingPhase.READY -> Text("此运行环境已出现在当前账号的授权目录中。可返回列表查看可用操作。")
+                HostBindingPhase.UNKNOWN -> Text(stringResource(R.string.binding_result_unknown_detail))
+                HostBindingPhase.WAITING_HOST -> Text(stringResource(R.string.binding_wait_computer_detail))
+                HostBindingPhase.WAITING_ACCESS -> Text(stringResource(R.string.binding_wait_access_detail))
+                HostBindingPhase.READY -> Text(stringResource(R.string.binding_ready_detail))
                 else -> Unit
             }
             if (state.id.isNotEmpty()) BindingFact(stringResource(R.string.flow_binding_public_id), state.id)
@@ -205,17 +233,18 @@ private fun BindingFacts(details: HostBindingDetails) {
             state.error?.let { cn.edu.ustc.tokenworks.TokenWorksStatusNotice(bindingError(it), isError = true) }
         }
 }
+@Composable
 private fun bindingError(code: String) = when (code) {
-    "binding.input_invalid" -> "请填写正确的申请编号和完整绑定码。"
-    "binding.review_cleared" -> "核对信息已清除，请重新输入电脑显示的绑定码。"
-    "binding.code_required" -> "此申请尚未由当前账号确认，请输入绑定码重新核对。"
-    "binding.expired" -> "申请已过期，请在电脑上重新发起绑定。"
-    "binding.confirmed_elsewhere" -> "此申请已由另一个账号确认，请在电脑上核对发起信息。"
-    "binding.organization_mismatch" -> "此申请不属于当前安装包配置的组织。"
-    "binding.details_changed", "binding.identity_mismatch" -> "申请信息已变化，请重新核对后确认。"
-    "binding.protocol_unsupported" -> "当前版本暂不支持此运行环境，请更新后重试。"
-    "binding.unavailable" -> "此申请已被拒绝或取消，请在电脑上核对后重新发起。"
-    "access.denied", "access.revoked" -> "无法访问此申请，请核对申请编号、绑定码和账号权限。"
-    "protocol.invalid" -> "申请信息无法验证，请核对来源后重试。"
-    else -> "暂时无法核对，请检查网络后查询绑定状态。"
+    "binding.input_invalid" -> stringResource(R.string.binding_error_input)
+    "binding.review_cleared" -> stringResource(R.string.binding_error_review_cleared)
+    "binding.code_required" -> stringResource(R.string.binding_error_code_required)
+    "binding.expired" -> stringResource(R.string.binding_error_expired)
+    "binding.confirmed_elsewhere" -> stringResource(R.string.binding_error_elsewhere)
+    "binding.organization_mismatch" -> stringResource(R.string.binding_error_organization)
+    "binding.details_changed", "binding.identity_mismatch" -> stringResource(R.string.binding_error_changed)
+    "binding.protocol_unsupported" -> stringResource(R.string.binding_error_unsupported)
+    "binding.unavailable" -> stringResource(R.string.binding_error_unavailable)
+    "access.denied", "access.revoked" -> stringResource(R.string.binding_error_access)
+    "protocol.invalid" -> stringResource(R.string.binding_error_protocol)
+    else -> stringResource(R.string.binding_error_generic)
 }

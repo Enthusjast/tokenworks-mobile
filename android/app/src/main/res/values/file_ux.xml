@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<resources>
+<resources xmlns:tools="http://schemas.android.com/tools" tools:locale="en">
     <string name="file_ux_upload_title">Session attachments</string>
     <string name="file_ux_upload_hint">After passing the safety check, attachments must still be staged on the computer. They are checked again when you send the message.</string>
     <string name="file_ux_choose">Choose a file</string>

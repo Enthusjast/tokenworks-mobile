@@ -1,4 +1,4 @@
-<resources>
+<resources xmlns:tools="http://schemas.android.com/tools" tools:locale="en">
     <string name="session_actions_patch_copied">Full patch copied</string>
     <string name="session_actions_changes">Workspace changes</string>
     <string name="session_actions_images">Images and camera</string>

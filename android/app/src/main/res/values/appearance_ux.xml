@@ -1,4 +1,4 @@
-<resources>
+<resources xmlns:tools="http://schemas.android.com/tools" tools:locale="en">
     <string name="appearance_title">Appearance and reading</string>
     <string name="appearance_back">Back to settings</string>
     <string name="appearance_scope">Only appearance preferences for the current account, organization, deployment, and device are saved. Messages and drafts are not saved, and access permissions do not change.</string>

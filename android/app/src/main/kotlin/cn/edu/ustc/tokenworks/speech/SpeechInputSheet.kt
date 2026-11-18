@@ -12,6 +12,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
@@ -67,12 +68,12 @@ internal fun SpeechInputSheet(
         coordinator.close()
         onDismiss()
     }
-    AlertDialog(onDismissRequest = dismiss, title = { Text("语音转文字") }, text = {
+    AlertDialog(onDismissRequest = dismiss, title = { Text(stringResource(R.string.speech_input_title)) }, text = {
         Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            Text("识别结果仅填入草稿，不会自动发送。应用不保存、上传或转发音频；麦克风只在你开始识别后启用。")
-            if (coordinator.onDeviceAvailable) Text("当前使用设备上的本机识别服务，不会自动切换到联网服务。")
+            Text(stringResource(R.string.speech_input_privacy))
+            if (coordinator.onDeviceAvailable) Text(stringResource(R.string.speech_input_on_device_notice))
             else {
-                Text("此设备没有可用的本机识别服务。系统语音服务可能将音频发送给其提供商联网处理；优先离线不能保证离线，这不受应用控制。")
+                Text(stringResource(R.string.speech_input_system_notice))
                 if (coordinator.systemAvailable) Row(
                     Modifier.fillMaxWidth().toggleable(
                         value = systemAllowed,
@@ -82,19 +83,25 @@ internal fun SpeechInputSheet(
                     ),
                 ) {
                     Checkbox(systemAllowed, null, enabled = !state.listening && !state.awaitingPermission)
-                    Text("允许本次使用系统语音服务", Modifier.padding(top = 12.dp))
-                } else Text("没有可用的系统语音服务；仍可使用键盘输入。")
+                    Text(stringResource(R.string.speech_input_system_consent), Modifier.padding(top = 12.dp))
+                } else Text(stringResource(R.string.speech_input_system_unavailable))
             }
             if (state.listening) Text(
-                if (state.finishing) "正在等待识别结果…离开应用会立即取消。" else "正在聆听…离开应用会立即取消。",
+                stringResource(if (state.finishing) R.string.speech_input_finishing else R.string.speech_input_listening),
                 color = MaterialTheme.colorScheme.primary,
             )
-            if (state.awaitingPermission) Text("正在等待麦克风权限请求结束；关闭或离开应用后不会开始识别。")
-            state.error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+            if (state.awaitingPermission) Text(stringResource(R.string.speech_input_awaiting_permission))
+            state.error?.let { error ->
+                val message = when (error) {
+                    is SpeechInputError.Message -> stringResource(error.resourceId)
+                    is SpeechInputError.Formatted -> stringResource(error.resourceId, error.argument)
+                }
+                Text(message, color = MaterialTheme.colorScheme.error)
+            }
             OutlinedTextField(state.text, coordinator::editText, Modifier.fillMaxWidth().heightIn(min = 120.dp),
-                label = { Text("识别文字（可修改）") }, enabled = !state.listening && !state.awaitingPermission)
+                label = { Text(stringResource(R.string.speech_input_text_label)) }, enabled = !state.listening && !state.awaitingPermission)
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                if (state.listening) OutlinedButton(coordinator::stop, enabled = !state.finishing) { Text("结束聆听") }
+                if (state.listening) OutlinedButton(coordinator::stop, enabled = !state.finishing) { Text(stringResource(R.string.speech_input_stop)) }
                 else OutlinedButton({
                     val consent = systemAllowed
                     systemAllowed = false
@@ -109,9 +116,9 @@ internal fun SpeechInputSheet(
                         requestPermission = { microphone.launch(Manifest.permission.RECORD_AUDIO) },
                     )
                 }, enabled = !state.awaitingPermission && (coordinator.onDeviceAvailable || (coordinator.systemAvailable && systemAllowed))) {
-                    Text("开始识别")
+                    Text(stringResource(R.string.speech_input_start))
                 }
-                TextButton({ systemAllowed = false; coordinator.cancel() }) { Text("清空") }
+                TextButton({ systemAllowed = false; coordinator.cancel() }) { Text(stringResource(R.string.speech_input_clear)) }
             }
         }
     }, confirmButton = {
@@ -121,6 +128,6 @@ internal fun SpeechInputSheet(
                 coordinator.close()
                 onInsert(current.text)
             }
-        }, enabled = !state.listening && !state.awaitingPermission && state.text.isNotBlank()) { Text("插入草稿") }
-    }, dismissButton = { TextButton(dismiss) { Text("取消") } })
+        }, enabled = !state.listening && !state.awaitingPermission && state.text.isNotBlank()) { Text(stringResource(R.string.speech_input_insert)) }
+    }, dismissButton = { TextButton(dismiss) { Text(stringResource(R.string.speech_input_cancel)) } })
 }

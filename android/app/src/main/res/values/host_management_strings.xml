@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<resources>
+<resources xmlns:tools="http://schemas.android.com/tools" tools:locale="en">
     <string name="host_management_title">Manage computers and devices</string>
     <string name="host_management_back">Back to computers</string>
     <string name="host_management_intro">Automatic selection falls back only within the same installation identity and runtime profile. A fixed connection never switches paths. Drafts and pending operations do not move between paths.</string>

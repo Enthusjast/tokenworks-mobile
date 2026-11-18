@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<resources>
+<resources xmlns:tools="http://schemas.android.com/tools" tools:locale="en">
     <string name="session_history_snapshot">Session snapshot</string>
     <string name="session_history_empty">No events have been recorded.</string>
     <string name="session_history_event_range">Events #0–#%1$d (excluding uncommitted live content and attachment files).</string>

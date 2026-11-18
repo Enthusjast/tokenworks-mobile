@@ -313,10 +313,12 @@ internal class NativeChatFixture private constructor(
 
     companion object {
         fun launch(viewport: WorkspaceViewport = WorkspaceViewport(360, 800), dark: Boolean = false,
-            fontScale: Float = 1f): NativeChatFixture {
-            val scenario: ActivityScenario<out ComponentActivity> = if (fontScale >= 2f)
-                ActivityScenario.launch(LargeTextUiFixtureActivity::class.java)
-            else ActivityScenario.launch(ComponentActivity::class.java)
+            fontScale: Float = 1f, activityClass: Class<out ComponentActivity>? = null): NativeChatFixture {
+            val scenario: ActivityScenario<out ComponentActivity> = when {
+                activityClass != null -> ActivityScenario.launch(activityClass)
+                fontScale >= 2f -> ActivityScenario.launch(LargeTextUiFixtureActivity::class.java)
+                else -> ActivityScenario.launch(ComponentActivity::class.java)
+            }
             return NativeChatFixture(scenario, viewport, dark, fontScale)
         }
     }

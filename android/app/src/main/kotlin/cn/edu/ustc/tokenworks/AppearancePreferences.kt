@@ -10,6 +10,7 @@ import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 
 internal const val MIN_READING_SCALE = 0.8f
+internal const val MAX_BODY_READING_SCALE = 1.5f
 internal const val MAX_READING_SCALE = 1.6f
 
 internal enum class AppearanceTheme { SYSTEM, LIGHT, DARK }
@@ -20,7 +21,8 @@ internal data class AppearancePreferences(
     val codeScale: Float = 1f,
     val wrapCode: Boolean = false,
 ) {
-    fun bounded() = copy(bodyScale = boundedReadingScale(bodyScale), codeScale = boundedReadingScale(codeScale))
+    fun bounded() = copy(bodyScale = boundedReadingScale(bodyScale).coerceAtMost(MAX_BODY_READING_SCALE),
+        codeScale = boundedReadingScale(codeScale))
     fun readingStyle() = TokenWorksReadingStyle(bodyScale, codeScale, wrapCode)
 }
 

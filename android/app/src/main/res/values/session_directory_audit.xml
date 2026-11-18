@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources xmlns:tools="http://schemas.android.com/tools" tools:locale="en">
+    <string name="session_directory_search_label">Search sessions</string>
+    <string name="session_directory_search_empty_detail">Try another title or message, or clear the current filter.</string>
+    <string name="directory_clear_search">Clear session search</string>
+    <string name="directory_archived_tab">Archived</string>
+    <string name="directory_archived_empty">No archived sessions</string>
+    <string name="directory_archived_detail">Archived sessions keep their history. Restore one here to continue the conversation.</string>
+    <string name="directory_archive_unknown">Archive status is unavailable. The computer has not provided the archive list for this access.</string>
+    <string name="directory_archive_unavailable">Can’t load archived sessions</string>
+    <string name="directory_search_loading">Searching session content…</string>
+    <string name="directory_content_search_failed">Couldn’t search message content. Title and workspace matches are still shown.</string>
+    <string name="directory_search_refine">Message search is limited. Narrow your query to see more relevant matches.</string>
+    <string name="directory_metadata_search_only">Searching titles and workspaces only. Message search is unavailable.</string>
+    <string name="directory_filter_empty">No sessions match this filter</string>
+    <string name="directory_pinned_section">Pinned on this device</string>
+    <string name="directory_pinned_status">Pinned</string>
+    <string name="directory_pin">Pin on this device</string>
+    <string name="directory_unpin">Unpin from this device</string>
+    <string name="directory_row_actions">Actions for %1$s</string>
+    <string name="directory_run_turn">Running · Latest recorded turn %1$d</string>
+    <string name="directory_run_step">Running · Latest recorded turn %1$d, step %2$d</string>
+    <string name="directory_token_total">%1$s tokens total</string>
+    <string name="directory_media_preview">Message with an attachment</string>
+    <string name="directory_select">Select sessions</string>
+    <string name="directory_cancel_selection">Exit selection</string>
+    <string name="directory_selection_count">Selected: %1$d</string>
+    <string name="directory_selection_blocked">Some selected sessions aren’t eligible for this action. Running sessions must finish before archiving.</string>
+    <string name="directory_archive_action">Archive</string>
+    <string name="directory_archive_confirm_title">%1$s · %2$d selected</string>
+    <string name="directory_archive_explanation">Archiving keeps conversation history and workspace files. It does not delete data or stop running work. Each session is processed separately.</string>
+    <string name="directory_restore_explanation">Restore the same sessions with their history intact. Each session is processed separately.</string>
+    <string name="directory_archive_working">Updating sessions…</string>
+    <string name="directory_archive_result">Confirmed: %1$d · Not confirmed: %2$d</string>
+    <string name="directory_active_empty_detail">Create a session to get started. Use Archived to find sessions that the computer has archived.</string>
+</resources>

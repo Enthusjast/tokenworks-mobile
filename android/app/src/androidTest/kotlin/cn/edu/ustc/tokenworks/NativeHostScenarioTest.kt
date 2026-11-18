@@ -2,6 +2,7 @@ package cn.edu.ustc.tokenworks
 
 import android.os.Bundle
 import android.view.accessibility.AccessibilityNodeInfo
+import androidx.biometric.BiometricManager
 import androidx.compose.foundation.layout.Column
 import androidx.compose.runtime.*
 import androidx.compose.ui.text.input.TextFieldValue
@@ -45,6 +46,9 @@ class NativeHostScenarioTest {
         require(argument == "native-host-fixture.json")
         val context = InstrumentationRegistry.getInstrumentation().targetContext
         val descriptorFile = File(context.filesDir, argument)
+        assertEquals("The opt-in native Host fixture requires an enrolled strong test biometric",
+            BiometricManager.BIOMETRIC_SUCCESS,
+            BiometricManager.from(context).canAuthenticate(BiometricManager.Authenticators.BIOMETRIC_STRONG))
         require(descriptorFile.isFile && descriptorFile.length() in 1..65536)
         val fixture = JsonDocument.parse(descriptorFile.readBytes()).root
         // Erase the one-time code copy before creating any UI or runtime transport.
@@ -91,7 +95,7 @@ class NativeHostScenarioTest {
             check(opening?.phase == SessionReadPhase.READY) {
                 "Native session follow did not become ready: ${reader.state.value.phase}/${reader.state.value.error}; route=${transport.state.value}"
             }
-            NativeChatFixture.launch(WorkspaceViewport(800, 1400)).use { ui ->
+            NativeChatFixture.launch(WorkspaceViewport(800, 1400), activityClass = ApprovalUiFixtureActivity::class.java).use { ui ->
                 terminalJourney(ui, terminal, failure)
                 fileJourney(ui, fixture, transport, files, reader, directory, scope, failure)
                 interactionJourney(ui, fixture, transport, reader, interactions, scope, failure)
@@ -122,35 +126,45 @@ class NativeHostScenarioTest {
     }
 
     private suspend fun terminalJourney(ui: NativeChatFixture, terminal: TerminalWatcher, failure: AtomicReference<Throwable?>) {
+        fun label(id: Int) = ui.activity.getString(id)
         ui.content { TerminalScreen(terminal) }
-        ui.click("新建终端")
+        ui.click(label(R.string.terminal_new))
         eventually(failure, "terminal writable snapshot") { terminal.state.value.writable }
         val id = terminal.state.value.attached!!.id
         assertEquals(1, terminal.state.value.terminals.size)
         ui.act(AccessibilityNodeInfo.ACTION_SET_TEXT, { it.editable }, Bundle().apply {
             putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, "printf 'B10 原样🙂\\n'")
         })
-        ui.click("发送")
+        ui.click(label(R.string.terminal_send))
         eventually(failure, "Unicode PTY output line") { terminal.state.value.screen.lineSequence().any { it.trim() == "B10 原样🙂" } }
         ui.await("Unicode output rendered from native PTY") { nodes -> nodes.any { it.contains("B10 原样🙂") } }
+        ui.click(label(R.string.terminal_search))
+        ui.setText("terminal-output-search", "原样🙂")
+        val firstMatch = ui.activity.getString(R.string.terminal_match_count, 1, 2)
+        ui.await("search finds echoed command and rendered output") { nodes -> nodes.any { it.label(firstMatch) } }
+        ui.click(label(R.string.terminal_next_match))
+        ui.await("search navigates to the next output match") { nodes ->
+            nodes.any { it.label(ui.activity.getString(R.string.terminal_match_count, 2, 2)) }
+        }
+        ui.click(label(R.string.terminal_search))
         ui.click("100×32")
         eventually(failure, "native resize metadata") { terminal.state.value.attached?.cols == 100 && terminal.state.value.attached?.rows == 32 }
         ui.act(AccessibilityNodeInfo.ACTION_SET_TEXT, { it.editable }, Bundle().apply {
             putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, "stty size")
         })
-        ui.click("发送")
+        ui.click(label(R.string.terminal_send))
         eventually(failure, "PTY stty size output") { terminal.state.value.screen.lineSequence().any { it.trim() == "32 100" } }
-        ui.click("断开附件")
+        ui.click(label(R.string.terminal_detach))
         eventually(failure, "local detach") { terminal.state.value.attached == null }
         assertEquals(id, terminal.state.value.terminals.single().id)
-        ui.click("连接")
+        ui.click(label(R.string.terminal_connect))
         eventually(failure, "same PTY reattachment") { terminal.state.value.writable && terminal.state.value.attached?.id == id }
         assertTrue(terminal.state.value.screen.contains("B10 原样🙂"))
-        ui.click("关闭进程")
-        ui.await("destructive process close confirmation") { nodes -> nodes.any { it.label("关闭终端进程？") } }
-        ui.click("关闭进程")
+        ui.click(label(R.string.terminal_close_process))
+        ui.await("destructive process close confirmation") { nodes -> nodes.any { it.label(label(R.string.terminal_close_title)) } }
+        ui.click(label(R.string.terminal_close_process))
         eventually(failure, "native process closed") { terminal.state.value.terminals.isEmpty() && terminal.state.value.attached == null }
-        ui.await("closed terminal removed") { nodes -> nodes.none { it.label("关闭进程") } }
+        ui.await("closed terminal removed") { nodes -> nodes.none { it.label(label(R.string.terminal_close_process)) } }
         terminal.refresh()
         assertTrue(terminal.state.value.terminals.isEmpty())
     }
@@ -163,7 +177,7 @@ class NativeHostScenarioTest {
         val sessionId = fixture.string("sessionId")
         assertEquals(image.string("sha256"), digest(bytes))
         val before = reader.state.value.window!!.records.count { it.type == "user/message" }
-        ui.content { FilesScreen(files, sessionId, {}) }
+        ui.content { FilesScreen(files, sessionId) {} }
         // This is a picker-owned source, not a substituted HTTP or file service.
         files.upload(sessionId, name, bytes.size.toLong()) { bytes.inputStream() }
         eventually(failure, "uploaded image receipt") { !files.state.value.busy && files.state.value.uploaded.size == 1 }
@@ -196,7 +210,7 @@ class NativeHostScenarioTest {
         }
         // This exact native-provider path was absent at Host startup and was created
         // only by the upload. Read it through the real authenticated /api/file handler.
-        ui.content { FilesScreen(files, sessionId, {}) }
+        ui.content { FilesScreen(files, sessionId) {} }
         ui.act(AccessibilityNodeInfo.ACTION_SET_TEXT, { it.editable }, Bundle().apply {
             putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, image.string("uploadedPath"))
         })
@@ -227,7 +241,7 @@ class NativeHostScenarioTest {
         val original = Base64.getDecoder().decode(image.string("data"))
         val name = "native-inline.png"
         val sessionId = reader.sessionId
-        ui.content { FilesScreen(files, sessionId, {}) }
+        ui.content { FilesScreen(files, sessionId) {} }
         files.selectImage(sessionId, name) { original.inputStream() }
         eventually(failure, "phone-preprocessed native image staged") { !files.state.value.busy && files.state.value.images.size == 1 }
         assertNull(files.state.value.error)
@@ -261,7 +275,7 @@ class NativeHostScenarioTest {
         assertTrue(reference.bytes > 0)
         ui.content {
             val state by files.state.collectAsState()
-            if (state.preview != null) FilesScreen(files, sessionId, {})
+            if (state.preview != null) FilesScreen(files, sessionId) {}
             else ConversationMessage(item, onQuote = null, onPreviewMedia = { media -> files.loadAttachment(sessionId, media) })
         }
         val previewLabel = InstrumentationRegistry.getInstrumentation().targetContext.getString(R.string.media_message_preview, name)
@@ -329,24 +343,30 @@ class NativeHostScenarioTest {
         reader: DshSessionReader, coordinator: InteractionCoordinator, scope: CoroutineScope, failure: AtomicReference<Throwable?>) {
         fun show() = ui.content {
             val state by coordinator.state.collectAsState()
+            val session by reader.state.collectAsState()
             Column { InteractionCards(state.interactions,
-                onApprove = { key -> scope.launch { coordinator.approve(key) } },
+                onApprove = { key, verify -> scope.launch { coordinator.approve(key, reader.sessionId, verify) } },
                 onReject = { key -> scope.launch { coordinator.reject(key) } },
-                onAnswers = { key, answers -> scope.launch { coordinator.answer(key, answers) } }, error = state.error) }
+                onAnswers = { key, answers -> scope.launch { coordinator.answer(key, answers) } }, error = state.error,
+                decisions = interactionDecisions(reader.sessionId, session), sessionId = reader.sessionId) }
         }
-        coordinator.start(transport)
+        coordinator.start(transport, reader.sessionId)
         eventually(failure, "native interaction channel online") { coordinator.state.value.phase == InteractionWatcher.Phase.ONLINE }
         show()
         reader.prompt("REMOTE_APPROVAL_ALLOW", UUID.randomUUID().toString())
         eventually(failure, "live allow request") { coordinator.state.value.interactions.any { it is PendingInteraction.Approval } }
-        ui.click("允许一次")
+        ui.act(AccessibilityNodeInfo.ACTION_FOCUS, { it.tag("approval-shortcuts") })
+        ui.enter()
+        eventually(failure, "waiting for the enrolled test biometric") {
+            coordinator.state.value.interactions.filterIsInstance<PendingInteraction.Approval>().any { it.verifyingBiometric }
+        }
         eventually(failure, "native allowed-once audit") { hasApprovalOutcome(transport, reader, "allowed-once") }
         val workspace = fixture.obj("artifacts").string("workspace")
         eventually(failure, "allowed tool turn finished") { !reader.state.value.running }
         assertEquals("authorized", download(transport, "$workspace/approval-allow.txt").toString(Charsets.UTF_8))
         reader.prompt("REMOTE_APPROVAL_REJECT", UUID.randomUUID().toString())
         eventually(failure, "live reject request") { coordinator.state.value.interactions.any { it is PendingInteraction.Approval } }
-        ui.click("拒绝")
+        ui.click(contextString(R.string.interaction_reject))
         eventually(failure, "native rejected audit") { hasApprovalOutcome(transport, reader, "rejected") }
         eventually(failure, "rejected request retired") { !reader.state.value.running && coordinator.state.value.interactions.isEmpty() }
         reader.prompt("REMOTE_APPROVAL_REVOKE", UUID.randomUUID().toString())
@@ -354,16 +374,17 @@ class NativeHostScenarioTest {
         val retired = coordinator.state.value.interactions.filterIsInstance<PendingInteraction.Approval>().single().eventId
         reader.cancel()
         eventually(failure, "revoked action key retired") { coordinator.state.value.interactions.none { it.eventId == retired } }
-        val stale = runCatching { coordinator.approve(retired) }.exceptionOrNull()
+        val stale = runCatching { coordinator.approve(retired, reader.sessionId, verify = { error("stale request must not prompt") }) }.exceptionOrNull()
         assertTrue(stale is DshFailure)
         eventually(failure, "native cancelled audit") { hasApprovalOutcome(transport, reader, "cancelled") }
-        coordinator.stop(); coordinator.start(transport)
+        coordinator.stop(); coordinator.start(transport, reader.sessionId)
         eventually(failure, "replacement interaction channel online") { coordinator.state.value.phase == InteractionWatcher.Phase.ONLINE }
         // The model fixture's foreground question lasts 10s, leaving real API26/TCG
         // rendering time before we release its claim and exercise genuine late answering.
         reader.prompt("REMOTE_TIMED_FOREGROUND", UUID.randomUUID().toString())
         eventually(failure, "real foreground timed question") { coordinator.state.value.interactions.filterIsInstance<PendingInteraction.Question>().any { it.phase == PendingInteraction.QuestionPhase.OPEN && it.remainingMs != null } }
-        ui.await("native timed question is foreground") { nodes -> nodes.any { it.contains("剩余") } }
+        val countdownLabel = Regex(".*[0-9]+.*(?:秒|second).*")
+        ui.await("native timed question is foreground") { nodes -> nodes.any { countdownLabel.matches(it.text) } }
         // Leaving the answer UI releases its real native attachWait claim. The
         // Host's own timeout, not a test-created pending item, advances the turn.
         coordinator.stop()
@@ -380,17 +401,17 @@ class NativeHostScenarioTest {
         } catch (error: Throwable) {
             throw AssertionError("Native question claim did not settle: ${lastQuestionProjection?.let { JsonDocument.of(it).canonicalText() }}", error)
         }
-        coordinator.start(transport)
+        coordinator.start(transport, reader.sessionId)
         eventually(failure, "continued question action restored") { coordinator.state.value.interactions.filterIsInstance<PendingInteraction.Question>().any { it.phase == PendingInteraction.QuestionPhase.CONTINUED } }
-        ui.await("continued native question visibly remains answerable") { nodes -> nodes.any { it.contains("主机已继续执行，回答将作为新消息排队") } }
-        ui.click("Reply"); ui.click("提交")
+        ui.await("continued native question visibly remains answerable") { nodes -> nodes.any { it.contains(contextString(R.string.interaction_question_continued)) } }
+        ui.click("Reply"); ui.click(contextString(R.string.interaction_question_submit))
         eventually(failure, "native late answer admitted") { nativeEvents(transport, reader).any { event ->
             val data = event.obj("data")
             event.fields["type"] == "user/message".json() && (data.fields["source"] as? JsonObject)?.fields?.get("kind") == "user-question-reply".json() &&
                 (data.fields["content"] as? JsonArray)?.values?.any { part -> ((part as? JsonObject)?.fields?.get("text") as? JsonString)?.value?.contains("Reply") == true } == true
         } }
         eventually(failure, "answered question retired") { coordinator.state.value.interactions.none { it is PendingInteraction.Question } }
-        ui.await("answered native question removed") { nodes -> nodes.none { it.label("需要你的回答") } }
+        ui.await("answered native question removed") { nodes -> nodes.none { it.label(contextString(R.string.interaction_question_title)) } }
     }
 
     private suspend fun eventually(failure: AtomicReference<Throwable?>, reason: String, condition: suspend () -> Boolean) {

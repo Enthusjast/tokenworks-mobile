@@ -1,4 +1,4 @@
-<resources>
+<resources xmlns:tools="http://schemas.android.com/tools" tools:locale="en">
     <string name="speech_input_title">Speech to text</string>
     <string name="speech_input_privacy">Recognized text only goes into your draft and is never sent automatically. The app does not save, upload, or forward audio. The microphone turns on only after you start recognition.</string>
     <string name="speech_input_on_device_notice">Speech recognition runs on this device and will not automatically switch to an online service.</string>

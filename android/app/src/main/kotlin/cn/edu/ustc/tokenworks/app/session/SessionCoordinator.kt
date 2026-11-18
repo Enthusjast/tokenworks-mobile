@@ -175,10 +175,12 @@ internal class SessionCoordinator(
 
     private fun ensureWatcher(runtime: String, sessionId: String, child: Boolean) {
         val connection = route(runtime)
-        interactions.start(connection)
+        interactions.start(connection, sessionId)
         watcherJob?.cancel()
         watcherJob = scope.launch {
-            interactions.state.collect { mutable.update { home -> home.copy(interactions = it.interactions, interactionError = it.error) } }
+            interactions.state.collect { next ->
+                mutable.update { home -> home.copy(interactions = next.interactions, interactionError = next.error) }
+            }
         }
         terminal?.close()
         if (child) {
@@ -201,7 +203,7 @@ internal class SessionCoordinator(
     private fun retireWatcher() {
         watcherJob?.cancel(); watcherJob = null
         interactions.stop()
-        mutable.update { home -> home.copy(interactions = emptyList(), interactionError = null) }
+        mutable.update { home -> home.copy(interactions = emptyList(), interactionDecisions = emptyList(), interactionError = null) }
     }
 
     private fun follow(runtime: String, session: String, stamp: Long, reopen: Boolean) {
@@ -213,7 +215,8 @@ internal class SessionCoordinator(
             ensureWatcher(runtime, session, child = childAddress != null)
             readerJob?.cancel(); readerJob = null
             reader?.close(); reader = null
-            mutable.update { home -> home.copy(selectedRuntimeId = runtime, selectedSessionId = session, sessionError = null, sessionActionError = null, reader = null, composer = ownerDraft?.let { drafts.open(it) }) }
+            mutable.update { home -> home.copy(selectedRuntimeId = runtime, selectedSessionId = session, sessionError = null, sessionActionError = null,
+                reader = null, interactionDecisions = emptyList(), composer = ownerDraft?.let { drafts.open(it) }) }
             val next = DshSessionReader(route(runtime), session, scope, cache = commandRoute()?.let { transcripts.forRoute(it) },
                 subagent = childAddress)
             reader = next
@@ -221,7 +224,8 @@ internal class SessionCoordinator(
             readerJob = scope.launch {
                 next.state.collect { state ->
                     if (generation != stamp || reader !== next) return@collect
-                    mutable.update { home -> home.copy(reader = state) }
+                    val decisions = interactionDecisions(session, state)
+                    mutable.update { home -> home.copy(reader = state, interactionDecisions = decisions) }
                     if (backgroundHold && state.phase in setOf(SessionReadPhase.AUTH_REQUIRED, SessionReadPhase.REVOKED, SessionReadPhase.ERROR, SessionReadPhase.CLOSED)) onAuthorityLost()
                     if (state.phase == SessionReadPhase.READY) {
                         val row = mutable.value.sessions.firstOrNull { it.id == session }
@@ -255,6 +259,13 @@ internal class SessionCoordinator(
         drafts.edit(currentDraft.copy(value = value))?.let { mutable.update { home -> home.copy(composer = it) } }
     }
 
+    /** Choose queue or steer for the current local draft without starting delivery. */
+    fun chooseDraftDelivery(mode: String) {
+        if (!writable() || reader?.state?.value?.readOnly != false || mode !in setOf("queue", "steer")) return
+        val draft = mutable.value.composer ?: return
+        drafts.edit(draft.copy(mode = mode))?.let { edited ->
+            mutable.update { home -> if (home.composer === draft) home.copy(composer = edited) else home }
+        }
     /** Clear a draft only after the durable intent commits, never before disk persistence. */
     fun sendDraft() {
         if (!writable()) return
@@ -287,6 +298,11 @@ internal class SessionCoordinator(
     }
     fun abandonPrompt(requestId: String) { commandRoute()?.let { outbox.abandon(requestId, it) } }
 
+    fun revisePendingPrompt(requestId: String, text: String? = null, mode: String? = null) {
+        if (!writable() || reader?.state?.value?.readOnly != false) return
+        commandRoute()?.let { outbox.revisePending(requestId, it, text, mode) }
+    }
+
     fun loadOlder() {
         val current = reader ?: return
         if (current.state.value.loadingOlder) return
@@ -303,9 +319,26 @@ internal class SessionCoordinator(
 
     fun cancelSession() = sessionAction { it.cancel() }
 
-    fun approveInteraction(eventId: String) = interactionAction { interactions.approve(eventId) }
-    fun rejectInteraction(eventId: String, message: String = "在手机上拒绝") = interactionAction { interactions.reject(eventId, message) }
-    fun submitAnswers(eventId: String, answers: List<InteractionBridge.AnsweredQuestion>) = interactionAction { interactions.answer(eventId, answers) }
+    fun approveInteraction(eventId: String, verify: suspend () -> Unit) {
+        val selected = mutable.value
+        val session = selected.selectedSessionId ?: return
+        val stamp = generation
+        val selection = reader ?: return
+        interactionAction {
+            interactions.approve(eventId, session, verify) {
+                writable() && generation == stamp && reader === selection &&
+                    mutable.value.selectedSessionId == session && mutable.value.selectedRuntimeId == selected.selectedRuntimeId
+            }
+        }
+    }
+    fun rejectInteraction(eventId: String, message: String) {
+        val session = mutable.value.selectedSessionId ?: return
+        interactionAction { interactions.reject(eventId, message, sessionId = session) }
+    }
+    fun submitAnswers(eventId: String, answers: List<InteractionBridge.AnsweredQuestion>) {
+        val session = mutable.value.selectedSessionId ?: return
+        interactionAction { interactions.answer(eventId, answers, sessionId = session) }
+    }
     private fun interactionAction(block: suspend () -> Unit) {
         if (!writable()) return
         navigation {
@@ -376,7 +409,15 @@ internal class SessionCoordinator(
 
     fun selectModel(option: DshModelOption, reasoningEffort: String? = null) {
         closeModelSelection()
-        sessionAction { it.selectModel(option.provider, option.model, reasoningEffort) }
+        val stamp = generation
+        sessionAction { selectedReader ->
+            if (reader !== selectedReader) return@sessionAction
+            selectedReader.selectModel(option.provider, option.model, reasoningEffort)
+            current(stamp)
+            if (reader === selectedReader && writable()) {
+                mutable.update { it.copy(modelSelectionRevision = it.modelSelectionRevision + 1) }
+            }
+        }
     }
 
     fun openCreation() { mutable.update { home -> home.copy(creation = SessionCreationState()) } }

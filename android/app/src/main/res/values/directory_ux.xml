@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<resources>
+<resources xmlns:tools="http://schemas.android.com/tools" tools:locale="en">
     <string name="directory_search_label">Search this directory</string>
     <string name="directory_search_scope">Search only covers session and workspace IDs already loaded for the selected runtime and within your current permissions. It also covers native session and workspace names if you have permission to read them. It does not search message text, paths, or other computers.</string>
     <string name="directory_search_clear">Clear search</string>

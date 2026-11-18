@@ -14,6 +14,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertHasNoClickAction
 import androidx.compose.ui.test.hasText
@@ -26,6 +27,7 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollToNode
+import androidx.compose.ui.test.performSemanticsAction
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -120,6 +122,9 @@ class AppearanceSettingsScreenTest {
         rule.onNodeWithTag("appearance-body-smaller").assertIsNotEnabled()
         list.performScrollToNode(hasTestTag("appearance-code-larger"))
         rule.onNodeWithTag("appearance-code-larger").assertIsNotEnabled()
+        list.performScrollToNode(hasTestTag("appearance-body-slider"))
+        rule.onNodeWithTag("appearance-body-slider").performSemanticsAction(SemanticsActions.SetProgress) { set -> set(1.5f) }
+        rule.runOnIdle { assertEquals(1.5f, current.value.preferences.bodyScale) }
     }
 
     @Test fun hostAppliesSystemLightDarkAndReadingScalarsWithoutReplacingSystemFontScale() {

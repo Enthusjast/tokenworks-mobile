@@ -9,6 +9,7 @@ class ChatReadingPosition {
     var key: String? = null
     var offset: Int = 0
     var following: Boolean = true
+    internal var seenThrough: Long = -1
     internal var expandedSourceIds by mutableStateOf<Set<String>>(emptySet())
 
     internal fun retainExpandedSources(items: List<ConversationItem>) {

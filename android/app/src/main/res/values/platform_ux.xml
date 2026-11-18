@@ -1,0 +1,13 @@
+<resources xmlns:tools="http://schemas.android.com/tools" tools:locale="en">
+    <string name="platform_notice_channel">Session alerts</string>
+    <string name="platform_notice_channel_detail">Reports session activity without showing session content.</string>
+    <string name="platform_notice_title">New session activity</string>
+    <string name="platform_notice_detail">Open the app to verify access and view the event.</string>
+    <string name="platform_connection_channel">Background connection</string>
+    <string name="platform_connection_channel_detail">Read-only connection enabled by you.</string>
+    <string name="platform_connection_title">Background read-only connection is on</string>
+    <string name="platform_connection_detail">Receives updates for the selected session only. No commands are sent automatically.</string>
+    <string name="platform_connection_stop">Stop connection</string>
+    <string name="platform_enrollment_title">Confirm device registration</string>
+    <string name="platform_enrollment_detail">Register this phone’s signing key with the current account</string>
+</resources>

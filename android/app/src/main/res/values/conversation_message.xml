@@ -1,4 +1,4 @@
-<resources>
+<resources xmlns:tools="http://schemas.android.com/tools" tools:locale="en">
     <string name="conversation_message_role_user">You</string>
     <string name="conversation_message_role_assistant">Assistant</string>
     <string name="conversation_message_role_tool">Tool</string>

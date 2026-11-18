@@ -1,0 +1,4 @@
+<resources>
+    <string name="usage_daily_chart_title">每日 Token 趋势</string>
+    <string name="usage_daily_chart_summary">%1$s 至 %2$s 的已记录用量，峰值为 %3$s Token。下方列出每日具体用量。</string>
+</resources>

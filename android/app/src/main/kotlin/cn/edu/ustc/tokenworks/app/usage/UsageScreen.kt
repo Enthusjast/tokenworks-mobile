@@ -2,6 +2,8 @@ package cn.edu.ustc.tokenworks
 
 import androidx.activity.compose.BackHandler
 import androidx.annotation.StringRes
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -10,8 +12,10 @@ import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.sizeIn
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
@@ -33,12 +37,16 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.unit.dp
 import java.math.BigDecimal
 import java.text.NumberFormat
 import java.time.LocalDate
@@ -187,13 +195,20 @@ private fun UsageDashboardPage(state: UsageState, rates: Map<UsageModel, UsageRa
                     }
                 }
             }
+            if (group == UsageGrouping.DAY) {
+                val days = dashboard.byDay.mapNotNull { (day, summary) -> day?.let { it to summary.counts.total } }
+                    .sortedBy { it.first }.takeLast(30)
+                if (days.isNotEmpty()) item("daily-chart") { DailyUsageChart(days, numbers, dates) }
+            }
+            val modelMaximum = dashboard.byModel.values.maxOfOrNull { it.counts.total } ?: 0L
             when (group) {
                 UsageGrouping.SESSION -> items(dashboard.bySession, key = { "session:${it.first.id}" }) { (session, summary) ->
                     UsageCard(session.title ?: session.id, summary, numbers, currency)
                 }
                 UsageGrouping.MODEL -> items(dashboard.byModel.entries.sortedByDescending { it.value.counts.total },
                     key = { (model, _) -> if (model == null) "model:unknown" else "model:${model.provider.length}:${model.provider}${model.model}" }) { (model, summary) ->
-                    UsageCard(model?.let { usageModelName(it) } ?: stringResource(R.string.usage_unknown_model), summary, numbers, currency)
+                    UsageCard(model?.let { usageModelName(it) } ?: stringResource(R.string.usage_unknown_model), summary, numbers, currency,
+                        fraction = summary.counts.total.toDouble().div(modelMaximum.coerceAtLeast(1L)).toFloat())
                 }
                 UsageGrouping.DAY -> items(dashboard.byDay.entries.sortedWith(compareByDescending { it.key }),
                     key = { "day:${it.key}" }) { (day, summary) ->
@@ -205,12 +220,18 @@ private fun UsageDashboardPage(state: UsageState, rates: Map<UsageModel, UsageRa
 }
 
 @Composable
-private fun UsageCard(label: String, summary: UsageSummary, numbers: NumberFormat, currency: NumberFormat) {
+private fun UsageCard(label: String, summary: UsageSummary, numbers: NumberFormat, currency: NumberFormat, fraction: Float? = null) {
     val counts = summary.counts
     Surface(Modifier.fillMaxWidth(), shape = tokenWorksSquircle(TokenWorksRadius.lg), color = MaterialTheme.colorScheme.surfaceContainerLow) {
         Column(Modifier.padding(TokenWorksSpacing.md), verticalArrangement = Arrangement.spacedBy(TokenWorksSpacing.xs)) {
             Text(label, style = MaterialTheme.typography.titleMedium, modifier = Modifier.semantics { heading() })
             Text(stringResource(R.string.usage_token_total, numbers.format(counts.total)), style = MaterialTheme.typography.titleLarge)
+            if (fraction != null && fraction > 0f) {
+                val shape = tokenWorksSquircle(TokenWorksRadius.sm)
+                Box(Modifier.fillMaxWidth().height(8.dp).background(MaterialTheme.colorScheme.surfaceVariant, shape)) {
+                    Box(Modifier.fillMaxWidth(fraction.coerceIn(0f, 1f)).height(8.dp).background(MaterialTheme.colorScheme.primary, shape))
+                }
+            }
             Text(stringResource(R.string.usage_input_output, numbers.format(counts.input), numbers.format(counts.output)),
                 style = MaterialTheme.typography.bodyMedium)
             Text(stringResource(R.string.usage_cache, numbers.format(counts.cacheRead), numbers.format(counts.cacheWrite)),
@@ -219,6 +240,44 @@ private fun UsageCard(label: String, summary: UsageSummary, numbers: NumberForma
             Text(if (amount == null) stringResource(R.string.usage_no_cost) else stringResource(
                 if (summary.unpriced) R.string.usage_partial_cost else R.string.usage_cost, currency.format(amount)),
                 style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+    }
+}
+
+@Composable
+private fun DailyUsageChart(days: List<Pair<LocalDate, Long>>, numbers: NumberFormat, dates: DateTimeFormatter) {
+    val peak = days.maxOf { it.second }.coerceAtLeast(1L)
+    val first = days.first().first
+    val last = days.last().first
+    val daysWide = (last.toEpochDay() - first.toEpochDay()).coerceAtLeast(1L).toDouble()
+    val primary = MaterialTheme.colorScheme.primary
+    val grid = MaterialTheme.colorScheme.outlineVariant
+    val title = stringResource(R.string.usage_daily_chart_title)
+    val description = stringResource(R.string.usage_daily_chart_summary, first.format(dates), last.format(dates), numbers.format(peak))
+    Surface(Modifier.fillMaxWidth(), shape = tokenWorksSquircle(TokenWorksRadius.lg), color = MaterialTheme.colorScheme.surfaceContainerLow) {
+        Column(Modifier.padding(TokenWorksSpacing.md), verticalArrangement = Arrangement.spacedBy(TokenWorksSpacing.sm)) {
+            Text(title, Modifier.semantics { heading() }, style = MaterialTheme.typography.titleMedium)
+            Text(stringResource(R.string.usage_token_total, numbers.format(peak)), style = MaterialTheme.typography.labelMedium)
+            Canvas(Modifier.fillMaxWidth().height(112.dp).semantics { contentDescription = description }) {
+                for (tick in 0..2) {
+                    val y = 3.dp.toPx() + (size.height - 6.dp.toPx()) * tick / 2f
+                    drawLine(grid, Offset(0f, y), Offset(size.width, y), strokeWidth = 1.dp.toPx())
+                }
+                var previous: Offset? = null
+                for ((day, tokens) in days) {
+                    val x = if (days.size == 1) size.width / 2 else
+                        ((day.toEpochDay() - first.toEpochDay()) / daysWide * (size.width - 8.dp.toPx())).toFloat() + 4.dp.toPx()
+                    val y = size.height - 3.dp.toPx() - (tokens.toDouble() / peak * (size.height - 6.dp.toPx())).toFloat()
+                    val point = Offset(x, y)
+                    previous?.let { drawLine(primary, it, point, strokeWidth = 2.dp.toPx(), cap = StrokeCap.Round) }
+                    drawCircle(primary, radius = 3.dp.toPx(), center = point)
+                    previous = point
+                }
+            }
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(TokenWorksSpacing.md)) {
+                Text(first.format(dates), Modifier.weight(1f), style = MaterialTheme.typography.labelMedium)
+                if (first != last) Text(last.format(dates), style = MaterialTheme.typography.labelMedium)
+            }
         }
     }
 }

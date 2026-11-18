@@ -1,0 +1,7 @@
+<resources xmlns:tools="http://schemas.android.com/tools" tools:locale="en">
+    <string name="appearance_accent_indigo">Indigo accent</string>
+    <string name="appearance_accent_teal">Teal accent</string>
+    <string name="appearance_accent_plum">Plum accent</string>
+    <string name="appearance_accent_moss">Moss accent</string>
+    <string name="appearance_slider_range">Scale range: %1$d%%–%2$d%%</string>
+</resources>

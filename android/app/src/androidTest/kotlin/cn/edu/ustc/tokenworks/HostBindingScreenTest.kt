@@ -47,51 +47,51 @@ class HostBindingScreenTest {
                 TokenWorksTheme(darkTheme = true) { Box(Modifier.width(320.dp)) { HostBindingScreen(HostBindingState(HostBindingPhase.REVIEW, id, public), "fixture-account", { _, _ -> }, {}, { confirmations++ }, {}, {}, {}) } }
             }
         }
-        rule.onNodeWithText("确认绑定这台电脑").performScrollTo().assertIsNotEnabled()
+        rule.onNodeWithText(rule.activity.getString(R.string.binding_confirm_computer)).performScrollTo().assertIsNotEnabled()
         rule.onNodeWithText(public.keyThumbprint.chunked(8).joinToString(" ")).performScrollTo().assertIsDisplayed()
-        rule.onNodeWithText("复制完整安装密钥指纹").performScrollTo().assertHeightIsAtLeast(48.dp).performClick()
+        rule.onNodeWithText(rule.activity.getString(R.string.flow_binding_copy_fingerprint)).performScrollTo().assertHeightIsAtLeast(48.dp).performClick()
         rule.runOnIdle { assertEquals(public.keyThumbprint, clipboard.getText()?.text); assertEquals(0, confirmations) }
-        rule.onNodeWithText("确认绑定这台电脑").performScrollTo().assertIsNotEnabled()
-        rule.onNodeWithText("我已在电脑上核对以上信息和完整指纹").performScrollTo().performClick()
-        rule.onNodeWithText("确认绑定这台电脑").performScrollTo().assertIsEnabled().performClick()
+        rule.onNodeWithText(rule.activity.getString(R.string.binding_confirm_computer)).performScrollTo().assertIsNotEnabled()
+        rule.onNodeWithText(rule.activity.getString(R.string.conversation_binding_consent)).performScrollTo().performClick()
+        rule.onNodeWithText(rule.activity.getString(R.string.binding_confirm_computer)).performScrollTo().assertIsEnabled().performClick()
         rule.runOnIdle { assertEquals(1, confirmations) }
     }
     @Test fun capabilityCodeIsNeverRestoredFromSavedInstanceState() {
         val restore = StateRestorationTester(rule)
         restore.setContent { TokenWorksTheme { HostBindingScreen(HostBindingState(id = id), "fixture-account", { _, _ -> }, {}, {}, {}, {}, {}) } }
-        rule.onNodeWithText("核对电脑信息").performScrollTo().assertIsNotEnabled()
-        rule.onNodeWithText("电脑显示的绑定码").performScrollTo().performTextInput(code)
-        rule.onNodeWithText("核对电脑信息").performScrollTo().assertIsEnabled()
+        rule.onNodeWithText(rule.activity.getString(R.string.binding_review_computer)).performScrollTo().assertIsNotEnabled()
+        rule.onNodeWithText(rule.activity.getString(R.string.binding_code_label)).performScrollTo().performTextInput(code)
+        rule.onNodeWithText(rule.activity.getString(R.string.binding_review_computer)).performScrollTo().assertIsEnabled()
         restore.emulateSavedInstanceStateRestore()
-        rule.onNodeWithText("核对电脑信息").performScrollTo().assertIsNotEnabled()
-        rule.onNodeWithText("绑定申请编号").performScrollTo().assertTextContains(id)
+        rule.onNodeWithText(rule.activity.getString(R.string.binding_review_computer)).performScrollTo().assertIsNotEnabled()
+        rule.onNodeWithText(rule.activity.getString(R.string.binding_request_number)).performScrollTo().assertTextContains(id)
     }
     @Test fun unknownConfirmationExposesAStatusReadAndNeverAnotherConfirmationButton() {
         var queries = 0
         rule.setContent { TokenWorksTheme { HostBindingScreen(HostBindingState(HostBindingPhase.UNKNOWN, id, details(), "network.unavailable"), "fixture-account", { _, _ -> }, {}, {}, { queries++ }, {}, {}) } }
-        rule.onNodeWithText("绑定结果待核对").assertIsDisplayed()
-        rule.onNodeWithText("确认绑定这台电脑").assertDoesNotExist()
+        rule.onNodeWithText(rule.activity.getString(R.string.binding_result_unknown)).assertIsDisplayed()
+        rule.onNodeWithText(rule.activity.getString(R.string.binding_confirm_computer)).assertDoesNotExist()
         rule.onNodeWithText(rule.activity.getString(R.string.flow_binding_phone)).performScrollTo().assertIsDisplayed()
         rule.onNodeWithText(rule.activity.getString(R.string.flow_binding_host)).performScrollTo().assertIsDisplayed()
         rule.onNodeWithText(rule.activity.getString(R.string.flow_binding_access)).performScrollTo().assertIsDisplayed()
-        rule.onNodeWithText("查询绑定状态").performScrollTo().performClick()
+        rule.onNodeWithText(rule.activity.getString(R.string.binding_check_status)).performScrollTo().performClick()
         rule.runOnIdle { assertEquals(1, queries) }
     }
     @Test fun unknownWithoutReviewFactsRetainsTheOriginalPublicIdentifierWithoutASecretForm() {
         var queries = 0
         rule.setContent { TokenWorksTheme { HostBindingScreen(HostBindingState(HostBindingPhase.UNKNOWN, id), "fixture-account", { _, _ -> }, {}, {}, { queries++ }, {}, {}) } }
         rule.onNodeWithText(id).performScrollTo().assertIsDisplayed()
-        rule.onNodeWithText("绑定申请编号").assertDoesNotExist()
-        rule.onNodeWithText("电脑显示的绑定码").assertDoesNotExist()
-        rule.onNodeWithText("确认绑定这台电脑").assertDoesNotExist()
-        rule.onNodeWithText("查询绑定状态").performScrollTo().assertHeightIsAtLeast(48.dp).performClick()
+        rule.onNodeWithText(rule.activity.getString(R.string.binding_request_number)).assertDoesNotExist()
+        rule.onNodeWithText(rule.activity.getString(R.string.binding_code_label)).assertDoesNotExist()
+        rule.onNodeWithText(rule.activity.getString(R.string.binding_confirm_computer)).assertDoesNotExist()
+        rule.onNodeWithText(rule.activity.getString(R.string.binding_check_status)).performScrollTo().assertHeightIsAtLeast(48.dp).performClick()
         rule.runOnIdle { assertEquals(1, queries) }
     }
     @Test fun alreadyConfirmedRequestsCanBeQueriedWithOnlyTheirPublicIdentifier() {
         var queried: String? = null; var previews = 0
         rule.setContent { TokenWorksTheme { HostBindingScreen(HostBindingState(id = id), "fixture-account", { _, _ -> previews++ }, { queried = it }, {}, {}, {}, {}) } }
-        rule.onNodeWithText("核对电脑信息").performScrollTo().assertIsNotEnabled()
-        rule.onNodeWithText("仅查询已确认申请").performScrollTo().assertIsEnabled().performClick()
+        rule.onNodeWithText(rule.activity.getString(R.string.binding_review_computer)).performScrollTo().assertIsNotEnabled()
+        rule.onNodeWithText(rule.activity.getString(R.string.binding_query_confirmed)).performScrollTo().assertIsEnabled().performClick()
         rule.runOnIdle { assertEquals(id, queried); assertEquals(0, previews) }
     }
     @Test fun landscapeTabletLayoutWithLargeTextKeepsRecoveryAndBackActionsReachable() {
@@ -105,8 +105,8 @@ class HostBindingScreenTest {
                 TokenWorksTheme(darkTheme = false) { HostBindingScreen(HostBindingState(HostBindingPhase.UNKNOWN, id, public), "fixture-account", { _, _ -> }, {}, {}, { queries++ }, {}, { backs++ }) }
             }
         }
-        rule.onNodeWithText("查询绑定状态").performScrollTo().assertIsEnabled().performClick()
-        rule.onNodeWithContentDescription("返回电脑列表").performClick()
+        rule.onNodeWithText(rule.activity.getString(R.string.binding_check_status)).performScrollTo().assertIsEnabled().performClick()
+        rule.onNodeWithContentDescription(rule.activity.getString(R.string.flow_binding_back)).performClick()
         rule.runOnIdle { assertEquals(1, queries); assertEquals(1, backs) }
         // Export only synthetic public UI state; the live activity remains secure.
         val bitmap = rule.onRoot().captureToImage().asAndroidBitmap()

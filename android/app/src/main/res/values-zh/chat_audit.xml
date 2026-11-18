@@ -1,0 +1,53 @@
+<resources>
+    <string name="chat_audit_attach">添加文件</string>
+    <string name="chat_audit_voice">语音输入</string>
+    <string name="chat_audit_shortcuts">输入快捷操作</string>
+    <string name="chat_audit_slash">/ 技能</string>
+    <string name="chat_audit_mention">\@ 文件</string>
+    <string name="chat_audit_draft_memory">草稿仅在应用前台运行时暂存，不会写入磁盘</string>
+    <string name="chat_audit_selected_model">模型：%1$s</string>
+    <string name="chat_audit_select_text">选择文本</string>
+    <string name="chat_audit_quote_code">引用代码</string>
+    <plurals name="chat_audit_new_messages"><item quantity="other">%d 条新消息</item></plurals>
+    <string name="chat_audit_workspace">工作区：%1$s</string>
+    <string name="chat_audit_tokens">输入 %1$s · 输出 %2$s 个词元</string>
+    <string name="chat_audit_cache_tokens">缓存读取 %1$s · 缓存写入 %2$s 个词元</string>
+    <string name="chat_audit_usage_total">会话共 %1$s 个词元</string>
+    <string name="chat_audit_estimated_cost">预计费用：%1$s</string>
+    <string name="chat_audit_partial_cost">已知用量的费用：%1$s</string>
+    <string name="chat_audit_cost_unavailable">费用不可用</string>
+    <plurals name="chat_audit_pending"><item quantity="other">%d 条本机待处理记录</item></plurals>
+    <plurals name="chat_audit_attachment_count"><item quantity="other">已附加 %d 个文件</item></plurals>
+    <string name="chat_audit_queue">发送记录</string>
+    <string name="chat_audit_queue_explanation">发送结果未知？可重试或移除本机记录，不会自动重发。</string>
+    <string name="chat_audit_queue_empty">没有本机待处理记录。</string>
+    <string name="chat_audit_edit_pending">编辑尚未发送的文本</string>
+    <string name="chat_audit_remove_pending">移除本机记录？这不会撤销主机上的操作。</string>
+    <string name="chat_audit_save">保存</string>
+    <string name="chat_audit_replay">回放对话</string>
+    <string name="chat_audit_replay_partial">仅回放已加载且已保存的消息，可能不含更早的记录或正在接收的消息。</string>
+    <string name="chat_audit_replay_position">第 %1$d 条，共 %2$d 条</string>
+    <string name="chat_audit_previous">上一条</string>
+    <string name="chat_audit_next">下一条</string>
+    <string name="chat_audit_play">播放</string>
+    <string name="chat_audit_pause">暂停</string>
+    <string name="chat_audit_restart">从头播放</string>
+    <string name="chat_audit_export_pdf">导出对话为 PDF</string>
+    <string name="chat_audit_export_partial">仅导出已加载并保存的消息。如有需要，请先加载更早的记录。</string>
+    <string name="chat_audit_export_progress">正在保存 PDF…</string>
+    <string name="chat_audit_export_success">PDF 已保存。</string>
+    <string name="chat_audit_export_failed">无法保存 PDF。</string>
+    <string name="chat_audit_export_filename">对话.pdf</string>
+    <string name="chat_audit_image">图片</string>
+    <string name="chat_audit_media_dimensions">%1$s · %2$d × %3$d · %4$d 字节</string>
+    <string name="chat_audit_text_size_rejected">添加这段文字会超出草稿长度限制。</string>
+    <string name="chat_audit_cached_notice">离线缓存记录 · 连接恢复前仅供阅读</string>
+    <string name="chat_audit_terminal">远程终端</string>
+    <string name="chat_audit_files">文件与附件</string>
+    <string name="chat_audit_rejected_phone">在手机上拒绝</string>
+    <string name="chat_home_lan_entry">仅连接已配对局域网</string>
+    <string name="chat_home_lan_entry_detail">此入口只使用本机保存的独立 LAN 配对，不使用未验证的中转账号权限。</string>
+    <string name="chat_home_lan_pending_authorization">局域网配对结果尚未确认。请先在配对页保存、对账或撤销；仅删除本地记录不等于撤销主机授权。</string>
+    <string name="chat_home_lan_removed_with_account">账号权限已失效并已清理本地密钥。局域网配对结果未确认；请在主机设置中检查并撤销。</string>
+    <string name="chat_home_transport_changed">连接路径已切换；旧路径上的请求不会自动重发。请检查当前会话后再操作。</string>
+</resources>

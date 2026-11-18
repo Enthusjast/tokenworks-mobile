@@ -196,7 +196,8 @@ internal class HostCoordinator(
                 for (access in page.items) {
                     if (access.organizationId != null && access.organizationId != configuration!!.organizationId) continue
                     if (items.any { it.id == access.id }) throw ProtocolException()
-                    items += RuntimeRow(access.id, access.hostId, access.dshVersion, names[access.hostId] ?: "已授权的电脑", access)
+                    items += RuntimeRow(access.id, access.hostId, access.dshVersion,
+                        names[access.hostId] ?: context.getString(R.string.chat_authorized_computer), access)
                 }
                 cursor = page.nextCursor
                 if (cursor != null && !runtimeCursors.add(cursor)) throw ProtocolException()
@@ -376,7 +377,7 @@ internal class HostCoordinator(
                 if (generation != stamp || pairing !== opened) return@collect
                 mutable.update { home -> home.copy(pairing = next) }
                 if (mutable.value.lanOnly) {
-                    val items = next.devices.map { RuntimeRow(it.runtimeId, "lan:${it.installationId}", "", "已配对的局域网电脑") }
+                    val items = next.devices.map { RuntimeRow(it.runtimeId, "lan:${it.installationId}", "", context.getString(R.string.host_management_lan_host)) }
                     val removed = mutable.value.runtimes.filter { old -> items.none { it.id == old.id } }
                     removed.forEach { sessions.revokeRuntime(it) }
                     current(stamp)

@@ -9,6 +9,7 @@ class InteractionWatcher(
     private val transport: DshTransport,
     owner: CoroutineScope,
     private val readyTimeoutMillis: Long = 10_000,
+    private val sessionId: String? = null,
 ) : AutoCloseable {
     private val closed = AtomicBoolean()
     private val scope = CoroutineScope(owner.coroutineContext + SupervisorJob(owner.coroutineContext[Job]))
@@ -48,11 +49,12 @@ class InteractionWatcher(
                 val socket = bound.openMux()
                 mux = socket
                 val subscription = DshEvents(socket.open(DSH_EVENTS_ENDPOINT, jsonObject("args" to jsonObject())), scope,
+                    // native() already validates the RPC envelope. This endpoint has no success value.
                     answer = { result -> bound.native(DSH_EVENTS_RESULT_ENDPOINT, DshStreams.result(result)); Unit },
                     readyTimeoutMillis = readyTimeoutMillis)
                 events = subscription
                 subscription.awaitReady()
-                val current = NativeInteractionBridge(subscription, socket, bound::native, scope)
+                val current = NativeInteractionBridge(subscription, socket, bound::native, scope, sessionId = sessionId)
                 bridge = current
                 connectionGeneration = subscription.generation
                 mutablePhase.value = Phase.ONLINE
@@ -81,6 +83,8 @@ class InteractionWatcher(
             if (!closed.get()) delay(minOf(30_000L, 1_000L shl minOf(attempt++, 5)))
         }
     }
+
+    fun requirePendingApproval(eventId: String): PendingInteraction.Approval = current().requirePendingApproval(eventId)
 
     suspend fun approve(eventId: String) = current().approve(eventId)
     suspend fun reject(eventId: String, message: String) = current().reject(eventId, message)

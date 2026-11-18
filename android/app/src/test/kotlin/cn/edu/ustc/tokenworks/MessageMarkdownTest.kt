@@ -60,4 +60,21 @@ class MessageMarkdownTest {
         assertEquals(source, text(source, paragraph.spans))
         assertFalse(doc.formatted)
     }
+
+    @Test fun languageLexerDoesNotColorKeywordsInsideCommentsOrStrings() {
+        val source = "val x = 42 // return\nval y = \"true\""
+        val colors = chatCodeSpans(source, "Kt linenos").map { source.substring(it.start, it.end) to it.tone }
+        assertEquals(listOf("val" to CodeTone.KEYWORD, "42" to CodeTone.NUMBER, "// return" to CodeTone.COMMENT,
+            "val" to CodeTone.KEYWORD, "\"true\"" to CodeTone.STRING), colors)
+        assertTrue(chatCodeSpans(source, "text").isEmpty())
+    }
+
+    @Test fun quotedCodeChoosesAFenceThatCannotCloseOnItsOwnContent() {
+        val original = "literal\n```\n````\n末尾🙂"
+        val quoted = markdownCodeQuote(original, "kt invalid metadata")
+        val block = parse(quoted).blocks.single() as MessageMarkdownBlock.Code
+        assertTrue(block.closed)
+        assertEquals("kt", block.language!!.text(quoted))
+        assertEquals("$original\n", block.content.text(quoted))
+    }
 }

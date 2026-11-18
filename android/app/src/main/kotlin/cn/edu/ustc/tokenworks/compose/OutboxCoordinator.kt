@@ -30,8 +30,12 @@ internal class OutboxCoordinator(private val owner: CoroutineScope, private val 
     fun retry(requestId: String, route: DshCommandRoute, reader: DshSessionReader) = send {
         storage().retry(requestId, route)?.let { deliver(it, reader) }
     }
+    fun revisePending(requestId: String, route: DshCommandRoute, text: String? = null, mode: String? = null) { owner.launch {
+        try { storage().editPendingText(requestId, route, text, mode) }
+        catch (error: Exception) { if (error is CancellationException) throw error; failure(error) }
+    } }
     fun abandon(requestId: String, route: DshCommandRoute) { owner.launch {
-        try { val store = storage(); if (store.pending(route).any { it.requestId == requestId }) store.abandon(requestId) }
+        try { storage().abandon(requestId, route) }
         catch (error: Exception) { if (error is CancellationException) throw error; failure(error) }
     } }
     suspend fun clearOwner(ownerId: String) { storage().clearOwner(ownerId) }
@@ -53,10 +57,10 @@ internal class OutboxCoordinator(private val owner: CoroutineScope, private val 
     private suspend fun deliver(entry: PromptOutboxEntry, reader: DshSessionReader) {
         require(entry.route.sessionId == reader.sessionId)
         val store = storage()
-        store.markSending(entry.requestId, entry.route) ?: return
+        val sendingEntry = store.markSending(entry.requestId, entry.route) ?: return
         mutable.update { it.copy(sending = entry.requestId) }
         try {
-            reader.prompt(entry.text, entry.requestId, entry.mode, entry.receipts, entry.images)
+            reader.prompt(sendingEntry.text, sendingEntry.requestId, sendingEntry.mode, sendingEntry.receipts, sendingEntry.images)
             store.settle(entry.requestId, entry.route)
         } catch (error: Exception) {
             withContext(NonCancellable) {

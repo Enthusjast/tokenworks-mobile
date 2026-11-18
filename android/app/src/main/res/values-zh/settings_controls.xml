@@ -1,0 +1,29 @@
+<resources>
+    <string name="settings_search">搜索设置</string>
+    <string name="settings_search_empty">没有匹配的设置</string>
+    <string name="settings_group_security">安全</string>
+    <string name="settings_group_notifications">通知</string>
+    <string name="settings_group_appearance">外观</string>
+    <string name="settings_group_about">关于应用</string>
+    <string name="settings_group_expanded">已展开</string>
+    <string name="settings_group_collapsed">已折叠</string>
+    <string name="settings_manage_devices">电脑与设备管理</string>
+    <string name="settings_manage_devices_detail">查看绑定设备、安装记录与授权</string>
+    <string name="settings_notification_preferences">通知与后台连接</string>
+    <string name="settings_notification_preferences_detail">管理提醒和所选会话的后台连接</string>
+    <string name="settings_notification_center">通知中心</string>
+    <string name="settings_notification_center_detail">近期的审批、提问和任务完成提醒</string>
+    <string name="settings_secure_pairing">局域网安全配对</string>
+    <string name="settings_secure_pairing_detail">与同一网络下的电脑配对</string>
+    <string name="settings_lan_notice">当前仅连接局域网设备；登录后可使用远程中转。</string>
+    <string name="settings_relay_sign_in">登录远程中转</string>
+    <string name="settings_copy_account">复制账号信息</string>
+    <string name="settings_account_copied">已复制账号信息</string>
+    <string name="settings_copy_failed">无法访问剪贴板。</string>
+    <string name="settings_verify_exit">验证身份后退出账号</string>
+    <string name="settings_verify_exit_failed">尚未退出账号。请使用生物识别或设备锁屏凭据验证后重试。</string>
+    <plurals name="workspace_unread_sessions">
+        <item quantity="other">%d 个未读会话</item>
+    </plurals>
+    <string name="workspace_unread_overflow">99+</string>
+</resources>

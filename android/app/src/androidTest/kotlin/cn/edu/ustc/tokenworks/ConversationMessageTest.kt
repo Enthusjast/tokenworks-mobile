@@ -223,7 +223,7 @@ class ConversationMessageTest {
         val current = mutableStateOf(item(first, false))
         val received = mutableListOf<NativeImageReference>()
         rule.setContent { TokenWorksTheme { ConversationMessage(current.value, null, onPreviewMedia = { received.add(it) }) } }
-        rule.onNodeWithText("public.png · 8 × 6 · 123 字节").assertIsDisplayed()
+        rule.onNodeWithText(rule.activity.getString(R.string.chat_audit_media_dimensions, "public.png", 8, 6, 123L)).assertIsDisplayed()
         val firstLabel = rule.activity.getString(R.string.media_message_preview, "public.png")
         rule.onNodeWithContentDescription(firstLabel).assertIsNotEnabled()
         rule.runOnIdle { assertEquals(0, received.size); current.value = item(first, true) }

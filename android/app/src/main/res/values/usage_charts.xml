@@ -1,0 +1,4 @@
+<resources xmlns:tools="http://schemas.android.com/tools" tools:locale="en">
+    <string name="usage_daily_chart_title">Daily token trend</string>
+    <string name="usage_daily_chart_summary">Recorded usage from %1$s to %2$s; peak %3$s tokens. Exact daily values are listed below.</string>
+</resources>

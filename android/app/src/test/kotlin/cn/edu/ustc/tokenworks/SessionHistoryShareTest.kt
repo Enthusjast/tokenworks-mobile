@@ -41,7 +41,7 @@ class SessionHistoryShareTest {
             response(end, (first..last).map { record(it) }, first > 0)
         }
         val output = ByteArrayOutputStream()
-        StagedSessionHistory(temp.root).use { staged ->
+        StagedSessionHistory(temp.root, null).use { staged ->
             staged.collect(connection, address, "会话", SessionExportFormat.JSONL)
             staged.writeTo(output)
         }
@@ -70,11 +70,14 @@ class SessionHistoryShareTest {
 
     @Test fun markdownInsulatesUntrustedTextAndShareAuthenticatesTheSamePlaintext() = runBlocking {
         val output = ByteArrayOutputStream()
-        StagedSessionHistory(temp.root).use { staged ->
+        val copy = SessionHistoryMarkdownCopy("Snapshot", "No events.", "Events #0–#%1\$d.", "User", "Assistant", "Tool", "Event")
+        StagedSessionHistory(temp.root, copy).use { staged ->
             staged.collect(fixture { response(0, listOf(record(0, "[link](https://invalid)\n<script>ignored</script>🙂")), false) },
                 sessionHistoryAddress("id"), "# Untrusted title", SessionExportFormat.MARKDOWN)
             staged.writeTo(output)
             val expected = output.toString(Charsets.UTF_8.name())
+            assertTrue(expected.startsWith("# Snapshot\n\n"))
+            assertTrue(expected.contains("Events #0–#0.\n\n## User · #0\n\n"))
             assertTrue(expected.contains("    # Untrusted title\n"))
             assertTrue(expected.contains("    [link](https://invalid)\n    <script>ignored</script>🙂"))
             val sealed = staged.seal()

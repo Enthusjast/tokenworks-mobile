@@ -1,0 +1,13 @@
+<resources>
+    <string name="platform_notice_channel">会话事件提醒</string>
+    <string name="platform_notice_channel_detail">仅提醒有会话事件，不包含会话内容。</string>
+    <string name="platform_notice_title">会话有新事件</string>
+    <string name="platform_notice_detail">打开应用后验证访问权限并查看。</string>
+    <string name="platform_connection_channel">后台连接</string>
+    <string name="platform_connection_channel_detail">由你明确开启的只读连接。</string>
+    <string name="platform_connection_title">后台只读连接已开启</string>
+    <string name="platform_connection_detail">仅接收所选会话的更新，不会自动发送命令。</string>
+    <string name="platform_connection_stop">停止连接</string>
+    <string name="platform_enrollment_title">确认登记此设备</string>
+    <string name="platform_enrollment_detail">将这部手机的签名密钥登记到当前账号</string>
+</resources>

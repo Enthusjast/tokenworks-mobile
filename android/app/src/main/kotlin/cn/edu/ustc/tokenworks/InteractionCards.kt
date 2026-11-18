@@ -1,5 +1,8 @@
 package cn.edu.ustc.tokenworks
 
+import android.view.HapticFeedbackConstants
+import androidx.compose.foundation.border
+import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectable
@@ -9,50 +12,74 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.key.*
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.async
 
 @Composable
 internal fun InteractionCards(
-    interactions: List<PendingInteraction>, onApprove: (String) -> Unit,
+    interactions: List<PendingInteraction>, onApprove: (String, suspend () -> Unit) -> Unit,
     onReject: (String) -> Unit, onAnswers: (String, List<InteractionBridge.AnsweredQuestion>) -> Unit,
     modifier: Modifier = Modifier, error: String? = null,
+    decisions: List<InteractionDecision> = emptyList(), sessionId: String? = null,
 ) {
-    if (interactions.isEmpty() && error == null) return
-    var selectedKey by remember { mutableStateOf<String?>(null) }
+    val history = remember(decisions, sessionId) { decisions.filter { sessionId != null && it.sessionId == sessionId } }
+    if (interactions.isEmpty() && error == null && history.isEmpty()) return
+    var selectedKey by remember(sessionId) { mutableStateOf<String?>(null) }
     val current = interactions.firstOrNull { it.eventId == selectedKey } ?: interactions.firstOrNull()
     val index = interactions.indexOf(current).coerceAtLeast(0)
+    val view = LocalView.current
+    val approvals = interactions.filterIsInstance<PendingInteraction.Approval>().map { it.eventId }.toSet()
+    val announced = remember(sessionId) { mutableSetOf<String>() }
+    LaunchedEffect(view, approvals) {
+        announced.retainAll(approvals)
+        if (approvals.any { it !in announced }) view.performHapticFeedback(HapticFeedbackConstants.CONTEXT_CLICK)
+        announced.addAll(approvals)
+    }
     Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         error?.let { InteractionError(it) }
         if (interactions.size > 1) Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween) {
-            TextButton({ selectedKey = interactions[index - 1].eventId }, enabled = index > 0) { Text("上一个") }
-            Text("${index + 1} / ${interactions.size} 个待处理请求")
-            TextButton({ selectedKey = interactions[index + 1].eventId }, enabled = index + 1 < interactions.size) { Text("下一个") }
+            TextButton({ selectedKey = interactions[index - 1].eventId }, enabled = index > 0) { Text(stringResource(R.string.interaction_previous)) }
+            Text(stringResource(R.string.interaction_position, index + 1, interactions.size))
+            TextButton({ selectedKey = interactions[index + 1].eventId }, enabled = index + 1 < interactions.size) { Text(stringResource(R.string.interaction_next)) }
         }
         current?.let { interaction -> key(interaction.eventId) {
-            Text("会话：${interaction.agentId}", style = MaterialTheme.typography.labelMedium)
             when (interaction) {
                 is PendingInteraction.Approval -> ApprovalCard(interaction, onApprove, onReject)
                 is PendingInteraction.Question -> QuestionCard(interaction, onAnswers, onReject)
             }
         } }
+        if (history.isNotEmpty()) key(sessionId) { DecisionHistory(history) }
     }
 }
 
 @Composable
 private fun InteractionError(code: String) {
     val text = when (code) {
-        "interaction.answers.required" -> "请回答所有问题。"
-        "interaction.answers.option", "interaction.answers.cardinality" -> "请检查选项；单选题只能选择一项或填写其他答案。"
-        "interaction.result_unconfirmed", "interaction.answer_not_accepted" -> "未确认主机收到结果。为避免重复操作，此请求不会自动重试，请等待主机更新。"
-        "interaction.stale", "interaction.already_continued" -> "此请求已失效，请等待主机更新。"
-        else -> "交互暂不可用，请检查连接并等待主机更新。"
+        "interaction.answers.required" -> R.string.interaction_error_required
+        "interaction.answers.option", "interaction.answers.cardinality" -> R.string.interaction_error_options
+        "interaction.result_unconfirmed", "interaction.answer_not_accepted" -> R.string.interaction_error_unconfirmed
+        "interaction.stale", "interaction.already_continued", "interaction.already_attempted" -> R.string.interaction_error_stale
+        "interaction.biometric_unavailable" -> R.string.interaction_biometric_unavailable
+        "interaction.biometric_cancelled" -> R.string.interaction_biometric_cancelled
+        else -> R.string.interaction_error_generic
     }
-    Text(text, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodyMedium,
+    Text(stringResource(text), color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodyMedium,
         modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite })
 }
 
@@ -61,46 +88,136 @@ private fun InteractionStatus(interaction: PendingInteraction) {
     when {
         interaction.busy -> Row(horizontalArrangement = Arrangement.spacedBy(TokenWorksSpacing.sm), verticalAlignment = Alignment.CenterVertically) {
             CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)
-            Text("正在提交，等待主机确认…", style = MaterialTheme.typography.bodyMedium)
+            Text(stringResource(if (interaction is PendingInteraction.Approval && interaction.verifyingBiometric)
+                R.string.interaction_biometric_in_progress else R.string.interaction_status_sending),
+                style = MaterialTheme.typography.bodyMedium,
+                modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite })
         }
         interaction.error != null -> InteractionError(interaction.error!!)
         interaction.attempted -> TokenWorksStatusNotice(
-            "已提交，等待主机更新",
+            stringResource(R.string.interaction_status_waiting),
             tone = TokenWorksNoticeTone.INFO,
         )
     }
 }
 
 @Composable
-private fun ApprovalCard(interaction: PendingInteraction.Approval, onApprove: (String) -> Unit, onReject: (String) -> Unit) {
+private fun ApprovalCard(
+    interaction: PendingInteraction.Approval,
+    onApprove: (String, suspend () -> Unit) -> Unit,
+    onReject: (String) -> Unit,
+) {
+    val context = LocalContext.current
+    val cardScope = rememberCoroutineScope()
+    var expanded by remember { mutableStateOf(false) }
+    var pressedKey by remember { mutableStateOf<Key?>(null) }
+    var focused by remember { mutableStateOf(false) }
+    val enabled = !interaction.busy && !interaction.attempted
+    val allow = {
+        onApprove(interaction.eventId) {
+            val verification = cardScope.async { runCatching { verifyStrongApproval(context) } }
+            try { verification.await().getOrThrow() } finally { verification.cancel() }
+        }
+    }
+    val reject = { onReject(interaction.eventId) }
+    val tool = stringResource(approvalTool(interaction.toolName)?.label ?: R.string.interaction_tool_other)
     Surface(
-        Modifier.fillMaxWidth(),
+        Modifier.fillMaxWidth().tokenWorksEntrance(interaction.eventId),
         shape = tokenWorksSquircle(TokenWorksRadius.lg),
         color = MaterialTheme.colorScheme.surfaceContainerLow,
     ) {
-        Column(Modifier.padding(TokenWorksSpacing.lg), verticalArrangement = Arrangement.spacedBy(TokenWorksSpacing.md)) {
-            Text("工具请求批准", style = MaterialTheme.typography.titleMedium)
-            // Only the public tool label/reason is shown, never raw tool arguments or credentials.
-            Surface(
-                shape = tokenWorksSquircle(TokenWorksRadius.md),
-                color = MaterialTheme.colorScheme.surfaceContainerHighest,
-                modifier = Modifier.fillMaxWidth(),
-            ) {
-                Column(Modifier.heightIn(max = 240.dp).verticalScroll(rememberScrollState()).padding(TokenWorksSpacing.md),
-                    verticalArrangement = Arrangement.spacedBy(TokenWorksSpacing.sm)) {
-                    Text(interaction.toolName, style = MaterialTheme.typography.bodyLarge)
-                    interaction.reason?.let { Text(it, style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant) }
-                }
+        Column(Modifier.padding(TokenWorksSpacing.lg), verticalArrangement = Arrangement.spacedBy(TokenWorksSpacing.sm)) {
+            Column(Modifier.fillMaxWidth().testTag("approval-shortcuts")
+                .border(2.dp, if (focused) MaterialTheme.colorScheme.primary else Color.Transparent,
+                    tokenWorksSquircle(TokenWorksRadius.sm))
+                .onFocusChanged { state -> focused = state.isFocused; if (!focused) pressedKey = null }
+                .onKeyEvent { event ->
+                    if (!enabled || event.isCtrlPressed || event.isAltPressed || event.isMetaPressed || event.isShiftPressed)
+                        return@onKeyEvent false
+                    val key = event.key
+                    if (key != Key.Enter && key != Key.NumPadEnter && key != Key.Escape) return@onKeyEvent false
+                    when (event.type) {
+                        KeyEventType.KeyDown -> { pressedKey = key; true }
+                        KeyEventType.KeyUp -> {
+                            val matches = pressedKey == key && !event.nativeKeyEvent.isCanceled
+                            pressedKey = null
+                            if (matches) { if (key == Key.Escape) reject() else allow() }
+                            matches
+                        }
+                        else -> false
+                    }
+                }.focusable(enabled).padding(TokenWorksSpacing.xs)) {
+                Text(stringResource(R.string.interaction_approval), style = MaterialTheme.typography.titleMedium,
+                    modifier = Modifier.semantics { heading() })
+                Text(tool, style = MaterialTheme.typography.bodyLarge)
+                Text(stringResource(R.string.interaction_keyboard_help), style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
+            Text(stringResource(R.string.interaction_biometric_required), style = MaterialTheme.typography.bodyMedium)
+            val disclosure = stringResource(if (expanded) R.string.interaction_hide_details else R.string.interaction_show_details)
+            TextButton({ expanded = !expanded }, Modifier.heightIn(min = TokenWorksSpacing.minimumTouchTarget)
+                .semantics { stateDescription = disclosure }) { Text(disclosure) }
+            if (expanded) Text(stringResource(R.string.interaction_detail_policy), style = MaterialTheme.typography.bodyMedium)
             InteractionStatus(interaction)
             Row(horizontalArrangement = Arrangement.spacedBy(TokenWorksSpacing.md), modifier = Modifier.fillMaxWidth()) {
-                Button({ onApprove(interaction.eventId) }, enabled = !interaction.attempted,
-                    modifier = Modifier.weight(1f).heightIn(min = TokenWorksSpacing.minimumTouchTarget)) { Text("允许一次") }
-                OutlinedButton({ onReject(interaction.eventId) }, enabled = !interaction.attempted,
-                    modifier = Modifier.weight(1f).heightIn(min = TokenWorksSpacing.minimumTouchTarget)) { Text("拒绝") }
+                Button(allow, enabled = enabled,
+                    modifier = Modifier.weight(1f).heightIn(min = TokenWorksSpacing.minimumTouchTarget)) {
+                    Text(stringResource(R.string.interaction_allow))
+                }
+                OutlinedButton(reject, enabled = enabled,
+                    modifier = Modifier.weight(1f).heightIn(min = TokenWorksSpacing.minimumTouchTarget)) {
+                    Text(stringResource(R.string.interaction_reject))
+                }
             }
         }
+    }
+}
+
+@Composable
+private fun DecisionHistory(decisions: List<InteractionDecision>) {
+    var expanded by remember { mutableStateOf(false) }
+    Surface(Modifier.fillMaxWidth(), shape = tokenWorksSquircle(TokenWorksRadius.lg),
+        color = MaterialTheme.colorScheme.surfaceContainerLow) {
+        Column(Modifier.padding(horizontal = TokenWorksSpacing.md, vertical = TokenWorksSpacing.sm)) {
+            TextButton({ expanded = !expanded }, Modifier.heightIn(min = TokenWorksSpacing.minimumTouchTarget)) {
+                Text(stringResource(R.string.interaction_history, decisions.size))
+            }
+            if (expanded) {
+                Text(stringResource(R.string.interaction_history_limit), style = MaterialTheme.typography.bodySmall)
+                Column(Modifier.heightIn(max = 180.dp).verticalScroll(rememberScrollState()).padding(vertical = TokenWorksSpacing.sm),
+                    verticalArrangement = Arrangement.spacedBy(TokenWorksSpacing.xs)) {
+                    decisions.forEach { decision -> key(decision.sequence) {
+                        val outcome = when (decision.outcome) {
+                            InteractionDecision.Outcome.ALLOWED -> R.string.interaction_history_allowed
+                            InteractionDecision.Outcome.REJECTED -> R.string.interaction_history_rejected
+                            InteractionDecision.Outcome.CANCELLED -> R.string.interaction_history_cancelled
+                            InteractionDecision.Outcome.UNAVAILABLE -> R.string.interaction_history_unavailable
+                        }
+                        Text(stringResource(R.string.interaction_history_row,
+                            stringResource(decision.tool?.label ?: R.string.interaction_tool_other), stringResource(outcome)),
+                            style = MaterialTheme.typography.bodyMedium)
+                    } }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun QuestionCountdown(interaction: PendingInteraction.Question) {
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(TokenWorksSpacing.sm)) {
+        val remaining = interaction.remainingMs
+        val initial = interaction.initialRemainingMs
+        val indicator = Modifier.size(24.dp).clearAndSetSemantics { }
+        if (remaining != null && initial != null && initial > 0) {
+            CircularProgressIndicator(progress = { (remaining.toDouble() / initial).coerceIn(0.0, 1.0).toFloat() },
+                modifier = indicator, strokeWidth = 3.dp)
+        } else CircularProgressIndicator(indicator, strokeWidth = 3.dp)
+        val text = if (remaining == null) stringResource(R.string.interaction_question_waiting) else {
+            val seconds = remainingSeconds(remaining)
+            pluralStringResource(R.plurals.interaction_question_remaining, seconds.coerceAtMost(Int.MAX_VALUE.toLong()).toInt(), seconds)
+        }
+        Text(text, style = MaterialTheme.typography.labelLarge)
     }
 }
 
@@ -112,7 +229,8 @@ private fun QuestionCard(
 ) {
     val selections = remember(interaction.eventId) { mutableStateMapOf<String, Set<String>>() }
     val customs = remember(interaction.eventId) { mutableStateMapOf<String, String>() }
-    val enabled = !interaction.attempted && (!interaction.timed || interaction.phase == PendingInteraction.QuestionPhase.CONTINUED || interaction.remainingMs != null)
+    val enabled = !interaction.busy && !interaction.attempted && (!interaction.timed ||
+        interaction.phase == PendingInteraction.QuestionPhase.CONTINUED || (interaction.remainingMs ?: 0) > 0)
     val answers = interaction.questions.map { card -> InteractionBridge.AnsweredQuestion(
         card.id, selections[card.id].orEmpty().toList(), customs[card.id]?.trim()?.ifEmpty { null }) }
     val valid = runCatching { validateQuestionAnswers(interaction, answers) }.isSuccess
@@ -122,12 +240,12 @@ private fun QuestionCard(
         color = MaterialTheme.colorScheme.surfaceContainerLow,
     ) {
         Column(Modifier.padding(TokenWorksSpacing.lg), verticalArrangement = Arrangement.spacedBy(TokenWorksSpacing.md)) {
-            Text("需要你的回答", style = MaterialTheme.typography.titleMedium)
+            Text(stringResource(R.string.interaction_question_title), style = MaterialTheme.typography.titleMedium,
+                modifier = Modifier.semantics { heading() })
             if (interaction.phase == PendingInteraction.QuestionPhase.CONTINUED) {
-                Text("主机已继续执行，回答将作为新消息排队", style = MaterialTheme.typography.labelLarge)
+                Text(stringResource(R.string.interaction_question_continued), style = MaterialTheme.typography.labelLarge)
             } else if (interaction.timed) {
-                Text(interaction.remainingMs?.let { "剩余 ${(it + 999) / 1_000} 秒" } ?: "正在获取主机剩余时间…",
-                    style = MaterialTheme.typography.labelLarge)
+                QuestionCountdown(interaction)
             }
             Column(Modifier.fillMaxWidth().heightIn(max = 360.dp).verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(16.dp)) {
@@ -163,18 +281,22 @@ private fun QuestionCard(
                             customs[card.id] = text
                             if (!card.multiSelect && text.isNotBlank()) selections.remove(card.id)
                         }, enabled = enabled, modifier = Modifier.fillMaxWidth(), minLines = 1,
-                            label = { Text(if (card.options.isEmpty()) "${card.question} · 回答" else "其他答案（与单选选项互斥）") })
+                            label = { Text(when {
+                                card.options.isEmpty() -> stringResource(R.string.interaction_question_answer, card.question)
+                                card.multiSelect -> stringResource(R.string.interaction_question_other_multiple)
+                                else -> stringResource(R.string.interaction_question_other_single)
+                            }) })
                     }
                 } }
             }
             InteractionStatus(interaction)
-            if (!valid && !interaction.attempted) Text("请完成全部问题后提交", style = MaterialTheme.typography.bodySmall)
+            if (!valid && enabled) Text(stringResource(R.string.interaction_question_complete), style = MaterialTheme.typography.bodySmall)
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
                 Button({ onAnswers(interaction.eventId, answers) }, enabled = enabled && valid,
-                    modifier = Modifier.weight(1f).heightIn(min = 48.dp)) { Text("提交") }
+                    modifier = Modifier.weight(1f).heightIn(min = 48.dp)) { Text(stringResource(R.string.interaction_question_submit)) }
                 if (interaction.phase == PendingInteraction.QuestionPhase.OPEN) {
-                    OutlinedButton({ onReject(interaction.eventId) }, enabled = !interaction.attempted,
-                        modifier = Modifier.weight(1f).heightIn(min = 48.dp)) { Text("不在此回答") }
+                    OutlinedButton({ onReject(interaction.eventId) }, enabled = enabled,
+                        modifier = Modifier.weight(1f).heightIn(min = 48.dp)) { Text(stringResource(R.string.interaction_question_defer)) }
                 }
             }
         }

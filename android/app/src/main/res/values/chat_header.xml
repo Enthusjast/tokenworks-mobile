@@ -1,0 +1,12 @@
+<resources xmlns:tools="http://schemas.android.com/tools" tools:locale="en">
+    <string name="chat_compose_placeholder">Message the agent…</string>
+    <string name="chat_web_link_preview">Web link · Opens in browser</string>
+    <plurals name="header_pending_approvals">
+        <item quantity="one">%d approval pending</item>
+        <item quantity="other">%d approvals pending</item>
+    </plurals>
+    <plurals name="header_pending_questions">
+        <item quantity="one">%d question pending</item>
+        <item quantity="other">%d questions pending</item>
+    </plurals>
+</resources>

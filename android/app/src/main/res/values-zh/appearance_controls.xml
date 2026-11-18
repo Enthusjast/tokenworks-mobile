@@ -1,0 +1,7 @@
+<resources>
+    <string name="appearance_accent_indigo">靛蓝强调色</string>
+    <string name="appearance_accent_teal">青碧强调色</string>
+    <string name="appearance_accent_plum">紫红强调色</string>
+    <string name="appearance_accent_moss">苔绿强调色</string>
+    <string name="appearance_slider_range">可调整范围：%1$d%%–%2$d%%</string>
+</resources>

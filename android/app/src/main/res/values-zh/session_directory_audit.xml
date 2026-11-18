@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="session_directory_search_label">搜索会话</string>
+    <string name="session_directory_search_empty_detail">请尝试其他标题或消息关键词，或清除当前筛选。</string>
+    <string name="directory_clear_search">清除会话搜索</string>
+    <string name="directory_archived_tab">已归档</string>
+    <string name="directory_archived_empty">没有已归档的会话</string>
+    <string name="directory_archived_detail">归档会保留会话历史。在这里恢复会话即可继续对话。</string>
+    <string name="directory_archive_unknown">无法确认归档状态。电脑端未在当前授权下提供归档列表。</string>
+    <string name="directory_archive_unavailable">无法加载已归档的会话</string>
+    <string name="directory_search_loading">正在搜索会话内容…</string>
+    <string name="directory_content_search_failed">无法搜索消息正文。仍会显示匹配的标题和工作区。</string>
+    <string name="directory_search_refine">消息搜索结果有数量限制。缩小搜索范围可获得更相关的结果。</string>
+    <string name="directory_metadata_search_only">暂时无法搜索消息正文，仅搜索标题和工作区。</string>
+    <string name="directory_filter_empty">没有符合此筛选条件的会话</string>
+    <string name="directory_pinned_section">本机置顶</string>
+    <string name="directory_pinned_status">已置顶</string>
+    <string name="directory_pin">在本机置顶</string>
+    <string name="directory_unpin">取消本机置顶</string>
+    <string name="directory_row_actions">%1$s的操作</string>
+    <string name="directory_run_turn">运行中 · 最近记录：第 %1$d 轮</string>
+    <string name="directory_run_step">运行中 · 最近记录：第 %1$d 轮，第 %2$d 步</string>
+    <string name="directory_token_total">累计 %1$s 个令牌</string>
+    <string name="directory_media_preview">含附件的消息</string>
+    <string name="directory_select">选择会话</string>
+    <string name="directory_cancel_selection">退出选择</string>
+    <string name="directory_selection_count">已选择 %1$d 个会话</string>
+    <string name="directory_selection_blocked">部分所选会话无法执行此操作。运行中的会话需在结束后才能归档。</string>
+    <string name="directory_archive_action">归档</string>
+    <string name="directory_archive_confirm_title">%1$s · 已选择 %2$d 个会话</string>
+    <string name="directory_archive_explanation">归档保留会话历史和工作区文件，不会删除数据或停止正在运行的任务。每个会话会分别处理。</string>
+    <string name="directory_restore_explanation">恢复原会话，保留会话历史。每个会话会分别处理。</string>
+    <string name="directory_archive_working">正在更新会话…</string>
+    <string name="directory_archive_result">已确认 %1$d 个，未确认 %2$d 个</string>
+    <string name="directory_active_empty_detail">创建一个会话即可开始。电脑端归档的会话可在“已归档”中查看。</string>
+</resources>

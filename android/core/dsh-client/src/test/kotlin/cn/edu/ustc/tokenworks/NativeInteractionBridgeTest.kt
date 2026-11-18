@@ -141,6 +141,9 @@ class NativeInteractionBridgeTest {
             mux.ready(); mux.waterfall(event = "user-questions/request", request = question(timed = true)); runCurrent()
             val attach = sent.single { it.fields["endpoint"] == "userQuestions/attachWait".json() }
             assertNativeJson(jsonObject("args" to jsonObject("agentId" to "agent".json(), "callId" to "call".json())), attach.obj("payload"))
+            val unresolved = bridge.interactions.value.single().eventId
+            val unready = runCatching { bridge.submitAnswers(unresolved, answers()) }.exceptionOrNull()
+            assertEquals("interaction.wait_failed", (unready as? DshFailure)?.code)
             mux.event(jsonObject("remainingMs" to 1_000L.json()), attach.string("streamId")); runCurrent()
             val key = bridge.interactions.value.single().eventId
             assertEquals(1_000L, (bridge.interactions.value.single() as PendingInteraction.Question).remainingMs)
@@ -148,11 +151,27 @@ class NativeInteractionBridgeTest {
             assertEquals(600L, (bridge.interactions.value.single() as PendingInteraction.Question).remainingMs)
             mux.event(jsonObject("remainingMs" to 8_000L.json()), attach.string("streamId")); runCurrent()
             assertEquals(600L, (bridge.interactions.value.single() as PendingInteraction.Question).remainingMs)
+            assertEquals(1_000L, (bridge.interactions.value.single() as PendingInteraction.Question).initialRemainingMs)
             advanceTimeBy(600); runCurrent()
             assertTrue(bridge.interactions.value.isEmpty())
             assertTrue(runCatching { bridge.submitAnswers(key, answers()) }.isFailure)
             assertTrue(posts.isEmpty())
             assertEquals(1, sent.count { it.fields["endpoint"] == "userQuestions/attachWait".json() })
         } finally { bridge.close(); mux.close() }
+    }
+
+    @Test fun otherSessionNeverStartsAHostWaitClaim() = runTest {
+        val transport = InteractionTestTransport()
+        val watcher = InteractionWatcher(transport, backgroundScope, sessionId = "current")
+        try {
+            runCurrent()
+            transport.muxes.single().apply {
+                ready()
+                waterfall(event = "user-questions/request", request = question(timed = true))
+            }
+            runCurrent()
+            assertTrue(watcher.interactions.value.isEmpty())
+            assertTrue(transport.frames.none { it.fields["endpoint"] == "userQuestions/attachWait".json() })
+        } finally { watcher.close() }
     }
 }

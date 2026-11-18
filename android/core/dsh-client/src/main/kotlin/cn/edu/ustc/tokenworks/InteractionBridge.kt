@@ -15,7 +15,10 @@ sealed class PendingInteraction {
         val toolName: String, val callId: String?, val reason: String?,
         override val busy: Boolean = false, override val attempted: Boolean = false,
         override val error: String? = null,
-    ) : PendingInteraction()
+        val verifyingBiometric: Boolean = false,
+    ) : PendingInteraction() {
+        override fun toString() = "PendingInteraction.Approval"
+    }
 
     data class Question(
         override val eventId: String, override val agentId: String, val callId: String?,
@@ -24,6 +27,8 @@ sealed class PendingInteraction {
         val remainingMs: Long? = null,
         override val busy: Boolean = false, override val attempted: Boolean = false,
         override val error: String? = null,
+        /** Remaining host wait at the first sample for this exact claim; never a fresh local timer. */
+        val initialRemainingMs: Long? = null,
     ) : PendingInteraction()
 
     enum class QuestionPhase { OPEN, CONTINUED }

@@ -49,7 +49,8 @@ internal class HostManagementCoordinator(
         if (!row.identity.relayAuthorized && state.value.relayManagementAvailable) return
         try {
             changeRtcConsent(runtime, enabled)
-            mutable.update { it.copy(rtcConsents = it.rtcConsents + (runtime to readRtcConsent(runtime)), notice = if (enabled) "已允许此所有者的点对点与 TURN 路径；下次连接重新检测。" else "已停止此运行配置的点对点与 TURN 连接。") }
+            mutable.update { it.copy(rtcConsents = it.rtcConsents + (runtime to readRtcConsent(runtime)),
+                notice = if (enabled) HostManagementNotice.RTC_ALLOWED else HostManagementNotice.RTC_STOPPED) }
         } catch (error: Exception) { mutable.update { it.copy(error = homeErrorCode(error)) } }
     }
     private fun launch(relay: Boolean = true, action: suspend () -> Unit) {
@@ -77,7 +78,7 @@ internal class HostManagementCoordinator(
             installations = installations.items, installationsCursor = installations.nextCursor,
             profiles = emptyList(), profileInstallation = null, profilesCursor = null,
             grants = emptyList(), grantRuntime = null, grantsCursor = null, mutationUnknown = !reconciled,
-            notice = if (pending != null && reconciled) "已重新读取目标的服务端状态；未自动重试撤销。" else null) }
+            notice = HostManagementNotice.REVOCATION_RECHECKED.takeIf { pending != null && reconciled }) }
     }
     private suspend fun <T> findState(load: suspend (String?) -> ManagementPage<T>, match: (T) -> String?): Boolean {
         var cursor: String? = null
@@ -144,7 +145,7 @@ internal class HostManagementCoordinator(
         uncertain = null
         if (target is ManagementTarget.Device) revokeLocal(target)
         currentCoroutineContext().ensureActive()
-        mutable.update { it.copy(mutationUnknown = false, notice = "撤销已确认；已重新核对授权与本地状态。") }
+        mutable.update { it.copy(mutationUnknown = false, notice = HostManagementNotice.REVOCATION_CONFIRMED) }
         refreshDirectory()
         val devices = api.devices(); currentCoroutineContext().ensureActive()
         val installations = api.installations(); currentCoroutineContext().ensureActive()

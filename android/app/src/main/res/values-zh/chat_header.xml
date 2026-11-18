@@ -1,0 +1,6 @@
+<resources>
+    <string name="chat_compose_placeholder">给 Agent 发消息…</string>
+    <string name="chat_web_link_preview">网页链接 · 在浏览器中打开</string>
+    <plurals name="header_pending_approvals"><item quantity="other">%d 项待审批</item></plurals>
+    <plurals name="header_pending_questions"><item quantity="other">%d 个待回答</item></plurals>
+</resources>

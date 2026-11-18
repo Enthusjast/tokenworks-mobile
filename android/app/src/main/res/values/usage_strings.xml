@@ -1,4 +1,4 @@
-<resources>
+<resources xmlns:tools="http://schemas.android.com/tools" tools:locale="en">
     <string name="usage_title">Usage</string>
     <string name="usage_back">Back</string>
     <string name="usage_scope">Shows sessions you can access on the selected runtime. Session totals come from the server. Models and dates come from history synced to this device. Usage that cannot be classified is not assigned to the current model or to today.</string>

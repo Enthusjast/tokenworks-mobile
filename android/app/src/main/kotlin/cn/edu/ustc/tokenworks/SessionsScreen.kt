@@ -1,426 +1,390 @@
 package cn.edu.ustc.tokenworks
 
-import androidx.compose.foundation.background
-import androidx.compose.foundation.combinedClickable
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.horizontalScroll
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilterChip
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.LinearProgressIndicator
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.SnackbarHost
-import androidx.compose.material3.SnackbarHostState
-import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.material3.*
 import androidx.compose.material3.pulltorefresh.PullToRefreshDefaults
 import androidx.compose.material3.pulltorefresh.pullToRefresh
 import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.Role
-import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.CollectionInfo
+import androidx.compose.ui.semantics.collectionInfo
+import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.semantics.stateDescription
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import java.time.Instant
 import java.time.ZoneId
-import kotlinx.coroutines.launch
 
 /** Directory content only; the workspace shell owns navigation and the chat pane. */
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun SessionsScreen(state: HomeState, viewModel: HomeViewModel, modifier: Modifier = Modifier) {
-    val runtime = state.runtimes.firstOrNull { it.id == state.selectedRuntimeId }
-    val activeTransport by viewModel.activeTransport.collectAsState()
-    val transport = activeTransport?.takeIf { it.runtimeId == state.selectedRuntimeId }
-    val discovery = remember(transport) { transport?.let(::DiscoveryClient) }
-    val directory = rememberWorkspaceDirectory(transport, runtime?.access, state.lanOnly, !state.backgroundReadOnly)
-    val archived = directory.snapshot?.archivedSessionIds.orEmpty()
-    val visible = remember(state.sessions, archived) { state.sessions.filterNot { it.id in archived } }
-    val byId = remember(state.sessions) { state.sessions.associateBy { it.id } }
-    var workspaceOpen by rememberSaveable(state.selectedRuntimeId, state.deviceId) { mutableStateOf(false) }
-    var query by remember(state.presentationOwner, state.selectedRuntimeId) { mutableStateOf("") }
-    val canSearch = state.lanOnly || runtime?.access?.allows("session/search") == true
-    val normalizedQuery = query.trim()
-    val searching = normalizedQuery.isNotEmpty() && canSearch
-    val results = rememberDiscoveryQuery(discovery.takeIf { searching && !workspaceOpen }, normalizedQuery, debounce = true) {
-        checkNotNull(discovery).search(normalizedQuery)
+    key(state.presentationOwner?.fingerprint, state.selectedRuntimeId) { SessionDirectoryScreen(state, viewModel, modifier) }
+}
+
+private enum class DirectoryPage { ACTIVE, ARCHIVED, WORKSPACES }
+private enum class DirectoryFilter { ALL, RUNNING, UNREAD }
+private data class ArchiveConfirmation(val ids: Set<String>, val archive: Boolean)
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun SessionDirectoryScreen(state: HomeState, model: HomeViewModel, modifier: Modifier) {
+    val owner = state.presentationOwner?.fingerprint
+    val runtimeId = state.selectedRuntimeId
+    val runtime = state.runtimeRow(runtimeId)
+    val context = LocalContext.current
+    val lifecycle = LocalLifecycleOwner.current.lifecycle
+    val lifecycleState by lifecycle.currentStateFlow.collectAsState()
+    val started = lifecycleState.isAtLeast(Lifecycle.State.STARTED)
+    val haptic = LocalHapticFeedback.current
+    val keyboard = LocalSoftwareKeyboardController.current
+    val activeRoute by model.activeTransport.collectAsState()
+    val route = activeRoute?.takeIf { owner != null && runtimeId == it.runtimeId }
+    val routeState = route?.state?.collectAsState()?.value
+    val generation = routeState?.generation
+    val ready = routeState?.phase == DshTransportPhase.READY
+    val directory = rememberWorkspaceDirectory(route, runtime?.access, state.lanOnly, started && !state.backgroundReadOnly)
+    val access = SessionDirectoryAccess(state.lanOnly, runtime?.access)
+    val expires = runtime?.access?.expiresAt.takeUnless { state.lanOnly }
+    var expired by remember(expires) { mutableStateOf(expires != null && expires <= System.currentTimeMillis()) }
+    LaunchedEffect(expires) {
+        if (expires != null && !expired) { delay((expires - System.currentTimeMillis()).coerceAtLeast(0)); expired = true }
     }
-    val snackbar = remember(state.presentationOwner, state.selectedRuntimeId) { SnackbarHostState() }
+    fun current(write: Boolean = false): HomeState? {
+        val live = model.state.value
+        val transport = route?.state?.value ?: return null
+        return live.takeIf {
+            owner != null && runtimeId != null && live.phase == HomePhase.READY && live.presentationOwner?.fingerprint == owner &&
+                live.selectedRuntimeId == runtimeId && model.activeTransport.value === route && live.lanOnly == state.lanOnly &&
+                live.runtimeRow(runtimeId)?.access === runtime?.access && (expires == null || expires > System.currentTimeMillis()) &&
+                lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED) && transport.generation == generation &&
+                transport.phase == DshTransportPhase.READY && (!write || !live.backgroundReadOnly)
+        }
+    }
+    val snackbar = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
-    val selectedSession by rememberUpdatedState(state.selectedSessionId)
-    val onArchiveChanged: (String, Boolean) -> Unit = { id, archivedNow ->
-        if (archivedNow && selectedSession == id) viewModel.closeSession()
-        viewModel.refreshSessions()
+    val pinStore = remember(context, owner, runtimeId) {
+        if (owner != null && runtimeId != null) SessionDirectoryPins(context.applicationContext, owner, runtimeId) else null
     }
-    val actionError = state.sessionActionError?.let { stringResource(R.string.session_action_error, it) }
-    LaunchedEffect(actionError) {
-        if (actionError != null) snackbar.showSnackbar(actionError)
+    var pins by remember(pinStore) { mutableStateOf(pinStore?.read().orEmpty()) }
+    var page by rememberSaveable { mutableStateOf(DirectoryPage.ACTIVE) }
+    var filter by rememberSaveable { mutableStateOf(DirectoryFilter.ALL) }
+    // Never persist query text, snapshots or snippets in saved instance state.
+    var query by remember { mutableStateOf("") }
+    var selecting by remember { mutableStateOf(false) }
+    var selection by remember { mutableStateOf(emptySet<String>()) }
+    var renameId by remember(route, generation, runtime?.access) { mutableStateOf<String?>(null) }
+    var title by remember(renameId) { mutableStateOf(state.sessions.firstOrNull { it.id == renameId }?.metadata?.title.orEmpty()) }
+    var confirmation by remember(route, generation, runtime?.access) { mutableStateOf<ArchiveConfirmation?>(null) }
+    var mutating by remember { mutableStateOf(false) }
+    var refreshVersion by remember { mutableIntStateOf(0) }
+    fun refresh() { directory.retry(); refreshVersion++; model.refreshSessions() }
+    fun clearSelection() { selecting = false; selection = emptySet() }
+    fun switch(next: DirectoryPage) { clearSelection(); query = ""; filter = DirectoryFilter.ALL; page = next; keyboard?.hide() }
+    fun select(id: String) { if (!mutating) { selecting = true; selection = if (id in selection) selection - id else selection + id } }
+    BackHandler(selecting && !mutating) { clearSelection() }
+
+    val snapshot = directory.snapshot
+    val archivedIds = remember(snapshot) { snapshot?.archivedSessionIds?.toHashSet().orEmpty() }
+    val archivedPage = page == DirectoryPage.ARCHIVED
+    val archiveLoading = snapshot == null && directory.loading
+    val archiveUnavailable = archivedPage && snapshot == null && !archiveLoading
+    val visible = remember(state.sessions, archivedIds, expired, runtime?.access, state.lanOnly, archivedPage, archiveLoading, routeState?.phase) {
+        if (expired || archiveLoading || routeState?.phase in setOf(DshTransportPhase.REVOKED, DshTransportPhase.AUTH_REQUIRED,
+                DshTransportPhase.CLOSED)) emptyList()
+        else {
+            val readable = state.sessions.filter { access.read("session/list", it.id) && access.read("session/follow", it.id) }
+            val membership = directoryArchivedRows(readable, archivedIds)
+            readable.filter { (it.id in membership) == archivedPage }
+        }
     }
-    var actionSessionId by rememberSaveable(state.selectedRuntimeId, state.deviceId) { mutableStateOf<String?>(null) }
-    var renameSessionId by rememberSaveable(state.selectedRuntimeId, state.deviceId) { mutableStateOf<String?>(null) }
-    var titleDraft by rememberSaveable(state.selectedRuntimeId, state.deviceId) { mutableStateOf("") }
-    val actionSession = state.sessions.firstOrNull { it.id == actionSessionId }
-    val renameSession = state.sessions.firstOrNull { it.id == renameSessionId }
-    val pullState = rememberPullToRefreshState()
+    LaunchedEffect(visible, started, expired, generation) {
+        if (!started || expired) { clearSelection(); renameId = null; confirmation = null }
+        else selection = selection.intersect(visible.mapTo(HashSet()) { it.id })
+    }
+    fun mayArchive(id: String, archive: Boolean): Boolean {
+        val row = current(write = true)?.sessions?.firstOrNull { it.id == id } ?: return false
+        val baseline = directory.snapshot ?: return false
+        val endpoint = if (archive) "workspace/archiveSession" else "workspace/unarchiveSession"
+        return !directory.busy && row.parentSessionId == null && (id in baseline.archivedSessionIds) != archive &&
+            (!archive || !row.running) && access.write(endpoint, id) && directory.canArchiveSession(id, archive)
+    }
+    fun mayChange(endpoint: String, id: String): Boolean {
+        val row = current(write = true)?.sessions?.firstOrNull { it.id == id } ?: return false
+        return page == DirectoryPage.ACTIVE && row.parentSessionId == null && row.state != "unavailable" &&
+            id !in directory.snapshot?.archivedSessionIds.orEmpty() && access.write(endpoint, id)
+    }
+    fun askArchive(ids: Set<String>, archive: Boolean) {
+        if (!mutating && ids.isNotEmpty() && ids.all { mayArchive(it, archive) }) {
+            keyboard?.hide(); confirmation = ArchiveConfirmation(ids, archive)
+        }
+    }
+    fun runAction(task: suspend () -> String?) {
+        if (mutating) return
+        mutating = true
+        scope.launch {
+            val message = try { task() }
+            catch (cancelled: CancellationException) { throw cancelled }
+            catch (error: Exception) { context.getString(R.string.session_action_error, homeErrorCode(error)) }
+            finally { mutating = false }
+            if (message != null) snackbar.showSnackbar(message)
+        }
+    }
+
+    val needle = query.trim()
+    val searching = needle.isNotEmpty()
+    val discovery = remember(route) { route?.let(::DiscoveryClient) }
+    val searchKey = if (searching && page != DirectoryPage.WORKSPACES && !archiveUnavailable && !archiveLoading &&
+        ready && !expired && started && access.read("session/search")) Triple(discovery, generation, runtime?.access to refreshVersion) else null
+    val found = rememberDiscoveryQuery(searchKey, needle, debounce = true) {
+        if (current() == null || !access.read("session/search")) throw DshFailure("access.denied")
+        checkNotNull(discovery).search(needle).also { if (current() == null || !access.read("session/search")) throw DshFailure("access.denied") }
+    }
+    val matches = remember(visible, needle, found.value, runtime?.access, expired) {
+        if (!searching) emptyMap() else sessionDirectorySearch(visible, needle, found.value) { access.read("session/search", it) }
+    }
+    val unread = remember(visible, state.selectedSessionId, state.reader) {
+        visible.filter { it.id != state.selectedSessionId && model.isUnread(it) }.mapTo(HashSet()) { it.id }
+    }
+    val previewSource = remember(route, generation, runtime?.access, ready, started, expired, state.lanOnly, refreshVersion) {
+        route?.takeIf { ready && started && !expired }?.let {
+            SessionDirectoryPreviewSource(it, isCurrent = { current() != null }, mayRead = { id -> access.read("session/page", id) })
+        }
+    }
     val now = System.currentTimeMillis()
-    val cutoff = now - 86_400_000L
-    var directoryFilter by rememberSaveable(state.selectedRuntimeId, state.deviceId) { mutableStateOf(DirectoryFilter.ALL) }
-    val unread: (SessionDirectoryEntry) -> Boolean = { it.id != state.selectedSessionId && viewModel.isUnread(it) }
-    val groups = sessionDirectoryGroups(visible, cutoff) { entry ->
-        directoryFilter == DirectoryFilter.ALL ||
-            directoryFilter == DirectoryFilter.RUNNING && entry.running ||
-            directoryFilter == DirectoryFilter.UNREAD && unread(entry)
+    val groups = remember(visible, archivedPage, pins, searching, matches, filter, unread) {
+        sessionDirectoryGroups(visible, now - 86_400_000L, if (archivedPage) emptySet() else pins) { row ->
+            (!searching || row.id in matches) && (archivedPage || filter == DirectoryFilter.ALL ||
+                filter == DirectoryFilter.RUNNING && row.running || filter == DirectoryFilter.UNREAD && row.id in unread)
+        }
     }
-    val available = state.selectedRuntimeId != null && !state.loadingSessions
-    val canCreate = state.lanOnly || runtime?.access?.canCreate() == true
+    val hasRows = groups.values.any { it.isNotEmpty() }
+    val loading = (state.loadingSessions && visible.isEmpty()) || archiveLoading
+    val canCreate = !expired && runtimeId != null && !state.backgroundReadOnly && (state.lanOnly || runtime?.access?.canCreate() == true)
 
     Box(modifier.fillMaxSize()) {
         Column(Modifier.fillMaxSize()) {
-            Row(
-                Modifier.fillMaxWidth().heightIn(min = TokenWorksMetrics.chatBarHeight)
-                    .padding(horizontal = TokenWorksSpacing.xs),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                IconButton(
-                    onClick = {
-                        // A sidebar can remain visible while a session is open: leave both levels.
-                        if (state.selectedSessionId != null) viewModel.closeSession()
-                        viewModel.back()
-                    },
-                    modifier = Modifier.size(TokenWorksSpacing.minimumTouchTarget),
-                ) {
-                    Icon(painterResource(R.drawable.ic_back), stringResource(R.string.action_back_computers),
-                        Modifier.size(TokenWorksSpacing.iconSize))
+            Row(Modifier.fillMaxWidth().heightIn(min = TokenWorksMetrics.chatBarHeight).padding(horizontal = TokenWorksSpacing.xs),
+                verticalAlignment = Alignment.CenterVertically) {
+                IconButton(enabled = !mutating, onClick = {
+                    if (selecting) clearSelection() else { if (state.selectedSessionId != null) model.closeSession(); model.back() }
+                }) { Icon(painterResource(R.drawable.ic_back), stringResource(if (selecting) R.string.directory_cancel_selection else R.string.action_back_computers)) }
+                Text(runtime?.hostAlias?.takeIf { it.isNotBlank() } ?: stringResource(R.string.nav_sessions),
+                    Modifier.weight(1f).semantics { heading() }, style = MaterialTheme.typography.titleMedium,
+                    maxLines = 1, overflow = TextOverflow.Ellipsis)
+                IconButton(::refresh, enabled = runtimeId != null && !state.loadingSessions && !mutating) {
+                    Icon(painterResource(R.drawable.ic_refresh), stringResource(R.string.action_refresh))
                 }
-                Text(
-                    runtime?.hostAlias?.takeIf { it.isNotBlank() } ?: stringResource(R.string.nav_sessions),
-                    Modifier.weight(1f),
-                    style = MaterialTheme.typography.titleMedium,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-                IconButton(viewModel::refreshSessions, enabled = available,
-                    modifier = Modifier.size(TokenWorksSpacing.minimumTouchTarget)) {
-                    Icon(painterResource(R.drawable.ic_refresh), stringResource(R.string.action_refresh),
-                        Modifier.size(TokenWorksSpacing.iconSize))
-                }
-                IconButton(viewModel::openCreation, enabled = canCreate,
-                    modifier = Modifier.size(TokenWorksSpacing.minimumTouchTarget)) {
-                    Icon(painterResource(R.drawable.ic_add), stringResource(R.string.action_create_session),
-                        Modifier.size(TokenWorksSpacing.iconSize))
+                IconButton(model::openCreation, enabled = canCreate && !selecting && !mutating) {
+                    Icon(painterResource(R.drawable.ic_add), stringResource(R.string.action_create_session))
                 }
             }
-            Row(Modifier.fillMaxWidth().padding(horizontal = TokenWorksSpacing.md), horizontalArrangement = Arrangement.spacedBy(TokenWorksSpacing.sm)) {
-                FilterChip(!workspaceOpen, { workspaceOpen = false }, { Text(stringResource(R.string.nav_sessions)) })
-                FilterChip(workspaceOpen, { workspaceOpen = true }, { Text(stringResource(R.string.workspace_directory_title)) })
+            DirectoryChips(Modifier.padding(horizontal = TokenWorksSpacing.md)) {
+                DirectoryChip(page == DirectoryPage.ACTIVE, stringResource(R.string.nav_sessions), !mutating) { switch(DirectoryPage.ACTIVE) }
+                DirectoryChip(archivedPage, stringResource(R.string.directory_archived_tab), !mutating) { switch(DirectoryPage.ARCHIVED) }
+                DirectoryChip(page == DirectoryPage.WORKSPACES, stringResource(R.string.workspace_directory_title), !mutating) { switch(DirectoryPage.WORKSPACES) }
             }
-            if (!workspaceOpen && canSearch) {
-                OutlinedTextField(query, { query = it.take(500) },
-                    Modifier.fillMaxWidth().padding(horizontal = TokenWorksSpacing.md, vertical = TokenWorksSpacing.xs),
-                    label = { Text(stringResource(R.string.discovery_search)) }, singleLine = true, enabled = transport != null)
-            }
-            if (workspaceOpen) {
-                WorkspaceManagementPanel(directory, state.sessions, viewModel::openSession, onArchiveChanged, Modifier.weight(1f))
-            } else
-            Box(
-                Modifier.weight(1f).fillMaxWidth().pullToRefresh(
-                    isRefreshing = state.loadingSessions,
-                    state = pullState,
-                    enabled = state.selectedRuntimeId != null,
-                    onRefresh = viewModel::refreshSessions,
-                ),
-            ) {
-                LazyColumn(
-                    Modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(horizontal = TokenWorksSpacing.md, vertical = TokenWorksSpacing.sm),
-                    verticalArrangement = Arrangement.spacedBy(TokenWorksSpacing.xs),
-                ) {
-                    if (searching) {
-                        if (results.loading) item(key = "search-loading") { LinearProgressIndicator(Modifier.fillMaxWidth()) }
-                        results.error?.let { error -> item(key = "search-error") {
-                            Text(errorText(error), color = MaterialTheme.colorScheme.error)
+            if (page == DirectoryPage.WORKSPACES) {
+                WorkspaceManagementPanel(directory, state.sessions, model::openSession, { id, archived ->
+                    if (archived && current(write = true)?.selectedSessionId == id) model.closeSession()
+                    refresh()
+                }, Modifier.weight(1f))
+            } else {
+                val pull = rememberPullToRefreshState()
+                Box(Modifier.weight(1f).fillMaxWidth().pullToRefresh(isRefreshing = state.loadingSessions, state = pull,
+                    enabled = runtimeId != null && !mutating, onRefresh = ::refresh)) {
+                    LazyColumn(Modifier.fillMaxSize().semantics { collectionInfo = CollectionInfo(groups.values.sumOf { it.size }, 1) },
+                        contentPadding = PaddingValues(horizontal = TokenWorksSpacing.md, vertical = TokenWorksSpacing.sm),
+                        verticalArrangement = Arrangement.spacedBy(TokenWorksSpacing.xs)) {
+                        item("directory:search") {
+                            OutlinedTextField(query, { query = it.take(500); clearSelection() }, Modifier.fillMaxWidth(),
+                                enabled = !mutating, singleLine = true, label = { Text(stringResource(R.string.session_directory_search_label)) },
+                                leadingIcon = { Icon(painterResource(R.drawable.ic_search), null) },
+                                trailingIcon = if (query.isEmpty()) null else ({
+                                    IconButton({ query = ""; clearSelection() }, enabled = !mutating) {
+                                        Icon(painterResource(R.drawable.ic_directory_clear), stringResource(R.string.directory_clear_search))
+                                    }
+                                }))
+                        }
+                        if (visible.isNotEmpty() && !archivedPage) item("directory:filters") {
+                            DirectoryChips {
+                                DirectoryChip(filter == DirectoryFilter.ALL, stringResource(R.string.directory_filter_all), !mutating) { filter = DirectoryFilter.ALL; clearSelection() }
+                                DirectoryChip(filter == DirectoryFilter.RUNNING, stringResource(R.string.directory_filter_running, visible.count { it.running }), !mutating) { filter = DirectoryFilter.RUNNING; clearSelection() }
+                                DirectoryChip(filter == DirectoryFilter.UNREAD, stringResource(R.string.directory_filter_unread, unread.size), !mutating) { filter = DirectoryFilter.UNREAD; clearSelection() }
+                            }
+                        }
+                        if (hasRows && !selecting) item("directory:select") {
+                            TextButton({ selecting = true; keyboard?.hide() }, enabled = !mutating) { Text(stringResource(R.string.directory_select)) }
+                        }
+                        if (!archivedPage && snapshot == null && !loading && runtimeId != null) item("directory:archive-unknown") {
+                            DirectoryNotice(stringResource(R.string.directory_archive_unknown))
+                        }
+                        state.sessionError?.let { error -> item("directory:error") {
+                            DirectoryNotice(stringResource(R.string.session_directory_error) + " · " + errorText(error), retry = ::refresh)
                         } }
-                        val search = results.value
-                        val rows = search?.items.orEmpty().mapNotNull { hit -> byId[hit.sessionId]?.let { it to hit.snippet } }.distinctBy { it.first.id }
-                        if (search != null && rows.isEmpty()) item(key = "search-empty") {
-                            Text(stringResource(R.string.discovery_search_empty))
+                        if (loading) item("directory:loading") { DirectorySkeleton(stringResource(R.string.session_loading)) }
+                        if (archiveUnavailable) item("directory:archive-unavailable") {
+                            DirectoryEmpty(stringResource(R.string.directory_archive_unavailable), stringResource(R.string.directory_archive_unknown),
+                                action = ::refresh, actionLabel = stringResource(R.string.action_retry))
                         }
-                        items(rows, key = { it.first.id }) { (entry, snippet) ->
-                            SessionDirectoryRow(entry, state.selectedSessionId == entry.id, unread(entry), available, now,
-                                onClick = { viewModel.openSession(entry.id) }, onLongClick = { actionSessionId = entry.id }, snippet = snippet)
+                        if (found.loading) item("directory:search-loading") { DirectorySkeleton(stringResource(R.string.directory_search_loading), rows = 2) }
+                        found.error?.let { error -> item("directory:search-error") {
+                            DirectoryNotice(stringResource(R.string.directory_content_search_failed) + " · " + errorText(error), retry = ::refresh)
+                        } }
+                        if (searching && searchKey == null && !loading && !archiveUnavailable) item("directory:metadata-only") {
+                            DirectoryNotice(stringResource(R.string.directory_metadata_search_only))
                         }
-                        if (search?.hasMore == true) item(key = "search-more") {
-                            Text(stringResource(R.string.discovery_search_more), style = MaterialTheme.typography.bodySmall)
+                        if (!hasRows && !loading && !archiveUnavailable && !found.loading && state.sessionError == null) item("directory:empty") {
+                            when {
+                                searching -> DirectoryEmpty(stringResource(R.string.discovery_search_empty), stringResource(R.string.session_directory_search_empty_detail))
+                                filter != DirectoryFilter.ALL -> DirectoryEmpty(stringResource(R.string.directory_filter_empty),
+                                    action = { filter = DirectoryFilter.ALL }, actionLabel = stringResource(R.string.directory_filter_all))
+                                archivedPage -> DirectoryEmpty(stringResource(R.string.directory_archived_empty), stringResource(R.string.directory_archived_detail))
+                                else -> DirectoryEmpty(stringResource(R.string.session_empty), stringResource(R.string.directory_active_empty_detail),
+                                    action = model::openCreation.takeIf { canCreate }, actionLabel = stringResource(R.string.action_create_session))
+                            }
                         }
-                        return@LazyColumn
-                    }
-                    if (visible.isNotEmpty() && !state.loadingSessions) item(key = "session-status") {
-                        DirectoryFilters(directoryFilter, visible.count { it.running }, visible.count(unread), choose = { directoryFilter = it })
-                    }
-                    if (state.loadingSessions) item(key = "loading") {
-                        Column(Modifier.fillMaxWidth().padding(TokenWorksSpacing.md),
-                            verticalArrangement = Arrangement.spacedBy(TokenWorksSpacing.sm)) {
-                            LinearProgressIndicator(Modifier.fillMaxWidth())
-                            Text(stringResource(R.string.session_loading), style = MaterialTheme.typography.bodySmall,
-                                color = tokenWorksSurfaces().textTertiary)
+                        if (found.value?.hasMore == true && matches.values.any { it != null }) item("directory:search-refine") {
+                            DirectoryNotice(stringResource(R.string.directory_search_refine))
                         }
-                    }
-                    if (state.sessionError != null) item(key = "error") {
-                        Surface(shape = tokenWorksSquircle(TokenWorksRadius.md),
-                            color = MaterialTheme.colorScheme.errorContainer) {
-                            Column(Modifier.fillMaxWidth().padding(TokenWorksSpacing.md),
-                                verticalArrangement = Arrangement.spacedBy(TokenWorksSpacing.sm)) {
-                                Text(stringResource(R.string.session_directory_error),
-                                    style = MaterialTheme.typography.bodyMedium)
-                                Text(state.sessionError, style = MaterialTheme.typography.bodySmall)
-                                TextButton(viewModel::refreshSessions, enabled = available) {
-                                    Text(stringResource(R.string.action_retry))
+                        var sectionOffset = 0
+                        for ((section, rows) in groups) {
+                            if (rows.isEmpty()) continue
+                            item("directory:section:$section") {
+                                val label = when (section) {
+                                    DirectorySection.PINNED -> R.string.directory_pinned_section
+                                    DirectorySection.RECENT -> R.string.workspace_drawer_recent
+                                    DirectorySection.EARLIER -> R.string.workspace_drawer_earlier
                                 }
+                                Text(stringResource(label), Modifier.padding(TokenWorksSpacing.sm).semantics { heading() },
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.labelMedium)
+                            }
+                            val offset = sectionOffset
+                            sectionOffset += rows.size
+                            itemsIndexed(rows, key = { _, item -> "directory:row:${item.entry.id}" }, contentType = { _, _ -> "directory:row" }) { index, (entry, depth) ->
+                                val id = entry.id
+                                val interactive = ready && started && !expired && !mutating && !state.backgroundReadOnly
+                                val preview = rememberDirectoryPreview(previewSource?.takeIf { access.read("session/page", id) }, entry)
+                                SessionDirectoryRow(entry, depth, now, state.selectedSessionId == id, id in unread, archivedPage, id in pins && !archivedPage,
+                                    selecting, id in selection, if (selecting) !mutating else interactive, preview, matches[id],
+                                    open = {
+                                        if (selecting) select(id)
+                                        else if (access.read("session/follow", id) && current(write = true)?.sessions?.any { it.id == id } == true) {
+                                            keyboard?.hide(); haptic.performHapticFeedback(HapticFeedbackType.SegmentTick); model.openSession(id)
+                                        }
+                                    }, select = { keyboard?.hide(); select(id) },
+                                    pin = if (!archivedPage && pinStore != null && interactive) ({
+                                        if (current()?.sessions?.any { it.id == id } == true) pins = pinStore.toggle(id)
+                                    }) else null,
+                                    rename = if (interactive && mayChange("session/rename", id)) ({ keyboard?.hide(); renameId = id }) else null,
+                                    fork = if (interactive && mayChange("session/fork", id)) ({
+                                        val sentRoute = route
+                                        if (sentRoute != null) runAction {
+                                            sentRoute.connect().use { connection ->
+                                                if (!mayChange("session/fork", id)) throw DshFailure("access.denied")
+                                                val method = DshMethods.SessionFork
+                                                val args = method.input.encode(DshSessionForkInput(DshSessionForkInputRequest(id))) as JsonObject
+                                                val result = method.output.decode(connection.native(method.endpoint, args))
+                                                if (current(write = true) != null) { model.openSession(result.sessionId); refresh() }
+                                            }
+                                            null
+                                        }
+                                    }) else null,
+                                    archive = if (interactive && mayArchive(id, !archivedPage)) ({ askArchive(setOf(id), !archivedPage) }) else null,
+                                    collectionIndex = offset + index)
                             }
                         }
                     }
-                    if (visible.isEmpty() && !state.loadingSessions && state.sessionError == null) {
-                        item(key = "empty") {
-                            TokenWorksEmptyState(
-                                title = stringResource(R.string.session_empty),
-                                detail = stringResource(R.string.session_empty_detail),
-                                actionLabel = stringResource(R.string.action_create_session),
-                                onAction = viewModel::openCreation.takeIf { canCreate },
-                                modifier = Modifier.tokenWorksEntrance("sessions-empty"),
-                            )
-                        }
-                    }
-                    for ((isRecent, grouped) in groups) {
-                        if (grouped.isEmpty()) continue
-                        item(key = if (isRecent) "recent" else "earlier") {
-                            SessionDirectoryEyebrow(stringResource(if (isRecent) R.string.workspace_drawer_recent else R.string.workspace_drawer_earlier))
-                        }
-                        items(grouped, key = { it.first.id }, contentType = { "session" }) { (entry, depth) ->
-                            SessionDirectoryRow(entry, state.selectedSessionId == entry.id, unread(entry), available, now,
-                                onClick = { viewModel.openSession(entry.id) }, onLongClick = { actionSessionId = entry.id }, depth = depth)
-                        }
+                    if (pull.distanceFraction > 0f || state.loadingSessions && visible.isNotEmpty()) {
+                        PullToRefreshDefaults.Indicator(state = pull, isRefreshing = state.loadingSessions, modifier = Modifier.align(Alignment.TopCenter))
                     }
                 }
-                if (pullState.distanceFraction > 0f || state.loadingSessions && state.sessions.isNotEmpty()) {
-                    PullToRefreshDefaults.Indicator(
-                        state = pullState,
-                        isRefreshing = state.loadingSessions,
-                        modifier = Modifier.align(Alignment.TopCenter),
-                    )
-                }
+                if (selecting) DirectorySelectionBar(selection.size, mutating,
+                    selection.isNotEmpty() && selection.all { mayArchive(it, !archivedPage) }, !archivedPage,
+                    cancel = ::clearSelection, submit = { askArchive(selection, !archivedPage) })
             }
         }
         SnackbarHost(snackbar, Modifier.align(Alignment.BottomCenter).padding(TokenWorksSpacing.md))
     }
 
-    if (actionSession != null) {
-        ModalBottomSheet(
-            onDismissRequest = { actionSessionId = null },
-            sheetMaxWidth = TokenWorksSpacing.readingWidth,
-        ) {
-            Column(Modifier.fillMaxWidth().padding(horizontal = TokenWorksSpacing.lg, vertical = TokenWorksSpacing.sm)) {
-                Text(actionSession.metadata?.title?.takeIf { it.isNotBlank() } ?: stringResource(R.string.session_untitled),
-                    Modifier.padding(TokenWorksSpacing.md), style = MaterialTheme.typography.titleLarge,
-                    maxLines = 2, overflow = TextOverflow.Ellipsis)
-                SessionDirectoryAction(stringResource(R.string.session_rename),
-                    enabled = available && actionSession.parentSessionId == null && (state.lanOnly || runtime?.access?.canRename(actionSession.id) == true)) {
-                    titleDraft = actionSession.metadata?.title.orEmpty()
-                    renameSessionId = actionSession.id
-                    actionSessionId = null
+    confirmation?.let { target ->
+        val operation = stringResource(if (target.archive) R.string.directory_archive_action else R.string.directory_restore)
+        AlertDialog(onDismissRequest = { confirmation = null },
+            title = { Text(stringResource(R.string.directory_archive_confirm_title, operation, target.ids.size)) },
+            text = { Text(stringResource(if (target.archive) R.string.directory_archive_explanation else R.string.directory_restore_explanation)) },
+            confirmButton = { TextButton({
+                val sentRoute = route ?: return@TextButton
+                if (mutating || !target.ids.all { mayArchive(it, target.archive) }) return@TextButton
+                confirmation = null
+                runAction {
+                    val outcome = sentRoute.connect().use { connection ->
+                        runDirectoryArchive(target.ids, { current(write = true) != null }, { mayArchive(it, target.archive) }) { id ->
+                            sendDirectoryArchive(connection, id, target.archive)
+                        }
+                    }
+                    selection = selection - outcome.completed
+                    if (selection.isEmpty()) clearSelection()
+                    current(write = true)?.let { live ->
+                        if (target.archive && live.selectedSessionId in outcome.completed) model.closeSession()
+                        refresh()
+                    }
+                    val missing = target.ids.size - outcome.completed.size
+                    if (missing == 0) haptic.performHapticFeedback(HapticFeedbackType.Confirm)
+                    val error = outcome.unconfirmed.values.firstOrNull()?.let { " · ${context.getString(R.string.session_action_error, it)}" }.orEmpty()
+                    context.getString(R.string.directory_archive_result, outcome.completed.size, missing) + error
                 }
-                SessionDirectoryAction(stringResource(R.string.session_fork),
-                    enabled = available && actionSession.parentSessionId == null && (state.lanOnly || runtime?.access?.canFork(actionSession.id) == true)) {
-                    actionSessionId = null
-                    if (state.selectedSessionId != actionSession.id) viewModel.openSession(actionSession.id)
-                    viewModel.forkSession()
+            }, enabled = !mutating && target.ids.all { mayArchive(it, target.archive) }) { Text(operation) } },
+            dismissButton = { TextButton({ confirmation = null }) { Text(stringResource(R.string.action_cancel)) } })
+    }
+    renameId?.let { id ->
+        AlertDialog(onDismissRequest = { renameId = null }, title = { Text(stringResource(R.string.session_rename)) },
+            text = { OutlinedTextField(title, { title = it.take(500) }, Modifier.fillMaxWidth(),
+                label = { Text(stringResource(R.string.session_title_label)) }, singleLine = true) },
+            confirmButton = { TextButton({
+                val sentRoute = route ?: return@TextButton
+                val next = title.trim()
+                if (!mayChange("session/rename", id) || mutating || next.isEmpty()) return@TextButton
+                renameId = null
+                runAction {
+                    sentRoute.connect().use { connection ->
+                        if (!mayChange("session/rename", id)) throw DshFailure("access.denied")
+                        val method = DshMethods.SessionRename
+                        val args = method.input.encode(DshSessionRenameInput(DshSessionRenameInputRequest(id, next))) as JsonObject
+                        method.output.decode(connection.native(method.endpoint, args))
+                    }
+                    if (current(write = true) != null) refresh()
+                    null
                 }
-                val alreadyArchived = actionSession.id in archived
-                SessionDirectoryAction(stringResource(if (alreadyArchived) R.string.directory_restore else R.string.conversation_archive),
-                    enabled = available && !directory.busy && directory.canArchiveSession(actionSession.id, !alreadyArchived)) {
-                    actionSessionId = null
-                    directory.archiveSession(actionSession.id, archived = !alreadyArchived,
-                        onDone = { onArchiveChanged(actionSession.id, !alreadyArchived) },
-                        onError = { code -> scope.launch { snackbar.showSnackbar(code) } })
-                }
-                SessionDirectoryAction(stringResource(R.string.action_cancel)) { actionSessionId = null }
-            }
-        }
-    }
-    if (renameSession != null) {
-        AlertDialog(
-            onDismissRequest = { renameSessionId = null },
-            title = { Text(stringResource(R.string.session_rename)) },
-            text = {
-                OutlinedTextField(
-                    value = titleDraft,
-                    onValueChange = { titleDraft = it },
-                    label = { Text(stringResource(R.string.session_title_label)) },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth(),
-                )
-            },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        renameSessionId = null
-                        if (state.selectedSessionId != renameSession.id) viewModel.openSession(renameSession.id)
-                        viewModel.renameSession(titleDraft.trim())
-                    },
-                    enabled = titleDraft.isNotBlank() && available && (state.lanOnly || runtime?.access?.canRename(renameSession.id) == true),
-                ) { Text(stringResource(R.string.action_confirm)) }
-            },
-            dismissButton = {
-                TextButton({ renameSessionId = null }) { Text(stringResource(R.string.action_cancel)) }
-            },
-        )
-    }
-}
-
-/** Dates section roots; children retain their parent section even when they were updated later. */
-private fun sessionDirectoryGroups(rows: List<SessionDirectoryEntry>, recentCut: Long,
-    matches: (SessionDirectoryEntry) -> Boolean): List<Pair<Boolean, List<Pair<SessionDirectoryEntry, Int>>>> {
-    val byId = rows.associateBy { it.id }
-    val visibleIds = HashSet<String>()
-    rows.filter(matches).forEach { row ->
-        var current: SessionDirectoryEntry? = row
-        while (current != null && visibleIds.add(current.id)) current = byId[current.parentSessionId]
-    }
-    val included = rows.filter { it.id in visibleIds }
-    val children = included.groupBy { it.parentSessionId?.takeIf(visibleIds::contains) }
-    val recent = ArrayList<Pair<SessionDirectoryEntry, Int>>()
-    val earlier = ArrayList<Pair<SessionDirectoryEntry, Int>>()
-    val visited = HashSet<String>()
-    val pending = ArrayDeque<Pair<SessionDirectoryEntry, Int>>()
-    fun append(root: SessionDirectoryEntry) {
-        val group = if (root.updatedAt >= recentCut) recent else earlier
-        pending.addLast(root to 0)
-        while (pending.isNotEmpty()) {
-            val (row, depth) = pending.removeLast()
-            if (!visited.add(row.id)) continue
-            group += row to depth
-            children[row.id]?.asReversed()?.forEach { pending.addLast(it to depth + 1) }
-        }
-    }
-    children[null]?.forEach(::append)
-    included.forEach { if (it.id !in visited) append(it) }
-    return listOf(true to recent, false to earlier)
-}
-
-private enum class DirectoryFilter { ALL, RUNNING, UNREAD }
-
-@Composable
-private fun DirectoryFilters(active: DirectoryFilter, running: Int, unread: Int, choose: (DirectoryFilter) -> Unit) {
-    Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(TokenWorksSpacing.sm)) {
-        FilterChip(active == DirectoryFilter.ALL, { choose(DirectoryFilter.ALL) }, { Text(stringResource(R.string.directory_filter_all)) })
-        FilterChip(active == DirectoryFilter.RUNNING, { choose(DirectoryFilter.RUNNING) }, { Text(stringResource(R.string.directory_filter_running, running)) })
-        FilterChip(active == DirectoryFilter.UNREAD, { choose(DirectoryFilter.UNREAD) }, { Text(stringResource(R.string.directory_filter_unread, unread)) })
+            }, enabled = !mutating && title.isNotBlank() && mayChange("session/rename", id)) { Text(stringResource(R.string.action_confirm)) } },
+            dismissButton = { TextButton({ renameId = null }) { Text(stringResource(R.string.action_cancel)) } })
     }
 }
 
 @Composable
-private fun SessionDirectoryEyebrow(label: String) {
-    Text(label, Modifier.padding(horizontal = TokenWorksSpacing.md, vertical = TokenWorksSpacing.sm),
-        style = MaterialTheme.typography.labelSmall, color = tokenWorksSurfaces().textTertiary)
+private fun DirectoryChips(modifier: Modifier = Modifier, content: @Composable () -> Unit) {
+    Row(modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(TokenWorksSpacing.sm)) { content() }
 }
 
 @Composable
-private fun SessionDirectoryRow(
-    entry: SessionDirectoryEntry,
-    isSelected: Boolean,
-    unread: Boolean,
-    enabled: Boolean,
-    now: Long,
-    onClick: () -> Unit,
-    onLongClick: () -> Unit,
-    snippet: String? = null,
-    depth: Int = 0,
-) {
-    val status = listOfNotNull(
-        stringResource(R.string.session_running).takeIf { entry.running },
-        stringResource(R.string.workspace_unread).takeIf { unread },
-        stringResource(R.string.session_unavailable).takeIf { entry.state == "unavailable" },
-        stringResource(R.string.directory_subagent).takeIf { entry.parentSessionId != null },
-    ).joinToString("，")
-    val shape = tokenWorksSquircle(TokenWorksRadius.md)
-    Row(
-        Modifier.fillMaxWidth().padding(start = TokenWorksSpacing.md * depth.coerceAtMost(3)).tokenWorksPress(enabled).clip(shape)
-            .background(if (isSelected) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.surface)
-            .combinedClickable(enabled = enabled, role = Role.Button,
-                onLongClickLabel = stringResource(R.string.session_actions_title),
-                onClick = onClick, onLongClick = onLongClick)
-            .semantics(mergeDescendants = true) { selected = isSelected; stateDescription = status }
-            .heightIn(min = TokenWorksMetrics.chatBarHeight)
-            .padding(horizontal = TokenWorksSpacing.md, vertical = TokenWorksSpacing.sm),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(TokenWorksSpacing.sm),
-    ) {
-        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(TokenWorksSpacing.xxs)) {
-            Text(entry.metadata?.title?.takeIf { it.isNotBlank() } ?: stringResource(R.string.session_untitled),
-                style = MaterialTheme.typography.titleSmall,
-                color = if (isSelected) MaterialTheme.colorScheme.onSecondaryContainer else MaterialTheme.colorScheme.onSurface,
-                maxLines = 1, overflow = TextOverflow.Ellipsis)
-            (snippet ?: entry.metadata?.workspaceTitle)?.takeIf { it.isNotBlank() }?.let { directory ->
-                Text(directory, style = MaterialTheme.typography.bodySmall, fontFamily = FontFamily.Monospace,
-                    color = if (isSelected) MaterialTheme.colorScheme.onSecondaryContainer else tokenWorksSurfaces().textTertiary,
-                    maxLines = 1, overflow = TextOverflow.Ellipsis)
-            }
-        }
-        Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(TokenWorksSpacing.xs)) {
-            Text(relativeSessionTime(entry.updatedAt, now), style = MaterialTheme.typography.labelSmall,
-                color = if (isSelected) MaterialTheme.colorScheme.onSecondaryContainer else tokenWorksSurfaces().textTertiary)
-            if (entry.running || unread) {
-                Row(horizontalArrangement = Arrangement.spacedBy(TokenWorksSpacing.xs)) {
-                    if (entry.running) Box(Modifier.size(TokenWorksSpacing.sm)
-                        .background(tokenWorksSurfaces().success, CircleShape))
-                    if (unread) Box(Modifier.size(TokenWorksSpacing.sm)
-                        .background(MaterialTheme.colorScheme.primary, CircleShape))
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun SessionDirectoryAction(label: String, enabled: Boolean = true, onClick: () -> Unit) {
-    TextButton(onClick, enabled = enabled,
-        modifier = Modifier.fillMaxWidth().heightIn(min = TokenWorksSpacing.minimumTouchTarget)) {
-        Box(Modifier.fillMaxWidth()) { Text(label, style = MaterialTheme.typography.bodyLarge) }
-    }
+private fun DirectoryChip(selected: Boolean, label: String, enabled: Boolean, onClick: () -> Unit) {
+    FilterChip(selected, onClick, { Text(label) }, modifier = Modifier.heightIn(min = TokenWorksSpacing.minimumTouchTarget), enabled = enabled)
 }
 
 @Composable
@@ -436,3 +400,4 @@ internal fun relativeSessionTime(updatedAt: Long, now: Long = System.currentTime
     if (elapsed < 86_400_000L) return stringResource(R.string.workspace_relative_hours, elapsed / 3_600_000L)
     return stringResource(R.string.workspace_relative_date, date.monthValue, date.dayOfMonth)
 }
+
