@@ -46,7 +46,7 @@
         "session"
       ],
       "globalCall": false,
-      "selected": false,
+      "selected": true,
       "descriptorSha256": "298e37806c235e4deac85d6adba08780e02ced5e6483981ca5342197a941ea29"
     },
     "fileUploads/upload": {
@@ -291,7 +291,7 @@
         "session"
       ],
       "globalCall": false,
-      "selected": false,
+      "selected": true,
       "descriptorSha256": "7a2bada5903a261f939173ed2e09084002890e926331d6160bd98d9e438a9d30"
     },
     "terminal/attach": {
@@ -485,6 +485,24 @@
       "globalCall": false,
       "selected": true,
       "descriptorSha256": "bd66b88e59284d54d2b80f93bff90571a9215e8f8aaf9d5be3799c8978f6ee5a"
+    },
+    "workspaceExports/list": {
+      "capability": "files.read",
+      "resources": [
+        "session"
+      ],
+      "globalCall": false,
+      "selected": false,
+      "descriptorSha256": "20ab80b3cc6b179f1949b75f5e28973ce6d9c6d9f1d3eeef5d5f46acc67c5656"
+    },
+    "workspaceExports/read": {
+      "capability": "files.read",
+      "resources": [
+        "session"
+      ],
+      "globalCall": false,
+      "selected": false,
+      "descriptorSha256": "b701841ae1aceaf762532cd8ecacc9d411a4eb79c1711e97f4abb331eb46450b"
     },
     "event:approval/request": {
       "capability": "interaction.events",

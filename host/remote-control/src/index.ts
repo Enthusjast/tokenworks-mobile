@@ -20,6 +20,7 @@ import { loadRtcConfig } from './rtc-config.js'
 import { installRemoteTools } from './remote-tools.js'
 import { isSupportedDshVersion } from './product-access.generated.js'
 import { NotificationReferences } from './notification-references.js'
+import { installWorkspaceExports } from './workspace-exports.js'
 export { NotificationReferences } from './notification-references.js'
 export type { NotificationReferenceOptions, NotificationReferenceStatus } from './notification-references.js'
 import type { JournalKeyProtector } from './journal-key-protection.js'
@@ -59,7 +60,7 @@ export { HostEnrolledRuntimeError } from './host-enrolled-runtime.js'
 export type { HostEnrolledRuntimeOptions } from './host-enrolled-runtime.js'
 
 export const name = 'tokenworks-mobile'
-export const inject = ['connection', 'typertGateway', 'remoteAccess', 'loader', 'sessions', 'workspaceRegistry']
+export const inject = ['connection', 'typert', 'typertGateway', 'remoteAccess', 'loader', 'sessions', 'workspaceRegistry']
 export interface Config {
   enabled?: boolean
   runtimeId?: string
@@ -102,6 +103,7 @@ export async function apply(ctx: Context, config: Config = {}, credentials?: Hos
     const installationId = (await credentials.acquire(new AbortController().signal)).installationId
     const store = new LanPairingStore(options.pairing.directory, options.runtimeId!, installationId, security.pairingProtector)
     const pairing = await LanPairing.open({ origin: options.pairing.origin, runtimeId: options.runtimeId!, installationId }, options.pairing.certificateCert, store, scope.connection)
+    installWorkspaceExports(scope)
     const gateway = new NativeGateway(scope.connection, scope.typertGateway)
     const carrier = new NoiseCarrier(pairing, gateway, versions.dsh, origin)
     carrier.setRtcControl(new RtcCarrierHost(pairing, carrier, rtcConfig))

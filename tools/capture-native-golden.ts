@@ -3,6 +3,7 @@ import { fork } from 'node:child_process'
 import { createHash } from 'node:crypto'
 import dns from 'node:dns'
 import http from 'node:http'
+import { createRequire } from 'node:module'
 import https from 'node:https'
 import net from 'node:net'
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
@@ -16,6 +17,7 @@ import type { TypertContribution } from '@deepseek-ai/dsh-typert-registry'
 import { carrier, assertNativePackages, nativeMethods, nativeRoundTrip, nativeVersion, type Carrier } from './native-contract.js'
 import { normalizeContractLines } from './typert-contract-check.js'
 import type {} from '@deepseek-ai/dsh-api-gateway'
+import type {} from '@deepseek-ai/dsh-skill'
 import type {} from '@deepseek-ai/dsh-api-session-controller'
 import type {} from '@deepseek-ai/dsh-api-terminal-controller'
 import type {} from '@deepseek-ai/dsh-user-questions'
@@ -39,6 +41,7 @@ export type NativeCapture = {
 const destination = new URL('../contracts/typert/golden/native-captured.json', import.meta.url)
 const entry = fileURLToPath(import.meta.url)
 const repository = fileURLToPath(new URL('../', import.meta.url))
+const requireDsh = createRequire(import.meta.resolve('@deepseek-ai/dsh/package.json'))
 const modelFixture = 'host/remote-control/tests/fixtures/dsh-local-model.mjs'
 
 /** Execute in a separate process: never inherit the developer's environment or profile. */
@@ -90,6 +93,8 @@ export async function createIsolatedNativeAssembly(root: string, additional: Ent
     provider('dsh-user-questions'), provider('dsh-agent-default-model', { provider: 'dsh-m0-test', model: 'offline' }),
     provider('dsh-fs-local'), provider('dsh-working-directory'), provider('dsh-attachment-local', { dshHome: root }),
     provider('dsh-credentials-local', { path: join(root, 'credentials.yaml') }), provider('dsh-client-connection'),
+    provider('dsh-skill'),
+    { id: 'file-reference-local', name: pathToFileURL(requireDsh.resolve('@deepseek-ai/dsh-file-reference-local')).href },
     provider('dsh-commands'), provider('dsh-client-file-upload'), provider('dsh-api-session-controller', { nativeOpen: false }),
     provider('dsh-agent-preset-registry', { default: 'golden' }), provider('dsh-agent-loop', { agents: [] }),
     provider('dsh-api-workspace-controller', { documentsDirectory: join(root, 'documents') }),
@@ -173,6 +178,12 @@ async function executeNativeFixture(root: string): Promise<NativeCapture> {
     await invoke('session/modelCatalog', {})
     await invoke('session/selectModel', { request: { sessionId, provider: 'dsh-m0-test', model: 'offline-alternative' } })
     await invoke('session/rename', { request: { sessionId, title: 'native execution 原样🙂', unknownFixtureField: 'native codec strips this key' } })
+    await writeFile(join(cwd, 'reference fixture.txt'), 'fixture')
+    const references = await invoke('fileReferences/list', { agentId: sessionId, query: 'reference' })
+    assert.ok(references.some((entry: { path: string }) => entry.path === 'reference fixture.txt'))
+    ctx.skills.register({ name: 'fixture-skill', source: 'runtime', description: 'A local capture fixture', content: 'Summarize the requested example.' })
+    const catalog = await invoke('skills/list', { request: { sessionId } })
+    assert.ok(catalog.skills.some((entry: { name: string }) => entry.name === 'fixture-skill'))
     const upload = await invoke('fileUploads/upload', { agentId: sessionId, request: { data: Buffer.from('isolated upload\0原样🙂').toString('base64'), name: 'native.txt' } })
     // Public fixture pixels, never an image from the user's profile or filesystem.
     const image = 'iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAIAAAD91JpzAAAACXBIWXMAAAPoAAAD6AG1e1JrAAAAEUlEQVQImWOosJGrsJFjgFAAGG4DSSYQepwAAAAASUVORK5CYII='
@@ -239,7 +250,11 @@ async function executeNativeFixture(root: string): Promise<NativeCapture> {
       source: 'isolated-installed-native-execution', dshVersion: nativeVersion,
       isolation: 'Separate child process with allowlisted environment, fresh HOME/XDG/cwd/storage/persistence/attachments/credentials under one private temporary directory, removed after exit. Installed native Gateway, Agent and providers; offline model fixture only; no HTTP listener, user profiles, inherited secrets or network; bash --noprofile --norc.',
       execution: {
-        dispatcher: '@deepseek-ai/dsh-api-gateway invoke/stream', providers: rows.map(row => row.id === 'offline-model' ? modelFixture : row.name!),
+        dispatcher: '@deepseek-ai/dsh-api-gateway invoke/stream', providers: rows.map(row => {
+          if (row.id === 'offline-model') return modelFixture
+          if (row.id === 'file-reference-local') return '@deepseek-ai/dsh-file-reference-local'
+          return row.name!
+        }),
         model: { fixture: modelFixture, sha256: createHash('sha256').update(normalizeContractLines(await readFile(join(repository, modelFixture), 'utf8'))).digest('hex') },
         environmentKeys, networkAttempts,
       }, calls, notCaptured: [],

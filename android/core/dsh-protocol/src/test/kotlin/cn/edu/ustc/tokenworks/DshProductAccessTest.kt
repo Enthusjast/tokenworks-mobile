@@ -14,7 +14,7 @@ class DshProductAccessTest {
         val source = canonical.obj("actions")
         assertEquals(source.fields.keys, DshProductAccess.actions.keys)
         assertEquals(DshNativeRegistry.methods.keys, DshProductAccess.actions.filterValues { it.selected }.keys)
-        assertEquals(38, DshProductAccess.actions.count { it.value.selected })
+        assertEquals(40, DshProductAccess.actions.count { it.value.selected })
         for ((action, value) in source.fields) {
             val entry = value as JsonObject
             val policy = DshProductAccess.actions.getValue(action)

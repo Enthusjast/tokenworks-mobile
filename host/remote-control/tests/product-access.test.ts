@@ -9,6 +9,7 @@ import { API_REMOTE_FORWARDED_EVENTS } from '@deepseek-ai/dsh-api-remotes'
 import { Context } from '@deepseek-ai/cordis'
 import { apply } from '../src/index.js'
 import { nativeMethods, installedNativeMethods, nativeCodec } from '../../../tools/native-contract.js'
+import { createIsolatedNativeAssembly } from '../../../tools/capture-native-golden.js'
 import { assertProductAccessContract, productAccessOutputs, readProductAccessContract } from '../../../tools/product-access-contract.js'
 import { checkTypertContracts } from '../../../tools/typert-contract-check.js'
 import {
@@ -45,10 +46,10 @@ test('enabled plugin admission validates the family before acquiring credentials
   } finally { await ctx.fiber.dispose() }
 })
 
-test('one canonical matrix covers the exact installed inventory, selected 38 codecs and every owner action/resource pair', async () => {
+test('one canonical matrix covers the exact installed inventory, selected codecs and every owner action/resource pair', async () => {
   const contract = await assertProductAccessContract(await readProductAccessContract())
   assert.deepEqual(Object.entries(productActions).filter(([, policy]) => policy.selected).map(([action]) => action), nativeMethods.map(([action]) => action))
-  assert.equal(nativeMethods.length, 38)
+  assert.equal(nativeMethods.length, 40)
   assert.deepEqual(Object.keys(contract.actions).filter(action => !action.startsWith('event:')), installedNativeMethods.map(([action]) => action))
   for (const [action, policy] of Object.entries(contract.actions)) {
     assert.equal(productActions[action as keyof typeof productActions].capability, policy.capability)
@@ -144,6 +145,34 @@ test('terminal attach and all agent lookups are session scoped, not blanket glob
   assert.equal(productActionAllowsResource('workspace/archiveSession', 'workspace'), false)
   assert.equal(productActionAllowsResource('workspace/insertSessionBefore', 'workspace'), true)
   assert.equal(productActionAllowsResource('workspace/insertSessionBefore', 'session'), true)
+})
+
+test('child history and discovery resolve the exact native session, not a global or parent-only grant', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'native-resource-scope-'))
+  try {
+    const { ctx, peer } = await createIsolatedNativeAssembly(root)
+    try {
+      const require = createRequire(import.meta.url)
+      const accessPath = join(dirname(require.resolve('@deepseek-ai/dsh-api-gateway/package.json')), 'lib/types/access.js')
+      // This pinned resolver is private to the installed gateway package, not an importable export.
+      const { callResources } = await import(pathToFileURL(accessPath).href)
+      const address = { kind: 'subagent', parentSessionId: 'parent', childSessionId: 'child', mode: 'continuable' }
+      const requests = [
+        ['session/follow', { request: { address } }],
+        ['session/page', { request: { address } }],
+        ['skills/list', { request: { sessionId: 'child' } }],
+        ['fileReferences/list', { agentId: 'child', query: '' }],
+      ] as const
+      for (const [action, args] of requests) {
+        const descriptor = nativeMethods.find(([name]) => name === action)![1]
+        const validated = nativeCodec(action, 'input').parse(args)
+        assert.deepEqual(callResources(ctx.typert, undefined, descriptor, validated, peer.signal), [{ kind: 'session', id: 'child' }])
+        assert.equal(productActionAllowsGlobal(action), false)
+      }
+    } finally {
+      try { await peer.dispose() } finally { await ctx.fiber.dispose() }
+    }
+  } finally { await rm(root, { recursive: true, force: true }) }
 })
 
 test('resource/action validation rejects unknown names, cross-kind grants and malformed resource identities', () => {

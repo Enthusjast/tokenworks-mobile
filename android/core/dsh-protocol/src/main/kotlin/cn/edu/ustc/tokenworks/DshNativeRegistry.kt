@@ -21,6 +21,7 @@ class DshNativeEntry<I, O>(val method: DshMethod<I, O>, val acceptsUndefinedResu
 
 object DshNativeRegistry {
     val methods: Map<String, DshNativeEntry<*, *>> = linkedMapOf(
+        "fileReferences/list" to DshNativeEntry(DshMethods.FileReferencesList, false),
         "fileUploads/upload" to DshNativeEntry(DshMethods.FileUploadsUpload, false),
         "remoteAccess/follow" to DshNativeEntry(DshMethods.RemoteAccessFollow, false),
         "session/attachment" to DshNativeEntry(DshMethods.SessionAttachment, false),
@@ -38,6 +39,7 @@ object DshNativeRegistry {
         "session/search" to DshNativeEntry(DshMethods.SessionSearch, false),
         "session/selectModel" to DshNativeEntry(DshMethods.SessionSelectModel, false),
         "session/updateQueue" to DshNativeEntry(DshMethods.SessionUpdateQueue, false),
+        "skills/list" to DshNativeEntry(DshMethods.SkillsList, false),
         "terminal/attach" to DshNativeEntry(DshMethods.TerminalAttach, false),
         "terminal/close" to DshNativeEntry(DshMethods.TerminalClose, true),
         "terminal/create" to DshNativeEntry(DshMethods.TerminalCreate, false),

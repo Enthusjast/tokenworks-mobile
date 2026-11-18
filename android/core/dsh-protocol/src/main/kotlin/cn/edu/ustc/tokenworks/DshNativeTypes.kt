@@ -31,6 +31,7 @@ object DshCodecs {
 
 object DshMethods {
     const val VERSION = "0.2.2-rc.1"
+    val FileReferencesList = DshMethod("fileReferences/list", false, DshFileReferencesListInput.codec, DshCodecs.list(DshFileReferencesListResultItem.codec))
     val FileUploadsUpload = DshMethod("fileUploads/upload", false, DshFileUploadsUploadInput.codec, DshFileUploadsUploadResult.codec)
     val RemoteAccessFollow = DshMethod("remoteAccess/follow", true, DshCodecs.emptyObject(false), DshRemoteAccessFollowResult.codec)
     val SessionAttachment = DshMethod("session/attachment", false, DshSessionAttachmentInput.codec, DshSessionAttachmentResult.codec)
@@ -48,6 +49,7 @@ object DshMethods {
     val SessionSearch = DshMethod("session/search", false, DshSessionSearchInput.codec, DshSessionSearchResult.codec)
     val SessionSelectModel = DshMethod("session/selectModel", false, DshSessionSelectModelInput.codec, DshSessionSelectModelResult.codec)
     val SessionUpdateQueue = DshMethod("session/updateQueue", false, DshSessionUpdateQueueInput.codec, DshSessionUpdateQueueResult.codec)
+    val SkillsList = DshMethod("skills/list", false, DshSkillsListInput.codec, DshSkillsListResult.codec)
     val TerminalAttach = DshMethod("terminal/attach", true, DshTerminalAttachInput.codec, DshTerminalAttachResult.codec, { value -> DshTerminalAttachUplink.codec.encode(DshTerminalAttachUplink.codec.decode(value)) })
     val TerminalClose = DshMethod("terminal/close", false, DshTerminalCloseInput.codec, DshCodecs.undefined)
     val TerminalCreate = DshMethod("terminal/create", false, DshTerminalCreateInput.codec, DshTerminalCreateResult.codec)
@@ -69,6 +71,53 @@ object DshMethods {
     val WorkspaceRename = DshMethod("workspace/rename", false, DshWorkspaceRenameInput.codec, DshWorkspaceRenameResult.codec)
     val WorkspaceUnarchiveSession = DshMethod("workspace/unarchiveSession", false, DshWorkspaceUnarchiveSessionInput.codec, DshWorkspaceUnarchiveSessionResult.codec)
     val WorkspaceUnpinSession = DshMethod("workspace/unpinSession", false, DshWorkspaceUnpinSessionInput.codec, DshWorkspaceUnpinSessionResult.codec)
+}
+
+data class DshFileReferencesListInput(
+    val `agentId`: String,
+    val `query`: String,
+) {
+    companion object {
+        val codec: DshCodec<DshFileReferencesListInput> = DshCodec(
+            { value ->
+                val obj = DshCodecs.obj(value)
+                DshCodecs.keys(obj, setOf("agentId", "query"))
+                DshFileReferencesListInput(
+                    `agentId` = DshCodecs.string.decode(obj["agentId"]),
+                    `query` = DshCodecs.string.decode(obj["query"]),
+                )
+            },
+            { value ->
+                val fields = linkedMapOf<String, JsonValue>()
+                fields["agentId"] = DshCodecs.string.encode(value.`agentId`)
+                fields["query"] = DshCodecs.string.encode(value.`query`)
+                JsonObject(fields)
+            },
+        )
+    }
+}
+
+data class DshFileReferencesListResultItem(
+    val `path`: String,
+    val `kind`: String,
+) {
+    companion object {
+        val codec: DshCodec<DshFileReferencesListResultItem> = DshCodec(
+            { value ->
+                val obj = DshCodecs.obj(value)
+                DshFileReferencesListResultItem(
+                    `path` = DshCodecs.string.decode(obj["path"]),
+                    `kind` = DshCodecs.strings(setOf("file", "directory")).decode(obj["kind"]),
+                )
+            },
+            { value ->
+                val fields = linkedMapOf<String, JsonValue>()
+                fields["path"] = DshCodecs.string.encode(value.`path`)
+                fields["kind"] = DshCodecs.strings(setOf("file", "directory")).encode(value.`kind`)
+                JsonObject(fields)
+            },
+        )
+    }
 }
 
 data class DshFileUploadsUploadInputRequest(
@@ -9871,6 +9920,99 @@ data class DshSessionUpdateQueueResult(
             { value ->
                 val fields = linkedMapOf<String, JsonValue>()
                 fields["accepted"] = DshCodecs.booleanLiteral(true).encode(value.`accepted`)
+                JsonObject(fields)
+            },
+        )
+    }
+}
+
+data class DshSkillsListInputRequest(
+    val `sessionId`: String,
+) {
+    companion object {
+        val codec: DshCodec<DshSkillsListInputRequest> = DshCodec(
+            { value ->
+                val obj = DshCodecs.obj(value)
+                DshSkillsListInputRequest(
+                    `sessionId` = DshCodecs.string.decode(obj["sessionId"]),
+                )
+            },
+            { value ->
+                val fields = linkedMapOf<String, JsonValue>()
+                fields["sessionId"] = DshCodecs.string.encode(value.`sessionId`)
+                JsonObject(fields)
+            },
+        )
+    }
+}
+
+data class DshSkillsListInput(
+    val `request`: DshSkillsListInputRequest,
+) {
+    companion object {
+        val codec: DshCodec<DshSkillsListInput> = DshCodec(
+            { value ->
+                val obj = DshCodecs.obj(value)
+                DshCodecs.keys(obj, setOf("request"))
+                DshSkillsListInput(
+                    `request` = DshSkillsListInputRequest.codec.decode(obj["request"]),
+                )
+            },
+            { value ->
+                val fields = linkedMapOf<String, JsonValue>()
+                fields["request"] = DshSkillsListInputRequest.codec.encode(value.`request`)
+                JsonObject(fields)
+            },
+        )
+    }
+}
+
+data class DshSkillsListResultSkillsItem(
+    val `path`: DshOptional<String> = DshOptional.Missing,
+    val `name`: String,
+    val `description`: String,
+    val `whenToUse`: DshOptional<String> = DshOptional.Missing,
+    val `modelInvocable`: Boolean,
+) {
+    companion object {
+        val codec: DshCodec<DshSkillsListResultSkillsItem> = DshCodec(
+            { value ->
+                val obj = DshCodecs.obj(value)
+                DshSkillsListResultSkillsItem(
+                    `path` = DshCodecs.optional(obj, "path", DshCodecs.string),
+                    `name` = DshCodecs.string.decode(obj["name"]),
+                    `description` = DshCodecs.string.decode(obj["description"]),
+                    `whenToUse` = DshCodecs.optional(obj, "whenToUse", DshCodecs.string),
+                    `modelInvocable` = DshCodecs.boolean.decode(obj["modelInvocable"]),
+                )
+            },
+            { value ->
+                val fields = linkedMapOf<String, JsonValue>()
+                DshCodecs.put(fields, "path", value.`path`, DshCodecs.string)
+                fields["name"] = DshCodecs.string.encode(value.`name`)
+                fields["description"] = DshCodecs.string.encode(value.`description`)
+                DshCodecs.put(fields, "whenToUse", value.`whenToUse`, DshCodecs.string)
+                fields["modelInvocable"] = DshCodecs.boolean.encode(value.`modelInvocable`)
+                JsonObject(fields)
+            },
+        )
+    }
+}
+
+data class DshSkillsListResult(
+    val `skills`: List<DshSkillsListResultSkillsItem>,
+) {
+    companion object {
+        val codec: DshCodec<DshSkillsListResult> = DshCodec(
+            { value ->
+                val obj = DshCodecs.obj(value)
+                DshSkillsListResult(
+                    `skills` = DshCodecs.list(DshSkillsListResultSkillsItem.codec).decode(obj["skills"]),
+                )
+            },
+            { value ->
+                val fields = linkedMapOf<String, JsonValue>()
+                fields["skills"] = DshCodecs.list(DshSkillsListResultSkillsItem.codec).encode(value.`skills`)
                 JsonObject(fields)
             },
         )

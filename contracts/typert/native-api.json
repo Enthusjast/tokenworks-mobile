@@ -3,6 +3,74 @@
   "dshVersionRange": ">=0.2.2-0 <0.2.3-0",
   "source": "installed-native-reflection; not recorded method execution",
   "methods": {
+    "fileReferences/list": {
+      "mode": "unary",
+      "cancellation": {
+        "parameter": "signal"
+      },
+      "parameters": [
+        {
+          "name": "agent",
+          "wire": "agentId",
+          "source": "lookup"
+        },
+        {
+          "name": "query",
+          "wire": "query",
+          "source": "json"
+        }
+      ],
+      "input": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "agentId": {
+            "type": "string"
+          },
+          "query": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "agentId",
+          "query"
+        ],
+        "additionalProperties": false
+      },
+      "result": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "path": {
+              "type": "string",
+              "description": "User-facing path accepted by normal prompts and filesystem tools."
+            },
+            "kind": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "const": "file"
+                },
+                {
+                  "type": "string",
+                  "const": "directory"
+                }
+              ],
+              "description": "Directories keep completion open; files finish the mention."
+            }
+          },
+          "required": [
+            "path",
+            "kind"
+          ],
+          "additionalProperties": false,
+          "x-unknownKeys": "strip"
+        }
+      },
+      "acceptsUndefinedResult": false
+    },
     "fileUploads/upload": {
       "mode": "unary",
       "cancellation": {
@@ -10946,6 +11014,96 @@
         },
         "required": [
           "accepted"
+        ],
+        "additionalProperties": false,
+        "x-unknownKeys": "strip"
+      },
+      "acceptsUndefinedResult": false
+    },
+    "skills/list": {
+      "mode": "unary",
+      "cancellation": {
+        "parameter": "signal"
+      },
+      "parameters": [
+        {
+          "name": "request",
+          "wire": "request",
+          "source": "json"
+        }
+      ],
+      "input": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "request": {
+            "type": "object",
+            "properties": {
+              "sessionId": {
+                "readOnly": true,
+                "type": "string"
+              }
+            },
+            "required": [
+              "sessionId"
+            ],
+            "additionalProperties": false,
+            "x-unknownKeys": "strip"
+          }
+        },
+        "required": [
+          "request"
+        ],
+        "additionalProperties": false
+      },
+      "result": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "skills": {
+            "readOnly": true,
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "path": {
+                  "description": "Absolute SKILL.md path when supplied by a filesystem provider.",
+                  "readOnly": true,
+                  "type": "string"
+                },
+                "name": {
+                  "readOnly": true,
+                  "description": "Kebab-case identifier referenced as `/name`.",
+                  "type": "string"
+                },
+                "description": {
+                  "readOnly": true,
+                  "description": "Short routing description.",
+                  "type": "string"
+                },
+                "whenToUse": {
+                  "description": "Optional extra routing guidance.",
+                  "readOnly": true,
+                  "type": "string"
+                },
+                "modelInvocable": {
+                  "readOnly": true,
+                  "description": "Whether the same skill is also advertised to the model.",
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "name",
+                "description",
+                "modelInvocable"
+              ],
+              "additionalProperties": false,
+              "x-unknownKeys": "strip"
+            }
+          }
+        },
+        "required": [
+          "skills"
         ],
         "additionalProperties": false,
         "x-unknownKeys": "strip"

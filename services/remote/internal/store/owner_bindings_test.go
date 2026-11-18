@@ -50,7 +50,7 @@ func TestOwnerBindingsMatchCanonicalNativeProductAccess(t *testing.T) {
 			selected++
 		}
 	}
-	if selected != 38 {
+	if selected != 40 {
 		t.Fatalf("selected native method drift: %d", selected)
 	}
 	actual := OwnerBindings()
@@ -108,6 +108,27 @@ func TestOwnerBindingsIncludeTerminalAttachOnlyOnNativeSessionResource(t *testin
 	}
 	if !found {
 		t.Fatal("native terminal/attach omitted from owner policy")
+	}
+}
+
+func TestOwnerBindingsScopeSubagentHistoryToSessionResource(t *testing.T) {
+	// The native address resolves to the child session. An owner must be able
+	// to follow and page that resource without an unscoped grant.
+	required := map[string]bool{"session/follow": false, "session/page": false}
+	for _, binding := range OwnerBindings() {
+		for _, action := range binding.Actions {
+			if _, history := required[action]; history {
+				if binding.Resource.Kind != "session" {
+					t.Fatalf("%s granted on %s, want session only", action, binding.Resource.Kind)
+				}
+				required[action] = true
+			}
+		}
+	}
+	for action, found := range required {
+		if !found {
+			t.Errorf("%s is missing from the owner session grant", action)
+		}
 	}
 }
 

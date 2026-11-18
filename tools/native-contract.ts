@@ -7,6 +7,7 @@ import { TYPERT_REMOTE as uploads } from '@deepseek-ai/dsh-client-file-upload/re
 import { TYPERT_REMOTE as questions } from '@deepseek-ai/dsh-user-questions/remote'
 import { TYPERT_REMOTE as access } from '@deepseek-ai/dsh-api-remote-access/remote'
 import { TYPERT_REMOTE as terminal } from '@deepseek-ai/dsh-api-terminal-controller/remote'
+import { workspaceExportsRemote } from '../host/remote-control/src/workspace-exports.js'
 
 export const nativeVersion = '0.2.2-rc.1'
 export const nativeVersionRange = '>=0.2.2-0 <0.2.3-0'
@@ -34,7 +35,7 @@ export function nativeCompatibility(advertisedVersion: unknown): 'compatible' | 
 const productAccess = require('../contracts/typert/product-access.json') as { actions: Record<string, { selected: boolean }> }
 const selected = new Set(Object.entries(productAccess.actions).filter(([, policy]) => policy.selected).map(([action]) => action))
 export type NativeMethod = TypertRemoteMethod<object, unknown> | TypertRemoteMethod<object, unknown, 'stream', unknown>
-export const installedNativeMethods = Object.entries({ ...session.methods, ...workspace.methods, ...uploads.methods, ...questions.methods, ...access.methods, ...terminal.methods })
+export const installedNativeMethods = Object.entries({ ...session.methods, ...workspace.methods, ...uploads.methods, ...questions.methods, ...access.methods, ...terminal.methods, ...workspaceExportsRemote.methods })
   .sort(([a], [b]) => a.localeCompare(b, 'en')) as [string, NativeMethod][]
 export const nativeMethods = installedNativeMethods
   .filter(([key]) => selected.has(key))

@@ -79,6 +79,8 @@ func OwnerBindings() []GrantBinding {
 			"workspace/pinSession",
 			"workspace/unarchiveSession",
 			"workspace/unpinSession",
+			"workspaceExports/list",
+			"workspaceExports/read",
 			"event:api-session/status",
 			"event:api-session/activity",
 		}},

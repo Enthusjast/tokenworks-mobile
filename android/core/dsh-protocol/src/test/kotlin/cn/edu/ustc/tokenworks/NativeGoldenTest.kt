@@ -34,7 +34,7 @@ class NativeGoldenTest {
                 }
             }
         }
-        assertEquals(38, DshNativeRegistry.methods.size)
+        assertEquals(40, DshNativeRegistry.methods.size)
         assertEquals(DshNativeRegistry.methods.flatMap { (endpoint, entry) -> listOf("$endpoint:input", "$endpoint:result") + if (entry.method.uplink != null) listOf("$endpoint:uplink") else emptyList() }.toSet(), coverage)
         assertTrue(accepted > 0)
         assertTrue(rejected > 0)

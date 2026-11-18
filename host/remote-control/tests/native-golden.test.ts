@@ -15,7 +15,7 @@ const wire = JSON.parse(await readFile(new URL('wire-vectors.json', golden), 'ut
 
 test('golden coverage includes the input and result of every installed selected native method', () => {
   assertNativePackages()
-  assert.equal(nativeMethods.length, 38)
+  assert.equal(nativeMethods.length, 40)
   const covered = new Set(vectors.map(vector => `${vector.endpoint}:${vector.side}`))
   assert.deepEqual([...covered].sort(), nativeMethods.flatMap(([endpoint, method]) => [`${endpoint}:input`, `${endpoint}:result`, ...(method.uplink ? [`${endpoint}:uplink`] : [])]).sort())
   assert.ok(vectors.every(vector => vector.source === 'schema-generated'))
@@ -76,7 +76,7 @@ test('native numeric codecs retain every finite IEEE-754 number and reject nonfi
 test('recorded installed-native fixture calls are separate from schema-generated coverage', async () => {
   const capture = JSON.parse(await readFile(new URL('native-captured.json', golden), 'utf8')) as NativeCapture
   checkNativeCapture(capture)
-  assert.equal(new Set(capture.calls.map(call => call.endpoint)).size, 38)
+  assert.equal(new Set(capture.calls.map(call => call.endpoint)).size, nativeMethods.length)
   assert.equal(capture.notCaptured.length, 0)
   assert.equal(capture.execution.networkAttempts, 0)
   assert.ok(capture.calls.some(call => call.endpoint === 'userQuestions/answer' && call.results.some(result => result.present && result.value === true)))
@@ -87,7 +87,7 @@ test('recorded installed-native fixture calls are separate from schema-generated
 test('fresh isolated native providers execute the recorded endpoint matrix without user state', async () => {
   const capture = await captureNativeFixture()
   checkNativeCapture(capture)
-  assert.equal(new Set(capture.calls.map(call => call.endpoint)).size, 38)
+  assert.equal(new Set(capture.calls.map(call => call.endpoint)).size, nativeMethods.length)
   assert.equal(capture.notCaptured.length, 0)
   assert.ok(capture.calls.some(call => call.endpoint === 'workspace/initializeDefault' && call.results.some(result => !result.present)))
   assert.ok(capture.calls.some(call => call.endpoint === 'session/projections' && call.results.some(result => result.present && result.value === null)))

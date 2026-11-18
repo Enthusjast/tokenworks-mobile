@@ -3,6 +3,7 @@
   "dshVersion": "0.2.2-rc.1",
   "dshVersionRange": ">=0.2.2-0 <0.2.3-0",
   "endpoints": [
+    "fileReferences/list",
     "fileUploads/upload",
     "remoteAccess/follow",
     "session/attachment",
@@ -20,6 +21,7 @@
     "session/search",
     "session/selectModel",
     "session/updateQueue",
+    "skills/list",
     "terminal/attach",
     "terminal/close",
     "terminal/create",

@@ -36,7 +36,7 @@ export const productActions = {
       "session"
     ],
     "globalCall": false,
-    "selected": false
+    "selected": true
   },
   "fileUploads/upload": {
     "capability": "files.write",
@@ -265,7 +265,7 @@ export const productActions = {
       "session"
     ],
     "globalCall": false,
-    "selected": false
+    "selected": true
   },
   "terminal/attach": {
     "capability": "terminal.write",
@@ -438,6 +438,22 @@ export const productActions = {
     "globalCall": false,
     "selected": true
   },
+  "workspaceExports/list": {
+    "capability": "files.read",
+    "resources": [
+      "session"
+    ],
+    "globalCall": false,
+    "selected": false
+  },
+  "workspaceExports/read": {
+    "capability": "files.read",
+    "resources": [
+      "session"
+    ],
+    "globalCall": false,
+    "selected": false
+  },
   "event:approval/request": {
     "capability": "interaction.events",
     "resources": [
@@ -560,6 +576,8 @@ export const PRODUCT_OWNER_BINDINGS: readonly ProductBinding[] = [
       "workspace/pinSession",
       "workspace/unarchiveSession",
       "workspace/unpinSession",
+      "workspaceExports/list",
+      "workspaceExports/read",
       "event:api-session/status",
       "event:api-session/activity"
     ]

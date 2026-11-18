@@ -62,7 +62,7 @@ export async function assertProductAccessContract(value: unknown): Promise<Produ
   const endpoints = Object.keys(contract.actions).filter(action => !action.startsWith('event:')).sort()
   if (JSON.stringify(endpoints) !== JSON.stringify([...installed.keys()].sort())) throw new Error('Product access native method inventory drift')
   const selected = Object.entries(contract.actions).filter(([, policy]) => policy.selected).map(([action]) => action).sort()
-  if (selected.length !== 38 || JSON.stringify(selected) !== JSON.stringify(nativeMethods.map(([action]) => action).sort())) throw new Error('Product access selected native methods drift')
+  if (selected.length !== 40 || JSON.stringify(selected) !== JSON.stringify(nativeMethods.map(([action]) => action).sort())) throw new Error('Product access selected native methods drift')
   for (const [action, policy] of Object.entries(contract.actions)) {
     if (new Set(policy.resources).size !== policy.resources.length || (policy.globalCall && !policy.resources.includes('global'))) throw new Error(`Invalid product access resources: ${action}`)
     const descriptor = installed.get(action)
