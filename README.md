@@ -1,9 +1,9 @@
 # tokenworks-mobile
 
 TokenWorks Mobile 移动远程控制平台：进程内 Host 插件（dsh 原生适配器）、Go `/v2` 通用隧道，以及原生 Android dsh 客户端。
-手机直接说 dsh 的 Typert 协议（`/api`、`/api/remote.mux`、`$events`）；Host 插件只做认证与传输适配；Relay 只搬字节，不解析业务。
+手机直接说 dsh 的 Typert 协议（`/api`、`/api/remote.mux`、`$events`）；实时 Relay 只转发加密业务流，不解析原生调用。
 
-[连接与配对](docs/guide/01-connect.md) · [会话、审批与文件](docs/guide/02-sessions.md) · [故障排查](docs/guide/03-troubleshooting.md) · [安全说明](SECURITY.md) · [隐私与数据](PRIVACY.md)
+[连接与配对](docs/guide/01-connect.md) · [会话](docs/guide/02-sessions.md) · [故障排查](docs/guide/03-troubleshooting.md) · [审批](docs/guide/04-approvals.md) · [文件](docs/guide/05-files.md) · [终端](docs/guide/06-terminal.md) · [用量](docs/guide/07-usage.md) · [应用更新](docs/guide/08-updates.md) · [安全说明](SECURITY.md) · [隐私与数据](PRIVACY.md)
 
 ## 项目结构
 
@@ -12,7 +12,7 @@ TokenWorks Mobile 移动远程控制平台：进程内 Host 插件（dsh 原生�
 | [host/remote-control](host/remote-control/README.md) | Cordis 插件：认证 + 传输适配（RelayTunnel 隧道、NativeGateway 帧透传、NativeAccess 准入、LanGateway LAN 直连） |
 | [services/remote](services/remote/README.md) | Go `/v2` 通用隧道：设备认证、租约、路由配对与字节转发 |
 | [android](android/README.md) | 原生 Android dsh 客户端：unary/mux/`$events`/exact routes |
-| [contracts](contracts/) | dsh 原生 API 构建期类型快照（38 个方法，生成基线 `0.2.2-rc.1`） |
+| [contracts](contracts/) | dsh 原生 API 构建期类型快照（生成基线 `0.2.2-rc.1`） |
 | [deploy](deploy/) | v2 起点数据库基线与受控配置 |
 | [tools](tools/) | 本机开发、契约生成、发行构建 |
 | [docs](docs/README.md) | 指南与协议说明；v1 专题文档仅作历史参考 |
