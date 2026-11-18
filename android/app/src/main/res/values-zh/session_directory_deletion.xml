@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="directory_delete_permanently">永久删除</string>
+    <plurals name="directory_delete_confirm_title">
+        <item quantity="other">永久删除这 %d 个会话？</item>
+    </plurals>
+    <string name="directory_delete_explanation">这会从电脑上永久删除所选会话的历史记录，不会影响工作区文件、备份或已导出的副本。会话将逐个删除，删除后无法撤销。</string>
+    <string name="directory_delete_working">正在永久删除会话…</string>
+    <string name="directory_delete_result">已确认删除 %1$d 个，未确认 %2$d 个</string>
+    <string name="directory_delete_uncertain_result">已确认删除 %1$d 个，未确认 %2$d 个。电脑未确认其中一次删除，已停止批量操作，未重试。</string>
+</resources>

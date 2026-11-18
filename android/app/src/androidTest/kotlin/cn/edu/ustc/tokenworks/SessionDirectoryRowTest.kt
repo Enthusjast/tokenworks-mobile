@@ -9,6 +9,10 @@ import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsOn
+import androidx.compose.ui.test.assertIsEnabled
+import androidx.compose.ui.test.hasAnyAncestor
+import androidx.compose.ui.test.hasText
+import androidx.compose.ui.test.isDialog
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -40,6 +44,33 @@ class SessionDirectoryRowTest {
         } finally {
             context.deleteSharedPreferences(directoryPinFile(owner, runtime))
         }
+    }
+
+    @Test fun permanentDeletionRequiresHostAvailabilityAndExplicitConfirmation() {
+        val available = mutableStateOf(false)
+        val dialog = mutableStateOf(false)
+        var confirmed = 0
+        val resources = rule.activity.resources
+        val delete = resources.getString(R.string.directory_delete_permanently)
+        rule.setContent {
+            TokenWorksTheme {
+                DirectorySelectionBar(2, busy = false, canSubmit = true, archive = false, cancel = {}, submit = {},
+                    deleting = false, delete = if (available.value) ({ dialog.value = true }) else null)
+                if (dialog.value) DirectoryDeleteConfirmation(2, dismiss = { dialog.value = false },
+                    confirm = { confirmed++; dialog.value = false })
+            }
+        }
+        rule.onNodeWithText(delete).assertDoesNotExist()
+        rule.onNodeWithText(resources.getString(R.string.directory_restore)).assertIsEnabled()
+        rule.runOnIdle { available.value = true }
+        rule.onNodeWithText(delete).performClick()
+        rule.onNodeWithText(resources.getQuantityString(R.plurals.directory_delete_confirm_title, 2, 2)).assertIsDisplayed()
+        rule.onNodeWithText(resources.getString(R.string.directory_delete_explanation)).assertIsDisplayed()
+        rule.onNodeWithText(resources.getString(R.string.action_cancel)).performClick()
+        rule.runOnIdle { assertEquals(0, confirmed) }
+        rule.onNodeWithText(delete).performClick()
+        rule.onNode(hasText(delete) and hasAnyAncestor(isDialog())).performClick()
+        rule.runOnIdle { assertEquals(1, confirmed) }
     }
 
     @Test fun twoSwipeDirectionsAndSemanticActionsLeaveTheRowInPlace() {

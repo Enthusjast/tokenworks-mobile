@@ -5,6 +5,8 @@ import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -17,6 +19,7 @@ import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.*
 import androidx.compose.ui.state.ToggleableState
@@ -150,10 +153,17 @@ internal fun SessionDirectoryRow(
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-internal fun DirectorySelectionBar(count: Int, busy: Boolean, canSubmit: Boolean, archive: Boolean, cancel: () -> Unit, submit: () -> Unit) {
+internal fun DirectorySelectionBar(
+    count: Int, busy: Boolean, canSubmit: Boolean, archive: Boolean, cancel: () -> Unit, submit: () -> Unit,
+    deleting: Boolean, delete: (() -> Unit)?,
+) {
     Surface(color = MaterialTheme.colorScheme.surfaceContainer) {
         Column(Modifier.fillMaxWidth().padding(horizontal = TokenWorksSpacing.md, vertical = TokenWorksSpacing.sm)) {
-            Text(if (busy) stringResource(R.string.directory_archive_working) else stringResource(R.string.directory_selection_count, count),
+            Text(when {
+                deleting -> stringResource(R.string.directory_delete_working)
+                busy -> stringResource(R.string.directory_archive_working)
+                else -> stringResource(R.string.directory_selection_count, count)
+            },
                 Modifier.semantics { liveRegion = LiveRegionMode.Polite }, style = MaterialTheme.typography.titleSmall)
             FlowRow(horizontalArrangement = Arrangement.spacedBy(TokenWorksSpacing.sm)) {
                 TextButton(cancel, enabled = !busy, modifier = Modifier.heightIn(min = TokenWorksSpacing.minimumTouchTarget)) {
@@ -162,10 +172,36 @@ internal fun DirectorySelectionBar(count: Int, busy: Boolean, canSubmit: Boolean
                 FilledTonalButton(submit, enabled = canSubmit && !busy, modifier = Modifier.heightIn(min = TokenWorksSpacing.minimumTouchTarget)) {
                     Text(stringResource(if (archive) R.string.directory_archive_action else R.string.directory_restore))
                 }
+                if (delete != null) TextButton(delete, enabled = !busy,
+                    modifier = Modifier.heightIn(min = TokenWorksSpacing.minimumTouchTarget),
+                    colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)) {
+                    Text(stringResource(R.string.directory_delete_permanently))
+                }
             }
             if (count > 0 && !canSubmit && !busy) Text(stringResource(R.string.directory_selection_blocked), style = MaterialTheme.typography.bodySmall)
         }
     }
+}
+
+@Composable
+internal fun DirectoryDeleteConfirmation(count: Int, dismiss: () -> Unit, confirm: () -> Unit) {
+    val colors = MaterialTheme.colorScheme
+    AlertDialog(
+        onDismissRequest = dismiss,
+        title = { Text(pluralStringResource(R.plurals.directory_delete_confirm_title, count, count)) },
+        text = { Text(stringResource(R.string.directory_delete_explanation), Modifier.verticalScroll(rememberScrollState())) },
+        dismissButton = {
+            TextButton(dismiss, modifier = Modifier.heightIn(min = TokenWorksSpacing.minimumTouchTarget)) {
+                Text(stringResource(R.string.action_cancel))
+            }
+        },
+        confirmButton = {
+            Button(confirm, modifier = Modifier.heightIn(min = TokenWorksSpacing.minimumTouchTarget),
+                colors = ButtonDefaults.buttonColors(containerColor = colors.error, contentColor = colors.onError)) {
+                Text(stringResource(R.string.directory_delete_permanently))
+            }
+        },
+    )
 }
 
 @Composable

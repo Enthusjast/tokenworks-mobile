@@ -85,6 +85,30 @@ class RtcConnectionSelectorTest {
             assertEquals(1, relay.calls)
         }
     }
+
+    @Test fun optionalDeletionRefusalsKeepTheCurrentCarrierWithoutReplaying() = runBlocking {
+        val lan = Candidate(DshTransportPath.LAN)
+        val relay = Candidate(DshTransportPath.RELAY)
+        ConnectionSelector(listOf(lan, relay), installation).use { selector ->
+            selector.native("session/list", jsonObject())
+            val selected = selector.state.value
+            val unsupported = DshFailure("gateway/invocation-unavailable")
+            lan.callFailure = unsupported
+            assertSame(unsupported, runCatching { selector.native("sessionDeletion/status", jsonObject()) }.exceptionOrNull())
+            assertEquals(selected, selector.state.value)
+            val unconfirmed = DshFailure("session-deletion/outcome-unknown")
+            lan.callFailure = unconfirmed
+            selector.connect().use { owned ->
+                assertSame(unconfirmed, runCatching { owned.native("sessionDeletion/delete", jsonObject()) }.exceptionOrNull())
+            }
+            assertEquals(selected, selector.state.value)
+            assertEquals(0, relay.calls)
+            val revoked = DshFailure("gateway/forbidden")
+            lan.callFailure = revoked
+            assertSame(revoked, runCatching { selector.native("sessionDeletion/status", jsonObject()) }.exceptionOrNull())
+            assertEquals(DshTransportPhase.REVOKED, selector.state.value.phase)
+        }
+    }
     @Test fun readRetriesButPartialDownloadNeverAppendsFromAnotherCarrier() = runBlocking {
         val p2p = Candidate(DshTransportPath.P2P).apply { callFailure = RemoteRequestException("network.unavailable") }
         val relay = Candidate(DshTransportPath.RELAY)

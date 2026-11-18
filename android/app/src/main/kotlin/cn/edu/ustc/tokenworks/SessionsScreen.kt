@@ -26,6 +26,7 @@ import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
@@ -53,6 +54,15 @@ private fun SessionDirectoryScreen(state: HomeState, model: HomeViewModel, modif
     val lifecycle = LocalLifecycleOwner.current.lifecycle
     val lifecycleState by lifecycle.currentStateFlow.collectAsState()
     val started = lifecycleState.isAtLeast(Lifecycle.State.STARTED)
+    var deletionLifecycleVersion by remember(lifecycle) { mutableIntStateOf(0) }
+    DisposableEffect(lifecycle) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_STOP) deletionLifecycleVersion++
+        }
+        lifecycle.addObserver(observer)
+        onDispose { lifecycle.removeObserver(observer) }
+    }
+    val deletionEpoch = deletionLifecycleVersion
     val haptic = LocalHapticFeedback.current
     val keyboard = LocalSoftwareKeyboardController.current
     val activeRoute by model.activeTransport.collectAsState()
@@ -95,7 +105,22 @@ private fun SessionDirectoryScreen(state: HomeState, model: HomeViewModel, modif
     var confirmation by remember(route, generation, runtime?.access) { mutableStateOf<ArchiveConfirmation?>(null) }
     var mutating by remember { mutableStateOf(false) }
     var refreshVersion by remember { mutableIntStateOf(0) }
+    var deleting by remember { mutableStateOf(false) }
+    var deletionRefreshPending by remember { mutableStateOf(false) }
     fun refresh() { directory.retry(); refreshVersion++; model.refreshSessions() }
+    fun sameDirectory(): HomeState? = model.state.value.takeIf {
+        owner != null && runtimeId != null && it.phase == HomePhase.READY && it.presentationOwner?.fingerprint == owner &&
+            it.selectedRuntimeId == runtimeId && it.lanOnly == state.lanOnly
+    }
+    fun mayRefreshDeletion(): Boolean = lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED) &&
+        sameDirectory()?.let { !it.backgroundReadOnly && !it.refreshing } == true
+    // Reconcile with session/list even after a failed transport generation; never infer rows from an ACK.
+    LaunchedEffect(deletionRefreshPending, started, state.backgroundReadOnly, state.refreshing, state.phase) {
+        if (deletionRefreshPending && mayRefreshDeletion()) {
+            refresh()
+            deletionRefreshPending = false
+        }
+    }
     fun clearSelection() { selecting = false; selection = emptySet() }
     fun switch(next: DirectoryPage) { clearSelection(); query = ""; filter = DirectoryFilter.ALL; page = next; keyboard?.hide() }
     fun select(id: String) { if (!mutating) { selecting = true; selection = if (id in selection) selection - id else selection + id } }
@@ -145,6 +170,58 @@ private fun SessionDirectoryScreen(state: HomeState, model: HomeViewModel, modif
             catch (error: Exception) { context.getString(R.string.session_action_error, homeErrorCode(error)) }
             finally { mutating = false }
             if (message != null) snackbar.showSnackbar(message)
+        }
+    }
+
+    fun deletionCurrent(): Boolean = deletionEpoch == deletionLifecycleVersion && page == DirectoryPage.ARCHIVED &&
+        selecting && !deletionRefreshPending && current(write = true)?.let { !it.loadingSessions && it.sessionError == null } == true
+    fun mayDelete(id: String): Boolean {
+        val row = model.state.value.sessions.firstOrNull { it.id == id } ?: return false
+        val baseline = directory.snapshot ?: return false
+        return id in selection && !directory.busy && directory.problem == null &&
+            directoryDeletionEligible(row, baseline.archivedSessionIds, access)
+    }
+    val deletionTargets = selection.takeIf {
+        !mutating && ready && started && !expired && !state.backgroundReadOnly && !state.loadingSessions && state.sessionError == null &&
+            it.isDirectoryDeletionBatch() && deletionCurrent() && it.all(::mayDelete)
+    }
+    val hostAllowsDeletion = remember(route, generation, runtime?.access, deletionTargets, lifecycle, deletionEpoch, refreshVersion) {
+        mutableStateOf(false)
+    }
+    LaunchedEffect(hostAllowsDeletion) {
+        val ids = deletionTargets ?: return@LaunchedEffect
+        val sentRoute = route ?: return@LaunchedEffect
+        delay(220) // Coalesce taps while building the selection.
+        hostAllowsDeletion.value = probeDirectoryDeletion(ids,
+            { !mutating && deletionCurrent() && selection == ids }, ::mayDelete, sentRoute::native)
+    }
+    var deleteConfirmation by remember(hostAllowsDeletion) { mutableStateOf(false) }
+    fun mayConfirmDeletion(ids: Set<String>): Boolean = !mutating && hostAllowsDeletion.value &&
+        deletionCurrent() && selection == ids && ids.all(::mayDelete)
+    fun deleteConfirmed(ids: Set<String>) {
+        val sentRoute = route ?: return
+        if (!mayConfirmDeletion(ids)) return
+        deleteConfirmation = false
+        deleting = true
+        runAction {
+            try {
+                if (!deletionCurrent() || selection != ids) return@runAction null
+                val outcome = sentRoute.connect().use { connection ->
+                    runDirectoryDeletion(ids, { deletionCurrent() && selection == ids }, ::mayDelete, connection::native)
+                }
+                val live = sameDirectory() ?: return@runAction null
+                selection = selection - outcome.confirmed
+                if (selection.isEmpty()) clearSelection()
+                if (live.selectedSessionId in outcome.confirmed) model.closeSession()
+                if (deletionEpoch != deletionLifecycleVersion || !lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)) return@runAction null
+                if (outcome.confirmed.size == ids.size) haptic.performHapticFeedback(HapticFeedbackType.Confirm)
+                context.getString(if (outcome.uncertain) R.string.directory_delete_uncertain_result else R.string.directory_delete_result,
+                    outcome.confirmed.size, ids.size - outcome.confirmed.size)
+            } finally {
+                // Run the read even if navigating away cancelled this composition’s batch.
+                if (mayRefreshDeletion()) refresh() else deletionRefreshPending = true
+                deleting = false
+            }
         }
     }
 
@@ -318,7 +395,10 @@ private fun SessionDirectoryScreen(state: HomeState, model: HomeViewModel, modif
                 }
                 if (selecting) DirectorySelectionBar(selection.size, mutating,
                     selection.isNotEmpty() && selection.all { mayArchive(it, !archivedPage) }, !archivedPage,
-                    cancel = ::clearSelection, submit = { askArchive(selection, !archivedPage) })
+                    cancel = ::clearSelection, submit = { askArchive(selection, !archivedPage) }, deleting = deleting,
+                    delete = deletionTargets?.takeIf { hostAllowsDeletion.value }?.let { ids ->
+                        { if (mayConfirmDeletion(ids)) { keyboard?.hide(); deleteConfirmation = true } }
+                    })
             }
         }
         SnackbarHost(snackbar, Modifier.align(Alignment.BottomCenter).padding(TokenWorksSpacing.md))
@@ -352,6 +432,10 @@ private fun SessionDirectoryScreen(state: HomeState, model: HomeViewModel, modif
                 }
             }, enabled = !mutating && target.ids.all { mayArchive(it, target.archive) }) { Text(operation) } },
             dismissButton = { TextButton({ confirmation = null }) { Text(stringResource(R.string.action_cancel)) } })
+    }
+    val deleteIds = deletionTargets
+    if (deleteConfirmation && deleteIds != null && hostAllowsDeletion.value) {
+        DirectoryDeleteConfirmation(deleteIds.size, dismiss = { deleteConfirmation = false }, confirm = { deleteConfirmed(deleteIds) })
     }
     renameId?.let { id ->
         AlertDialog(onDismissRequest = { renameId = null }, title = { Text(stringResource(R.string.session_rename)) },

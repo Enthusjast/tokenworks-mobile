@@ -22,7 +22,7 @@ internal class EncryptedRoute(
     override val state: StateFlow<DshTransportState> = mutable.asStateFlow()
     private fun live() { if (ended.get() || !valid()) throw DshFailure("transport/changed"); client.live() }
     val retired: Boolean get() = ended.get() || client.retired
-    private suspend fun <T> operation(discard: (T) -> Unit = {}, block: suspend () -> T): T {
+    private suspend fun <T> operation(discard: (T) -> Unit = {}, endpoint: String? = null, block: suspend () -> T): T {
         val context = currentCoroutineContext()
         context.ensureActive()
         live()
@@ -34,6 +34,7 @@ internal class EncryptedRoute(
         } catch (cancelled: CancellationException) { throw cancelled }
         catch (error: Exception) {
             context.ensureActive()
+            if (isSessionDeletionRefusal(endpoint, error)) { live(); throw error }
             val failure = routeFailure(path, error)
             mutable.value = if (ended.get()) DshTransportState(path, DshTransportPhase.CLOSED) else failure
             if (failure.phase == DshTransportPhase.REVOKED || failure.phase == DshTransportPhase.AUTH_REQUIRED) client.close()
@@ -42,7 +43,7 @@ internal class EncryptedRoute(
         }
     }
     suspend fun probe() = operation { client.probe() }
-    override suspend fun native(endpoint: String, args: JsonObject): JsonValue = operation { client.native(endpoint, args) }
+    override suspend fun native(endpoint: String, args: JsonObject): JsonValue = operation(endpoint = endpoint) { client.native(endpoint, args) }
     override suspend fun openMux(): DshMux = operation(DshMux::close) { client.openMux() }
     override suspend fun download(path: String, sink: OutputStream, maxBytes: Long, range: DshByteRange?): DshDownload = operation { client.download(path, sink, maxBytes, range) }
     override suspend fun upload(path: String, mediaType: String, source: InputStream, sizeBytes: Long): JsonValue = operation { client.upload(path, mediaType, source, sizeBytes) }
@@ -64,6 +65,17 @@ internal class EncryptedRoute(
         }
     }
     override fun close() { if (ended.compareAndSet(false, true)) { client.close(); mutable.value = DshTransportState(path, DshTransportPhase.CLOSED) } }
+}
+
+/** Optional feature replies are not carrier failures. Authentication and I/O still fail closed. */
+internal fun isSessionDeletionRefusal(endpoint: String?, error: Exception): Boolean {
+    if (endpoint != "sessionDeletion/status" && endpoint != "sessionDeletion/delete" || error !is DshFailure) return false
+    return when (error.code) {
+        "session-deletion/unavailable", "session-deletion/outcome-unknown", "gateway/invocation-unavailable",
+        "gateway/definition-unavailable", "gateway/method-unavailable", "gateway/service-unavailable" -> true
+        "gateway/unsupported" -> endpoint == "sessionDeletion/status"
+        else -> false
+    }
 }
 
 internal fun routeFailure(path: DshTransportPath, error: Exception): DshTransportState {

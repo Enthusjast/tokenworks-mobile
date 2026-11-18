@@ -11,6 +11,9 @@ internal class SessionDirectoryAccess(private val lanOwner: Boolean, private val
     fun write(endpoint: String, id: String): Boolean = lanOwner ||
         (grant?.role in setOf("owner", "operator") && granted(endpoint, id, listing = false))
 
+    fun mayDelete(id: String): Boolean = (lanOwner || grant?.role == "owner") &&
+        read("session/follow", id) && write("workspace/unarchiveSession", id)
+
     private fun granted(endpoint: String, id: String?, listing: Boolean): Boolean {
         val activeGrant = grant ?: return false
         if (activeGrant.expiresAt?.let { it <= System.currentTimeMillis() } == true) return false
@@ -24,6 +27,10 @@ internal class SessionDirectoryAccess(private val lanOwner: Boolean, private val
         }
     }
 }
+
+/** Inherited archive visibility is not native archive membership for a deletion target. */
+internal fun directoryDeletionEligible(row: SessionDirectoryEntry, archivedIds: List<String>, access: SessionDirectoryAccess): Boolean =
+    row.parentSessionId == null && !row.running && row.id in archivedIds && access.mayDelete(row.id)
 
 /** Local metadata and native content results share the same authorized set of session IDs. */
 internal fun sessionDirectorySearch(

@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources xmlns:tools="http://schemas.android.com/tools" tools:locale="en">
+    <string name="directory_delete_permanently">Delete permanently</string>
+    <plurals name="directory_delete_confirm_title">
+        <item quantity="one">Permanently delete %d session?</item>
+        <item quantity="other">Permanently delete %d sessions?</item>
+    </plurals>
+    <string name="directory_delete_explanation">This permanently removes the selected session history from the host. Workspace files, backups, and exported copies are not affected. Each session is deleted separately. This cannot be undone.</string>
+    <string name="directory_delete_working">Deleting sessions permanently…</string>
+    <string name="directory_delete_result">Deletion confirmed: %1$d · Not confirmed: %2$d</string>
+    <string name="directory_delete_uncertain_result">Deletion confirmed: %1$d · Not confirmed: %2$d. The host did not confirm one deletion, so the batch stopped without retrying.</string>
+</resources>

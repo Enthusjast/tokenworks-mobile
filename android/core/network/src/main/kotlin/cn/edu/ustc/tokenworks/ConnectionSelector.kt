@@ -153,22 +153,24 @@ class ConnectionSelector(
             throw error
         }
     }
-    private suspend fun <T> operation(retryRead: Boolean, discard: (T) -> Unit = {}, block: suspend (Selection) -> T): T {
+    private suspend fun <T> operation(retryRead: Boolean, discard: (T) -> Unit = {}, endpoint: String? = null, block: suspend (Selection) -> T): T {
         while (true) {
             val pick = selection()
             try { return dispatch(pick, discard) { block(pick) } }
-            catch (error: Exception) { if (!failed(pick, error) || !retryRead) throw error }
+            catch (error: Exception) {
+                if (isSessionDeletionRefusal(endpoint, error) || !failed(pick, error) || !retryRead) throw error
+            }
         }
     }
     override suspend fun native(endpoint: String, args: JsonObject): JsonValue =
-        operation(endpoint in READ_ONLY_UNARY) { it.route.native(endpoint, args) }
+        operation(endpoint in READ_ONLY_UNARY, endpoint = endpoint) { it.route.native(endpoint, args) }
     override suspend fun openMux(): DshMux = operation(true, DshMux::close) { it.route.openMux() }
     override suspend fun connect(): DshConnection = operation(true, DshConnection::close) { pick ->
         val owned = pick.route.connect()
         object : DshConnection {
             override suspend fun native(endpoint: String, args: JsonObject): JsonValue {
                 try { return dispatch(pick, {}) { owned.native(endpoint, args) } }
-                catch (error: Exception) { failed(pick, error); throw error }
+                catch (error: Exception) { if (!isSessionDeletionRefusal(endpoint, error)) failed(pick, error); throw error }
             }
             override suspend fun openMux(): DshMux {
                 try { return dispatch(pick, DshMux::close) { owned.openMux() } }
