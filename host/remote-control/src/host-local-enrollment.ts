@@ -3,6 +3,7 @@ import { closeSync, constants, fstatSync, openSync } from 'node:fs'
 import { createInterface } from 'node:readline'
 import { setTimeout as delay } from 'node:timers/promises'
 import { ReadStream, WriteStream, isatty } from 'node:tty'
+import QRCode from 'qrcode'
 import { z } from 'zod'
 import { captureEnrollmentBinding, type HostEnrollmentApprovalReview, type HostEnrollmentBinding, type HostEnrollmentClient, type HostEnrollmentIntent, type HostEnrollmentReceipt } from './host-enrollment.js'
 import type { HostEnrollmentBindingStore } from './host-enrollment-binding.js'
@@ -143,13 +144,16 @@ export async function presentHostEnrollmentOnTerminal(client: HostEnrollmentClie
   const record = captureEnrollmentBinding(client, attempt, receipt)
   if (!['pending', 'user_confirmed'].includes(receipt.details.state) || Date.parse(receipt.details.expires_at) <= Date.now()) throw failure('expired')
   const pairingCode = attempt.code
+  // This handoff contains only the same one-time facts already displayed on the controlling TTY.
+  const qr = await QRCode.toString(JSON.stringify({ type: 'tokenworks.binding.v1', id: record.enrollment_id, code: pairingCode }),
+    { type: 'terminal', small: true, errorCorrectionLevel: 'M' })
   const lifetime = AbortSignal.any([signal, client.signal, AbortSignal.timeout(5_000)])
   const text = [
     '\nTokenWorks Mobile绑定申请（仅在可信本机终端展示）',
     `组织 ID: ${record.organization_id}`, `主机 ID: ${record.host_id}`, `安装实例 ID: ${record.installation_id}`,
     `运行实例 ID: ${record.runtime_id}`, `Profile: ${literal(record.profile_ref)}`, `安装公钥指纹: ${record.installation_key_jkt}`,
     `登记 ID: ${record.enrollment_id}`, `配对码: ${pairingCode}`, `有效期至: ${record.expires_at}`,
-    '请在手机上核对主机与指纹并确认；本机随后仍需单独核对用户。', '',
+    '请使用手机扫码或手动输入登记 ID 和配对码。核对主机与指纹后确认；本机仍须单独核对用户。', '', qr, '',
   ].join('\n')
   await withTerminal(lifetime, async terminal => { await writeTerminal(terminal.output, text, lifetime) })
 }
